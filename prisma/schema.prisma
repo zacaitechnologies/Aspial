@@ -45,3 +45,29 @@ model User {
 
   @@map("user")
 }
+
+model Services {
+  id          String     @id @default(cuid())
+  name        String
+  description String
+  basePrice   Float
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @default(now())
+  quotation   Quotation? @relation("QuotationServices", fields: [quotationId], references: [id])
+  quotationId String?
+
+  @@map("services")
+}
+
+model Quotation {
+  id          String     @id @default(cuid())
+  name        String
+  description String
+  basePrice   Float
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @default(now())
+  services    Services[] @relation("QuotationServices")
+  status      String     @default("draft") // "draft" | "sent" | "accepted" | "rejected"
+
+  @@map("quotations")
+}
