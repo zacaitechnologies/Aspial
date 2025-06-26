@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   BarChart3,
@@ -11,7 +11,7 @@ import {
   TrendingUp,
   Bell,
   HelpCircle,
-} from "lucide-react"
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -25,12 +25,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
 const mainNavItems = [
   {
-    title: "Dashboard",
-    url: "#",
+    title: "Sales",
+    url: "/sales",
     icon: Home,
     isActive: true,
   },
@@ -54,7 +54,7 @@ const mainNavItems = [
     url: "#",
     icon: FileText,
   },
-]
+];
 
 const businessItems = [
   {
@@ -67,7 +67,7 @@ const businessItems = [
     url: "#",
     icon: Building2,
   },
-]
+];
 
 export function AppSidebar() {
   return (
@@ -86,7 +86,9 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-slate-600 font-medium">Main Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-slate-600 font-medium">
+            CRM
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
@@ -110,12 +112,17 @@ export function AppSidebar() {
         <SidebarSeparator className="my-4" />
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-slate-600 font-medium">Business Intelligence</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-slate-600 font-medium">
+            Business Intelligence
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {businessItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild className="transition-all duration-150 ease-out hover:bg-slate-100">
+                  <SidebarMenuButton
+                    asChild
+                    className="transition-all duration-150 ease-out hover:bg-slate-100"
+                  >
                     <a href={item.url} className="flex items-center gap-3">
                       <item.icon className="w-5 h-5" />
                       <span className="font-medium">{item.title}</span>
@@ -157,5 +164,5 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
