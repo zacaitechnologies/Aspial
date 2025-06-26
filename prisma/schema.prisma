@@ -15,9 +15,33 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Role {
+  id    String     @id @default(cuid())
+  slug  String     @unique // "admin" | "member"
+  users UserRole[]
+
+  @@map("role")
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id])
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_role")
+}
+
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
+  id          String     @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String
+  userRoles   UserRole[]
+  supabase_id String     @unique
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @default(now())
+
+  @@map("user")
 }
