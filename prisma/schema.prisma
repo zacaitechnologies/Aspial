@@ -42,6 +42,157 @@ model User {
   supabase_id String     @unique
   created_at  DateTime   @default(now())
   updated_at  DateTime   @default(now())
+  calendarEvents CalendarEvent[] @relation("UserCalendarEvents")
 
   @@map("user")
+}
+
+model Client {
+  id          String     @id @default(cuid())
+  name        String
+  company     String?
+  email       String     @unique
+  phone       String?
+  address     String?
+  notes       String?
+  projects    Project[]
+  subscriptions Subscription[]
+  quotations  Quotation[]
+  invoices    Invoice[]
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("clients")
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  title        String
+  description  String?
+  deadline     DateTime
+  status       String        @default("pending") // "pending" | "active" | "completed" | "cancelled"
+  client       Client        @relation(fields: [clientId], references: [id])
+  clientId     String
+  milestones   Milestone[]
+  calendarEvents CalendarEvent[]
+  services     Service[]
+  subscription Subscription?
+  quotations   Quotation[]
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@map("projects")
+}
+
+model Milestone {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  dueDate     DateTime   @map("due_date")
+  isCompleted Boolean    @default(false) @map("is_completed")
+  project     Project    @relation(fields: [projectId], references: [id])
+  projectId   String
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("milestones")
+}
+
+model CalendarEvent {
+  id           String     @id @default(cuid())
+  title        String
+  description  String?
+  type         String     // "appointment" | "shooting" | "meeting"
+  startDate    DateTime   @map("start_date")
+  endDate      DateTime   @map("end_date")
+  location     String?
+  project      Project?   @relation(fields: [projectId], references: [id])
+  projectId    String?
+  participants User[]     @relation("UserCalendarEvents")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("calendar_events")
+}
+
+model Subscription {
+  id           String     @id @default(cuid())
+  startDate    DateTime   @map("start_date")
+  endDate      DateTime   @map("end_date")
+  isActive     Boolean    @default(true) @map("is_active")
+  client       Client     @relation(fields: [clientId], references: [id])
+  clientId     String
+  packageType  PackageType @relation(fields: [packageTypeId], references: [id])
+  packageTypeId String
+  project      Project?   @relation(fields: [projectId], references: [id])
+  projectId    String?    @unique
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+model PackageType {
+  id          String     @id @default(cuid())
+  name        String     // "Basic" | "Premium" | "Enterprise"
+  description String?
+  price       Float
+  duration    Int        // in days
+  services    Service[]
+  subscriptions Subscription[]
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("package_types")
+}
+
+model Service {
+  id          String       @id @default(cuid())
+  name        String       // "Branding" | "Consulting" | "Video Production"
+  description String?
+  basePrice   Float        @map("base_price")
+  packageTypes PackageType[]
+  projects    Project[]
+  quotations  Quotation[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("services")
+}
+
+model Quotation {
+  id            String     @id @default(cuid())
+  title         String
+  description   String?
+  status        String     @default("draft") // "draft" | "sent" | "accepted" | "rejected"
+  discount      Float      @default(0)
+  validUntil    DateTime   @map("valid_until")
+  client        Client     @relation(fields: [clientId], references: [id])
+  clientId      String
+  project       Project?   @relation(fields: [projectId], references: [id])
+  projectId     String?
+  services      Service[]
+  invoice       Invoice?
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  @@map("quotations")
+}
+
+model Invoice {
+  id           String     @id @default(cuid())
+  number       String     @unique
+  issueDate    DateTime   @map("issue_date")
+  dueDate      DateTime   @map("due_date")
+  taxAmount    Float      @default(0) @map("tax_amount")
+  totalAmount  Float      @map("total_amount")
+  status       String     @default("unpaid") // "unpaid" | "paid" | "cancelled"
+  quotation    Quotation? @relation(fields: [quotationId], references: [id])
+  quotationId  String?    @unique
+  client       Client     @relation(fields: [clientId], references: [id])
+  clientId     String
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("invoices")
 }
