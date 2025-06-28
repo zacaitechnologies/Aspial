@@ -47,20 +47,20 @@ model User {
 }
 
 model Services {
-  id          String     @id @default(cuid())
+  id           Int        @id @default(autoincrement())
   name        String
   description String
   basePrice   Float
   created_at  DateTime   @default(now())
   updated_at  DateTime   @default(now())
   quotation   Quotation? @relation("QuotationServices", fields: [quotationId], references: [id])
-  quotationId String?
+  quotationId Int?
 
   @@map("services")
 }
 
 model Quotation {
-  id          String     @id @default(cuid())
+  id           Int        @id @default(autoincrement())
   name        String
   description String
   basePrice   Float
