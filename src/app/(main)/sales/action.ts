@@ -32,7 +32,7 @@ export async function editServiceById(
   try {
     const data = await prisma.services.update({
       where: {
-        id: serviceId,
+        id: parseInt(serviceId),
       },
       data: updatedFields,
     });
@@ -47,12 +47,36 @@ export async function deleteServiceById(serviceId: string) {
   try {
     const data = await prisma.services.delete({
       where: {
-        id: serviceId,
+        id: parseInt(serviceId),
       },
     });
     return data;
   } catch (error) {
     console.error("Error deleting itinerary:", error);
     throw new Error("Failed to delete itinerary");
+  }
+}
+
+export async function createQuotation(quotation: {
+  name: string;
+  description: string;
+  totalPrice: number;
+  serviceIds: string[];
+}) {
+  try {
+    const { serviceIds, ...quotationData } = quotation;
+    
+    const data = await prisma.quotation.create({
+      data: {
+        ...quotationData,
+        services: {
+          connect: serviceIds.map(id => ({ id: parseInt(id) }))
+        }
+      },
+    });
+    return data;
+  } catch (error) {
+    console.error("Error creating quotation:", error);
+    throw new Error("Failed to create quotation");
   }
 }
