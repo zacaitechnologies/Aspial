@@ -63,7 +63,7 @@ model Quotation {
   id           Int        @id @default(autoincrement())
   name        String
   description String
-  basePrice   Float
+  totalPrice   Float
   created_at  DateTime   @default(now())
   updated_at  DateTime   @default(now())
   services    Services[] @relation("QuotationServices")
