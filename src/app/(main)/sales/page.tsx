@@ -8,8 +8,11 @@ import {
   editServiceById,
   deleteServiceById,
   createQuotation,
+  getAllQuotations,
+  editQuotationById,
+  deleteQuotationById,
 } from "./action";
-import { Services } from "@prisma/client";
+import { Quotation, Services } from "@prisma/client";
 import { useState, useEffect } from "react";
 import {
   Sheet,
@@ -27,6 +30,7 @@ export default function Sales() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateQuotationOpen, setCreateQuotationOpen] = useState(false);
   const [totalPrice, setTotalPrice] = useState(0);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
 
   // Service Form
   const [serviceForm, setServiceForm] = useState({
@@ -47,19 +51,36 @@ export default function Sales() {
 
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
 
+  // Quotation Edit State
+  const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null);
+  const [quotationEditForm, setQuotationEditForm] = useState({
+    name: "",
+    description: "",
+    totalPrice: "",
+    status: "",
+  });
+  const [isEditQuotationModalOpen, setIsEditQuotationModalOpen] = useState(false);
+
   useEffect(() => {
-    const fetchServices = async () => {
+    const fetchServicesAndQuotations = async () => {
       try {
-        const data = await getAllServices();
-        setServices(data);
+        // const [servicesData, quotationsData] = await Promise.all([
+        //   getAllServices(),
+        //   getAllQuotations(),
+        // ]);
+
+        const servicesData = await getAllServices();
+        const quotationsData = await getAllQuotations();
+        setServices(servicesData);
+        setQuotations(quotationsData);
       } catch (error) {
-        console.error("Failed to fetch services:", error);
+        console.error("Failed to fetch services or quotations:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchServices();
+    fetchServicesAndQuotations();
   }, []);
 
   const handleChange = (
@@ -141,7 +162,7 @@ export default function Sales() {
   };
 
   if (loading) {
-    return <div>Loading services...</div>;
+    return <div>Loading services and quotations...</div>;
   }
 
   const handleCheckboxChange = (serviceId: string) => {
@@ -196,180 +217,340 @@ export default function Sales() {
     try {
       await createQuotation(updatedQuotation);
       console.log("Quotation created successfully");
+      const updatedQuotations = await getAllQuotations();
+      setQuotations(updatedQuotations);
     } catch (error) {
       console.error("Error creating quotation:", error);
     }
   };
 
+  // Quotation Handlers
+  const handleEditQuotation = (quotation: Quotation) => {
+    setEditingQuotation(quotation);
+    setQuotationEditForm({
+      name: quotation.name,
+      description: quotation.description,
+      totalPrice: quotation.totalPrice.toString(),
+      status: quotation.status,
+    });
+    setIsEditQuotationModalOpen(true);
+  };
+
+  const handleUpdateQuotation = async () => {
+    if (!editingQuotation) return;
+    const totalPrice = parseFloat(quotationEditForm.totalPrice);
+    if (!quotationEditForm.name || !quotationEditForm.description || isNaN(totalPrice)) {
+      alert("Please fill all fields correctly.");
+      return;
+    }
+    try {
+      await editQuotationById(editingQuotation.id.toString(), {
+        name: quotationEditForm.name,
+        description: quotationEditForm.description,
+        totalPrice,
+        status: quotationEditForm.status,
+      });
+      const updatedQuotations = await getAllQuotations();
+      setQuotations(updatedQuotations);
+      setEditingQuotation(null);
+      setIsEditQuotationModalOpen(false);
+    } catch (error) {
+      console.error("Error updating quotation:", error);
+    }
+  };
+
+  const handleCancelEditQuotation = () => {
+    setEditingQuotation(null);
+    setIsEditQuotationModalOpen(false);
+  };
+
+  const handleDeleteQuotation = async (quotationId: string) => {
+    try {
+      await deleteQuotationById(quotationId);
+      const updatedQuotations = await getAllQuotations();
+      setQuotations(updatedQuotations);
+    } catch (error) {
+      console.error("Error deleting quotation:", error);
+    }
+  };
+
   return (
-    <div>
-      <div className="flex flex-row justify-between items-center mb-4">
+    <div className="grid grid-cols-2 gap-x-8">
+      <div>
         <p className="text-2xl font-bold mb-4">Services Available</p>
+
+        <div className="mt-6 p-4 border rounded-lg">
+          <p className="text-lg font-semibold mb-2">Add New Service</p>
+
+          <Input
+            className="block w-full border p-2 mb-2 rounded"
+            type="text"
+            name="name"
+            placeholder="Service Name"
+            value={serviceForm.name}
+            onChange={handleChange}
+          />
+          <Input
+            className="block w-full border p-2 mb-2 rounded"
+            name="description"
+            placeholder="Service Description"
+            value={serviceForm.description}
+            onChange={handleChange}
+          />
+          <Input
+            className="block w-full border p-2 mb-2 rounded"
+            type="number"
+            name="basePrice"
+            placeholder="Base Price"
+            value={serviceForm.basePrice}
+            onChange={handleChange}
+          />
+
+          <Button onClick={handleSubmit}>Add Service</Button>
+        </div>
+
+        {/* Service List */}
+        {services.map((service) => (
+          <div key={service.id} className="mb-4 p-4 border rounded-lg">
+            <p className="text-md font-medium">{service.name}</p>
+            <p className="text-sm text-gray-500">{service.description}</p>
+            <p className="text-sm text-gray-500">
+              ${service.basePrice.toFixed(2)}
+            </p>
+            <div className="mt-2 space-x-2">
+              <Button
+                className="bg-green-500"
+                onClick={() => handleEdit(service)}
+              >
+                Edit Service
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => handleDelete(service.id.toString())}
+              >
+                Delete Service
+              </Button>
+            </div>
+          </div>
+        ))}
+
+        {/* Edit Service Form */}
+        <Sheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Edit Service</SheetTitle>
+            </SheetHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-name" className="text-right">
+                  Name
+                </Label>
+                <Input
+                  id="edit-name"
+                  name="name"
+                  value={serviceForm.name}
+                  onChange={handleChange}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-description" className="text-right">
+                  Description
+                </Label>
+                <Input
+                  id="edit-description"
+                  name="description"
+                  value={serviceForm.description}
+                  onChange={handleChange}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={handleCancelEdit}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdate}>Update Service</Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      {/* Quotation Form */}
+      <div>
         <Button onClick={() => setCreateQuotationOpen(true)}>
           Create Quotation
         </Button>
-      </div>
-
-      {/* Service List */}
-      {services.map((service) => (
-        <div key={service.id} className="mb-4 p-4 border rounded-lg">
-          <p className="text-md font-medium">{service.name}</p>
-          <p className="text-sm text-gray-500">{service.description}</p>
-          <p className="text-sm text-gray-500">
-            ${service.basePrice.toFixed(2)}
-          </p>
-          <div className="mt-2 space-x-2">
-            <Button
-              className="bg-green-500"
-              onClick={() => handleEdit(service)}
-            >
-              Edit Service
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => handleDelete(service.id.toString())}
-            >
-              Delete Service
-            </Button>
-          </div>
-        </div>
-      ))}
-
-      <div className="mt-6 p-4 border rounded-lg">
-        <p className="text-lg font-semibold mb-2">Add New Service</p>
-
-        <Input
-          className="block w-full border p-2 mb-2 rounded"
-          type="text"
-          name="name"
-          placeholder="Service Name"
-          value={serviceForm.name}
-          onChange={handleChange}
-        />
-        <Input
-          className="block w-full border p-2 mb-2 rounded"
-          name="description"
-          placeholder="Service Description"
-          value={serviceForm.description}
-          onChange={handleChange}
-        />
-        <Input
-          className="block w-full border p-2 mb-2 rounded"
-          type="number"
-          name="basePrice"
-          placeholder="Base Price"
-          value={serviceForm.basePrice}
-          onChange={handleChange}
-        />
-
-        <Button onClick={handleSubmit}>Add Service</Button>
-      </div>
-
-      {/* Edit Service Form */}
-      <Sheet open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Edit Service</SheetTitle>
-          </SheetHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="edit-name"
-                name="name"
-                value={serviceForm.name}
-                onChange={handleChange}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-description" className="text-right">
-                Description
-              </Label>
-              <Input
-                id="edit-description"
-                name="description"
-                value={serviceForm.description}
-                onChange={handleChange}
-                className="col-span-3"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={handleCancelEdit}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdate}>Update Service</Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Quotation Form */}
-      <Sheet open={isCreateQuotationOpen} onOpenChange={setCreateQuotationOpen}>
-        <SheetContent className="overflow-y-auto p-4 scroll-smooth">
-          <SheetHeader>
-            <SheetTitle>Create Quotation</SheetTitle>
-          </SheetHeader>
-          <div className="grid gap-4 py-4">
-            {services.map((service) => (
-              <div key={service.id} className="mb-4 p-4 border rounded-lg">
-                <p className="text-md font-medium">{service.name}</p>
-                <p className="text-sm text-gray-500">{service.description}</p>
-                <p className="text-sm text-gray-500">
-                  ${service.basePrice.toFixed(2)}
-                </p>
-                <Checkbox
-                  checked={selectedServiceIds.includes(service.id.toString())}
-                  onCheckedChange={() =>
-                    handleCheckboxChange(service.id.toString())
+        <Sheet
+          open={isCreateQuotationOpen}
+          onOpenChange={setCreateQuotationOpen}
+        >
+          <SheetContent className="overflow-y-auto p-4 scroll-smooth">
+            <SheetHeader>
+              <SheetTitle>Create Quotation</SheetTitle>
+            </SheetHeader>
+            <div className="grid gap-4 py-4">
+              {services.map((service) => (
+                <div key={service.id} className="mb-4 p-4 border rounded-lg">
+                  <p className="text-md font-medium">{service.name}</p>
+                  <p className="text-sm text-gray-500">{service.description}</p>
+                  <p className="text-sm text-gray-500">
+                    ${service.basePrice.toFixed(2)}
+                  </p>
+                  <Checkbox
+                    checked={selectedServiceIds.includes(service.id.toString())}
+                    onCheckedChange={() =>
+                      handleCheckboxChange(service.id.toString())
+                    }
+                  />
+                </div>
+              ))}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quotation-name" className="text-right">
+                  Name
+                </Label>
+                <Input
+                  id="quotation-name"
+                  name="name"
+                  value={quotationForm.name}
+                  onChange={(e) =>
+                    setQuotationForm((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
                   }
+                  className="col-span-3"
                 />
               </div>
-            ))}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="quotation-name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="quotation-name"
-                name="name"
-                value={quotationForm.name}
-                onChange={(e) =>
-                  setQuotationForm((prev) => ({
-                    ...prev,
-                    name: e.target.value,
-                  }))
-                }
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="quotation-description" className="text-right">
-                Description
-              </Label>
-              <Input
-                id="quotation-description"
-                name="description"
-                value={quotationForm.description}
-                onChange={(e) =>
-                  setQuotationForm((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                className="col-span-3"
-              />
-            </div>
-            <p className="text-right font-semibold">
-              Total Price: ${totalPrice.toFixed(2)}
-            </p>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quotation-description" className="text-right">
+                  Description
+                </Label>
+                <Input
+                  id="quotation-description"
+                  name="description"
+                  value={quotationForm.description}
+                  onChange={(e) =>
+                    setQuotationForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
+                  className="col-span-3"
+                />
+              </div>
+              <p className="text-right font-semibold">
+                Total Price: ${totalPrice.toFixed(2)}
+              </p>
 
-            <Button onClick={handleCreateQuotation}>Submit Quotation</Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+              <Button onClick={handleCreateQuotation}>Submit Quotation</Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Quotation List */}
+        <div className="mt-8">
+          <p className="text-2xl font-bold mb-4">Quotations</p>
+          {quotations.length === 0 ? (
+            <p className="text-gray-500">No quotations found.</p>
+          ) : (
+            quotations.map((quotation) => (
+              <div key={quotation.id} className="mb-4 p-4 border rounded-lg">
+                <p className="text-md font-medium">{quotation.name}</p>
+                <p className="text-sm text-gray-500">{quotation.description}</p>
+                <p className="text-sm text-gray-500">
+                  Total: ${quotation.totalPrice.toFixed(2)}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Status: {quotation.status}
+                </p>
+                <p className="text-sm text-gray-400">
+                  Created: {new Date(quotation.created_at).toLocaleString()}
+                </p>
+                <div className="mt-2 space-x-2">
+                  <Button
+                    className="bg-green-500"
+                    onClick={() => handleEditQuotation(quotation)}
+                  >
+                    Edit Quotation
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleDeleteQuotation(quotation.id.toString())}
+                  >
+                    Delete Quotation
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+          {/* Edit Quotation Modal */}
+          <Sheet open={isEditQuotationModalOpen} onOpenChange={setIsEditQuotationModalOpen}>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Edit Quotation</SheetTitle>
+              </SheetHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-quotation-name" className="text-right">
+                    Name
+                  </Label>
+                  <Input
+                    id="edit-quotation-name"
+                    name="name"
+                    value={quotationEditForm.name}
+                    onChange={e => setQuotationEditForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-quotation-description" className="text-right">
+                    Description
+                  </Label>
+                  <Input
+                    id="edit-quotation-description"
+                    name="description"
+                    value={quotationEditForm.description}
+                    onChange={e => setQuotationEditForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-quotation-totalPrice" className="text-right">
+                    Total Price
+                  </Label>
+                  <Input
+                    id="edit-quotation-totalPrice"
+                    name="totalPrice"
+                    type="number"
+                    value={quotationEditForm.totalPrice}
+                    onChange={e => setQuotationEditForm(prev => ({ ...prev, totalPrice: e.target.value }))}
+                    className="col-span-3"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-quotation-status" className="text-right">
+                    Status
+                  </Label>
+                  <Input
+                    id="edit-quotation-status"
+                    name="status"
+                    value={quotationEditForm.status}
+                    onChange={e => setQuotationEditForm(prev => ({ ...prev, status: e.target.value }))}
+                    className="col-span-3"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={handleCancelEditQuotation}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateQuotation}>Update Quotation</Button>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
     </div>
   );
 }
