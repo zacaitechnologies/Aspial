@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 import {
   BarChart3,
   Building2,
@@ -32,7 +34,6 @@ const mainNavItems = [
     title: "Sales",
     url: "/sales",
     icon: Home,
-    isActive: true,
   },
   {
     title: "Equipment Bookings",
@@ -70,6 +71,8 @@ const businessItems = [
 ];
 
 export function AppSidebar() {
+  const pathname = usePathname();
+
   return (
     <Sidebar className="border-r border-slate-200">
       <SidebarHeader className="p-6">
@@ -91,20 +94,23 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={item.isActive}
-                    className="transition-all duration-150 ease-out hover:bg-slate-100 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:border-r-2 data-[active=true]:border-blue-600"
-                  >
-                    <a href={item.url} className="flex items-center gap-3">
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium">{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {mainNavItems.map((item) => {
+                const isActive = pathname === item.url;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      className="transition-all duration-150 ease-out hover:bg-slate-100 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:border-r-2 data-[active=true]:border-blue-600"
+                    >
+                      <Link href={item.url} className="flex items-center gap-3">
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -123,10 +129,10 @@ export function AppSidebar() {
                     asChild
                     className="transition-all duration-150 ease-out hover:bg-slate-100"
                   >
-                    <a href={item.url} className="flex items-center gap-3">
+                    <Link href={item.url} className="flex items-center gap-3">
                       <item.icon className="w-5 h-5" />
                       <span className="font-medium">{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -139,26 +145,26 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-slate-100">
-              <a href="#" className="flex items-center gap-3">
+              <Link href="#" className="flex items-center gap-3">
                 <Bell className="w-5 h-5" />
                 <span>Notifications</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-slate-100">
-              <a href="#" className="flex items-center gap-3">
+              <Link href="#" className="flex items-center gap-3">
                 <HelpCircle className="w-5 h-5" />
                 <span>Help & Support</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-slate-100">
-              <a href="#" className="flex items-center gap-3">
+              <Link href="#" className="flex items-center gap-3">
                 <Settings className="w-5 h-5" />
                 <span>Settings</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

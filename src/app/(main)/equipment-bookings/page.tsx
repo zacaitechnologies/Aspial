@@ -30,8 +30,8 @@ export default async function AdminPage() {
   const [studios, equipment] = await Promise.all([getStudios(), getEquipment()])
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-8">Equipment Bookings</h1>
+    <div className="container mx-auto">
+      <p className="text-2xl font-bold mb-4">Services Available</p>
       <Suspense fallback={<div>Loading...</div>}>
         <BookingDashboard studios={studios} equipment={equipment} />
       </Suspense>
