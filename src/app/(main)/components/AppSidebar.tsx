@@ -35,8 +35,8 @@ const mainNavItems = [
     isActive: true,
   },
   {
-    title: "Analytics",
-    url: "#",
+    title: "Equipment Bookings",
+    url: "/equipment-bookings",
     icon: BarChart3,
   },
   {
