@@ -3,9 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
-  BarChart3,
   Building2,
-  CreditCard,
   Home,
   Settings,
   Users,
@@ -13,6 +11,8 @@ import {
   TrendingUp,
   Bell,
   HelpCircle,
+  Calendar,
+  CalendarClockIcon,
 } from "lucide-react";
 
 import {
@@ -38,7 +38,7 @@ const mainNavItems = [
   {
     title: "Equipment Bookings",
     url: "/equipment-bookings",
-    icon: BarChart3,
+    icon: CalendarClockIcon,
   },
   {
     title: "Customers",
@@ -46,9 +46,9 @@ const mainNavItems = [
     icon: Users,
   },
   {
-    title: "Revenue",
-    url: "#",
-    icon: CreditCard,
+    title: "Calander",
+    url: "/calander",
+    icon: Calendar,
   },
   {
     title: "Reports",

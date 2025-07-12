@@ -3,14 +3,34 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { StudioForm } from "@/app/(main)/components/equipment-bookings/studio-form"
 import { EquipmentForm } from "@/app/(main)/components/equipment-bookings/equipment-form"
-import { deleteStudio, deleteEquipment } from "@/app/(main)/equipment-bookings/actions"
-import { Edit, Trash2, Plus } from "lucide-react"
+import { BookingForm } from "@/app/(main)/components/equipment-bookings/booking-form"
+import { StudioBookingForm } from "@/app/(main)/components/equipment-bookings/studio-booking-form"
+import { deleteStudio, deleteEquipment, cancelBooking, cancelStudioBooking } from "@/app/(main)/equipment-bookings/actions"
+import { Edit, Trash2, Plus, Calendar, MapPin, Users, Package, Clock } from "lucide-react"
+
+interface Booking {
+  id: number
+  bookedBy: string
+  startDate: string
+  endDate: string
+  purpose: string | null
+  status: string
+}
+
+interface StudioBooking {
+  id: number
+  bookedBy: string
+  startDate: string
+  endDate: string
+  purpose: string | null
+  attendees: number
+  status: string
+}
 
 interface Studio {
   id: number
@@ -20,6 +40,7 @@ interface Studio {
   description: string | null
   isActive: boolean
   equipment: Equipment[]
+  bookings?: StudioBooking[]
 }
 
 interface Equipment {
@@ -33,6 +54,7 @@ interface Equipment {
   isAvailable: boolean
   studioId: number | null
   studio?: { name: string } | null
+  bookings?: Booking[]
 }
 
 interface AdminDashboardProps {
@@ -43,8 +65,12 @@ interface AdminDashboardProps {
 export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const [selectedStudio, setSelectedStudio] = useState<Studio | null>(null)
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null)
+  const [selectedBookingEquipment, setSelectedBookingEquipment] = useState<Equipment | null>(null)
+  const [selectedBookingStudio, setSelectedBookingStudio] = useState<Studio | null>(null)
   const [showStudioForm, setShowStudioForm] = useState(false)
   const [showEquipmentForm, setShowEquipmentForm] = useState(false)
+  const [showBookingForm, setShowBookingForm] = useState(false)
+  const [showStudioBookingForm, setShowStudioBookingForm] = useState(false)
 
   const handleDeleteStudio = async (id: number) => {
     if (confirm("Are you sure you want to delete this studio?")) {
@@ -58,6 +84,18 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
     }
   }
 
+  const handleCancelBooking = async (bookingId: number) => {
+    if (confirm("Are you sure you want to cancel this booking?")) {
+      await cancelBooking(bookingId)
+    }
+  }
+
+  const handleCancelStudioBooking = async (bookingId: number) => {
+    if (confirm("Are you sure you want to cancel this studio booking?")) {
+      await cancelStudioBooking(bookingId)
+    }
+  }
+
   return (
     <Tabs defaultValue="studios" className="w-full">
       <TabsList className="grid w-full grid-cols-2">
@@ -65,9 +103,9 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
         <TabsTrigger value="equipment">Equipment</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="studios" className="space-y-4">
+      <TabsContent value="studios" className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold">Studios</h2>
+          <h2 className="text-2xl font-semibold">Studios ({studios.length})</h2>
           <Dialog open={showStudioForm} onOpenChange={setShowStudioForm}>
             <DialogTrigger asChild>
               <Button>
@@ -90,62 +128,109 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
           </Dialog>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>All Studios ({studios.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Capacity</TableHead>
-                  <TableHead>Equipment</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {studios.map((studio) => (
-                  <TableRow key={studio.id}>
-                    <TableCell className="font-medium">{studio.name}</TableCell>
-                    <TableCell>{studio.location}</TableCell>
-                    <TableCell>{studio.capacity}</TableCell>
-                    <TableCell>{studio.equipment.length} items</TableCell>
-                    <TableCell>
-                      <Badge variant={studio.isActive ? "default" : "secondary"}>
-                        {studio.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedStudio(studio)
-                            setShowStudioForm(true)
-                          }}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleDeleteStudio(studio.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {studios.map((studio) => (
+            <Card key={studio.id} className="hover:shadow-lg transition-shadow gap-0">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg">{studio.name}</CardTitle>
+                  <Badge variant={studio.isActive ? "default" : "secondary"}>
+                    {studio.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    {studio.location}
+                  </div>
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Users className="w-4 h-4 mr-2" />
+                    Capacity: {studio.capacity}
+                  </div>
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Package className="w-4 h-4 mr-2" />
+                    Equipment: {studio.equipment.length} items
+                  </div>
+                </div>
+
+                {studio.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{studio.description}</p>
+                )}
+
+                {studio.bookings && studio.bookings.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Current Bookings:</div>
+                    {studio.bookings.map((booking) => (
+                      <div key={booking.id} className="bg-muted p-2 rounded text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{booking.bookedBy}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelStudioBooking(booking.id)}
+                            className="h-6 px-2 text-xs flex-shrink-0"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        <div className="flex items-center text-muted-foreground">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {new Date(booking.startDate).toLocaleDateString()} -{" "}
+                          {new Date(booking.endDate).toLocaleDateString()}
+                        </div>
+                        {booking.purpose && <div className="text-muted-foreground">{booking.purpose}</div>}
+                        <div className="text-muted-foreground">Attendees: {booking.attendees}</div>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => {
+                      setSelectedBookingStudio(studio)
+                      setShowStudioBookingForm(true)
+                    }}
+                    className="flex-1 min-w-0"
+                  >
+                    <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Book</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedStudio(studio)
+                      setShowStudioForm(true)
+                    }}
+                    className="flex-1 min-w-0"
+                  >
+                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Edit</span>
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    onClick={() => handleDeleteStudio(studio.id)}
+                    className="flex-1 min-w-0"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Delete</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </TabsContent>
 
-      <TabsContent value="equipment" className="space-y-4">
+      <TabsContent value="equipment" className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold">Equipment</h2>
+          <h2 className="text-2xl font-semibold">Equipment ({equipment.length})</h2>
           <Dialog open={showEquipmentForm} onOpenChange={setShowEquipmentForm}>
             <DialogTrigger asChild>
               <Button>
@@ -169,76 +254,155 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
           </Dialog>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>All Equipment ({equipment.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Brand/Model</TableHead>
-                  <TableHead>Studio</TableHead>
-                  <TableHead>Condition</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {equipment.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.type}</TableCell>
-                    <TableCell>
-                      {item.brand && item.model ? `${item.brand} ${item.model}` : item.brand || item.model || "-"}
-                    </TableCell>
-                    <TableCell>{item.studio?.name || "Unassigned"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          item.condition === "Excellent"
-                            ? "default"
-                            : item.condition === "Good"
-                              ? "secondary"
-                              : item.condition === "Fair"
-                                ? "outline"
-                                : "destructive"
-                        }
-                      >
-                        {item.condition}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={item.isAvailable ? "default" : "secondary"}>
-                        {item.isAvailable ? "Available" : "In Use"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedEquipment(item)
-                            setShowEquipmentForm(true)
-                          }}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleDeleteEquipment(item.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {equipment.map((item) => (
+            <Card key={item.id} className="hover:shadow-lg transition-shadow gap-0">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg">{item.name}</CardTitle>
+                  <div className="flex gap-1">
+                    <Badge variant={item.isAvailable ? "default" : "secondary"}>
+                      {item.isAvailable ? "Available" : "In Use"}
+                    </Badge>
+                    <Badge
+                      variant={
+                        item.condition === "Excellent"
+                          ? "default"
+                          : item.condition === "Good"
+                            ? "secondary"
+                            : item.condition === "Fair"
+                              ? "outline"
+                              : "destructive"
+                      }
+                    >
+                      {item.condition}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="text-sm">
+                    <span className="font-medium">Type:</span> {item.type}
+                  </div>
+                  {(item.brand || item.model) && (
+                    <div className="text-sm">
+                      <span className="font-medium">Brand/Model:</span>{" "}
+                      {item.brand && item.model ? `${item.brand} ${item.model}` : item.brand || item.model}
+                    </div>
+                  )}
+                  {item.serialNumber && (
+                    <div className="text-sm">
+                      <span className="font-medium">Serial:</span> {item.serialNumber}
+                    </div>
+                  )}
+                  <div className="text-sm">
+                    <span className="font-medium">Studio:</span> {item.studio?.name || "Unassigned"}
+                  </div>
+                </div>
+
+                {item.bookings && item.bookings.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Current Bookings:</div>
+                    {item.bookings.map((booking) => (
+                      <div key={booking.id} className="bg-muted p-2 rounded text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{booking.bookedBy}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelBooking(booking.id)}
+                            className="h-6 px-2 text-xs flex-shrink-0"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        <div className="flex items-center text-muted-foreground">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {new Date(booking.startDate).toLocaleDateString()} -{" "}
+                          {new Date(booking.endDate).toLocaleDateString()}
+                        </div>
+                        {booking.purpose && <div className="text-muted-foreground">{booking.purpose}</div>}
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={!item.isAvailable}
+                    onClick={() => {
+                      setSelectedBookingEquipment(item)
+                      setShowBookingForm(true)
+                    }}
+                    className="flex-1 min-w-0"
+                  >
+                    <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Book</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedEquipment(item)
+                      setShowEquipmentForm(true)
+                    }}
+                    className="flex-1 min-w-0"
+                  >
+                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Edit</span>
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    onClick={() => handleDeleteEquipment(item.id)}
+                    className="flex-1 min-w-0"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Delete</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
+          <DialogContent>
+            <DialogTitle>
+              Book Equipment: {selectedBookingEquipment?.name}
+            </DialogTitle>
+            {selectedBookingEquipment && (
+              <BookingForm
+                equipment={selectedBookingEquipment}
+                onClose={() => {
+                  setShowBookingForm(false)
+                  setSelectedBookingEquipment(null)
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </TabsContent>
+
+      <Dialog open={showStudioBookingForm} onOpenChange={setShowStudioBookingForm}>
+        <DialogContent>
+          <DialogTitle>
+            Book Studio: {selectedBookingStudio?.name}
+          </DialogTitle>
+          {selectedBookingStudio && (
+            <StudioBookingForm
+              studio={selectedBookingStudio}
+              onClose={() => {
+                setShowStudioBookingForm(false)
+                setSelectedBookingStudio(null)
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Tabs>
   )
 }
