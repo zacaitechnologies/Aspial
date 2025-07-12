@@ -24,6 +24,7 @@ export async function createStudio(formData: FormData) {
     revalidatePath("/admin")
     return { success: true }
   } catch (error) {
+    console.error(error)
     return { success: false, error: "Failed to create studio" }
   }
 }
@@ -49,6 +50,7 @@ export async function updateStudio(id: number, formData: FormData) {
     revalidatePath("/admin")
     return { success: true }
   } catch (error) {
+    console.error(error)
     return { success: false, error: "Failed to update studio" }
   }
 }
@@ -60,7 +62,8 @@ export async function deleteStudio(id: number) {
     })
     revalidatePath("/admin")
     return { success: true }
-  } catch (error) {
+  } catch (error) { 
+    console.error(error)
     return { success: false, error: "Failed to delete studio" }
   }
 }
@@ -90,6 +93,7 @@ export async function createEquipment(formData: FormData) {
     revalidatePath("/admin")
     return { success: true }
   } catch (error) {
+    console.error(error)
     return { success: false, error: "Failed to create equipment" }
   }
 }
@@ -121,6 +125,7 @@ export async function updateEquipment(id: number, formData: FormData) {
     revalidatePath("/admin")
     return { success: true }
   } catch (error) {
+    console.error(error)
     return { success: false, error: "Failed to update equipment" }
   }
 }
@@ -133,6 +138,115 @@ export async function deleteEquipment(id: number) {
     revalidatePath("/admin")
     return { success: true }
   } catch (error) {
+    console.error(error)
     return { success: false, error: "Failed to delete equipment" }
+  }
+}
+
+// Booking Actions
+export async function createBooking(formData: FormData) {
+  const equipmentId = Number.parseInt(formData.get("equipmentId") as string)
+  const bookedBy = formData.get("bookedBy") as string
+  const startDate = new Date(formData.get("startDate") as string)
+  const endDate = new Date(formData.get("endDate") as string)
+  const purpose = formData.get("purpose") as string
+
+  try {
+    await prisma.booking.create({
+      data: {
+        equipmentId,
+        bookedBy,
+        startDate,
+        endDate,
+        purpose: purpose || null,
+      },
+    })
+
+    // Update equipment availability
+    await prisma.equipment.update({
+      where: { id: equipmentId },
+      data: { isAvailable: false },
+    })
+
+    revalidatePath("/admin")
+    return { success: true }
+  } catch (error) {
+    console.error(error)
+    return { success: false, error: "Failed to create booking" }
+  }
+}
+
+export async function createStudioBooking(formData: FormData) {
+  const studioId = Number.parseInt(formData.get("studioId") as string)
+  const bookedBy = formData.get("bookedBy") as string
+  const startDate = new Date(formData.get("startDate") as string)
+  const endDate = new Date(formData.get("endDate") as string)
+  const purpose = formData.get("purpose") as string
+  const attendees = Number.parseInt(formData.get("attendees") as string)
+
+  try {
+    await prisma.studioBooking.create({
+      data: {
+        studioId,
+        bookedBy,
+        startDate,
+        endDate,
+        purpose: purpose || null,
+        attendees,
+      },
+    })
+
+    revalidatePath("/equipment-bookings")
+    return { success: true }
+  } catch (error) {
+    console.error(error)
+    return { success: false, error: "Failed to create studio booking" }
+  }
+}
+  
+  export async function cancelBooking(id: number) {
+  try {
+    const booking = await prisma.booking.update({
+      where: { id },
+      data: { status: "Cancelled" },
+      include: { equipment: true },
+    })
+
+    // Check if there are other active bookings for this equipment
+    const activeBookings = await prisma.booking.count({
+      where: {
+        equipmentId: booking.equipmentId,
+        status: "Active",
+      },
+    })
+
+    // If no active bookings, make equipment available
+    if (activeBookings === 0) {
+      await prisma.equipment.update({
+        where: { id: booking.equipmentId },
+        data: { isAvailable: true },
+      })
+    }
+
+    revalidatePath("/admin")
+    return { success: true }
+  } catch (error) {
+    console.error(error)
+    return { success: false, error: "Failed to cancel booking" }
+  }
+}
+
+export async function cancelStudioBooking(id: number) {
+  try {
+    await prisma.studioBooking.update({
+      where: { id },
+      data: { status: "cancelled" },
+    })
+
+    revalidatePath("/equipment-bookings")
+    return { success: true }
+  } catch (error) {
+    console.error(error)
+    return { success: false, error: "Failed to cancel studio booking" }
   }
 }
