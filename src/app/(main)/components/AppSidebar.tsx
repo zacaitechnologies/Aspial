@@ -13,6 +13,9 @@ import {
   HelpCircle,
   Calendar,
   CalendarClockIcon,
+  Wrench,
+  Receipt,
+  Briefcase,
 } from "lucide-react";
 
 import {
@@ -34,6 +37,21 @@ const mainNavItems = [
     title: "Sales",
     url: "/sales",
     icon: Home,
+  },
+  {
+    title: "Services",
+    url: "/service",
+    icon: Wrench,
+  },
+  {
+    title: "Quotations",
+    url: "/quotations",
+    icon: Receipt,
+  },
+  {
+    title: "Projects",
+    url: "/projects",
+    icon: Briefcase,
   },
   {
     title: "Equipment Bookings",

@@ -47,91 +47,117 @@ model User {
 }
 
 model Services {
-  id           Int        @id @default(autoincrement())
+  id          Int                    @id @default(autoincrement())
   name        String
   description String
   basePrice   Float
-  created_at  DateTime   @default(now())
-  updated_at  DateTime   @default(now())
-  quotation   Quotation? @relation("QuotationServices", fields: [quotationId], references: [id])
-  quotationId Int?
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @default(now())
+  quotations  QuotationService[]
 
   @@map("services")
 }
 
 model Quotation {
-  id           Int        @id @default(autoincrement())
+  id          Int                    @id @default(autoincrement())
   name        String
   description String
-  totalPrice   Float
-  created_at  DateTime   @default(now())
-  updated_at  DateTime   @default(now())
-  services    Services[] @relation("QuotationServices")
-  status      String     @default("draft") // "draft" | "sent" | "accepted" | "rejected"
+  totalPrice  Float
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @default(now())
+  services    QuotationService[]
+  status      String                 @default("draft") // "draft" | "sent" | "accepted" | "rejected" | "paid" | "unpaid" | "partially_paid" | "deposit_paid"
+  projects    Project[]
 
   @@map("quotations")
 }
 
+model QuotationService {
+  id          Int       @id @default(autoincrement())
+  quotationId Int
+  serviceId   Int
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  service     Services  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([quotationId, serviceId])
+  @@map("quotation_services")
+}
+
+model Project {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  quotationId Int
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  status      String    @default("planning") // "planning" | "in_progress" | "completed" | "cancelled"
+  startDate   DateTime?
+  endDate     DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @default(now())
+
+  @@map("projects")
+}
+
 model Studio {
-  id          Int         @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   name        String
   location    String
   capacity    Int
   description String?
-  isActive    Boolean     @default(true)
+  isActive    Boolean         @default(true)
   equipment   Equipment[]
   bookings    StudioBooking[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@map("studios")
 }
 
 model Equipment {
-  id          Int        @id @default(autoincrement())
-  name        String
-  type        String
-  brand       String?
-  model       String?
+  id           Int       @id @default(autoincrement())
+  name         String
+  type         String
+  brand        String?
+  model        String?
   serialNumber String?   @unique
-  condition   String     @default("Good")
-  isAvailable Boolean    @default(true)
-  studioId    Int?
-  studio      Studio?    @relation(fields: [studioId], references: [id])
-  bookings    Booking[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  condition    String    @default("Good")
+  isAvailable  Boolean   @default(true)
+  studioId     Int?
+  studio       Studio?   @relation(fields: [studioId], references: [id])
+  bookings     Booking[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@map("equipment")
 }
 
 model Booking {
-  id          Int        @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   equipmentId Int
-  equipment   Equipment  @relation(fields: [equipmentId], references: [id])
+  equipment   Equipment @relation(fields: [equipmentId], references: [id])
   bookedBy    String
   startDate   DateTime
   endDate     DateTime
   purpose     String?
-  status      String     @default("active") // "active" | "cancelled" | "completed"
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  status      String    @default("active") // "active" | "cancelled" | "completed"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("bookings")
 }
 
 model StudioBooking {
-  id          Int        @id @default(autoincrement())
-  studioId    Int
-  studio      Studio     @relation(fields: [studioId], references: [id])
-  bookedBy    String
-  startDate   DateTime
-  endDate     DateTime
-  purpose     String?
-  attendees   Int        @default(1)
-  status      String     @default("active") // "active" | "cancelled" | "completed"
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id        Int      @id @default(autoincrement())
+  studioId  Int
+  studio    Studio   @relation(fields: [studioId], references: [id])
+  bookedBy  String
+  startDate DateTime
+  endDate   DateTime
+  purpose   String?
+  attendees Int      @default(1)
+  status    String   @default("active") // "active" | "cancelled" | "completed"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("studio_bookings")
 }
