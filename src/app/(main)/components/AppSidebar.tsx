@@ -34,11 +34,6 @@ import {
 
 const mainNavItems = [
   {
-    title: "Sales",
-    url: "/sales",
-    icon: Home,
-  },
-  {
     title: "Services",
     url: "/service",
     icon: Wrench,
