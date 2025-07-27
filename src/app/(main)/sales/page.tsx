@@ -22,8 +22,10 @@ import {
 } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useSession } from "../contexts/SessionProvider";
 
 export default function Sales() {
+  const { enhancedUser } = useSession();
   const [services, setServices] = useState<Services[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -194,10 +196,16 @@ export default function Sales() {
   };
 
   const handleCreateQuotation = async () => {
+    if (!enhancedUser?.id) {
+      alert("User not authenticated. Please try logging in again.");
+      return;
+    }
+
     const updatedQuotation = {
       ...quotationForm,
       serviceIds: selectedServiceIds,
       totalPrice: totalPrice,
+      createdById: enhancedUser.id,
     };
 
     console.log("Quotation to submit:", updatedQuotation);
@@ -242,12 +250,20 @@ export default function Sales() {
       alert("Please fill all fields correctly.");
       return;
     }
+    
+    // Validate status is one of the allowed values
+    const validStatuses = ["draft", "sent", "accepted", "rejected"] as const;
+    if (!validStatuses.includes(quotationEditForm.status as any)) {
+      alert("Please select a valid status.");
+      return;
+    }
+    
     try {
       await editQuotationById(editingQuotation.id.toString(), {
         name: quotationEditForm.name,
         description: quotationEditForm.description,
         totalPrice,
-        status: quotationEditForm.status,
+        status: quotationEditForm.status as "draft" | "sent" | "accepted" | "rejected",
       });
       const updatedQuotations = await getAllQuotations();
       setQuotations(updatedQuotations);
