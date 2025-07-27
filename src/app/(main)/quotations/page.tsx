@@ -189,8 +189,24 @@ export default function QuotationsPage() {
       return;
     }
 
-    // Validate status is one of the allowed values
-    const validStatuses = ["draft", "sent", "accepted", "rejected"] as const;
+    const validStatuses = [
+      "draft",
+      "sent",
+      "accepted",
+      "rejected",
+      "paid",
+      "unpaid",
+      "partially_paid",
+      "deposit_paid",
+    ] as const;
+
+    console.log("Current status value:", editForm.status);
+    console.log("Valid statuses:", validStatuses);
+    console.log(
+      "Status included:",
+      validStatuses.includes(editForm.status as any)
+    );
+
     if (!validStatuses.includes(editForm.status as any)) {
       alert("Please select a valid status.");
       return;
@@ -201,7 +217,15 @@ export default function QuotationsPage() {
         name: editForm.name,
         description: editForm.description,
         totalPrice,
-        status: editForm.status as "Draft" | "Sent" | "Accepted" | "Rejected" | "Paid" | "Unpaid" | "Partially_Paid" | "Deposit_Paid",
+        status: editForm.status as
+          | "draft"
+          | "sent"
+          | "accepted"
+          | "rejected"
+          | "paid"
+          | "unpaid"
+          | "partially_paid"
+          | "deposit_paid",
       });
 
       await fetchData();
