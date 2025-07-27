@@ -67,7 +67,7 @@ model Quotation {
   created_at  DateTime           @default(now())
   updated_at  DateTime           @default(now())
   services    QuotationService[]
-  status      QuotationStatus    @default(Draft)
+  status      QuotationStatus    @default(draft)
   createdById String
   createdBy   User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
   projects    Project[]
@@ -76,14 +76,14 @@ model Quotation {
 }
 
 enum QuotationStatus {
-  Draft
-  Sent
-  Accepted
-  Rejected
-  Paid
-  Unpaid
-  Partially_Paid
-  Deposit_Paid
+  draft
+  sent
+  accepted
+  rejected
+  paid
+  unpaid
+  partially_paid
+  deposit_paid
 }
 
 model QuotationService {
