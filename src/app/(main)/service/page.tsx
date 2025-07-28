@@ -27,30 +27,6 @@ export default function ServicesPage() {
     basePrice: "",
   })
 
-  useEffect(() => {
-    fetchServices()
-  }, [])
-
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredServices(services)
-    } else {
-      handleSearch()
-    }
-  }, [searchQuery, services])
-
-  const fetchServices = async () => {
-    try {
-      const data = await getAllServices()
-      setServices(data)
-      setFilteredServices(data)
-    } catch (error) {
-      console.error("Failed to fetch services:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleSearch = async () => {
     if (searchQuery.trim() === "") {
       setFilteredServices(services)
@@ -62,6 +38,30 @@ export default function ServicesPage() {
       setFilteredServices(results)
     } catch (error) {
       console.error("Search failed:", error)
+    }
+  }
+
+  useEffect(() => {
+    fetchServices()
+  }, [])
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredServices(services)
+    } else {
+      handleSearch()
+    }
+  }, [searchQuery, services, handleSearch])
+
+  const fetchServices = async () => {
+    try {
+      const data = await getAllServices()
+      setServices(data)
+      setFilteredServices(data)
+    } catch (error) {
+      console.error("Failed to fetch services:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
