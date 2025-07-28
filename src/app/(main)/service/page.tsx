@@ -1,75 +1,104 @@
-"use client"
+"use client";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Edit, Trash2 } from "lucide-react"
-import { useState, useEffect } from "react"
-import { getAllServices, addService, editServiceById, deleteServiceById, searchServices } from "./action"
-import type { Services } from "@prisma/client"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Search, Plus, Edit, Trash2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  getAllServices,
+  addService,
+  editServiceById,
+  deleteServiceById,
+  searchServices,
+} from "./action";
+import type { Services } from "@prisma/client";
 
 export default function ServicesPage() {
-  const [services, setServices] = useState<Services[]>([])
-  const [filteredServices, setFilteredServices] = useState<Services[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [isEditOpen, setIsEditOpen] = useState(false)
-  const [editingService, setEditingService] = useState<Services | null>(null)
+  const [services, setServices] = useState<Services[]>([]);
+  const [filteredServices, setFilteredServices] = useState<Services[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingService, setEditingService] = useState<Services | null>(null);
 
   const [serviceForm, setServiceForm] = useState({
     name: "",
     description: "",
     basePrice: "",
-  })
+  });
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     if (searchQuery.trim() === "") {
-      setFilteredServices(services)
-      return
+      setFilteredServices(services);
+      return;
     }
 
     try {
-      const results = await searchServices(searchQuery)
-      setFilteredServices(results)
+      const results = await searchServices(searchQuery);
+      setFilteredServices(results);
     } catch (error) {
-      console.error("Search failed:", error)
+      console.error("Search failed:", error);
     }
-  }
+  }, [searchQuery]);
 
   useEffect(() => {
-    fetchServices()
-  }, [])
+    fetchServices();
+  }, []);
 
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredServices(services)
-    } else {
-      handleSearch()
-    }
-  }, [searchQuery, services, handleSearch])
+    const searchOrReset = async () => {
+      if (searchQuery.trim() === "") {
+        const fresh = await getAllServices();
+        setServices(fresh);
+        setFilteredServices(fresh);
+      } else {
+        try {
+          const results = await searchServices(searchQuery);
+          setFilteredServices(results);
+        } catch (error) {
+          console.error("Search failed:", error);
+        }
+      }
+    };
+
+    searchOrReset();
+  }, [searchQuery]);
 
   const fetchServices = async () => {
     try {
-      const data = await getAllServices()
-      setServices(data)
-      setFilteredServices(data)
+      const data = await getAllServices();
+      setServices(data);
+      setFilteredServices(data);
     } catch (error) {
-      console.error("Failed to fetch services:", error)
+      console.error("Failed to fetch services:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSubmit = async () => {
-    const basePrice = Number.parseFloat(serviceForm.basePrice)
+    const basePrice = Number.parseFloat(serviceForm.basePrice);
     if (!serviceForm.name || !serviceForm.description || isNaN(basePrice)) {
-      alert("Please fill all fields correctly.")
-      return
+      alert("Please fill all fields correctly.");
+      return;
     }
 
     try {
@@ -77,32 +106,32 @@ export default function ServicesPage() {
         name: serviceForm.name,
         description: serviceForm.description,
         basePrice,
-      })
-      await fetchServices()
-      setServiceForm({ name: "", description: "", basePrice: "" })
-      setIsCreateOpen(false)
+      });
+      await fetchServices();
+      setServiceForm({ name: "", description: "", basePrice: "" });
+      setIsCreateOpen(false);
     } catch (error) {
-      console.error("Error adding service:", error)
+      console.error("Error adding service:", error);
     }
-  }
+  };
 
   const handleEdit = (service: Services) => {
-    setEditingService(service)
+    setEditingService(service);
     setServiceForm({
       name: service.name,
       description: service.description,
       basePrice: service.basePrice.toString(),
-    })
-    setIsEditOpen(true)
-  }
+    });
+    setIsEditOpen(true);
+  };
 
   const handleUpdate = async () => {
-    if (!editingService) return
+    if (!editingService) return;
 
-    const basePrice = Number.parseFloat(serviceForm.basePrice)
+    const basePrice = Number.parseFloat(serviceForm.basePrice);
     if (!serviceForm.name || !serviceForm.description || isNaN(basePrice)) {
-      alert("Please fill all fields correctly.")
-      return
+      alert("Please fill all fields correctly.");
+      return;
     }
 
     try {
@@ -110,34 +139,38 @@ export default function ServicesPage() {
         name: serviceForm.name,
         description: serviceForm.description,
         basePrice,
-      })
-      await fetchServices()
-      setEditingService(null)
-      setServiceForm({ name: "", description: "", basePrice: "" })
-      setIsEditOpen(false)
+      });
+      await fetchServices();
+      setEditingService(null);
+      setServiceForm({ name: "", description: "", basePrice: "" });
+      setIsEditOpen(false);
     } catch (error) {
-      console.error("Error updating service:", error)
+      console.error("Error updating service:", error);
     }
-  }
+  };
 
   const handleDelete = async (serviceId: string) => {
-    if (!confirm("Are you sure you want to delete this service?")) return
+    if (!confirm("Are you sure you want to delete this service?")) return;
 
     try {
-      await deleteServiceById(serviceId)
-      await fetchServices()
+      await deleteServiceById(serviceId);
+      await fetchServices();
     } catch (error) {
-      console.error("Error deleting service:", error)
+      console.error("Error deleting service:", error);
     }
-  }
+  };
 
   const resetForm = () => {
-    setServiceForm({ name: "", description: "", basePrice: "" })
-    setEditingService(null)
-  }
+    setServiceForm({ name: "", description: "", basePrice: "" });
+    setEditingService(null);
+  };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading services...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        Loading services...
+      </div>
+    );
   }
 
   return (
@@ -145,7 +178,9 @@ export default function ServicesPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Services Management</h1>
-          <p className="text-muted-foreground">Manage your available services</p>
+          <p className="text-muted-foreground">
+            Manage your available services
+          </p>
         </div>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
@@ -155,7 +190,10 @@ export default function ServicesPage() {
               Add Service
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[80vw] max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-lg" showCloseButton={false}>
+          <DialogContent
+            className="w-[80vw] max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-lg"
+            showCloseButton={false}
+          >
             <DialogHeader>
               <DialogTitle>Create New Service</DialogTitle>
             </DialogHeader>
@@ -165,7 +203,12 @@ export default function ServicesPage() {
                 <Input
                   id="name"
                   value={serviceForm.name}
-                  onChange={(e) => setServiceForm((prev) => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
                   placeholder="Enter service name"
                 />
               </div>
@@ -174,7 +217,12 @@ export default function ServicesPage() {
                 <Textarea
                   id="description"
                   value={serviceForm.description}
-                  onChange={(e) => setServiceForm((prev) => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      description: e.target.value,
+                    }))
+                  }
                   placeholder="Enter service description"
                   rows={3}
                 />
@@ -186,7 +234,12 @@ export default function ServicesPage() {
                   type="number"
                   step="0.01"
                   value={serviceForm.basePrice}
-                  onChange={(e) => setServiceForm((prev) => ({ ...prev, basePrice: e.target.value }))}
+                  onChange={(e) =>
+                    setServiceForm((prev) => ({
+                      ...prev,
+                      basePrice: e.target.value,
+                    }))
+                  }
                   placeholder="0.00"
                 />
               </div>
@@ -195,8 +248,8 @@ export default function ServicesPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  resetForm()
-                  setIsCreateOpen(false)
+                  resetForm();
+                  setIsCreateOpen(false);
                 }}
               >
                 Cancel
@@ -231,10 +284,18 @@ export default function ServicesPage() {
                   </Badge>
                 </div>
                 <div className="flex space-x-1">
-                  <Button variant="ghost" size="sm" onClick={() => handleEdit(service)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(service)}
+                  >
                     <Edit className="w-4 h-4" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(service.id.toString())}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDelete(service.id.toString())}
+                  >
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
@@ -253,14 +314,19 @@ export default function ServicesPage() {
       {filteredServices.length === 0 && (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
-            {searchQuery ? "No services found matching your search." : "No services available."}
+            {searchQuery
+              ? "No services found matching your search."
+              : "No services available."}
           </p>
         </div>
       )}
 
       {/* Edit Service Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="w-[80vw] max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-lg" showCloseButton={false}>
+        <DialogContent
+          className="w-[80vw] max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-lg"
+          showCloseButton={false}
+        >
           <DialogHeader>
             <DialogTitle>Edit Service</DialogTitle>
           </DialogHeader>
@@ -270,7 +336,9 @@ export default function ServicesPage() {
               <Input
                 id="edit-name"
                 value={serviceForm.name}
-                onChange={(e) => setServiceForm((prev) => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setServiceForm((prev) => ({ ...prev, name: e.target.value }))
+                }
                 placeholder="Enter service name"
               />
             </div>
@@ -279,7 +347,12 @@ export default function ServicesPage() {
               <Textarea
                 id="edit-description"
                 value={serviceForm.description}
-                onChange={(e) => setServiceForm((prev) => ({ ...prev, description: e.target.value }))}
+                onChange={(e) =>
+                  setServiceForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
                 placeholder="Enter service description"
                 rows={3}
               />
@@ -291,7 +364,12 @@ export default function ServicesPage() {
                 type="number"
                 step="0.01"
                 value={serviceForm.basePrice}
-                onChange={(e) => setServiceForm((prev) => ({ ...prev, basePrice: e.target.value }))}
+                onChange={(e) =>
+                  setServiceForm((prev) => ({
+                    ...prev,
+                    basePrice: e.target.value,
+                  }))
+                }
                 placeholder="0.00"
               />
             </div>
@@ -300,8 +378,8 @@ export default function ServicesPage() {
             <Button
               variant="outline"
               onClick={() => {
-                resetForm()
-                setIsEditOpen(false)
+                resetForm();
+                setIsEditOpen(false);
               }}
             >
               Cancel
@@ -311,5 +389,5 @@ export default function ServicesPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
