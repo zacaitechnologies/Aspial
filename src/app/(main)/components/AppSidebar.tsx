@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   Building2,
-  Home,
   Settings,
   Users,
   FileText,
