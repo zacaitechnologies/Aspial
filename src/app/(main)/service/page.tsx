@@ -57,7 +57,7 @@ export default function ServicesPage() {
     } catch (error) {
       console.error("Search failed:", error);
     }
-  }, [searchQuery]);
+  }, [searchQuery, services]);
 
   useEffect(() => {
     fetchServices();
