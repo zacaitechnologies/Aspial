@@ -146,22 +146,50 @@ export default function QuotationsPage() {
 
   // Calculate discounted total price
   const calculateDiscountedTotal = () => {
-    if (!quotationForm.discountValue || parseFloat(quotationForm.discountValue) === 0) {
+    if (
+      !quotationForm.discountValue ||
+      parseFloat(quotationForm.discountValue) === 0
+    ) {
       return totalPrice;
+    }
+
+    const discountValue = parseFloat(quotationForm.discountValue);
+
+    if (quotationForm.discountType === "percentage") {
+      // Limit percentage discount to 100%
+      const limitedDiscountValue = Math.min(discountValue, 100);
+      const discountAmount = totalPrice * (limitedDiscountValue / 100);
+      return totalPrice - discountAmount;
+    } else {
+      // Fixed amount discount - limit to original total price
+      const limitedDiscountValue = Math.min(discountValue, totalPrice);
+      return Math.max(0, totalPrice - limitedDiscountValue);
+    }
+  };
+
+  const discountedTotal = calculateDiscountedTotal();
+
+    // Calculate the actual discount amount in RM
+  const getDiscountAmount = () => {
+    if (
+      !quotationForm.discountValue ||
+      parseFloat(quotationForm.discountValue) === 0
+    ) {
+      return 0;
     }
 
     const discountValue = parseFloat(quotationForm.discountValue);
     
     if (quotationForm.discountType === "percentage") {
-      const discountAmount = totalPrice * (discountValue / 100);
-      return totalPrice - discountAmount;
+      const limitedDiscountValue = Math.min(discountValue, 100);
+      return totalPrice * (limitedDiscountValue / 100);
     } else {
-      // Fixed amount discount
-      return Math.max(0, totalPrice - discountValue);
+      const limitedDiscountValue = Math.min(discountValue, totalPrice);
+      return limitedDiscountValue;
     }
   };
 
-  const discountedTotal = calculateDiscountedTotal();
+  const discountAmount = getDiscountAmount();
 
   const handleCreateQuotation = async () => {
     if (
@@ -189,8 +217,12 @@ export default function QuotationsPage() {
         totalPrice: discountedTotal,
         serviceIds: selectedServiceIds,
         createdById: enhancedUser.id,
-        discountValue: quotationForm.discountValue ? parseFloat(quotationForm.discountValue) : undefined,
-        discountType: quotationForm.discountValue ? quotationForm.discountType : undefined,
+        discountValue: quotationForm.discountValue
+          ? parseFloat(quotationForm.discountValue)
+          : undefined,
+        discountType: quotationForm.discountValue
+          ? quotationForm.discountType
+          : undefined,
       });
 
       await fetchData();
@@ -260,8 +292,12 @@ export default function QuotationsPage() {
           | "unpaid"
           | "partially_paid"
           | "deposit_paid",
-        discountValue: editForm.discountValue ? parseFloat(editForm.discountValue) : undefined,
-        discountType: editForm.discountValue ? editForm.discountType : undefined,
+        discountValue: editForm.discountValue
+          ? parseFloat(editForm.discountValue)
+          : undefined,
+        discountType: editForm.discountValue
+          ? editForm.discountType
+          : undefined,
       });
 
       await fetchData();
@@ -303,11 +339,11 @@ export default function QuotationsPage() {
   };
 
   const resetCreateForm = () => {
-    setQuotationForm({ 
-      name: "", 
-      description: "", 
-      discountValue: "", 
-      discountType: "percentage" as "percentage" | "fixed" 
+    setQuotationForm({
+      name: "",
+      description: "",
+      discountValue: "",
+      discountType: "percentage" as "percentage" | "fixed",
     });
     setSelectedServiceIds([]);
     setTotalPrice(0);
@@ -435,7 +471,7 @@ export default function QuotationsPage() {
                                   </p>
                                 </div>
                                 <Badge variant="outline">
-                                  ${service.basePrice.toFixed(2)}
+                                  RM{service.basePrice.toFixed(2)}
                                 </Badge>
                               </div>
                             </div>
@@ -447,18 +483,38 @@ export default function QuotationsPage() {
                   <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
                     <span className="font-semibold">Discount: </span>
                     <div className="flex items-center gap-2">
-                      <Input 
-                        type="number" 
-                        min="0" 
-                        max="1000" 
-                        step="0.10" 
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.10"
                         value={quotationForm.discountValue}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          const maxValue =
+                            quotationForm.discountType === "percentage"
+                              ? 100
+                              : totalPrice;
+
+                          if (value > maxValue) {
+                            alert(
+                              `Discount cannot exceed ${
+                                quotationForm.discountType === "percentage"
+                                  ? "100%"
+                                  : `RM${totalPrice.toFixed(2)}`
+                              }`
+                            );
+                            setQuotationForm((prev) => ({
+                              ...prev,
+                              discountValue: "",
+                            }));
+                            return;
+                          }
+
                           setQuotationForm((prev) => ({
                             ...prev,
                             discountValue: e.target.value,
-                          }))
-                        }
+                          }));
+                        }}
                         placeholder="0.00"
                         className="w-32"
                       />
@@ -476,7 +532,7 @@ export default function QuotationsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="percentage">%</SelectItem>
-                          <SelectItem value="fixed">$</SelectItem>
+                          <SelectItem value="fixed">RM</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -485,22 +541,23 @@ export default function QuotationsPage() {
                   <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
                     <span className="font-semibold">Total Price:</span>
                     <div className="text-right">
-                      {quotationForm.discountValue && parseFloat(quotationForm.discountValue) > 0 ? (
+                      {quotationForm.discountValue &&
+                      parseFloat(quotationForm.discountValue) > 0 ? (
                         <div>
                           <span className="text-sm text-muted-foreground line-through">
-                            ${totalPrice.toFixed(2)}
+                            RM{totalPrice.toFixed(2)}
                           </span>
                           <br />
                           <span className="text-2xl font-bold text-green-600">
-                            ${discountedTotal.toFixed(2)}
+                            RM{discountedTotal.toFixed(2)}
                           </span>
-                          <div className="text-xs text-muted-foreground">
-                            Discount: {quotationForm.discountValue}{quotationForm.discountType === "percentage" ? "%" : "$"}
-                          </div>
+                                                      <div className="text-xs text-muted-foreground">
+                              Discount: RM {discountAmount.toFixed(2)}
+                            </div>
                         </div>
                       ) : (
                         <span className="text-2xl font-bold">
-                          ${totalPrice.toFixed(2)}
+                          RM{totalPrice.toFixed(2)}
                         </span>
                       )}
                     </div>
@@ -509,13 +566,17 @@ export default function QuotationsPage() {
                   <div className="p-4 bg-gray-100 rounded-lg">
                     <p className="text-sm font-medium mb-2">Form Data:</p>
                     <pre className="text-xs bg-white p-2 rounded border overflow-auto">
-                      {JSON.stringify({
-                        quotationForm,
-                        selectedServiceIds,
-                        totalPrice,
-                        discountedTotal,
-                        serviceSearchQuery
-                      }, null, 2)}
+                      {JSON.stringify(
+                        {
+                          quotationForm,
+                          selectedServiceIds,
+                          totalPrice,
+                          discountedTotal,
+                          serviceSearchQuery,
+                        },
+                        null,
+                        2
+                      )}
                     </pre>
                   </div>
                 </div>
@@ -552,7 +613,7 @@ export default function QuotationsPage() {
                     <div className="flex items-center gap-2 mt-1">
                       {getStatusBadge(quotation.status)}
                       <Badge variant="outline">
-                        ${quotation.totalPrice.toFixed(2)}
+                        RM{quotation.totalPrice.toFixed(2)}
                       </Badge>
                     </div>
                   </div>
@@ -608,7 +669,8 @@ export default function QuotationsPage() {
                 {quotation.discountValue && (
                   <div className="mt-2">
                     <p className="text-sm text-muted-foreground">
-                      Discount: {quotation.discountValue}{quotation.discountType === "percentage" ? "%" : "$"}
+                      Discount: {quotation.discountValue}
+                      {quotation.discountType === "percentage" ? "%" : "RM"}
                     </p>
                   </div>
                 )}
@@ -663,7 +725,7 @@ export default function QuotationsPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-totalPrice">Total Price ($)</Label>
+                  <Label htmlFor="edit-totalPrice">Total Price (RM)</Label>
                   <Input
                     id="edit-totalPrice"
                     type="number"
@@ -700,19 +762,41 @@ export default function QuotationsPage() {
                 <div className="grid gap-2">
                   <Label htmlFor="edit-discount">Discount</Label>
                   <div className="flex items-center gap-2">
-                    <Input 
+                    <Input
                       id="edit-discount"
-                      type="number" 
-                      min="0" 
-                      max="1000" 
-                      step="0.10" 
+                      type="number"
+                      min="0"
+                      step="0.10"
                       value={editForm.discountValue}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        const maxValue =
+                          editForm.discountType === "percentage"
+                            ? 100
+                            : parseFloat(editForm.totalPrice) || 0;
+
+                        if (value > maxValue) {
+                          alert(
+                            `Discount cannot exceed ${
+                              editForm.discountType === "percentage"
+                                ? "100%"
+                                : `RM${(
+                                    parseFloat(editForm.totalPrice) || 0
+                                  ).toFixed(2)}`
+                            }`
+                          );
+                          setEditForm((prev) => ({
+                            ...prev,
+                            discountValue: "",
+                          }));
+                          return;
+                        }
+
                         setEditForm((prev) => ({
                           ...prev,
                           discountValue: e.target.value,
-                        }))
-                      }
+                        }));
+                      }}
                       placeholder="0.00"
                       className="flex-1"
                     />
@@ -730,35 +814,41 @@ export default function QuotationsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="percentage">%</SelectItem>
-                        <SelectItem value="fixed">$</SelectItem>
+                        <SelectItem value="fixed">RM</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                                  </div>
                 </div>
+              </div>
 
-                <div className="p-4 bg-gray-100 rounded-lg">
-                  <p className="text-sm font-medium mb-2">Edit Form Data:</p>
-                  <pre className="text-xs bg-white p-2 rounded border overflow-auto">
-                    {JSON.stringify({
+              <div className="p-4 bg-gray-100 rounded-lg">
+                <p className="text-sm font-medium mb-2">Edit Form Data:</p>
+                <pre className="text-xs bg-white p-2 rounded border overflow-auto">
+                  {JSON.stringify(
+                    {
                       editForm,
-                      editingQuotation: editingQuotation ? {
-                        id: editingQuotation.id,
-                        name: editingQuotation.name,
-                        status: editingQuotation.status
-                      } : null
-                    }, null, 2)}
-                  </pre>
-                </div>
+                      editingQuotation: editingQuotation
+                        ? {
+                            id: editingQuotation.id,
+                            name: editingQuotation.name,
+                            status: editingQuotation.status,
+                          }
+                        : null,
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
+              </div>
 
-                <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
-                  <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleUpdateQuotation}>
-                    Update Quotation
-                  </Button>
-                </div>
+              <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
+                <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateQuotation}>
+                  Update Quotation
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
