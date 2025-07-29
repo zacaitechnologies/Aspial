@@ -46,6 +46,8 @@ type QuotationWithServices = {
   description: string;
   totalPrice: number;
   status: string;
+  discountValue?: number;
+  discountType?: "percentage" | "fixed";
   created_at: Date;
   updated_at: Date;
   services: {
@@ -82,6 +84,8 @@ export default function QuotationsPage() {
   const [quotationForm, setQuotationForm] = useState({
     name: "",
     description: "",
+    discountValue: "",
+    discountType: "percentage" as "percentage" | "fixed",
   });
 
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -93,11 +97,18 @@ export default function QuotationsPage() {
     description: "",
     totalPrice: "",
     status: "",
+    discountValue: "",
+    discountType: "percentage" as "percentage" | "fixed",
   });
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Recalculate discounted total when discount values change
+  useEffect(() => {
+    // This will trigger a re-render with the updated discountedTotal
+  }, [quotationForm.discountValue, quotationForm.discountType, totalPrice]);
 
   const fetchData = async () => {
     try {
@@ -133,6 +144,25 @@ export default function QuotationsPage() {
     });
   };
 
+  // Calculate discounted total price
+  const calculateDiscountedTotal = () => {
+    if (!quotationForm.discountValue || parseFloat(quotationForm.discountValue) === 0) {
+      return totalPrice;
+    }
+
+    const discountValue = parseFloat(quotationForm.discountValue);
+    
+    if (quotationForm.discountType === "percentage") {
+      const discountAmount = totalPrice * (discountValue / 100);
+      return totalPrice - discountAmount;
+    } else {
+      // Fixed amount discount
+      return Math.max(0, totalPrice - discountValue);
+    }
+  };
+
+  const discountedTotal = calculateDiscountedTotal();
+
   const handleCreateQuotation = async () => {
     if (
       !quotationForm.name ||
@@ -156,9 +186,11 @@ export default function QuotationsPage() {
       await createQuotation({
         name: quotationForm.name,
         description: quotationForm.description,
-        totalPrice,
+        totalPrice: discountedTotal,
         serviceIds: selectedServiceIds,
         createdById: enhancedUser.id,
+        discountValue: quotationForm.discountValue ? parseFloat(quotationForm.discountValue) : undefined,
+        discountType: quotationForm.discountValue ? quotationForm.discountType : undefined,
       });
 
       await fetchData();
@@ -176,6 +208,8 @@ export default function QuotationsPage() {
       description: quotation.description,
       totalPrice: quotation.totalPrice.toString(),
       status: quotation.status,
+      discountValue: quotation.discountValue?.toString() || "",
+      discountType: quotation.discountType || "percentage",
     });
     setIsEditOpen(true);
   };
@@ -226,6 +260,8 @@ export default function QuotationsPage() {
           | "unpaid"
           | "partially_paid"
           | "deposit_paid",
+        discountValue: editForm.discountValue ? parseFloat(editForm.discountValue) : undefined,
+        discountType: editForm.discountValue ? editForm.discountType : undefined,
       });
 
       await fetchData();
@@ -267,7 +303,12 @@ export default function QuotationsPage() {
   };
 
   const resetCreateForm = () => {
-    setQuotationForm({ name: "", description: "" });
+    setQuotationForm({ 
+      name: "", 
+      description: "", 
+      discountValue: "", 
+      discountType: "percentage" as "percentage" | "fixed" 
+    });
     setSelectedServiceIds([]);
     setTotalPrice(0);
     setServiceSearchQuery("");
@@ -293,9 +334,11 @@ export default function QuotationsPage() {
   return (
     <>
       <div className="container mx-auto p-6">
+        {/* Check User Login
         <pre className="mt-2 text-xs bg-gray-100 p-2 rounded">
           {JSON.stringify(enhancedUser, null, 2)}
         </pre>
+        */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold">Quotations Management</h1>
@@ -402,10 +445,78 @@ export default function QuotationsPage() {
                   </div>
 
                   <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
+                    <span className="font-semibold">Discount: </span>
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        type="number" 
+                        min="0" 
+                        max="1000" 
+                        step="0.10" 
+                        value={quotationForm.discountValue}
+                        onChange={(e) =>
+                          setQuotationForm((prev) => ({
+                            ...prev,
+                            discountValue: e.target.value,
+                          }))
+                        }
+                        placeholder="0.00"
+                        className="w-32"
+                      />
+                      <Select
+                        value={quotationForm.discountType}
+                        onValueChange={(value: "percentage" | "fixed") =>
+                          setQuotationForm((prev) => ({
+                            ...prev,
+                            discountType: value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="percentage">%</SelectItem>
+                          <SelectItem value="fixed">$</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
                     <span className="font-semibold">Total Price:</span>
-                    <span className="text-2xl font-bold">
-                      ${totalPrice.toFixed(2)}
-                    </span>
+                    <div className="text-right">
+                      {quotationForm.discountValue && parseFloat(quotationForm.discountValue) > 0 ? (
+                        <div>
+                          <span className="text-sm text-muted-foreground line-through">
+                            ${totalPrice.toFixed(2)}
+                          </span>
+                          <br />
+                          <span className="text-2xl font-bold text-green-600">
+                            ${discountedTotal.toFixed(2)}
+                          </span>
+                          <div className="text-xs text-muted-foreground">
+                            Discount: {quotationForm.discountValue}{quotationForm.discountType === "percentage" ? "%" : "$"}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-2xl font-bold">
+                          ${totalPrice.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gray-100 rounded-lg">
+                    <p className="text-sm font-medium mb-2">Form Data:</p>
+                    <pre className="text-xs bg-white p-2 rounded border overflow-auto">
+                      {JSON.stringify({
+                        quotationForm,
+                        selectedServiceIds,
+                        totalPrice,
+                        discountedTotal,
+                        serviceSearchQuery
+                      }, null, 2)}
+                    </pre>
                   </div>
                 </div>
                 <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
@@ -494,6 +605,13 @@ export default function QuotationsPage() {
                     ))}
                   </div>
                 </div>
+                {quotation.discountValue && (
+                  <div className="mt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Discount: {quotation.discountValue}{quotation.discountType === "percentage" ? "%" : "$"}
+                    </p>
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-3">
                   Created: {new Date(quotation.created_at).toLocaleDateString()}
                 </p>
@@ -579,15 +697,68 @@ export default function QuotationsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-              <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
-                <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleUpdateQuotation}>
-                  Update Quotation
-                </Button>
-              </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-discount">Discount</Label>
+                  <div className="flex items-center gap-2">
+                    <Input 
+                      id="edit-discount"
+                      type="number" 
+                      min="0" 
+                      max="1000" 
+                      step="0.10" 
+                      value={editForm.discountValue}
+                      onChange={(e) =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          discountValue: e.target.value,
+                        }))
+                      }
+                      placeholder="0.00"
+                      className="flex-1"
+                    />
+                    <Select
+                      value={editForm.discountType}
+                      onValueChange={(value: "percentage" | "fixed") =>
+                        setEditForm((prev) => ({
+                          ...prev,
+                          discountType: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percentage">%</SelectItem>
+                        <SelectItem value="fixed">$</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                                  </div>
+                </div>
+
+                <div className="p-4 bg-gray-100 rounded-lg">
+                  <p className="text-sm font-medium mb-2">Edit Form Data:</p>
+                  <pre className="text-xs bg-white p-2 rounded border overflow-auto">
+                    {JSON.stringify({
+                      editForm,
+                      editingQuotation: editingQuotation ? {
+                        id: editingQuotation.id,
+                        name: editingQuotation.name,
+                        status: editingQuotation.status
+                      } : null
+                    }, null, 2)}
+                  </pre>
+                </div>
+
+                <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
+                  <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleUpdateQuotation}>
+                    Update Quotation
+                  </Button>
+                </div>
             </div>
           </DialogContent>
         </Dialog>

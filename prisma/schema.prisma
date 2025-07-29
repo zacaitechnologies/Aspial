@@ -60,17 +60,20 @@ model Services {
 }
 
 model Quotation {
-  id          Int                @id @default(autoincrement())
-  name        String
-  description String
-  totalPrice  Float
-  created_at  DateTime           @default(now())
-  updated_at  DateTime           @default(now())
-  services    QuotationService[]
-  status      QuotationStatus    @default(draft)
-  createdById String
-  createdBy   User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
-  projects    Project[]
+  id            Int                @id @default(autoincrement())
+  name          String
+  description   String
+  discountValue Float?
+  discountType  DiscountType?
+  totalPrice    Float
+  services      QuotationService[]
+  status        QuotationStatus    @default(draft)
+  createdById   String
+  projects      Project[]
+  created_at    DateTime           @default(now())
+  updated_at    DateTime           @default(now())
+  createdBy     User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
+  
 
   @@map("quotations")
 }
@@ -84,6 +87,11 @@ enum QuotationStatus {
   unpaid
   partially_paid
   deposit_paid
+}
+
+enum DiscountType {
+  percentage
+  fixed
 }
 
 model QuotationService {
