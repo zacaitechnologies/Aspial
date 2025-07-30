@@ -72,6 +72,10 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const [showBookingForm, setShowBookingForm] = useState(false)
   const [showStudioBookingForm, setShowStudioBookingForm] = useState(false)
 
+  const handleRefresh = () => {
+    window.location.reload()
+  }
+
   const handleDeleteStudio = async (id: number) => {
     if (confirm("Are you sure you want to delete this studio?")) {
       await deleteStudio(id)
@@ -249,6 +253,7 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                   setShowEquipmentForm(false)
                   setSelectedEquipment(null)
                 }}
+                onSuccess={handleRefresh}
               />
             </DialogContent>
           </Dialog>
