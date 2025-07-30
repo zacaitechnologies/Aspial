@@ -6,9 +6,6 @@ const prisma = new PrismaClient();
 
 async function getStudios() {
   return await prisma.studio.findMany({
-    include: {
-      equipment: true,
-    },
     orderBy: {
       createdAt: "desc",
     },
@@ -17,9 +14,6 @@ async function getStudios() {
 
 async function getEquipment() {
   return await prisma.equipment.findMany({
-    include: {
-      studio: true,
-    },
     orderBy: {
       createdAt: "desc",
     },

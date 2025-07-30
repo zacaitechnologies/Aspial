@@ -4,10 +4,6 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
 
@@ -68,8 +64,18 @@ async function fetchBookings(): Promise<CalendarBooking[]> {
       fetch('/api/bookings/studio')
     ])
 
-    const equipmentBookings: EquipmentBooking[] = await equipmentResponse.json()
-    const studioBookings: StudioBooking[] = await studioResponse.json()
+    // Check if responses are successful
+    if (!equipmentResponse.ok || !studioResponse.ok) {
+      console.error('API response not ok:', { equipment: equipmentResponse.status, studio: studioResponse.status })
+      return []
+    }
+
+    const equipmentData = await equipmentResponse.json()
+    const studioData = await studioResponse.json()
+
+    // Ensure we have arrays, not error objects
+    const equipmentBookings: EquipmentBooking[] = Array.isArray(equipmentData) ? equipmentData : []
+    const studioBookings: StudioBooking[] = Array.isArray(studioData) ? studioData : []
 
     const calendarBookings: CalendarBooking[] = []
 
@@ -194,37 +200,6 @@ export default function OrganizationCalendar() {
     })
   }
 
-  const handleCreateBooking = () => {
-    if (newBooking.title && newBooking.date && newBooking.startTime && newBooking.endTime) {
-      const booking: CalendarBooking = {
-        id: Date.now().toString(),
-        title: newBooking.title,
-        description: newBooking.description || "",
-        date: newBooking.date,
-        startTime: newBooking.startTime,
-        endTime: newBooking.endTime,
-        type: newBooking.type as "equipment" | "studio",
-        location: newBooking.location || "",
-        attendees: newBooking.attendees || 1,
-        color: bookingTypes[newBooking.type as keyof typeof bookingTypes].color,
-        originalData: {} as EquipmentBooking | StudioBooking
-      }
-
-      setBookings((prev) => [...prev, booking])
-      setNewBooking({
-        title: "",
-        description: "",
-        date: "",
-        startTime: "",
-        endTime: "",
-        type: "equipment",
-        location: "",
-        attendees: 1,
-      })
-      setIsDialogOpen(false)
-    }
-  }
-
   const renderCalendarDays = () => {
     const daysInMonth = getDaysInMonth(currentDate)
     const firstDay = getFirstDayOfMonth(currentDate)
@@ -298,110 +273,7 @@ export default function OrganizationCalendar() {
                   <SelectItem value="studio">Studio</SelectItem>
                 </SelectContent>
               </Select>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-blue-600 hover:bg-blue-700 transition-colors duration-200">
-                    <Plus className="w-4 h-4 mr-2" />
-                    New Booking
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Create New Booking</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="title">Title</Label>
-                      <Input
-                        id="title"
-                        value={newBooking.title}
-                        onChange={(e) => setNewBooking((prev) => ({ ...prev, title: e.target.value }))}
-                        placeholder="Enter booking title"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={newBooking.description}
-                        onChange={(e) => setNewBooking((prev) => ({ ...prev, description: e.target.value }))}
-                        placeholder="Enter description"
-                        rows={3}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="date">Date</Label>
-                        <Input
-                          id="date"
-                          type="date"
-                          value={newBooking.date}
-                          onChange={(e) => setNewBooking((prev) => ({ ...prev, date: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="type">Type</Label>
-                        <Select
-                          value={newBooking.type}
-                          onValueChange={(value) => setNewBooking((prev) => ({ ...prev, type: value as "equipment" | "studio" }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="equipment">Equipment</SelectItem>
-                            <SelectItem value="studio">Studio</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="startTime">Start Time</Label>
-                        <Input
-                          id="startTime"
-                          type="time"
-                          value={newBooking.startTime}
-                          onChange={(e) => setNewBooking((prev) => ({ ...prev, startTime: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="endTime">End Time</Label>
-                        <Input
-                          id="endTime"
-                          type="time"
-                          value={newBooking.endTime}
-                          onChange={(e) => setNewBooking((prev) => ({ ...prev, endTime: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="location">Location</Label>
-                      <Input
-                        id="location"
-                        value={newBooking.location}
-                        onChange={(e) => setNewBooking((prev) => ({ ...prev, location: e.target.value }))}
-                        placeholder="Enter location"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="attendees">Expected Attendees</Label>
-                      <Input
-                        id="attendees"
-                        type="number"
-                        min="1"
-                        value={newBooking.attendees}
-                        onChange={(e) =>
-                          setNewBooking((prev) => ({ ...prev, attendees: Number.parseInt(e.target.value) }))
-                        }
-                      />
-                    </div>
-                    <Button onClick={handleCreateBooking} className="w-full">
-                      Create Booking
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              
             </div>
           </div>
 
