@@ -30,9 +30,10 @@ interface EquipmentFormProps {
   equipment?: Equipment
   studios: Studio[]
   onClose: () => void
+  onSuccess?: () => void
 }
 
-export function EquipmentForm({ equipment, studios, onClose }: EquipmentFormProps) {
+export function EquipmentForm({ equipment, studios, onClose, onSuccess }: EquipmentFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(formData: FormData) {
@@ -41,7 +42,10 @@ export function EquipmentForm({ equipment, studios, onClose }: EquipmentFormProp
     const result = equipment ? await updateEquipment(equipment.id, formData) : await createEquipment(formData)
 
     if (result.success) {
+      onSuccess?.()
       onClose()
+    } else {
+      console.error("Form submission failed:", result.error)
     }
     setIsSubmitting(false)
   }

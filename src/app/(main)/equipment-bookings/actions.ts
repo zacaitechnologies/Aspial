@@ -21,7 +21,7 @@ export async function createStudio(formData: FormData) {
         description: description || null,
       },
     })
-    revalidatePath("/admin")
+    revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -47,7 +47,7 @@ export async function updateStudio(id: number, formData: FormData) {
         isActive,
       },
     })
-    revalidatePath("/admin")
+    revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -60,7 +60,7 @@ export async function deleteStudio(id: number) {
     await prisma.studio.delete({
       where: { id },
     })
-    revalidatePath("/admin")
+    revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) { 
     console.error(error)
@@ -87,10 +87,10 @@ export async function createEquipment(formData: FormData) {
         model: model || null,
         serialNumber: serialNumber || null,
         condition,
-        studioId: studioId ? Number.parseInt(studioId) : null,
+        studioId: studioId && studioId !== "0" ? Number.parseInt(studioId) : null,
       },
     })
-    revalidatePath("/admin")
+    revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -119,10 +119,10 @@ export async function updateEquipment(id: number, formData: FormData) {
         serialNumber: serialNumber || null,
         condition,
         isAvailable,
-        studioId: studioId ? Number.parseInt(studioId) : null,
+        studioId: studioId && studioId !== "0" ? Number.parseInt(studioId) : null,
       },
     })
-    revalidatePath("/admin")
+    revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -135,7 +135,7 @@ export async function deleteEquipment(id: number) {
     await prisma.equipment.delete({
       where: { id },
     })
-    revalidatePath("/admin")
+    revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -168,7 +168,7 @@ export async function createBooking(formData: FormData) {
       data: { isAvailable: false },
     })
 
-    revalidatePath("/admin")
+    revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -228,7 +228,7 @@ export async function createStudioBooking(formData: FormData) {
       })
     }
 
-    revalidatePath("/admin")
+    revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) {
     console.error(error)
