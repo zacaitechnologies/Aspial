@@ -1,9 +1,9 @@
 "use client"
 
-import { Bell, Search } from "lucide-react"
+import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { usePathname } from "next/navigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,17 +18,29 @@ import { signout } from "@/lib/auth-actions"
 
 export function AppHeader() {
     const { enhancedUser } = useSession();
+    const pathname = usePathname();
+    
+    // Get page title based on current path
+    const getPageTitle = () => {
+      const navItems = [
+        { path: "/service", title: "Services" },
+        { path: "/quotations", title: "Quotations" },
+        { path: "/projects", title: "Projects" },
+        { path: "/equipment-bookings", title: "Equipment Bookings" },
+        { path: "/calander", title: "Calendar" },
+      ];
+      
+      const currentItem = navItems.find(item => pathname === item.path);
+      return currentItem?.title || "Dashboard";
+    };
+
   return (
     <header className="border-b border-slate-200 bg-white px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="hover:bg-slate-100" />
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Search anything..."
-              className="pl-10 w-80 border-slate-200 focus:border-blue-500 focus:ring-blue-500 transition-all duration-200"
-            />
+          <div className="flex items-center">
+            <h1 className="text-2xl font-bold text-slate-900">{getPageTitle()}</h1>
           </div>
         </div>
 

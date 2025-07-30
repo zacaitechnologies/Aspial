@@ -284,7 +284,6 @@ export default function OrganizationCalendar() {
         <div className="mb-8 animate-in fade-in-0 slide-in-from-top-4 duration-500">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Organization Calendar</h1>
               <p className="text-gray-600">Manage your team&apos;s bookings and events</p>
             </div>
             <div className="flex items-center gap-4">
