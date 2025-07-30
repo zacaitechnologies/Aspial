@@ -64,13 +64,15 @@ export async function createQuotation(quotation: {
   description: string;
   totalPrice: number;
   serviceIds: string[];
+  createdById: string;
 }) {
   try {
-    const { serviceIds, ...quotationData } = quotation;
+    const { serviceIds, createdById, ...quotationData } = quotation;
     
     const data = await prisma.quotation.create({
       data: {
         ...quotationData,
+        createdById,
         services: {
           connect: serviceIds.map(id => ({ id: parseInt(id) }))
         }
@@ -98,7 +100,7 @@ export async function editQuotationById(
     name?: string;
     description?: string;
     totalPrice?: number;
-    status?: string;
+    status?: any;
   }
 ) {
   try {

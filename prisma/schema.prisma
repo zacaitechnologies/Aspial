@@ -34,42 +34,64 @@ model UserRole {
 }
 
 model User {
-  id          String     @id @default(cuid())
+  id          String      @id @default(cuid())
   firstName   String
   lastName    String
   email       String
   userRoles   UserRole[]
-  supabase_id String     @unique
-  created_at  DateTime   @default(now())
-  updated_at  DateTime   @default(now())
+  supabase_id String      @unique
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @default(now())
+  quotations  Quotation[] @relation("QuotationCreator")
 
   @@map("user")
 }
 
 model Services {
-  id          Int                    @id @default(autoincrement())
+  id          Int                @id @default(autoincrement())
   name        String
   description String
   basePrice   Float
-  created_at  DateTime               @default(now())
-  updated_at  DateTime               @default(now())
+  created_at  DateTime           @default(now())
+  updated_at  DateTime           @default(now())
   quotations  QuotationService[]
 
   @@map("services")
 }
 
 model Quotation {
-  id          Int                    @id @default(autoincrement())
-  name        String
-  description String
-  totalPrice  Float
-  created_at  DateTime               @default(now())
-  updated_at  DateTime               @default(now())
-  services    QuotationService[]
-  status      String                 @default("draft") // "draft" | "sent" | "accepted" | "rejected" | "paid" | "unpaid" | "partially_paid" | "deposit_paid"
-  projects    Project[]
+  id            Int                @id @default(autoincrement())
+  name          String
+  description   String
+  discountValue Float?
+  discountType  DiscountType?
+  totalPrice    Float
+  services      QuotationService[]
+  status        QuotationStatus    @default(draft)
+  createdById   String
+  projects      Project[]
+  created_at    DateTime           @default(now())
+  updated_at    DateTime           @default(now())
+  createdBy     User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
+  
 
   @@map("quotations")
+}
+
+enum QuotationStatus {
+  draft
+  sent
+  accepted
+  rejected
+  paid
+  unpaid
+  partially_paid
+  deposit_paid
+}
+
+enum DiscountType {
+  percentage
+  fixed
 }
 
 model QuotationService {
