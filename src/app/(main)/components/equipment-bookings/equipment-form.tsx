@@ -18,22 +18,15 @@ interface Equipment {
   serialNumber: string | null
   condition: string
   isAvailable: boolean
-  studioId: number | null
-}
-
-interface Studio {
-  id: number
-  name: string
 }
 
 interface EquipmentFormProps {
   equipment?: Equipment
-  studios: Studio[]
   onClose: () => void
   onSuccess?: () => void
 }
 
-export function EquipmentForm({ equipment, studios, onClose, onSuccess }: EquipmentFormProps) {
+export function EquipmentForm({ equipment, onClose, onSuccess }: EquipmentFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(formData: FormData) {
@@ -94,22 +87,7 @@ export function EquipmentForm({ equipment, studios, onClose, onSuccess }: Equipm
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="studioId">Studio</Label>
-            <Select name="studioId" defaultValue={equipment?.studioId?.toString() || "0"}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a studio" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">No Studio</SelectItem>
-                {studios.map((studio) => (
-                  <SelectItem key={studio.id} value={studio.id.toString()}>
-                    {studio.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
 
           {equipment && (
             <div className="flex items-center space-x-2">

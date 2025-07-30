@@ -35,7 +35,7 @@ import {
   editQuotationById,
   deleteQuotationById,
 } from "./action";
-import { getAllServices } from "../service/action";
+import { getAllServices } from "../services/action";
 import { createProject } from "../projects/action";
 import type { Services } from "@prisma/client";
 import { useSession } from "../contexts/SessionProvider";

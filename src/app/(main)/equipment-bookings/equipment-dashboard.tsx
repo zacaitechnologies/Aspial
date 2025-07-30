@@ -39,7 +39,6 @@ interface Studio {
   capacity: number
   description: string | null
   isActive: boolean
-  equipment: Equipment[]
   bookings?: StudioBooking[]
 }
 
@@ -52,8 +51,6 @@ interface Equipment {
   serialNumber: string | null
   condition: string
   isAvailable: boolean
-  studioId: number | null
-  studio?: { name: string } | null
   bookings?: Booking[]
 }
 
@@ -155,7 +152,7 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                   </div>
                   <div className="flex items-center text-sm text-muted-foreground">
                     <Package className="w-4 h-4 mr-2" />
-                    Equipment: {studio.equipment.length} items
+                    Location: {studio.location}
                   </div>
                 </div>
 
@@ -248,7 +245,6 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
               </DialogTitle>
               <EquipmentForm
                 equipment={selectedEquipment || undefined}
-                studios={studios.map((s) => ({ id: s.id, name: s.name }))}
                 onClose={() => {
                   setShowEquipmentForm(false)
                   setSelectedEquipment(null)
@@ -301,9 +297,7 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                       <span className="font-medium">Serial:</span> {item.serialNumber}
                     </div>
                   )}
-                  <div className="text-sm">
-                    <span className="font-medium">Studio:</span> {item.studio?.name || "Unassigned"}
-                  </div>
+
                 </div>
 
                 {item.bookings && item.bookings.length > 0 && (

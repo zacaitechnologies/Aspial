@@ -127,7 +127,6 @@ model Studio {
   capacity    Int
   description String?
   isActive    Boolean         @default(true)
-  equipment   Equipment[]
   bookings    StudioBooking[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -144,8 +143,6 @@ model Equipment {
   serialNumber String?   @unique
   condition    String    @default("Good")
   isAvailable  Boolean   @default(true)
-  studioId     Int?
-  studio       Studio?   @relation(fields: [studioId], references: [id])
   bookings     Booking[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

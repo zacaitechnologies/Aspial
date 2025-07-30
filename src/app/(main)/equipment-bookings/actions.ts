@@ -76,7 +76,6 @@ export async function createEquipment(formData: FormData) {
   const model = formData.get("model") as string
   const serialNumber = formData.get("serialNumber") as string
   const condition = formData.get("condition") as string
-  const studioId = formData.get("studioId") as string
 
   try {
     await prisma.equipment.create({
@@ -87,7 +86,6 @@ export async function createEquipment(formData: FormData) {
         model: model || null,
         serialNumber: serialNumber || null,
         condition,
-        studioId: studioId && studioId !== "0" ? Number.parseInt(studioId) : null,
       },
     })
     revalidatePath("/equipment-bookings")
@@ -106,7 +104,6 @@ export async function updateEquipment(id: number, formData: FormData) {
   const serialNumber = formData.get("serialNumber") as string
   const condition = formData.get("condition") as string
   const isAvailable = formData.get("isAvailable") === "on"
-  const studioId = formData.get("studioId") as string
 
   try {
     await prisma.equipment.update({
@@ -119,7 +116,6 @@ export async function updateEquipment(id: number, formData: FormData) {
         serialNumber: serialNumber || null,
         condition,
         isAvailable,
-        studioId: studioId && studioId !== "0" ? Number.parseInt(studioId) : null,
       },
     })
     revalidatePath("/equipment-bookings")
