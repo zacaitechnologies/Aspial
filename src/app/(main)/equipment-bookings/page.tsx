@@ -31,7 +31,6 @@ export default async function AdminPage() {
 
   return (
     <div className="container mx-auto">
-      <p className="text-2xl font-bold mb-4">Services Available</p>
       <Suspense fallback={<div>Loading...</div>}>
         <BookingDashboard studios={studios} equipment={equipment} />
       </Suspense>

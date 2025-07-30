@@ -177,7 +177,6 @@ export default function ServicesPage() {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Services Management</h1>
           <p className="text-muted-foreground">
             Manage your available services
           </p>
