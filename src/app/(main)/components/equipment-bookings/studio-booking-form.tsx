@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { createStudioBooking } from "@/app/(main)/equipment-bookings/actions"
+import { useSession } from "@/app/(main)/contexts/SessionProvider"
 
 interface Studio {
   id: number
@@ -22,8 +23,8 @@ interface StudioBookingFormProps {
 }
 
 export function StudioBookingForm({ studio, onClose }: StudioBookingFormProps) {
+  const { enhancedUser } = useSession()
   const [formData, setFormData] = useState({
-    bookedBy: "",
     startDateTime: "",
     endDateTime: "",
     purpose: "",
@@ -48,9 +49,14 @@ export function StudioBookingForm({ studio, onClose }: StudioBookingFormProps) {
         return
       }
 
+      // Get user name from session
+      const userName = enhancedUser.profile 
+        ? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim() 
+        : enhancedUser.email || 'Unknown User'
+      
       const data = new FormData()
       data.append("studioId", studio.id.toString())
-      data.append("bookedBy", formData.bookedBy)
+      data.append("bookedBy", userName)
       data.append("startDate", startDateTime.toISOString())
       data.append("endDate", endDateTime.toISOString())
       data.append("purpose", formData.purpose)
@@ -82,10 +88,12 @@ export function StudioBookingForm({ studio, onClose }: StudioBookingFormProps) {
         <Label htmlFor="bookedBy">Booked By</Label>
         <Input
           id="bookedBy"
-          value={formData.bookedBy}
-          onChange={(e) => setFormData({ ...formData, bookedBy: e.target.value })}
-          placeholder="Enter your name"
-          required
+          value={enhancedUser.profile 
+            ? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim() 
+            : enhancedUser.email || 'Unknown User'
+          }
+          disabled
+          className="bg-gray-50"
         />
       </div>
 
