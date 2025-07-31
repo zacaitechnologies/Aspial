@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
+import { CalendarDay } from "../components/calendar/CalendarDay"
+import { BookingDetailsDialog } from "../components/calendar/BookingDetailsDialog"
 
 interface EquipmentBooking {
   id: number
@@ -13,7 +15,6 @@ interface EquipmentBooking {
   equipment: {
     name: string
     type: string
-    studio?: { name: string } | null
   }
   bookedBy: string
   startDate: string
@@ -37,7 +38,7 @@ interface StudioBooking {
   status: string
 }
 
-interface CalendarBooking {
+export interface CalendarBooking {
   id: string
   title: string
   description: string
@@ -93,7 +94,7 @@ async function fetchBookings(): Promise<CalendarBooking[]> {
           startTime: startDate.toTimeString().slice(0, 5),
           endTime: endDate.toTimeString().slice(0, 5),
           type: "equipment",
-          location: booking.equipment.studio?.name || "Unassigned",
+          location: `${booking.equipment.type} Equipment`,
           attendees: 1,
           color: bookingTypes.equipment.color,
           originalData: booking
@@ -133,19 +134,10 @@ async function fetchBookings(): Promise<CalendarBooking[]> {
 export default function OrganizationCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [bookings, setBookings] = useState<CalendarBooking[]>([])
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [filterType, setFilterType] = useState<string>("all")
   const [hoveredDate, setHoveredDate] = useState<string>("")
-  const [newBooking, setNewBooking] = useState<Partial<CalendarBooking>>({
-    title: "",
-    description: "",
-    date: "",
-    startTime: "",
-    endTime: "",
-    type: "equipment",
-    location: "",
-    attendees: 1,
-  })
+  const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null)
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
 
   // Fetch bookings on component mount
   useEffect(() => {
@@ -200,6 +192,28 @@ export default function OrganizationCalendar() {
     })
   }
 
+  const handleBookingClick = (booking: CalendarBooking) => {
+    setSelectedBooking(booking)
+    setIsDetailsDialogOpen(true)
+  }
+
+  const handleBookingEdit = (updatedBooking: CalendarBooking) => {
+    setBookings((prev) => 
+      prev.map((booking) => 
+        booking.id === updatedBooking.id ? updatedBooking : booking
+      )
+    )
+  }
+
+  const handleBookingDelete = (bookingId: string) => {
+    setBookings((prev) => prev.filter((booking) => booking.id !== bookingId))
+  }
+
+  const handleDateClick = (dateString: string) => {
+    // You can implement new booking creation here if needed
+    console.log("Clicked date:", dateString)
+  }
+
   const renderCalendarDays = () => {
     const daysInMonth = getDaysInMonth(currentDate)
     const firstDay = getFirstDayOfMonth(currentDate)
@@ -219,33 +233,18 @@ export default function OrganizationCalendar() {
       const isHovered = hoveredDate === dateString
 
       days.push(
-        <div
+        <CalendarDay
           key={day}
-          className={`h-24 border border-gray-100 p-1 cursor-pointer transition-all duration-200 hover:bg-gray-50 ${
-            isToday ? "bg-blue-50 border-blue-200" : ""
-          } ${isHovered ? "shadow-md transform scale-105" : ""}`}
-          onMouseEnter={() => setHoveredDate(dateString)}
-          onMouseLeave={() => setHoveredDate("")}
-          onClick={() => {
-            setNewBooking((prev) => ({ ...prev, date: dateString }))
-          }}
-        >
-          <div className={`text-sm font-medium mb-1 ${isToday ? "text-blue-600" : "text-gray-700"}`}>{day}</div>
-          <div className="space-y-1">
-            {dayBookings.slice(0, 2).map((booking, index) => (
-              <div
-                key={booking.id}
-                className={`text-xs px-1 py-0.5 rounded text-white truncate ${booking.color} 
-                  transform transition-all duration-200 hover:scale-105 animate-in slide-in-from-left-2`}
-                style={{ animationDelay: `${index * 100}ms` }}
-                title={`${booking.title} (${booking.startTime} - ${booking.endTime})`}
-              >
-                {booking.title}
-              </div>
-            ))}
-            {dayBookings.length > 2 && <div className="text-xs text-gray-500 px-1">+{dayBookings.length - 2} more</div>}
-          </div>
-        </div>,
+          day={day}
+          date={date}
+          dateString={dateString}
+          dayBookings={dayBookings}
+          isToday={isToday}
+          isHovered={isHovered}
+          onDateClick={handleDateClick}
+          onBookingClick={handleBookingClick}
+          onHoverChange={setHoveredDate}
+        />
       )
     }
 
@@ -407,6 +406,18 @@ export default function OrganizationCalendar() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Booking Details Dialog */}
+        <BookingDetailsDialog
+          booking={selectedBooking}
+          isOpen={isDetailsDialogOpen}
+          onClose={() => {
+            setIsDetailsDialogOpen(false)
+            setSelectedBooking(null)
+          }}
+          onEdit={handleBookingEdit}
+          onDelete={handleBookingDelete}
+        />
       </div>
     </div>
   )
