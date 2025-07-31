@@ -15,6 +15,7 @@ import {
   Wrench,
   Receipt,
   Briefcase,
+  Clock,
 } from "lucide-react";
 
 import {
@@ -53,9 +54,9 @@ const mainNavItems = [
     icon: CalendarClockIcon,
   },
   {
-    title: "Customers",
-    url: "#",
-    icon: Users,
+    title: "Time Tracking",
+    url: "/time-tracking",
+    icon: Clock,
   },
   {
     title: "Calander",
