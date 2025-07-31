@@ -10,11 +10,7 @@ export async function GET() {
         status: "active"
       },
       include: {
-        equipment: {
-          include: {
-            studio: true
-          }
-        }
+        equipment: true
       },
       orderBy: {
         startDate: 'asc'
