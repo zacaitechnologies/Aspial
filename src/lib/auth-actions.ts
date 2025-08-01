@@ -60,7 +60,7 @@ export async function forgotPassword(email: string) {
   const supabase = await createClient();
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password`,
+    redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/reset-password`,
   });
 
   if (error) {
@@ -87,7 +87,7 @@ export async function resetPassword(newPassword: string) {
 export async function sendPasswordReset(email: string) {
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: "http://localhost:3000/reset-password",
+    redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/reset-password`,
   });
 
   if (error) {
