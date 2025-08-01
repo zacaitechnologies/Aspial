@@ -53,12 +53,29 @@ export async function editQuotationById(
     status: any
     discountValue?: number
     discountType?: "percentage" | "fixed"
+    serviceIds?: string[]
   },
 ) {
+  await prisma.quotationService.deleteMany({
+    where: { quotationId: Number.parseInt(id) },
+  });
+
   return await prisma.quotation.update({
     where: { id: Number.parseInt(id) },
-    data,
-  })
+    data: {
+      name: data.name,
+      description: data.description,
+      totalPrice: data.totalPrice,
+      status: data.status,
+      discountValue: data.discountValue || null,
+      discountType: data.discountType || null,
+      services: data.serviceIds ? {
+        create: data.serviceIds.map((serviceId) => ({
+          serviceId: Number.parseInt(serviceId),
+        })),
+      } : undefined,
+    },
+  });
 }
 
 export async function deleteQuotationById(id: string) {
