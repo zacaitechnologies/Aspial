@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
+import { CalendarDay } from "../components/calendar/CalendarDay"
+import { BookingDetailsDialog } from "../components/calendar/BookingDetailsDialog"
+import { DatePicker } from "../components/calendar/DatePicker"
+import { LoadingSpinner } from "../components/calendar/LoadingSpinner"
 
 interface EquipmentBooking {
   id: number
@@ -13,7 +17,6 @@ interface EquipmentBooking {
   equipment: {
     name: string
     type: string
-    studio?: { name: string } | null
   }
   bookedBy: string
   startDate: string
@@ -37,7 +40,7 @@ interface StudioBooking {
   status: string
 }
 
-interface CalendarBooking {
+export interface CalendarBooking {
   id: string
   title: string
   description: string
@@ -56,8 +59,8 @@ const bookingTypes = {
   studio: { color: "bg-green-500", label: "Studio" },
 }
 
-// Function to fetch bookings from the database
-async function fetchBookings(): Promise<CalendarBooking[]> {
+// Function to fetch all bookings from the database
+async function fetchAllBookings(): Promise<CalendarBooking[]> {
   try {
     const [equipmentResponse, studioResponse] = await Promise.all([
       fetch('/api/bookings/equipment'),
@@ -93,7 +96,7 @@ async function fetchBookings(): Promise<CalendarBooking[]> {
           startTime: startDate.toTimeString().slice(0, 5),
           endTime: endDate.toTimeString().slice(0, 5),
           type: "equipment",
-          location: booking.equipment.studio?.name || "Unassigned",
+          location: `${booking.equipment.type} Equipment`,
           attendees: 1,
           color: bookingTypes.equipment.color,
           originalData: booking
@@ -133,25 +136,24 @@ async function fetchBookings(): Promise<CalendarBooking[]> {
 export default function OrganizationCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [bookings, setBookings] = useState<CalendarBooking[]>([])
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [filterType, setFilterType] = useState<string>("all")
   const [hoveredDate, setHoveredDate] = useState<string>("")
-  const [newBooking, setNewBooking] = useState<Partial<CalendarBooking>>({
-    title: "",
-    description: "",
-    date: "",
-    startTime: "",
-    endTime: "",
-    type: "equipment",
-    location: "",
-    attendees: 1,
-  })
+  const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null)
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Fetch bookings on component mount
+  // Load all bookings on component mount
   useEffect(() => {
     const loadBookings = async () => {
-      const fetchedBookings = await fetchBookings()
-      setBookings(fetchedBookings)
+      setIsLoading(true)
+      try {
+        const fetchedBookings = await fetchAllBookings()
+        setBookings(fetchedBookings)
+      } catch (error) {
+        console.error('Error loading bookings:', error)
+      } finally {
+        setIsLoading(false)
+      }
     }
     
     loadBookings()
@@ -188,16 +190,30 @@ export default function OrganizationCalendar() {
     return bookings.filter((booking) => booking.date === date && (filterType === "all" || booking.type === filterType))
   }
 
-  const navigateMonth = (direction: "prev" | "next") => {
-    setCurrentDate((prev) => {
-      const newDate = new Date(prev)
-      if (direction === "prev") {
-        newDate.setMonth(prev.getMonth() - 1)
-      } else {
-        newDate.setMonth(prev.getMonth() + 1)
-      }
-      return newDate
-    })
+  const handleDateChange = (newDate: Date) => {
+    setCurrentDate(newDate)
+  }
+
+  const handleBookingClick = (booking: CalendarBooking) => {
+    setSelectedBooking(booking)
+    setIsDetailsDialogOpen(true)
+  }
+
+  const handleBookingEdit = (updatedBooking: CalendarBooking) => {
+    setBookings((prev) => 
+      prev.map((booking) => 
+        booking.id === updatedBooking.id ? updatedBooking : booking
+      )
+    )
+  }
+
+  const handleBookingDelete = (bookingId: string) => {
+    setBookings((prev) => prev.filter((booking) => booking.id !== bookingId))
+  }
+
+  const handleDateClick = (dateString: string) => {
+    // You can implement new booking creation here if needed
+    console.log("Clicked date:", dateString)
   }
 
   const renderCalendarDays = () => {
@@ -219,33 +235,18 @@ export default function OrganizationCalendar() {
       const isHovered = hoveredDate === dateString
 
       days.push(
-        <div
+        <CalendarDay
           key={day}
-          className={`h-24 border border-gray-100 p-1 cursor-pointer transition-all duration-200 hover:bg-gray-50 ${
-            isToday ? "bg-blue-50 border-blue-200" : ""
-          } ${isHovered ? "shadow-md transform scale-105" : ""}`}
-          onMouseEnter={() => setHoveredDate(dateString)}
-          onMouseLeave={() => setHoveredDate("")}
-          onClick={() => {
-            setNewBooking((prev) => ({ ...prev, date: dateString }))
-          }}
-        >
-          <div className={`text-sm font-medium mb-1 ${isToday ? "text-blue-600" : "text-gray-700"}`}>{day}</div>
-          <div className="space-y-1">
-            {dayBookings.slice(0, 2).map((booking, index) => (
-              <div
-                key={booking.id}
-                className={`text-xs px-1 py-0.5 rounded text-white truncate ${booking.color} 
-                  transform transition-all duration-200 hover:scale-105 animate-in slide-in-from-left-2`}
-                style={{ animationDelay: `${index * 100}ms` }}
-                title={`${booking.title} (${booking.startTime} - ${booking.endTime})`}
-              >
-                {booking.title}
-              </div>
-            ))}
-            {dayBookings.length > 2 && <div className="text-xs text-gray-500 px-1">+{dayBookings.length - 2} more</div>}
-          </div>
-        </div>,
+          day={day}
+          date={date}
+          dateString={dateString}
+          dayBookings={dayBookings}
+          isToday={isToday}
+          isHovered={isHovered}
+          onDateClick={handleDateClick}
+          onBookingClick={handleBookingClick}
+          onHoverChange={setHoveredDate}
+        />
       )
     }
 
@@ -307,37 +308,21 @@ export default function OrganizationCalendar() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl font-semibold">
-                {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+                Calendar
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigateMonth("prev")}
-                  className="transition-all duration-200 hover:scale-105"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentDate(new Date())}
-                  className="transition-all duration-200 hover:scale-105"
-                >
-                  Today
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigateMonth("next")}
-                  className="transition-all duration-200 hover:scale-105"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
+              <DatePicker 
+                currentDate={currentDate}
+                onDateChange={handleDateChange}
+              />
             </div>
           </CardHeader>
           <CardContent>
+            {isLoading && (
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
+                <LoadingSpinner text="Loading bookings..." />
+              </div>
+            )}
+            
             {/* Calendar Header */}
             <div className="grid grid-cols-7 gap-0 mb-2">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
@@ -348,7 +333,7 @@ export default function OrganizationCalendar() {
             </div>
 
             {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-0 border-l border-t">{renderCalendarDays()}</div>
+            <div className="grid grid-cols-7 gap-0 border-l border-t relative">{renderCalendarDays()}</div>
           </CardContent>
         </Card>
 
@@ -407,6 +392,18 @@ export default function OrganizationCalendar() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Booking Details Dialog */}
+        <BookingDetailsDialog
+          booking={selectedBooking}
+          isOpen={isDetailsDialogOpen}
+          onClose={() => {
+            setIsDetailsDialogOpen(false)
+            setSelectedBooking(null)
+          }}
+          onEdit={handleBookingEdit}
+          onDelete={handleBookingDelete}
+        />
       </div>
     </div>
   )

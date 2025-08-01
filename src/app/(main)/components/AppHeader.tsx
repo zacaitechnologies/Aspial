@@ -28,6 +28,7 @@ export function AppHeader() {
         { path: "/projects", title: "Projects" },
         { path: "/equipment-bookings", title: "Equipment Bookings" },
         { path: "/calander", title: "Calendar" },
+        { path: "/time-tracking", title: "Time Tracking" },
       ];
       
       const currentItem = navItems.find(item => pathname === item.path);
