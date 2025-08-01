@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-
 import { createClient } from "@/utils/supabase/server";
 import { loginSchema, LoginValues, signUpSchema, SignUpValues } from "./validation";
 import prisma from "@/lib/prisma";
@@ -56,6 +55,46 @@ export async function signup(formData: SignUpValues) {
   revalidatePath("/", "layout");
   redirect("/");
 }
+
+export async function forgotPassword(email: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password`,
+  });
+
+  if (error) {
+    console.error(error.message);
+    redirect("/error");
+  }
+
+  redirect("/check-email");
+}
+
+export async function resetPassword(newPassword: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+  if (error) {
+    console.error(error.message);
+    redirect("/error");
+  }
+
+  redirect("/login");
+}
+
+export async function sendPasswordReset(email: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: "http://localhost:3000/reset-password",
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 
 export async function signout() {
   const supabase = await createClient();

@@ -34,7 +34,7 @@ import {
 const mainNavItems = [
   {
     title: "Services",
-    url: "/service",
+    url: "/services",
     icon: Wrench,
   },
   {
