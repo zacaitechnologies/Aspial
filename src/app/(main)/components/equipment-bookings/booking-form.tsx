@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createBooking } from "@/app/(main)/equipment-bookings/actions"
+import { useSession } from "@/app/(main)/contexts/SessionProvider"
 
 interface Equipment {
   id: number
@@ -19,6 +20,7 @@ interface BookingFormProps {
 }
 
 export function BookingForm({ equipment, onClose }: BookingFormProps) {
+  const { enhancedUser } = useSession()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
 
@@ -36,7 +38,13 @@ export function BookingForm({ equipment, onClose }: BookingFormProps) {
       return
     }
     
+    // Get user name from session
+    const userName = enhancedUser.profile 
+      ? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim() 
+      : enhancedUser.email || 'Unknown User'
+    
     formData.append("equipmentId", equipment.id.toString())
+    formData.append("bookedBy", userName)
 
     const result = await createBooking(formData)
 
@@ -64,7 +72,16 @@ export function BookingForm({ equipment, onClose }: BookingFormProps) {
           )}
           <div className="space-y-2">
             <Label htmlFor="bookedBy">Booked By</Label>
-            <Input id="bookedBy" name="bookedBy" required placeholder="Enter your name" />
+            <Input 
+              id="bookedBy" 
+              name="bookedBy" 
+              value={enhancedUser.profile 
+                ? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim() 
+                : enhancedUser.email || 'Unknown User'
+              }
+              disabled 
+              className="bg-gray-50"
+            />
           </div>
 
           <div className="space-y-2">

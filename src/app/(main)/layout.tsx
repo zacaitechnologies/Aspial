@@ -4,6 +4,7 @@ import SessionProvider from "./contexts/SessionProvider";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/AppSidebar";
 import { AppHeader } from "./components/AppHeader";
+import { PrismaClient } from "@prisma/client";
 
 export default async function Layout({
   children,
@@ -11,6 +12,7 @@ export default async function Layout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
+  const prisma = new PrismaClient();
 
   // Get the actual user session
   const {
@@ -23,16 +25,26 @@ export default async function Layout({
     redirect("/login");
   }
 
-  // Fetch user profile from public table
-  const { data: profile } = await supabase
-    .from('user')
-    .select('*')
-    .eq('supabase_id', user.id)
-    .single();
+  // Fetch user profile from public table using Prisma
+  const profile = await prisma.user.findUnique({
+    where: {
+      supabase_id: user.id
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      supabase_id: true,
+      created_at: true,
+      updated_at: true
+    }
+  });
+
   // Combine auth user with profile data
   const enhancedUser = {
     ...user,
-    profile: profile || null
+    profile: profile || undefined
   };
 
   // make sure all child component have access to the session cookie.

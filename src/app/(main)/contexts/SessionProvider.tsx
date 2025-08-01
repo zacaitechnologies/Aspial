@@ -9,11 +9,12 @@ interface SessionContext {
 
 interface UserProfile {
   id: string;
-  firstName?: string;
-  lastName?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
   supabase_id: string;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
 interface EnhancedUser extends User {
