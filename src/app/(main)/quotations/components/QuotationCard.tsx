@@ -35,7 +35,6 @@ export default function QuotationCard({
   };
 
   const hasProject = quotation.projects && quotation.projects.length > 0;
-  const isAcceptedOrPaid = quotation.status === "accepted" || quotation.status === "paid";
   const allowedStatuses = ["accepted", "paid", "partially_paid", "deposit_paid"];
   const canCreateProject = allowedStatuses.includes(quotation.status) && !hasProject;
 
@@ -123,13 +122,6 @@ export default function QuotationCard({
             <p className="text-sm text-muted-foreground">
               Discount: {quotation.discountValue}
               {quotation.discountType === "percentage" ? "%" : "RM"}
-            </p>
-          </div>
-        )}
-        {isAcceptedOrPaid && !hasProject && (
-          <div className="mt-2">
-            <p className="text-sm text-blue-600">
-              💡 Project will be created automatically when you save changes
             </p>
           </div>
         )}
