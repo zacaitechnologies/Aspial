@@ -26,6 +26,8 @@ import { useState, useEffect } from "react";
 import { getAllProjects, updateProjectStatus } from "./action";
 import { Button } from "@/components/ui/button";
 import EditProjectDialog from "./components/EditProjectDialog";
+import ProjectSearchBar from "./components/ProjectSearchBar";
+import HighlightedText from "./components/HighlightedText";
 
 type ProjectWithQuotation = {
   id: number;
@@ -74,6 +76,8 @@ export default function ProjectsPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingProject, setEditingProject] =
     useState<ProjectWithQuotation | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     fetchProjects();
@@ -115,6 +119,19 @@ export default function ProjectsPage() {
     );
   };
 
+  // Filter projects based on search query and status filter
+  const filteredProjects = projects.filter((project) => {
+    const matchesSearch = 
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (project.description && project.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      project.createdByUser.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.createdByUser.lastName.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || project.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -131,8 +148,15 @@ export default function ProjectsPage() {
         </p>
       </div>
 
+      <ProjectSearchBar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {projects.map((project) => (
+        {filteredProjects.map((project) => (
           <Card
             key={project.id}
             className="hover:shadow-lg hover:border-green-300 border-2 lg:w-120 transition-shadow"
@@ -140,7 +164,12 @@ export default function ProjectsPage() {
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle className="text-lg">{project.name}</CardTitle>
+                  <CardTitle className="text-lg">
+                    <HighlightedText 
+                      text={project.name} 
+                      searchQuery={searchQuery} 
+                    />
+                  </CardTitle>
                   <div className="flex items-center gap-2 mt-1">
                     {getStatusBadge(project.status)}
                   </div>
@@ -179,7 +208,12 @@ export default function ProjectsPage() {
                 {project.description && (
                   <div>
                     <p className="text-sm font-medium">Description:</p>
-                    <CardDescription>{project.description}</CardDescription>
+                    <CardDescription>
+                      <HighlightedText 
+                        text={project.description} 
+                        searchQuery={searchQuery} 
+                      />
+                    </CardDescription>
                   </div>
                 )}
 
@@ -226,8 +260,11 @@ export default function ProjectsPage() {
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm">
-                    Created by: {project.createdByUser.firstName}{" "}
-                    {project.createdByUser.lastName}
+                    Created by:{" "}
+                    <HighlightedText 
+                      text={`${project.createdByUser.firstName} ${project.createdByUser.lastName}`}
+                      searchQuery={searchQuery} 
+                    />
                   </span>
                 </div>
               </div>
@@ -235,6 +272,16 @@ export default function ProjectsPage() {
           </Card>
         ))}
       </div>
+
+      {filteredProjects.length === 0 && projects.length > 0 && (
+        <div className="text-center py-12">
+          <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">No projects match your search criteria.</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Try adjusting your search or filter settings.
+          </p>
+        </div>
+      )}
 
       {projects.length === 0 && (
         <div className="text-center py-12">
