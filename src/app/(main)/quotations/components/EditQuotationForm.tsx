@@ -47,6 +47,7 @@ export default function EditQuotationForm({
     status: "",
     discountValue: "",
     discountType: "percentage",
+    duration: "",
   });
 
   useEffect(() => {
@@ -62,6 +63,7 @@ export default function EditQuotationForm({
         status: editingQuotation.status,
         discountValue: editingQuotation.discountValue?.toString() || "",
         discountType: editingQuotation.discountType || "percentage",
+        duration: editingQuotation.duration?.toString() || "",
       });
       setEditSelectedServiceIds(
         editingQuotation.services.map((qs) => qs.service.id.toString())

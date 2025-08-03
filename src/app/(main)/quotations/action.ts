@@ -13,6 +13,7 @@ export async function getAllQuotations() {
         },
       },
       projects: true, // Include projects to check if one exists
+      createdBy: true, // Include the createdBy relation
     },
     orderBy: { created_at: "desc" },
   })
@@ -26,6 +27,7 @@ export async function createQuotation(data: {
   createdById: string
   discountValue?: number
   discountType?: "percentage" | "fixed"
+  duration?: number
 }) {
   const quotation = await prisma.quotation.create({
     data: {
@@ -35,6 +37,7 @@ export async function createQuotation(data: {
       createdById: data.createdById,
       discountValue: data.discountValue || null,
       discountType: data.discountType || null,
+      duration: data.duration || null,
       services: {
         create: data.serviceIds.map((serviceId) => ({
           serviceId: Number.parseInt(serviceId),
@@ -55,6 +58,7 @@ export async function editQuotationById(
     discountValue?: number
     discountType?: "percentage" | "fixed"
     serviceIds?: string[]
+    duration?: number
   },
 ) {
   // First, get the current quotation to check if it has a project
@@ -78,6 +82,7 @@ export async function editQuotationById(
       status: data.status,
       discountValue: data.discountValue || null,
       discountType: data.discountType || null,
+      duration: data.duration || null,
       services: data.serviceIds ? {
         create: data.serviceIds.map((serviceId) => ({
           serviceId: Number.parseInt(serviceId),
@@ -89,11 +94,21 @@ export async function editQuotationById(
   // Update the associated project if it exists
   if (currentQuotation && currentQuotation.projects.length > 0) {
     const project = currentQuotation.projects[0];
+    const startDate = project.startDate || new Date();
+    let endDate: Date | undefined = undefined;
+    
+    if (data.duration) {
+      endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + data.duration);
+    }
+    
     await prisma.project.update({
       where: { id: project.id },
       data: {
         name: data.name,
         description: data.description,
+        startDate: startDate,
+        endDate: endDate,
       },
     });
   }

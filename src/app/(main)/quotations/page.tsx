@@ -66,10 +66,22 @@ export default function QuotationsPage() {
     }
 
     try {
+      // Calculate start and end dates based on duration in months
+      const startDate = new Date();
+      let endDate: Date | undefined = undefined;
+      
+      if (quotation.duration) {
+        endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + quotation.duration);
+      }
+
       await createProject({
         name: quotation.name,
         description: quotation.description,
         quotationId: quotation.id,
+        createdBy: quotation.createdBy, // Pass the createdBy from quotation
+        startDate: startDate,
+        endDate: endDate,
       });
 
       alert("Project created successfully!");
