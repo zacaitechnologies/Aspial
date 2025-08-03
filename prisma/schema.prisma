@@ -111,7 +111,7 @@ model Project {
   name        String
   description String?
   quotationId Int
-  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   status      String    @default("planning") // "planning" | "in_progress" | "completed" | "cancelled"
   startDate   DateTime?
   endDate     DateTime?

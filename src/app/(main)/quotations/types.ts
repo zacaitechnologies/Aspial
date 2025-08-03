@@ -14,6 +14,16 @@ export type QuotationWithServices = {
     id: number;
     service: Services;
   }[];
+  projects: {
+    id: number;
+    name: string;
+    description?: string;
+    status: string;
+    startDate?: Date;
+    endDate?: Date;
+    created_at: Date;
+    updated_at: Date;
+  }[];
 };
 
 export type QuotationFormData = {
