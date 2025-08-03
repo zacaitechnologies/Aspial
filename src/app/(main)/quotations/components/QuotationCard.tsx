@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Briefcase } from "lucide-react";
+import { Edit, Trash2, Briefcase, AlertTriangle } from "lucide-react";
 import { QuotationWithServices, statusOptions } from "../types";
 
 interface QuotationCardProps {
@@ -34,6 +34,24 @@ export default function QuotationCard({
     );
   };
 
+  const hasProject = quotation.projects && quotation.projects.length > 0;
+  const isAcceptedOrPaid = quotation.status === "accepted" || quotation.status === "paid";
+  const allowedStatuses = ["accepted", "paid", "partially_paid", "deposit_paid"];
+  const canCreateProject = allowedStatuses.includes(quotation.status) && !hasProject;
+
+  const handleDelete = () => {
+    if (hasProject) {
+      const confirmed = confirm(
+        "This quotation has an associated project. Deleting the quotation will also delete the project and all its time entries. Are you sure you want to continue?"
+      );
+      if (confirmed) {
+        onDelete(quotation.id.toString());
+      }
+    } else {
+      onDelete(quotation.id.toString());
+    }
+  };
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader>
@@ -45,6 +63,12 @@ export default function QuotationCard({
               <Badge variant="outline">
                 RM{quotation.totalPrice.toFixed(2)}
               </Badge>
+              {hasProject && (
+                <Badge variant="default" className="bg-green-600">
+                  <Briefcase className="w-3 h-3 mr-1" />
+                  Project Created
+                </Badge>
+              )}
             </div>
           </div>
           <div className="flex space-x-1">
@@ -55,21 +79,21 @@ export default function QuotationCard({
             >
               <Edit className="w-4 h-4" />
             </Button>
+            {canCreateProject && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onCreateProject(quotation)}
+                title="Create Project"
+              >
+                <Briefcase className="w-4 h-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onCreateProject(quotation)}
-              disabled={
-                quotation.status !== "accepted" &&
-                quotation.status !== "paid"
-              }
-            >
-              <Briefcase className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDelete(quotation.id.toString())}
+              onClick={handleDelete}
+              className={hasProject ? "text-red-600 hover:text-red-700" : ""}
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -100,6 +124,26 @@ export default function QuotationCard({
               Discount: {quotation.discountValue}
               {quotation.discountType === "percentage" ? "%" : "RM"}
             </p>
+          </div>
+        )}
+        {isAcceptedOrPaid && !hasProject && (
+          <div className="mt-2">
+            <p className="text-sm text-blue-600">
+              💡 Project will be created automatically when you save changes
+            </p>
+          </div>
+        )}
+        {canCreateProject && (
+          <div className="mt-2">
+            <p className="text-sm text-green-600">
+              ✅ Click the briefcase icon to manually create a project
+            </p>
+          </div>
+        )}
+        {hasProject && (
+          <div className="mt-2 flex items-center gap-1 text-sm text-amber-600">
+            <AlertTriangle className="w-3 h-3" />
+            <span>Deleting this quotation will also delete the associated project</span>
           </div>
         )}
         <p className="text-xs text-muted-foreground mt-3">

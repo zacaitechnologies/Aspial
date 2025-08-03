@@ -25,26 +25,25 @@
 // createUser(); 
 
 const { PrismaClient } = require('@prisma/client');
-const { v4: uuidv4 } = require('uuid');
 
 const prisma = new PrismaClient();
 
 async function createUser() {
-  const newSupabaseId = uuidv4(); // ✅ Generates a new UUID
+  const supabaseId = '362c318d-6007-488b-ae53-78acc94670f1';
 
   try {
     const user = await prisma.user.upsert({
-      where: { supabase_id: newSupabaseId },
+      where: { supabase_id: supabaseId },
       update: {},
       create: {
-        supabase_id: newSupabaseId,
+        supabase_id: supabaseId,
         firstName: 'Brian',
         lastName: 'Bong',
         email: 'bong7054@gmail.com',
       },
     });
 
-    console.log('✅ User created with supabase_id:', newSupabaseId);
+    console.log('✅ User created with supabase_id:', supabaseId);
     console.log(user);
   } catch (error) {
     console.error('❌ Error creating user:', error);

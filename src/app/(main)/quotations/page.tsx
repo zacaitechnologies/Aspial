@@ -42,32 +42,41 @@ export default function QuotationsPage() {
   };
 
   const handleDeleteQuotation = async (quotationId: string) => {
-    if (!confirm("Are you sure you want to delete this quotation?")) return;
-
     try {
       await deleteQuotationById(quotationId);
       await fetchData();
     } catch (error) {
       console.error("Error deleting quotation:", error);
+      alert("Failed to delete quotation. Please try again.");
     }
   };
 
   const handleCreateProject = async (quotation: QuotationWithServices) => {
-    if (quotation.status !== "accepted" && quotation.status !== "paid") {
-      alert("Only accepted or paid quotations can be converted to projects.");
+    // Check if quotation has appropriate status for project creation
+    const allowedStatuses = ["accepted", "paid", "partially_paid", "deposit_paid"];
+    if (!allowedStatuses.includes(quotation.status)) {
+      alert("Only accepted, paid, partially paid, or deposit paid quotations can be converted to projects.");
+      return;
+    }
+
+    // Check if project already exists
+    if (quotation.projects && quotation.projects.length > 0) {
+      alert("A project already exists for this quotation.");
       return;
     }
 
     try {
       await createProject({
-        name: `Project: ${quotation.name}`,
+        name: quotation.name,
         description: quotation.description,
         quotationId: quotation.id,
       });
 
       alert("Project created successfully!");
+      await fetchData(); // Refresh the data to show the new project
     } catch (error) {
       console.error("Error creating project:", error);
+      alert("Failed to create project. Please try again.");
     }
   };
 
@@ -86,7 +95,7 @@ export default function QuotationsPage() {
           <div>
             <h1 className="text-3xl font-bold">Quotations Management</h1>
             <p className="text-muted-foreground">
-              Create and manage client quotations
+              Create and manage client quotations. Create projects manually for eligible quotations using the briefcase icon.
             </p>
           </div>
 
