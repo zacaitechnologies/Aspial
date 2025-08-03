@@ -43,6 +43,7 @@ model User {
   created_at  DateTime    @default(now())
   updated_at  DateTime    @default(now())
   quotations  Quotation[] @relation("QuotationCreator")
+  projects    Project[]   @relation("ProjectCreator")
   timeEntries TimeEntry[]
 
   @@map("user")
@@ -67,6 +68,7 @@ model Quotation {
   discountValue Float?
   discountType  DiscountType?
   totalPrice    Float
+  duration      Int?               // Duration in days
   services      QuotationService[]
   status        QuotationStatus    @default(draft)
   createdById   String
@@ -112,6 +114,8 @@ model Project {
   description String?
   quotationId Int
   quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  createdBy   String?
+  createdByUser User?    @relation("ProjectCreator", fields: [createdBy], references: [supabase_id])
   status      String    @default("planning") // "planning" | "in_progress" | "completed" | "cancelled"
   startDate   DateTime?
   endDate     DateTime?

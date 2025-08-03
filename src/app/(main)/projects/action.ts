@@ -25,6 +25,7 @@ export async function createProject(data: {
   name: string
   description?: string
   quotationId: number
+  createdBy: string
   startDate?: Date
   endDate?: Date
 }) {

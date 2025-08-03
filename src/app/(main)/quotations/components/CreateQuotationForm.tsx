@@ -46,6 +46,7 @@ export default function CreateQuotationForm({
     description: "",
     discountValue: "",
     discountType: "percentage",
+    duration: "",
   });
 
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -173,6 +174,7 @@ export default function CreateQuotationForm({
       description: "",
       discountValue: "",
       discountType: "percentage",
+      duration: "",
     });
     setSelectedServiceIds([]);
     setTotalPrice(0);

@@ -8,6 +8,8 @@ export type QuotationWithServices = {
   status: string;
   discountValue?: number;
   discountType?: "percentage" | "fixed";
+  duration?: number;
+  createdBy: string;
   created_at: Date;
   updated_at: Date;
   services: {
@@ -31,6 +33,7 @@ export type QuotationFormData = {
   description: string;
   discountValue: string;
   discountType: "percentage" | "fixed";
+  duration: string;
 };
 
 export type EditFormData = {
@@ -40,6 +43,7 @@ export type EditFormData = {
   status: string;
   discountValue: string;
   discountType: "percentage" | "fixed";
+  duration: string;
 };
 
 export const statusOptions = [
