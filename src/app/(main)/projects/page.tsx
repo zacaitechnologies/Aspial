@@ -14,9 +14,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Briefcase, Calendar, DollarSign } from "lucide-react";
+import {
+  Briefcase,
+  Calendar,
+  DollarSign,
+  Edit,
+  User,
+  Clock,
+} from "lucide-react";
 import { useState, useEffect } from "react";
 import { getAllProjects, updateProjectStatus } from "./action";
+import { Button } from "@/components/ui/button";
+import EditProjectDialog from "./components/EditProjectDialog";
 
 type ProjectWithQuotation = {
   id: number;
@@ -27,6 +36,13 @@ type ProjectWithQuotation = {
   endDate: Date | null;
   created_at: Date;
   updated_at: Date;
+  createdByUser: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    supabase_id: string;
+  };
   quotation: {
     id: number;
     name: string;
@@ -55,6 +71,9 @@ const projectStatusOptions = [
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectWithQuotation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingProject, setEditingProject] =
+    useState<ProjectWithQuotation | null>(null);
 
   useEffect(() => {
     fetchProjects();
@@ -78,6 +97,11 @@ export default function ProjectsPage() {
     } catch (error) {
       console.error("Error updating project status:", error);
     }
+  };
+
+  const handleEditProject = (project: ProjectWithQuotation) => {
+    setEditingProject(project);
+    setIsEditOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -109,7 +133,10 @@ export default function ProjectsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {projects.map((project) => (
-          <Card key={project.id} className="hover:shadow-md transition-shadow">
+          <Card
+            key={project.id}
+            className="hover:shadow-lg hover:border-green-300 border-2 lg:w-120 transition-shadow"
+          >
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
@@ -118,56 +145,90 @@ export default function ProjectsPage() {
                     {getStatusBadge(project.status)}
                   </div>
                 </div>
-                <Select
-                  value={project.status}
-                  onValueChange={(value) =>
-                    handleStatusUpdate(project.id.toString(), value)
-                  }
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projectStatusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  {/* <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditProject(project)}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button> */}
+                  <Select
+                    value={project.status}
+                    onValueChange={(value) =>
+                      handleStatusUpdate(project.id.toString(), value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projectStatusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardHeader>
+            <hr className="border-gray-400" />
             <CardContent className="space-y-4">
-              <div className="flex flex-row gap-2 justify-start items-center">
-                Description:{" "}
-                {project.description && (
-                  <CardDescription>{project.description}</CardDescription>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm">
-                    ${project.quotation.totalPrice.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm">
-                    {new Date(project.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <p className="text-sm font-medium">Services included:</p>
-                <div className="flex flex-wrap gap-1">
-                  {project.quotation.services.map((qs) => (
-                    <Badge key={qs.id} variant="outline" className="text-xs">
-                      {qs.service.name}
-                    </Badge>
-                  ))}
+                {project.description && (
+                  <div>
+                    <p className="text-sm font-medium">Description:</p>
+                    <CardDescription>{project.description}</CardDescription>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      RM{project.quotation.totalPrice.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      Start:{" "}
+                      {project.startDate
+                        ? new Date(project.startDate).toLocaleDateString()
+                        : "Not set"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm">
+                      End:{" "}
+                      {project.endDate
+                        ? new Date(project.endDate).toLocaleDateString()
+                        : "Not set"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Services included:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {project.quotation.services.map((qs) => (
+                      <Badge key={qs.id} variant="outline" className="text-xs">
+                        {qs.service.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    Created by: {project.createdByUser.firstName}{" "}
+                    {project.createdByUser.lastName}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -184,6 +245,13 @@ export default function ProjectsPage() {
           </p>
         </div>
       )}
+
+      <EditProjectDialog
+        isOpen={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        onSuccess={fetchProjects}
+        project={editingProject}
+      />
     </div>
   );
 }

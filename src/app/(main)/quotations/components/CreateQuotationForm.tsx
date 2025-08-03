@@ -47,6 +47,7 @@ export default function CreateQuotationForm({
     discountValue: "",
     discountType: "percentage",
     duration: "",
+    startDate: "",
   });
 
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -130,6 +131,24 @@ export default function CreateQuotationForm({
 
   const discountAmount = getDiscountAmount();
 
+  const calculateEndDate = () => {
+    if (!quotationForm.startDate || !quotationForm.duration) {
+      return "Please select start date and duration";
+    }
+    
+    const startDate = new Date(quotationForm.startDate);
+    const duration = parseInt(quotationForm.duration);
+    
+    if (isNaN(duration) || duration <= 0) {
+      return "Invalid duration";
+    }
+    
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + duration);
+    
+    return endDate.toLocaleDateString("en-GB");
+  };
+
   const handleCreateQuotation = async () => {
     if (
       !quotationForm.name ||
@@ -146,7 +165,7 @@ export default function CreateQuotationForm({
     }
 
     try {
-      await createQuotation({
+                   await createQuotation({
         name: quotationForm.name,
         description: quotationForm.description,
         totalPrice: discountedTotal,
@@ -158,6 +177,10 @@ export default function CreateQuotationForm({
         discountType: quotationForm.discountValue
           ? quotationForm.discountType
           : undefined,
+        duration: quotationForm.duration
+          ? parseInt(quotationForm.duration)
+          : undefined,
+        startDate: quotationForm.startDate || undefined,
       });
 
       resetForm();
@@ -175,6 +198,7 @@ export default function CreateQuotationForm({
       discountValue: "",
       discountType: "percentage",
       duration: "",
+      startDate: "",
     });
     setSelectedServiceIds([]);
     setTotalPrice(0);
@@ -206,21 +230,61 @@ export default function CreateQuotationForm({
                 placeholder="Enter quotation name"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="quotation-description">Description</Label>
-              <Textarea
-                id="quotation-description"
-                value={quotationForm.description}
-                onChange={(e) =>
-                  setQuotationForm((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                placeholder="Enter quotation description"
-                rows={3}
-              />
-            </div>
+                         <div className="grid gap-2">
+               <Label htmlFor="quotation-description">Description</Label>
+               <Textarea
+                 id="quotation-description"
+                 value={quotationForm.description}
+                 onChange={(e) =>
+                   setQuotationForm((prev) => ({
+                     ...prev,
+                     description: e.target.value,
+                   }))
+                 }
+                 placeholder="Enter quotation description"
+                 rows={3}
+               />
+             </div>
+             <div className="grid gap-2">
+               <Label htmlFor="startDate">Start Date</Label>
+               <Input
+                 id="startDate"
+                 type="date"
+                 value={quotationForm.startDate}
+                 onChange={(e) =>
+                   setQuotationForm((prev) => ({
+                     ...prev,
+                     startDate: e.target.value,
+                   }))
+                 }
+               />
+             </div>
+             <div className="grid gap-2">
+               <Label htmlFor="duration">Duration (Months)</Label>
+               <Input
+                 id="duration"
+                 type="number"
+                 min="1"
+                 value={quotationForm.duration}
+                 onChange={(e) =>
+                   setQuotationForm((prev) => ({
+                     ...prev,
+                     duration: e.target.value,
+                   }))
+                 }
+                 placeholder="e.g., 6"
+               />
+             </div>
+             {quotationForm.startDate && quotationForm.duration && (
+               <div className="grid gap-2">
+                 <Label htmlFor="endDate">Calculated End Date</Label>
+                 <div className="p-3 bg-muted rounded-md">
+                   <span className="text-sm font-medium">
+                     {calculateEndDate()}
+                   </span>
+                 </div>
+               </div>
+             )}
 
             <div className="grid gap-4">
               <Label>Select Services</Label>

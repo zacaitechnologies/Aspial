@@ -79,7 +79,7 @@ export default function QuotationsPage() {
         name: quotation.name,
         description: quotation.description,
         quotationId: quotation.id,
-        createdBy: quotation.createdBy, // Pass the createdBy from quotation
+        createdBy: quotation.createdBy.supabase_id, // Pass the createdBy from quotation
         startDate: startDate,
         endDate: endDate,
       });

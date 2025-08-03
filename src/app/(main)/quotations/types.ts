@@ -9,7 +9,17 @@ export type QuotationWithServices = {
   discountValue?: number;
   discountType?: "percentage" | "fixed";
   duration?: number;
-  createdBy: string;
+  startDate?: Date;
+  endDate?: Date;
+  createdBy: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    supabase_id: string;
+    created_at: Date;
+    updated_at: Date;
+  };
   created_at: Date;
   updated_at: Date;
   services: {
@@ -34,6 +44,7 @@ export type QuotationFormData = {
   discountValue: string;
   discountType: "percentage" | "fixed";
   duration: string;
+  startDate: string;
 };
 
 export type EditFormData = {
@@ -44,6 +55,7 @@ export type EditFormData = {
   discountValue: string;
   discountType: "percentage" | "fixed";
   duration: string;
+  startDate: string;
 };
 
 export const statusOptions = [

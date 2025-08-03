@@ -28,7 +28,16 @@ export async function createQuotation(data: {
   discountValue?: number
   discountType?: "percentage" | "fixed"
   duration?: number
+  startDate?: string
 }) {
+  // Calculate end date if start date and duration are provided
+  let endDate: Date | undefined = undefined;
+  if (data.startDate && data.duration) {
+    const startDate = new Date(data.startDate);
+    endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + data.duration);
+  }
+
   const quotation = await prisma.quotation.create({
     data: {
       name: data.name,
@@ -38,6 +47,9 @@ export async function createQuotation(data: {
       discountValue: data.discountValue || null,
       discountType: data.discountType || null,
       duration: data.duration || null,
+      startDate: data.startDate ? new Date(data.startDate) : null,
+      endDate: endDate,
+
       services: {
         create: data.serviceIds.map((serviceId) => ({
           serviceId: Number.parseInt(serviceId),
@@ -59,6 +71,7 @@ export async function editQuotationById(
     discountType?: "percentage" | "fixed"
     serviceIds?: string[]
     duration?: number
+    startDate?: string
   },
 ) {
   // First, get the current quotation to check if it has a project
@@ -72,6 +85,14 @@ export async function editQuotationById(
     where: { quotationId: Number.parseInt(id) },
   });
 
+  // Calculate end date if start date and duration are provided
+  let endDate: Date | undefined = undefined;
+  if (data.startDate && data.duration) {
+    const startDate = new Date(data.startDate);
+    endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + data.duration);
+  }
+
   // Update the quotation
   const updatedQuotation = await prisma.quotation.update({
     where: { id: Number.parseInt(id) },
@@ -83,6 +104,8 @@ export async function editQuotationById(
       discountValue: data.discountValue || null,
       discountType: data.discountType || null,
       duration: data.duration || null,
+      startDate: data.startDate ? new Date(data.startDate) : undefined,
+      endDate: endDate,
       services: data.serviceIds ? {
         create: data.serviceIds.map((serviceId) => ({
           serviceId: Number.parseInt(serviceId),

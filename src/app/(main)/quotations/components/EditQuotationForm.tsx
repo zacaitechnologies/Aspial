@@ -48,6 +48,7 @@ export default function EditQuotationForm({
     discountValue: "",
     discountType: "percentage",
     duration: "",
+    startDate: "",
   });
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export default function EditQuotationForm({
         discountValue: editingQuotation.discountValue?.toString() || "",
         discountType: editingQuotation.discountType || "percentage",
         duration: editingQuotation.duration?.toString() || "",
+        startDate: editingQuotation.startDate ? new Date(editingQuotation.startDate).toISOString().split('T')[0] : "",
       });
       setEditSelectedServiceIds(
         editingQuotation.services.map((qs) => qs.service.id.toString())
@@ -113,6 +115,24 @@ export default function EditQuotationForm({
   const editTotalPrice = calculateEditTotalPrice();
   const editDiscountedTotal = calculateEditDiscountedTotal();
 
+  const calculateEditEndDate = () => {
+    if (!editForm.startDate || !editForm.duration) {
+      return "Please select start date and duration";
+    }
+    
+    const startDate = new Date(editForm.startDate);
+    const duration = parseInt(editForm.duration);
+    
+    if (isNaN(duration) || duration <= 0) {
+      return "Invalid duration";
+    }
+    
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + duration);
+    
+    return endDate.toLocaleDateString("en-GB");
+  };
+
   const handleUpdateQuotation = async () => {
     if (!editingQuotation) return;
 
@@ -158,6 +178,10 @@ export default function EditQuotationForm({
           ? editForm.discountType
           : undefined,
         serviceIds: editSelectedServiceIds,
+        duration: editForm.duration
+          ? parseInt(editForm.duration)
+          : undefined,
+        startDate: editForm.startDate || undefined,
       });
 
       onSuccess();
@@ -204,6 +228,46 @@ export default function EditQuotationForm({
                 rows={3}
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-startDate">Start Date</Label>
+              <Input
+                id="edit-startDate"
+                type="date"
+                value={editForm.startDate}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    startDate: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-duration">Duration (Months)</Label>
+              <Input
+                id="edit-duration"
+                type="number"
+                min="1"
+                value={editForm.duration}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    duration: e.target.value,
+                  }))
+                }
+                placeholder="e.g., 6"
+              />
+            </div>
+            {editForm.startDate && editForm.duration && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-endDate">Calculated End Date</Label>
+                <div className="p-3 bg-muted rounded-md">
+                  <span className="text-sm font-medium">
+                    {calculateEditEndDate()}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-4">
               <Label>Edit Services</Label>
