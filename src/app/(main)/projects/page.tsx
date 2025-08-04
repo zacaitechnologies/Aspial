@@ -21,12 +21,14 @@ import {
   Edit,
   User,
   Clock,
+  Users,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getAllProjects, updateProjectStatus } from "./action";
 import { Button } from "@/components/ui/button";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
+import ProjectCollaboratorsDialog from "./components/ProjectCollaboratorsDialog";
 import { useSession } from "../contexts/SessionProvider";
 
 type ProjectWithQuotation = {
@@ -79,6 +81,8 @@ export default function ProjectsPage() {
     useState<ProjectWithQuotation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<ProjectWithQuotation | null>(null);
 
   useEffect(() => {
     if (enhancedUser?.id) {
@@ -113,6 +117,11 @@ export default function ProjectsPage() {
   const handleEditProject = (project: ProjectWithQuotation) => {
     setEditingProject(project);
     setIsEditOpen(true);
+  };
+
+  const handleManageCollaborators = (project: ProjectWithQuotation) => {
+    setSelectedProject(project);
+    setIsCollaboratorsOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -177,13 +186,13 @@ export default function ProjectsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* <Button
+                  <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleEditProject(project)}
+                    onClick={() => handleManageCollaborators(project)}
                   >
-                    <Edit className="w-4 h-4" />
-                  </Button> */}
+                    <Users className="w-4 h-4" />
+                  </Button>
                   <Select
                     value={project.status}
                     onValueChange={(value) =>
@@ -292,6 +301,13 @@ export default function ProjectsPage() {
         onOpenChange={setIsEditOpen}
         onSuccess={fetchProjects}
         project={editingProject}
+      />
+
+      <ProjectCollaboratorsDialog
+        isOpen={isCollaboratorsOpen}
+        onOpenChange={setIsCollaboratorsOpen}
+        projectId={selectedProject?.id || 0}
+        projectName={selectedProject?.name || ""}
       />
     </div>
   );

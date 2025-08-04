@@ -5,24 +5,39 @@ import { PrismaClient } from "@prisma/client"
 const prisma = new PrismaClient()
 
 export async function getAllProjects(userId?: string) {
-  return await prisma.project.findMany({
-    where: userId ? {
-      createdBy: userId
-    } : undefined,
+  if (!userId) {
+    return []
+  }
+
+  // Get projects where user has permissions
+  const userPermissions = await prisma.projectPermission.findMany({
+    where: {
+      userId,
+    },
     include: {
-      quotation: {
+      project: {
         include: {
-          services: {
+          quotation: {
             include: {
-              service: true,
+              services: {
+                include: {
+                  service: true,
+                },
+              },
             },
           },
+          createdByUser: true,
         },
       },
-      createdByUser: true,
     },
-    orderBy: { created_at: "desc" },
+    orderBy: {
+      project: {
+        created_at: "desc",
+      },
+    },
   })
+
+  return userPermissions.map(permission => permission.project)
 }
 
 export async function createProject(data: {
@@ -33,9 +48,22 @@ export async function createProject(data: {
   startDate?: Date
   endDate?: Date
 }) {
-  return await prisma.project.create({
+  const project = await prisma.project.create({
     data,
   })
+
+  // Create owner permission for the project creator
+  await prisma.projectPermission.create({
+    data: {
+      userId: data.createdBy,
+      projectId: project.id,
+      canView: true,
+      canEdit: true,
+      isOwner: true,
+    },
+  })
+
+  return project
 }
 
 export async function updateProjectStatus(id: string, status: string) {
