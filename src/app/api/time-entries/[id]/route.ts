@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { prisma } from "@/lib/prisma"
 
+interface RouteParams {
+  params: { id: string }
+}
+
 export async function DELETE(
   request: NextRequest,
-  paramsPromise: Promise<{ params: { id: string } }>
+  paramsPromise: RouteParams
 ) {
   try {
     const { params } = await paramsPromise
