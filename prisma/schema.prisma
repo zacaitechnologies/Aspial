@@ -45,6 +45,7 @@ model User {
   quotations  Quotation[] @relation("QuotationCreator")
   projects    Project[]   @relation("ProjectCreator")
   timeEntries TimeEntry[]
+  projectPermissions ProjectPermission[]
 
   @@map("user")
 }
@@ -123,8 +124,24 @@ model Project {
   created_at    DateTime    @default(now())
   updated_at    DateTime    @default(now())
   timeEntries   TimeEntry[]
+  permissions   ProjectPermission[]
 
   @@map("projects")
+}
+
+model ProjectPermission {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  projectId Int
+  canView   Boolean  @default(true)
+  canEdit   Boolean  @default(true)
+  isOwner   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [supabase_id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@map("project_permissions")
 }
 
 model Studio {
