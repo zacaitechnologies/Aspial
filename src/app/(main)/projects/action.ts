@@ -4,8 +4,11 @@ import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient()
 
-export async function getAllProjects() {
+export async function getAllProjects(userId?: string) {
   return await prisma.project.findMany({
+    where: userId ? {
+      createdBy: userId
+    } : undefined,
     include: {
       quotation: {
         include: {

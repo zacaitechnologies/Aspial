@@ -27,7 +27,7 @@ import { getAllProjects, updateProjectStatus } from "./action";
 import { Button } from "@/components/ui/button";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
-import HighlightedText from "./components/HighlightedText";
+import { useSession } from "../contexts/SessionProvider";
 
 type ProjectWithQuotation = {
   id: number;
@@ -71,6 +71,7 @@ const projectStatusOptions = [
 ];
 
 export default function ProjectsPage() {
+  const { enhancedUser } = useSession();
   const [projects, setProjects] = useState<ProjectWithQuotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -80,12 +81,18 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    if (enhancedUser?.id) {
+      fetchProjects();
+    }
+  }, [enhancedUser?.id]);
 
   const fetchProjects = async () => {
     try {
-      const data = await getAllProjects();
+      if (!enhancedUser?.id) {
+        console.error("User not authenticated");
+        return;
+      }
+      const data = await getAllProjects(enhancedUser.id);
       setProjects(data as ProjectWithQuotation[]);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
@@ -164,12 +171,7 @@ export default function ProjectsPage() {
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
-                  <CardTitle className="text-lg">
-                    <HighlightedText 
-                      text={project.name} 
-                      searchQuery={searchQuery} 
-                    />
-                  </CardTitle>
+                  <CardTitle className="text-lg">{project.name}</CardTitle>
                   <div className="flex items-center gap-2 mt-1">
                     {getStatusBadge(project.status)}
                   </div>
@@ -208,12 +210,7 @@ export default function ProjectsPage() {
                 {project.description && (
                   <div>
                     <p className="text-sm font-medium">Description:</p>
-                    <CardDescription>
-                      <HighlightedText 
-                        text={project.description} 
-                        searchQuery={searchQuery} 
-                      />
-                    </CardDescription>
+                    <CardDescription>{project.description}</CardDescription>
                   </div>
                 )}
 
@@ -260,11 +257,8 @@ export default function ProjectsPage() {
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm">
-                    Created by:{" "}
-                    <HighlightedText 
-                      text={`${project.createdByUser.firstName} ${project.createdByUser.lastName}`}
-                      searchQuery={searchQuery} 
-                    />
+                    Created by: {project.createdByUser.firstName}{" "}
+                    {project.createdByUser.lastName}
                   </span>
                 </div>
               </div>

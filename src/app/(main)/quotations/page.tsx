@@ -12,8 +12,10 @@ import CreateQuotationForm from "./components/CreateQuotationForm"
 import EditQuotationForm from "./components/EditQuotationForm"
 import QuotationCard from "./components/QuotationCard";
 import { QuotationWithServices } from "./types";
+import { useSession } from "../contexts/SessionProvider";
 
 export default function QuotationsPage() {
+  const { enhancedUser } = useSession();
   const [quotations, setQuotations] = useState<QuotationWithServices[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -22,12 +24,18 @@ export default function QuotationsPage() {
     useState<QuotationWithServices | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (enhancedUser?.id) {
+      fetchData();
+    }
+  }, [enhancedUser?.id]);
 
   const fetchData = async () => {
     try {
-      const quotationsData = await getAllQuotations();
+      if (!enhancedUser?.id) {
+        console.error("User not authenticated");
+        return;
+      }
+      const quotationsData = await getAllQuotations(enhancedUser.id);
       setQuotations(quotationsData as QuotationWithServices[]);
     } catch (error) {
       console.error("Failed to fetch data:", error);

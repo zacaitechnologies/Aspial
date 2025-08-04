@@ -4,8 +4,11 @@ import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient()
 
-export async function getAllQuotations() {
+export async function getAllQuotations(userId?: string) {
   return await prisma.quotation.findMany({
+    where: userId ? {
+      createdById: userId
+    } : undefined,
     include: {
       services: {
         include: {
