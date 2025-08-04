@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma"
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  paramsPromise: Promise<{ params: { id: string } }>
 ) {
   try {
+    const { params } = await paramsPromise
     const supabase = await createClient()
 
     const { data: { user }, error } = await supabase.auth.getUser()
