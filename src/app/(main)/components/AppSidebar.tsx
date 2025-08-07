@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Building2,
   Settings,
-  Users,
   FileText,
   TrendingUp,
   Bell,
@@ -31,6 +30,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import Image from "next/image";
 
 const mainNavItems = [
   {
@@ -87,20 +87,14 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <Sidebar className="border-r border-slate-200">
-      <SidebarHeader className="p-6">
+    <Sidebar className="border-r border-slate-200 bg-card-background text-card-foreground">
+      <SidebarHeader className="p-4 bg-card-background">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-            <Building2 className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-slate-900">BusinessPro</h2>
-            <p className="text-xs text-slate-500">Enterprise Suite</p>
-          </div>
+          <h1 className="text-2xl font-bold">ASPIAL</h1>
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="bg-card-background">
         <SidebarGroup>
           <SidebarGroupLabel className="text-slate-600 font-medium">
             CRM
@@ -114,7 +108,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
-                      className="transition-all duration-150 ease-out hover:bg-slate-100 data-[active=true]:bg-blue-50 data-[active=true]:text-blue-700 data-[active=true]:border-r-2 data-[active=true]:border-blue-600"
+                      className="transition-all duration-150 ease-out hover:bg-brand-light data-[active=true]:bg-brand-light data-[active=true]:text-brand data-[active=true]:border-r-2 data-[active=true]:border-brand"
                     >
                       <Link href={item.url} className="flex items-center gap-3">
                         <item.icon className="w-5 h-5" />
@@ -140,7 +134,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    className="transition-all duration-150 ease-out hover:bg-slate-100"
+                    className="transition-all duration-150 ease-out hover:bg-brand-light"
                   >
                     <Link href={item.url} className="flex items-center gap-3">
                       <item.icon className="w-5 h-5" />
@@ -154,10 +148,10 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-slate-200">
+      <SidebarFooter className="p-4 border-t border-slate-200 bg-card-background">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="hover:bg-slate-100">
+            <SidebarMenuButton asChild className="hover:bg-brand-light">
               <Link href="#" className="flex items-center gap-3">
                 <Bell className="w-5 h-5" />
                 <span>Notifications</span>
@@ -165,7 +159,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="hover:bg-slate-100">
+            <SidebarMenuButton asChild className="hover:bg-brand-light">
               <Link href="#" className="flex items-center gap-3">
                 <HelpCircle className="w-5 h-5" />
                 <span>Help & Support</span>
@@ -173,7 +167,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="hover:bg-slate-100">
+            <SidebarMenuButton asChild className="hover:bg-brand-light">
               <Link href="#" className="flex items-center gap-3">
                 <Settings className="w-5 h-5" />
                 <span>Settings</span>

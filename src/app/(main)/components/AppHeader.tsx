@@ -41,7 +41,7 @@ export function AppHeader() {
         <div className="flex items-center gap-4">
           <SidebarTrigger className="hover:bg-slate-100" />
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold text-slate-900">{getPageTitle()}</h1>
+            <h1 className="text-2xl font-bold text-card">{getPageTitle()}</h1>
           </div>
         </div>
 
