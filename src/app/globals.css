@@ -40,6 +40,7 @@
   --color-brand: #202F21;
   --color-brand-light: #BDC4A5;
   --color-brand-dark: #1a251b;
+  --color-card-background: #898D74;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -50,8 +51,8 @@
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.147 0.004 49.25);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.147 0.004 49.25);
+  --card: #898D74;
+  --card-foreground: white;
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.147 0.004 49.25);
   --primary: #202F21;
@@ -137,7 +138,7 @@
 /* Global Custom Scrollbar Styles */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3b82f6 transparent;
+  scrollbar-color: var(--color-brand) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -151,14 +152,14 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: #3b82f6 !important;
+  background-color: var(--color-brand) !important;
   border-radius: 0px;
   border: none !important;
   min-height: 10px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #2563eb !important;
+  background-color: var(--color-brand) !important;
 }
 
 *::-webkit-scrollbar-corner {
