@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import LoadingButton from "@/components/LoadingButton";
 import { PasswordInput } from "@/components/PasswordInput";
+import Image from "next/image";
 
 const resetPasswordSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -132,21 +133,28 @@ export default function ResetPasswordContent() {
 
   if (error) {
     return (
-      <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
-        <div className="flex w-full max-w-sm flex-col gap-6">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p className="text-red-600 mb-4">{error}</p>
-                <button 
-                  onClick={() => router.push("/forgot-password")}
-                  className="text-blue-600 hover:underline"
-                >
-                  Request new reset link
-                </button>
-              </div>
-            </CardContent>
-          </Card>
+      <div 
+        className="min-h-screen relative flex items-center justify-center"
+        style={{
+          backgroundImage: "url('/images/ForgetPasswordBg.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat"
+        }}
+      >
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold mb-4 text-brand">
+              Error
+            </h1>
+            <p className="text-red-600 mb-4">{error}</p>
+            <button 
+              onClick={() => router.push("/forgot-password")}
+              className="text-brand hover:underline"
+            >
+              Request new reset link
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -154,66 +162,93 @@ export default function ResetPasswordContent() {
 
   if (!isCodeExchanged) {
     return (
-      <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
-        <div className="flex w-full max-w-sm flex-col gap-6">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <p>Verifying your reset link...</p>
-              </div>
-            </CardContent>
-          </Card>
+      <div 
+        className="min-h-screen relative flex items-center justify-center"
+        style={{
+          backgroundImage: "url('/images/ForgetPasswordBg.png')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat"
+        }}
+      >
+        <div className="bg-white/70 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold mb-4 text-brand">
+              Verifying
+            </h1>
+            <p className="text-brand-light">Verifying your reset link...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-muted flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-xl">Reset Password</CardTitle>
-            <CardDescription>
-              Enter your new password below
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>New Password</FormLabel>
-                      <FormControl>
-                        <PasswordInput placeholder="Enter new password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm New Password</FormLabel>
-                      <FormControl>
-                        <PasswordInput placeholder="Confirm new password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <LoadingButton loading={isPending} type="submit" className="w-full">
-                  Reset Password
-                </LoadingButton>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+    <div 
+      className="min-h-screen relative flex items-center justify-center"
+      style={{
+        backgroundImage: "url('/images/ForgetPasswordBg.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat"
+      }}
+    >
+      <div className="bg-white/70 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+        {/* Link Icon */}
+        <div className="flex justify-center mb-6">
+          <Image
+            src="/images/link.png"
+            alt="Link Icon"
+            width={60}
+            height={60}
+            className="object-contain"
+          />
+        </div>
+
+        {/* Welcome Text */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-4 text-brand">
+            Reset Password
+          </h1>
+          <p className="text-brand-light text-sm">
+            Enter your new password below.
+          </p>
+        </div>
+
+        {/* Form */}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-brand font-medium">New Password</FormLabel>
+                  <FormControl>
+                    <PasswordInput placeholder="Enter new password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-brand font-medium">Confirm New Password</FormLabel>
+                  <FormControl>
+                    <PasswordInput placeholder="Confirm new password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <LoadingButton loading={isPending} type="submit" className="w-full">
+              Reset Password
+            </LoadingButton>
+          </form>
+        </Form>
       </div>
     </div>
   );
