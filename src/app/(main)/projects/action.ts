@@ -1,6 +1,7 @@
 "use server"
 
 import { PrismaClient } from "@prisma/client"
+import { getVisibleProjectsForUser, isUserAdmin } from "./permissions"
 
 const prisma = new PrismaClient()
 
@@ -9,35 +10,13 @@ export async function getAllProjects(userId?: string) {
     return []
   }
 
-  // Get projects where user has permissions
-  const userPermissions = await prisma.projectPermission.findMany({
-    where: {
-      userId,
-    },
-    include: {
-      project: {
-        include: {
-          quotation: {
-            include: {
-              services: {
-                include: {
-                  service: true,
-                },
-              },
-            },
-          },
-          createdByUser: true,
-        },
-      },
-    },
-    orderBy: {
-      project: {
-        created_at: "desc",
-      },
-    },
-  })
+  // Admins can see all projects
+  if (await isUserAdmin(userId)) {
+    return await getVisibleProjectsForUser(userId)
+  }
 
-  return userPermissions.map(permission => permission.project)
+  // Non-admins: only projects they own
+  return await getVisibleProjectsForUser(userId)
 }
 
 export async function createProject(data: {
