@@ -175,15 +175,11 @@ export default function TimeTrackingPage() {
 
         {/* Main Content */}
         <div className="relative">
-          {/* Background decoration */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 rounded-3xl opacity-60 blur-3xl -z-10" />
-
           <div className="grid grid-cols-1 xl:grid-cols-5 gap-8 relative">
             {/* Left Column - Timer Section */}
             <div className="xl:col-span-3 space-y-8">
               <div className="relative">
-                <div className="absolute -top-4 -left-4 w-24 h-24 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full opacity-20 blur-xl" />
-                <div className="animate-in slide-in-from-left-5 duration-700 delay-200 relative z-10">
+                <div className="relative z-10 bg-card-background rounded-lg p-6">
                   <ProjectSelector
                     projects={projects}
                     selectedProject={selectedProject}
@@ -194,8 +190,7 @@ export default function TimeTrackingPage() {
               </div>
 
               <div className="relative">
-                <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-gradient-to-br from-green-400 to-blue-500 rounded-full opacity-20 blur-xl" />
-                <div className="animate-in slide-in-from-left-5 duration-700 delay-300 relative z-10">
+                <div className="relative z-10 bg-card-background rounded-lg p-6">
                   <TimerDisplay
                     selectedProject={selectedProject}
                     isTracking={isTracking}
@@ -209,11 +204,11 @@ export default function TimeTrackingPage() {
               {/* Status Indicator */}
               <div className="flex items-center justify-center gap-2 text-sm">
                 <div
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  className={`w-2 h-2 rounded-full ${
                     isTracking && !isPaused
-                      ? "bg-green-500 animate-pulse"
+                      ? "bg-green-500"
                       : isPaused
-                        ? "bg-amber-500 animate-pulse"
+                        ? "bg-amber-500"
                         : "bg-slate-300"
                   }`}
                 />
@@ -225,8 +220,7 @@ export default function TimeTrackingPage() {
 
             {/* Right Column - Time Entries */}
             <div className="xl:col-span-2 relative">
-              <div className="absolute -top-8 -right-8 w-40 h-40 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full opacity-15 blur-2xl" />
-              <div className="animate-in slide-in-from-right-5 duration-700 delay-400 relative z-10 h-full">
+              <div className="relative z-10 bg-card-background rounded-lg p-6 h-full">
                 <TimeEntries
                   entries={timeEntries}
                   projects={projects}

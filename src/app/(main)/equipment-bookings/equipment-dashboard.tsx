@@ -99,17 +99,27 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
 
   return (
     <Tabs defaultValue="studios" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="studios">Studios</TabsTrigger>
-        <TabsTrigger value="equipment">Equipment</TabsTrigger>
+      <TabsList className="grid w-full grid-cols-2 bg-card-background text-white">
+                 <TabsTrigger 
+           value="studios" 
+           className="text-white data-[state=active]:bg-white data-[state=active]:text-card-background"
+         >
+           Studios
+         </TabsTrigger>
+         <TabsTrigger 
+           value="equipment" 
+           className="text-white data-[state=active]:bg-white data-[state=active]:text-card-background"
+         >
+           Equipment
+         </TabsTrigger>
       </TabsList>
 
       <TabsContent value="studios" className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold">Studios ({studios.length})</h2>
+          <h2 className="text-2xl font-semibold text-card-background">Studios ({studios.length})</h2>
           <Dialog open={showStudioForm} onOpenChange={setShowStudioForm}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="bg-card-background">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Studio
               </Button>
@@ -142,22 +152,22 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <div className="flex items-center text-sm text-muted-foreground">
+                  <div className="flex items-center text-sm ">
                     <MapPin className="w-4 h-4 mr-2" />
                     {studio.location}
                   </div>
-                  <div className="flex items-center text-sm text-muted-foreground">
+                  <div className="flex items-center text-sm ">
                     <Users className="w-4 h-4 mr-2" />
                     Capacity: {studio.capacity}
                   </div>
-                  <div className="flex items-center text-sm text-muted-foreground">
+                  <div className="flex items-center text-sm ">
                     <Package className="w-4 h-4 mr-2" />
                     Location: {studio.location}
                   </div>
                 </div>
 
                 {studio.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">{studio.description}</p>
+                  <p className="text-sm  line-clamp-2">{studio.description}</p>
                 )}
 
                 {studio.bookings && studio.bookings.length > 0 && (
@@ -176,13 +186,13 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                             Cancel
                           </Button>
                         </div>
-                        <div className="flex items-center text-muted-foreground">
+                        <div className="flex items-center ">
                           <Clock className="w-3 h-3 mr-1" />
                           {new Date(booking.startDate).toLocaleDateString()} -{" "}
                           {new Date(booking.endDate).toLocaleDateString()}
                         </div>
-                        {booking.purpose && <div className="text-muted-foreground">{booking.purpose}</div>}
-                        <div className="text-muted-foreground">Attendees: {booking.attendees}</div>
+                        {booking.purpose && <div className="">{booking.purpose}</div>}
+                        <div className="">Attendees: {booking.attendees}</div>
                       </div>
                     ))}
                   </div>
@@ -201,18 +211,18 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                     <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
                     <span className="truncate">Book</span>
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedStudio(studio)
-                      setShowStudioForm(true)
-                    }}
-                    className="flex-1 min-w-0"
-                  >
-                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Edit</span>
-                  </Button>
+                                     <Button
+                     size="sm"
+                     variant="outline"
+                     onClick={() => {
+                       setSelectedStudio(studio)
+                       setShowStudioForm(true)
+                     }}
+                     className="flex-1 min-w-0 text-black"
+                   >
+                     <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
+                     <span className="truncate">Edit</span>
+                   </Button>
                   <Button 
                     size="sm" 
                     variant="destructive" 
@@ -231,10 +241,10 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
 
       <TabsContent value="equipment" className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold">Equipment ({equipment.length})</h2>
+          <h2 className="text-2xl font-semibold text-card-background">Equipment ({equipment.length})</h2>
           <Dialog open={showEquipmentForm} onOpenChange={setShowEquipmentForm}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="bg-card-background">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Equipment
               </Button>
@@ -281,24 +291,25 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="text-sm">
-                    <span className="font-medium">Type:</span> {item.type}
-                  </div>
-                  {(item.brand || item.model) && (
-                    <div className="text-sm">
-                      <span className="font-medium">Brand/Model:</span>{" "}
-                      {item.brand && item.model ? `${item.brand} ${item.model}` : item.brand || item.model}
-                    </div>
-                  )}
-                  {item.serialNumber && (
-                    <div className="text-sm">
-                      <span className="font-medium">Serial:</span> {item.serialNumber}
-                    </div>
-                  )}
-
-                </div>
+                             <CardContent className="space-y-4">
+                 <div className="space-y-2">
+                   <div className="flex items-center text-sm ">
+                     <Package className="w-4 h-4 mr-2" />
+                     Type: {item.type}
+                   </div>
+                   {(item.brand || item.model) && (
+                     <div className="flex items-center text-sm ">
+                       <Package className="w-4 h-4 mr-2" />
+                       Brand/Model: {item.brand && item.model ? `${item.brand} ${item.model}` : item.brand || item.model}
+                     </div>
+                   )}
+                   {item.serialNumber && (
+                     <div className="flex items-center text-sm ">
+                       <Package className="w-4 h-4 mr-2" />
+                       Serial: {item.serialNumber}
+                     </div>
+                   )}
+                 </div>
 
                 {item.bookings && item.bookings.length > 0 && (
                   <div className="space-y-2">
@@ -316,12 +327,12 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                             Cancel
                           </Button>
                         </div>
-                        <div className="flex items-center text-muted-foreground">
+                        <div className="flex items-center ">
                           <Clock className="w-3 h-3 mr-1" />
                           {new Date(booking.startDate).toLocaleDateString()} -{" "}
                           {new Date(booking.endDate).toLocaleDateString()}
                         </div>
-                        {booking.purpose && <div className="text-muted-foreground">{booking.purpose}</div>}
+                        {booking.purpose && <div className="">{booking.purpose}</div>}
                       </div>
                     ))}
                   </div>
@@ -341,18 +352,18 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                     <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
                     <span className="truncate">Book</span>
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedEquipment(item)
-                      setShowEquipmentForm(true)
-                    }}
-                    className="flex-1 min-w-0"
-                  >
-                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Edit</span>
-                  </Button>
+                                     <Button
+                     size="sm"
+                     variant="outline"
+                     onClick={() => {
+                       setSelectedEquipment(item)
+                       setShowEquipmentForm(true)
+                     }}
+                     className="flex-1 min-w-0 text-black"
+                   >
+                     <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
+                     <span className="truncate">Edit</span>
+                   </Button>
                   <Button 
                     size="sm" 
                     variant="destructive" 
