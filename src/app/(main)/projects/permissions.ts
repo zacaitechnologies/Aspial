@@ -4,6 +4,59 @@ import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient()
 
+export async function isUserAdmin(userSupabaseId: string) {
+  const userWithRoles = await prisma.user.findUnique({
+    where: { supabase_id: userSupabaseId },
+    include: { userRoles: { include: { role: true } } },
+  })
+
+  if (!userWithRoles) return false
+  return userWithRoles.userRoles.some((userRole) => userRole.role.slug === "admin")
+}
+
+export async function getVisibleProjectsForUser(userSupabaseId: string) {
+  const isAdmin = await isUserAdmin(userSupabaseId)
+
+  if (isAdmin) {
+    return await prisma.project.findMany({
+      include: {
+        quotation: {
+          include: {
+            services: {
+              include: { service: true },
+            },
+          },
+        },
+        createdByUser: true,
+      },
+      orderBy: { created_at: "desc" },
+    })
+  }
+
+  const userOwnedPermissions = await prisma.projectPermission.findMany({
+    where: { userId: userSupabaseId, isOwner: true },
+    include: {
+      project: {
+        include: {
+          quotation: {
+            include: {
+              services: {
+                include: { service: true },
+              },
+            },
+          },
+          createdByUser: true,
+        },
+      },
+    },
+    orderBy: {
+      project: { created_at: "desc" },
+    },
+  })
+
+  return userOwnedPermissions.map((permission) => permission.project)
+}
+
 export async function inviteProjectCollaborator(
   projectId: number,
   userId: string,
@@ -106,6 +159,10 @@ export async function getUserProjectPermissions(userId: string) {
 }
 
 export async function canUserAccessProject(userId: string, projectId: number) {
+  if (await isUserAdmin(userId)) {
+    return true
+  }
+
   const permission = await prisma.projectPermission.findUnique({
     where: {
       userId_projectId: {
@@ -115,7 +172,7 @@ export async function canUserAccessProject(userId: string, projectId: number) {
     },
   })
 
-  return permission !== null
+  return permission?.isOwner || false
 }
 
 export async function canUserEditProject(userId: string, projectId: number) {
