@@ -46,6 +46,8 @@ model User {
   projects    Project[]   @relation("ProjectCreator")
   timeEntries TimeEntry[]
   projectPermissions ProjectPermission[]
+  sentInvitations ProjectInvitation[] @relation("ProjectInviter")
+  receivedInvitations ProjectInvitation[] @relation("ProjectInvitee")
 
   @@map("user")
 }
@@ -125,6 +127,7 @@ model Project {
   updated_at    DateTime    @default(now())
   timeEntries   TimeEntry[]
   permissions   ProjectPermission[]
+  invitations   ProjectInvitation[]
 
   @@map("projects")
 }
@@ -221,4 +224,31 @@ model TimeEntry {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("time_entries")
+}
+
+model ProjectInvitation {
+  id          Int                @id @default(autoincrement())
+  projectId   Int
+  invitedBy   String
+  invitedUser String
+  status      InvitationStatus   @default(pending)
+  canView     Boolean            @default(true)
+  canEdit     Boolean            @default(true)
+  isOwner     Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inviter     User               @relation("ProjectInviter", fields: [invitedBy], references: [supabase_id], onDelete: Cascade)
+  invitee     User               @relation("ProjectInvitee", fields: [invitedUser], references: [supabase_id], onDelete: Cascade)
+
+  @@unique([projectId, invitedUser])
+  @@map("project_invitations")
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  declined
+  expired
 }

@@ -23,9 +23,13 @@ import {
   inviteProjectCollaborator, 
   getProjectPermissions, 
   removeProjectCollaborator,
-  updateProjectPermission 
+  updateProjectPermission,
+  getAvailableUsersForProject,
+  createProjectInvitation,
+  getProjectInvitations
 } from "../permissions";
 import { User, Users, X, Crown, Eye, Edit } from "lucide-react";
+import { useSession } from "../../contexts/SessionProvider";
 
 interface ProjectCollaboratorsDialogProps {
   isOpen: boolean;
@@ -49,15 +53,50 @@ type ProjectPermission = {
   };
 };
 
+type AvailableUser = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  supabase_id: string;
+};
+
+type ProjectInvitation = {
+  id: number;
+  projectId: number;
+  invitedBy: string;
+  invitedUser: string;
+  status: string;
+  canView: boolean;
+  canEdit: boolean;
+  isOwner: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  inviter: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  invitee: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+};
+
 export default function ProjectCollaboratorsDialog({
   isOpen,
   onOpenChange,
   projectId,
   projectName,
 }: ProjectCollaboratorsDialogProps) {
+  const { enhancedUser } = useSession();
   const [permissions, setPermissions] = useState<ProjectPermission[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
+  const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [invitePermissions, setInvitePermissions] = useState({
     canView: true,
     canEdit: true,
@@ -73,34 +112,44 @@ export default function ProjectCollaboratorsDialog({
   const fetchPermissions = async () => {
     try {
       setLoading(true);
-      const data = await getProjectPermissions(projectId);
-      setPermissions(data as ProjectPermission[]);
+      const [permissionsData, availableUsersData, invitationsData] = await Promise.all([
+        getProjectPermissions(projectId),
+        getAvailableUsersForProject(projectId),
+        getProjectInvitations(projectId)
+      ]);
+      setPermissions(permissionsData as ProjectPermission[]);
+      setAvailableUsers(availableUsersData as AvailableUser[]);
+      setInvitations(invitationsData as ProjectInvitation[]);
     } catch (error) {
-      console.error("Failed to fetch permissions:", error);
+      console.error("Failed to fetch data:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleInviteCollaborator = async () => {
-    if (!inviteEmail.trim()) {
-      alert("Please enter an email address");
+    if (!selectedUserId) {
+      alert("Please select a user to invite");
+      return;
+    }
+
+    if (!enhancedUser?.id) {
+      alert("User not authenticated");
       return;
     }
 
     try {
-      // For now, we'll use the email as userId (you might want to implement user lookup)
-      const userId = inviteEmail; // This should be replaced with actual user lookup
-      
-      await inviteProjectCollaborator(
+      // Create invitation instead of direct permission
+      await createProjectInvitation(
         projectId,
-        userId,
+        enhancedUser.id,
+        selectedUserId,
         invitePermissions.canView,
         invitePermissions.canEdit,
         invitePermissions.isOwner
       );
 
-      setInviteEmail("");
+      setSelectedUserId("");
       setInvitePermissions({
         canView: true,
         canEdit: true,
@@ -108,10 +157,10 @@ export default function ProjectCollaboratorsDialog({
       });
       
       await fetchPermissions();
-      alert("Collaborator invited successfully!");
+      alert("Invitation sent successfully!");
     } catch (error) {
-      console.error("Error inviting collaborator:", error);
-      alert("Failed to invite collaborator. Please try again.");
+      console.error("Error sending invitation:", error);
+      alert("Failed to send invitation. Please try again.");
     }
   };
 
@@ -167,16 +216,26 @@ export default function ProjectCollaboratorsDialog({
           {/* Invite New Collaborator */}
           <div className="space-y-4 p-4 border rounded-lg">
             <h3 className="font-semibold">Invite New Collaborator</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
-                <Label htmlFor="invite-email">Email Address</Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  placeholder="Enter collaborator's email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
+                <Label className="mb-2" htmlFor="invite-user">Select User</Label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a user to invite" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableUsers.map((user) => (
+                      <SelectItem key={user.supabase_id} value={user.supabase_id}>
+                        {user.firstName} {user.lastName} ({user.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {availableUsers.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    All users are already collaborators on this project.
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Permissions</Label>
@@ -210,11 +269,70 @@ export default function ProjectCollaboratorsDialog({
                 </div>
               </div>
             </div>
-            <Button onClick={handleInviteCollaborator} className="w-full">
+            <Button 
+              onClick={handleInviteCollaborator} 
+              className="w-full"
+              disabled={!selectedUserId || availableUsers.length === 0}
+            >
               <User className="w-4 h-4 mr-2" />
-              Invite Collaborator
+              Send Invitation
             </Button>
           </div>
+
+          {/* Pending Invitations */}
+          {invitations.filter(inv => inv.status === "pending").length > 0 && (
+            <div className="space-y-4">
+              <h3 className="font-semibold">Pending Invitations</h3>
+              <div className="space-y-3">
+                {invitations
+                  .filter(inv => inv.status === "pending")
+                  .map((invitation) => (
+                    <div
+                      key={invitation.id}
+                      className="flex items-center justify-between p-3 border rounded-lg bg-yellow-50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <p className="font-medium">
+                            {invitation.invitee.firstName} {invitation.invitee.lastName}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {invitation.invitee.email}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Invited by {invitation.inviter.firstName} {invitation.inviter.lastName}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-yellow-700 bg-yellow-100">
+                          Pending
+                        </Badge>
+                        {invitation.canView && (
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <Eye className="w-3 h-3" />
+                            View
+                          </Badge>
+                        )}
+                        {invitation.canEdit && (
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <Edit className="w-3 h-3" />
+                            Edit
+                          </Badge>
+                        )}
+                        {invitation.isOwner && (
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            <Crown className="w-3 h-3" />
+                            Owner
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* Current Collaborators */}
           <div className="space-y-4">

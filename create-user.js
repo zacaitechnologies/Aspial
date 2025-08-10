@@ -30,7 +30,7 @@ async function createOrReplaceUsers() {
       firstName: 'bxb371',
       lastName: '',
       email: 'bxb371@student.bham.ac.uk',
-      role: 'admin',
+      role: 'member',
     },
     {
       supabase_id: '362c318d-6007-488b-ae53-78acc94670f1',
@@ -60,15 +60,16 @@ async function createOrReplaceUsers() {
 
     const roleId = userData.role === 'admin' ? adminRole.id : memberRole.id;
 
-    await prisma.userRole.upsert({
+    // First, remove all existing roles for this user
+    await prisma.userRole.deleteMany({
       where: {
-        userId_roleId: {
-          userId: user.id,
-          roleId,
-        },
+        userId: user.id,
       },
-      update: {},
-      create: {
+    });
+
+    // Then assign the new role
+    await prisma.userRole.create({
+      data: {
         userId: user.id,
         roleId,
       },
