@@ -33,8 +33,14 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
     })
   }
 
-  const userOwnedPermissions = await prisma.projectPermission.findMany({
-    where: { userId: userSupabaseId, isOwner: true },
+  const userPermissions = await prisma.projectPermission.findMany({
+    where: { 
+      userId: userSupabaseId, 
+      OR: [
+        { isOwner: true },
+        { canView: true }
+      ]
+    },
     include: {
       project: {
         include: {
@@ -54,7 +60,7 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
     },
   })
 
-  return userOwnedPermissions.map((permission) => permission.project)
+  return userPermissions.map((permission) => permission.project)
 }
 
 export async function inviteProjectCollaborator(
@@ -172,7 +178,7 @@ export async function canUserAccessProject(userId: string, projectId: number) {
     },
   })
 
-  return permission?.isOwner || false
+  return permission?.isOwner || permission?.canView || false
 }
 
 export async function canUserEditProject(userId: string, projectId: number) {
@@ -199,4 +205,187 @@ export async function isUserProjectOwner(userId: string, projectId: number) {
   })
 
   return permission?.isOwner || false
+}
+
+// Invitation-related functions
+export async function getAllUsers() {
+  return await prisma.user.findMany({
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      supabase_id: true,
+    },
+    orderBy: [
+      { firstName: "asc" },
+      { lastName: "asc" },
+    ],
+  })
+}
+
+export async function getAvailableUsersForProject(projectId: number) {
+  // Get all users who are not already collaborators on this project
+  const existingCollaborators = await prisma.projectPermission.findMany({
+    where: { projectId },
+    select: { userId: true },
+  })
+  
+  const existingUserIds = existingCollaborators.map(c => c.userId)
+  
+  return await prisma.user.findMany({
+    where: {
+      supabase_id: {
+        notIn: existingUserIds,
+      },
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      supabase_id: true,
+    },
+    orderBy: [
+      { firstName: "asc" },
+      { lastName: "asc" },
+    ],
+  })
+}
+
+export async function createProjectInvitation(
+  projectId: number,
+  invitedBy: string,
+  invitedUser: string,
+  canView: boolean = true,
+  canEdit: boolean = true,
+  isOwner: boolean = false
+) {
+  return await prisma.projectInvitation.create({
+    data: {
+      projectId,
+      invitedBy,
+      invitedUser,
+      canView,
+      canEdit,
+      isOwner,
+    },
+    include: {
+      project: true,
+      inviter: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      invitee: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+  })
+}
+
+export async function getUserInvitations(userId: string) {
+  return await prisma.projectInvitation.findMany({
+    where: {
+      invitedUser: userId,
+      status: "pending",
+    },
+    include: {
+      project: {
+        include: {
+          quotation: true,
+          createdByUser: true,
+        },
+      },
+      inviter: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  })
+}
+
+export async function acceptProjectInvitation(invitationId: number) {
+  const invitation = await prisma.projectInvitation.findUnique({
+    where: { id: invitationId },
+    include: { project: true },
+  })
+
+  if (!invitation) {
+    throw new Error("Invitation not found")
+  }
+
+  if (invitation.status !== "pending") {
+    throw new Error("Invitation is no longer pending")
+  }
+
+  // Use a transaction to update invitation and create permission
+  return await prisma.$transaction(async (tx) => {
+    // Update invitation status
+    await tx.projectInvitation.update({
+      where: { id: invitationId },
+      data: { status: "accepted" },
+    })
+
+    // Create project permission
+    const permission = await tx.projectPermission.create({
+      data: {
+        userId: invitation.invitedUser,
+        projectId: invitation.projectId,
+        canView: invitation.canView,
+        canEdit: invitation.canEdit,
+        isOwner: invitation.isOwner,
+      },
+      include: {
+        user: true,
+        project: true,
+      },
+    })
+
+    return permission
+  })
+}
+
+export async function declineProjectInvitation(invitationId: number) {
+  return await prisma.projectInvitation.update({
+    where: { id: invitationId },
+    data: { status: "declined" },
+  })
+}
+
+export async function getProjectInvitations(projectId: number) {
+  return await prisma.projectInvitation.findMany({
+    where: { projectId },
+    include: {
+      inviter: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      invitee: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  })
 }

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getAllProjects, updateProjectStatus } from "./action";
+import { isUserProjectOwner } from "./permissions";
 import { Button } from "@/components/ui/button";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
@@ -83,6 +84,7 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectWithQuotation | null>(null);
+  const [projectOwnership, setProjectOwnership] = useState<{[key: number]: boolean}>({});
 
   useEffect(() => {
     if (enhancedUser?.id) {
@@ -98,6 +100,13 @@ export default function ProjectsPage() {
       }
       const data = await getAllProjects(enhancedUser.id);
       setProjects(data as ProjectWithQuotation[]);
+      
+      // Check ownership for each project
+      const ownershipMap: {[key: number]: boolean} = {};
+      for (const project of data) {
+        ownershipMap[project.id] = await isUserProjectOwner(enhancedUser.id, project.id);
+      }
+      setProjectOwnership(ownershipMap);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
     } finally {
@@ -186,13 +195,18 @@ export default function ProjectsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleManageCollaborators(project)}
-                  >
-                    <Users className="w-4 h-4" />
-                  </Button>
+                  {projectOwnership[project.id] && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleManageCollaborators(project)}
+                      title="Invite Collaborators"
+                      className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                    >
+                      <Users className="w-4 h-4 mr-1" />
+                      Invite
+                    </Button>
+                  )}
                   <Select
                     value={project.status}
                     onValueChange={(value) =>

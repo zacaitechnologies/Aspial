@@ -152,7 +152,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-brand-light">
-              <Link href="#" className="flex items-center gap-3">
+              <Link href="/notification" className="flex items-center gap-3">
                 <Bell className="w-5 h-5" />
                 <span>Notifications</span>
               </Link>
