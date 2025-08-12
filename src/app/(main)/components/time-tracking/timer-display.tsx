@@ -3,13 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Timer, Play, Pause, Square } from "lucide-react"
 import { formatTime } from "../../time-tracking/utils"
 import { Button } from "@/components/ui/button"
-
-interface Project {
-  id: string
-  name: string
-  color: string
-  client?: string
-}
+import { Project } from "@prisma/client"
 
 interface TimerDisplayProps {
   selectedProject: Project | null
@@ -38,10 +32,10 @@ export function TimerDisplay({
       {/* Current Project Display */}
       {selectedProject && (
         <div className="flex items-center gap-3 p-4 bg-white/60 rounded-lg">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedProject.color }} />
+          <div className="w-3 h-3 rounded-full bg-blue-500" />
           <div>
             <div className="font-medium">{selectedProject.name}</div>
-            {selectedProject.client && <div className="text-sm text-muted-foreground">{selectedProject.client}</div>}
+            {selectedProject.description && <div className="text-sm text-muted-foreground">{selectedProject.description}</div>}
           </div>
         </div>
       )}
