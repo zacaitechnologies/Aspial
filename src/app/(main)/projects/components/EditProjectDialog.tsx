@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { updateProject } from "../action";
+import { projectStatusOptions, ProjectFormData } from "../types";
 
 interface EditProjectDialogProps {
   isOpen: boolean;
@@ -34,20 +35,13 @@ interface EditProjectDialogProps {
   } | null;
 }
 
-const projectStatusOptions = [
-  { value: "planning", label: "Planning" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
-];
-
 export default function EditProjectDialog({
   isOpen,
   onOpenChange,
   onSuccess,
   project,
 }: EditProjectDialogProps) {
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ProjectFormData>({
     name: "",
     description: "",
     status: "planning",

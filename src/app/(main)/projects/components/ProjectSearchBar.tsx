@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Filter } from "lucide-react";
+import { projectStatusFilterOptions } from "../types";
 
 interface ProjectSearchBarProps {
   searchQuery: string;
@@ -18,14 +19,6 @@ interface ProjectSearchBarProps {
   onStatusFilterChange: (status: string) => void;
 }
 
-const projectStatusOptions = [
-  { value: "all", label: "All Statuses" },
-  { value: "planning", label: "Planning" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "completed", label: "Completed" },
-  { value: "cancelled", label: "Cancelled" },
-];
-
 export default function ProjectSearchBar({
   searchQuery,
   onSearchChange,
@@ -33,8 +26,8 @@ export default function ProjectSearchBar({
   onStatusFilterChange,
 }: ProjectSearchBarProps) {
   return (
-    <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
-      <div className="flex-1">
+    <div className="flex flex-col sm:flex-row gap-4 mb-6 py-4 w-min-300 bg-muted/50 rounded-lg">
+      <div className="flex-1 min-w-0">
         <Label htmlFor="project-search" className="sr-only">
           Search projects
         </Label>
@@ -60,7 +53,7 @@ export default function ProjectSearchBar({
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
-            {projectStatusOptions.map((option) => (
+            {projectStatusFilterOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>

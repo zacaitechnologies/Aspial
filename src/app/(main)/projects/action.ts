@@ -2,6 +2,7 @@
 
 import { PrismaClient } from "@prisma/client"
 import { getVisibleProjectsForUser, isUserAdmin } from "./permissions"
+import { CreateProjectData, UpdateProjectData } from "./types"
 
 const prisma = new PrismaClient()
 
@@ -19,14 +20,7 @@ export async function getAllProjects(userId?: string) {
   return await getVisibleProjectsForUser(userId)
 }
 
-export async function createProject(data: {
-  name: string
-  description?: string
-  quotationId: number
-  createdBy: string
-  startDate?: Date
-  endDate?: Date
-}) {
+export async function createProject(data: CreateProjectData) {
   const project = await prisma.project.create({
     data,
   })
@@ -54,13 +48,7 @@ export async function updateProjectStatus(id: string, status: string) {
 
 export async function updateProject(
   id: string,
-  data: {
-    name: string
-    description?: string
-    status: string
-    startDate?: Date
-    endDate?: Date
-  }
+  data: UpdateProjectData
 ) {
   return await prisma.project.update({
     where: { id: Number.parseInt(id) },
