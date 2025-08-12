@@ -1,4 +1,4 @@
-import { getUserWithRole, fetchAllUserTimeEntries, fetchAllUsers, fetchAllProjects, fetchUserTimeEntries, fetchUserProjects } from "./auth"
+import { getUserWithRole, fetchAllUserTimeEntries, fetchAllUsers, fetchAllProjects, fetchUserTimeEntries, fetchUserProjects } from "./action"
 import AdminTimeTracking from "../components/time-tracking/AdminTimeTracking"
 import UserTimeTracking from "../components/time-tracking/UserTimeTracking"
 import { LoadingSpinner } from "../components/time-tracking/LoadingSpinner"

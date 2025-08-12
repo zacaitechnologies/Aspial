@@ -8,6 +8,7 @@ import { Project } from "@prisma/client"
 interface TimerDisplayProps {
   selectedProject: Project | null
   isTracking: boolean
+  isPaused: boolean
   currentSession: number
   onStart: () => void
   onPause: () => void
@@ -17,6 +18,7 @@ interface TimerDisplayProps {
 export function TimerDisplay({
   selectedProject,
   isTracking,
+  isPaused,
   currentSession,
   onStart,
   onPause,
@@ -28,17 +30,6 @@ export function TimerDisplay({
           <Timer className="h-5 w-5 text-brand" />
           Timer
         </div>
-      
-      {/* Current Project Display */}
-      {selectedProject && (
-        <div className="flex items-center gap-3 p-4 bg-white/60 rounded-lg">
-          <div className="w-3 h-3 rounded-full bg-blue-500" />
-          <div>
-            <div className="font-medium">{selectedProject.name}</div>
-            {selectedProject.description && <div className="text-sm text-muted-foreground">{selectedProject.description}</div>}
-          </div>
-        </div>
-      )}
 
       {/* Timer Display */}
       <div className="text-center space-y-6 py-8">
@@ -69,15 +60,27 @@ export function TimerDisplay({
           </Button>
         ) : (
           <>
-            <Button
-              onClick={onPause}
-              size="lg"
-              variant="outline"
-              className="border-amber-300 text-amber-600 hover:bg-amber-50"
-            >
-              <Pause className="h-5 w-5 mr-2" />
-              Pause
-            </Button>
+            {!isPaused ? (
+              <Button
+                onClick={onPause}
+                size="lg"
+                variant="outline"
+                className="border-amber-300 text-amber-600 hover:bg-amber-50"
+              >
+                <Pause className="h-5 w-5 mr-2" />
+                Pause
+              </Button>
+            ) : (
+              <Button
+                onClick={onStart}
+                size="lg"
+                variant="outline"
+                className="border-green-300 text-green-600 hover:bg-green-50"
+              >
+                <Play className="h-5 w-5 mr-2" />
+                Resume
+              </Button>
+            )}
             <Button
               onClick={onStop}
               size="lg"
@@ -94,11 +97,18 @@ export function TimerDisplay({
       <div className="flex items-center justify-center gap-2 text-sm">
         <div
           className={`w-2 h-2 rounded-full ${
-            isTracking ? "bg-green-500" : "bg-slate-300"
+            isTracking && !isPaused
+              ? "bg-green-500"
+              : isPaused
+                ? "bg-amber-500"
+                : "bg-slate-300"
           }`}
         />
-        <span className="text-muted-foreground">{isTracking ? "Timer is running" : "Timer is stopped"}</span>
+        <span className="text-muted-foreground">
+          {isTracking && !isPaused ? "Timer is running" : isPaused ? "Timer is paused" : "Timer is stopped"}
+        </span>
       </div>
+
     </div>
   )
 }
