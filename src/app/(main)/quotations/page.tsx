@@ -3,13 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { Plus, FileText } from "lucide-react";
 import { useState, useEffect } from "react";
-import {
-  getAllQuotations,
-  deleteQuotationById,
-} from "./action";
+import { getAllQuotations, deleteQuotationById } from "./action";
 import { createProject } from "../projects/action";
-import CreateQuotationForm from "./components/CreateQuotationForm"
-import EditQuotationForm from "./components/EditQuotationForm"
+import CreateQuotationForm from "./components/CreateQuotationForm";
+import EditQuotationForm from "./components/EditQuotationForm";
 import QuotationCard from "./components/QuotationCard";
 import { QuotationWithServices } from "./types";
 import { useSession } from "../contexts/SessionProvider";
@@ -22,12 +19,6 @@ export default function QuotationsPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingQuotation, setEditingQuotation] =
     useState<QuotationWithServices | null>(null);
-
-  useEffect(() => {
-    if (enhancedUser?.id) {
-      fetchData();
-    }
-  }, [enhancedUser?.id]);
 
   const fetchData = async () => {
     try {
@@ -43,6 +34,12 @@ export default function QuotationsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (enhancedUser?.id) {
+      fetchData();
+    }
+  }, [enhancedUser?.id, fetchData]);
 
   const handleEditQuotation = (quotation: QuotationWithServices) => {
     setEditingQuotation(quotation);
@@ -61,9 +58,16 @@ export default function QuotationsPage() {
 
   const handleCreateProject = async (quotation: QuotationWithServices) => {
     // Check if quotation has appropriate status for project creation
-    const allowedStatuses = ["accepted", "paid", "partially_paid", "deposit_paid"];
+    const allowedStatuses = [
+      "accepted",
+      "paid",
+      "partially_paid",
+      "deposit_paid",
+    ];
     if (!allowedStatuses.includes(quotation.status)) {
-      alert("Only accepted, paid, partially paid, or deposit paid quotations can be converted to projects.");
+      alert(
+        "Only accepted, paid, partially paid, or deposit paid quotations can be converted to projects."
+      );
       return;
     }
 
@@ -77,7 +81,7 @@ export default function QuotationsPage() {
       // Calculate start and end dates based on duration in months
       const startDate = new Date();
       let endDate: Date | undefined = undefined;
-      
+
       if (quotation.duration) {
         endDate = new Date(startDate);
         endDate.setMonth(endDate.getMonth() + quotation.duration);
@@ -115,7 +119,8 @@ export default function QuotationsPage() {
           <div>
             <h1 className="text-3xl font-bold">Quotations Management</h1>
             <p className="text-muted-foreground">
-              Create and manage client quotations. Create projects manually for eligible quotations using the briefcase icon.
+              Create and manage client quotations. Create projects manually for
+              eligible quotations using the briefcase icon.
             </p>
           </div>
 

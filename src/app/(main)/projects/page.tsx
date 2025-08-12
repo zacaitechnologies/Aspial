@@ -83,14 +83,11 @@ export default function ProjectsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<ProjectWithQuotation | null>(null);
-  const [projectOwnership, setProjectOwnership] = useState<{[key: number]: boolean}>({});
-
-  useEffect(() => {
-    if (enhancedUser?.id) {
-      fetchProjects();
-    }
-  }, [enhancedUser?.id]);
+  const [selectedProject, setSelectedProject] =
+    useState<ProjectWithQuotation | null>(null);
+  const [projectOwnership, setProjectOwnership] = useState<{
+    [key: number]: boolean;
+  }>({});
 
   const fetchProjects = async () => {
     try {
@@ -100,11 +97,14 @@ export default function ProjectsPage() {
       }
       const data = await getAllProjects(enhancedUser.id);
       setProjects(data as ProjectWithQuotation[]);
-      
+
       // Check ownership for each project
-      const ownershipMap: {[key: number]: boolean} = {};
+      const ownershipMap: { [key: number]: boolean } = {};
       for (const project of data) {
-        ownershipMap[project.id] = await isUserProjectOwner(enhancedUser.id, project.id);
+        ownershipMap[project.id] = await isUserProjectOwner(
+          enhancedUser.id,
+          project.id
+        );
       }
       setProjectOwnership(ownershipMap);
     } catch (error) {
@@ -113,6 +113,12 @@ export default function ProjectsPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (enhancedUser?.id) {
+      fetchProjects();
+    }
+  }, [enhancedUser?.id, fetchProjects]);
 
   const handleStatusUpdate = async (projectId: string, newStatus: string) => {
     try {
@@ -146,14 +152,22 @@ export default function ProjectsPage() {
 
   // Filter projects based on search query and status filter
   const filteredProjects = projects.filter((project) => {
-    const matchesSearch = 
+    const matchesSearch =
       project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (project.description && project.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      project.createdByUser.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.createdByUser.lastName.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || project.status === statusFilter;
-    
+      (project.description &&
+        project.description
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase())) ||
+      project.createdByUser.firstName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      project.createdByUser.lastName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+
+    const matchesStatus =
+      statusFilter === "all" || project.status === statusFilter;
+
     return matchesSearch && matchesStatus;
   });
 
@@ -180,7 +194,7 @@ export default function ProjectsPage() {
         onStatusFilterChange={setStatusFilter}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid bg-gray-100 rounded-md h-full p-4 grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredProjects.map((project) => (
           <Card
             key={project.id}
@@ -207,7 +221,7 @@ export default function ProjectsPage() {
                       Invite
                     </Button>
                   )}
-                  <Select
+                  {/* <Select
                     value={project.status}
                     onValueChange={(value) =>
                       handleStatusUpdate(project.id.toString(), value)
@@ -223,7 +237,7 @@ export default function ProjectsPage() {
                         </SelectItem>
                       ))}
                     </SelectContent>
-                  </Select>
+                  </Select> */}
                 </div>
               </div>
             </CardHeader>
@@ -293,7 +307,9 @@ export default function ProjectsPage() {
       {filteredProjects.length === 0 && projects.length > 0 && (
         <div className="text-center py-12">
           <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">No projects match your search criteria.</p>
+          <p className="text-muted-foreground">
+            No projects match your search criteria.
+          </p>
           <p className="text-sm text-muted-foreground mt-2">
             Try adjusting your search or filter settings.
           </p>
