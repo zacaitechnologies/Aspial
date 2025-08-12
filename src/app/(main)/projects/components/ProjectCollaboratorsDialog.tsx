@@ -103,11 +103,7 @@ export default function ProjectCollaboratorsDialog({
     isOwner: false,
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchPermissions();
-    }
-  }, [isOpen, projectId]);
+
 
   const fetchPermissions = async () => {
     try {
@@ -126,6 +122,12 @@ export default function ProjectCollaboratorsDialog({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPermissions();
+    }
+  }, [isOpen, projectId, fetchPermissions]);
 
   const handleInviteCollaborator = async () => {
     if (!selectedUserId) {
