@@ -6,6 +6,7 @@ import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
 import { TimeEntry, Project } from "@prisma/client"
+import { createTimeEntry, deleteTimeEntry } from "../../time-tracking/action"
 
 interface UserTimeTrackingProps {
   initialTimeEntries: (TimeEntry & {
@@ -83,24 +84,13 @@ export default function UserTimeTracking({
     }
 
     try {
-      const response = await fetch("/api/time-entries", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          projectId: selectedProject.id,
-          startTime: new Date(Date.now() - totalDuration * 1000).toISOString(),
-          endTime: endTime.toISOString(),
-          duration: totalDuration,
-        }),
+      const newEntry = await createTimeEntry({
+        projectId: selectedProject.id,
+        startTime: new Date(Date.now() - totalDuration * 1000),
+        endTime: endTime,
+        duration: totalDuration,
       })
-
-      if (!response.ok) {
-        throw new Error("Failed to save time entry")
-      }
-
-      const newEntry = await response.json()
+      
       setTimeEntries((prev) => [newEntry, ...prev])
     } catch (err) {
       console.error("Failed to save time entry:", err)
@@ -115,14 +105,7 @@ export default function UserTimeTracking({
 
   const handleDeleteEntry = async (id: string) => {
     try {
-      const response = await fetch(`/api/time-entries/${id}`, {
-        method: "DELETE",
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to delete time entry")
-      }
-
+      await deleteTimeEntry(parseInt(id))
       setTimeEntries((prev) => prev.filter((entry) => entry.id !== parseInt(id)))
     } catch (err) {
       console.error("Failed to delete time entry:", err)
@@ -154,27 +137,13 @@ export default function UserTimeTracking({
                   <TimerDisplay
                     selectedProject={selectedProject}
                     isTracking={isTracking}
+                    isPaused={isPaused}
                     currentSession={currentSession}
                     onStart={startTimer}
                     onPause={pauseTimer}
                     onStop={stopTimer}
                   />
                 </div>
-              </div>
-              {/* Status Indicator */}
-              <div className="flex items-center justify-center gap-2 text-sm">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    isTracking && !isPaused
-                      ? "bg-green-500"
-                      : isPaused
-                        ? "bg-amber-500"
-                        : "bg-slate-300"
-                  }`}
-                />
-                <span className="text-muted-foreground">
-                  {isTracking && !isPaused ? "Timer is running" : isPaused ? "Timer is paused" : "Timer is stopped"}
-                </span>
               </div>
             </div>
 
