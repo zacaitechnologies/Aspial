@@ -5,34 +5,19 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { History, Trash2, Clock } from "lucide-react"
 import { formatTime, formatDate } from "../../time-tracking/utils"
+import { TimeEntry, Project } from "@prisma/client"
 
-interface TimeEntry {
-  id: string
-  projectId: string
-  projectName: string
-  startTime: Date
-  endTime?: Date
-  duration: number
-}
-
-interface Project {
-  id: string
-  name: string
-  color: string
-  client?: string
+interface TimeEntryWithProject extends TimeEntry {
+  project: Project
 }
 
 interface TimeEntriesProps {
-  entries: TimeEntry[]
+  entries: TimeEntryWithProject[]
   projects: Project[]
   onDeleteEntry: (id: string) => void
 }
 
 export function TimeEntries({ entries, projects, onDeleteEntry }: TimeEntriesProps) {
-  const getProjectColor = (projectId: string) => {
-    return projects.find((p) => p.id === projectId)?.color || "#6B7280"
-  }
-
   const todayEntries = entries.filter((entry) => entry.startTime.toDateString() === new Date().toDateString())
 
   return (
@@ -56,12 +41,9 @@ export function TimeEntries({ entries, projects, onDeleteEntry }: TimeEntriesPro
               className="flex items-center justify-between p-4 bg-white/60 rounded-xl border border-white/20 hover:bg-white/80"
             >
               <div className="flex items-center gap-3 flex-1">
-                <div
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: getProjectColor(entry.projectId) }}
-                />
+                <div className="w-3 h-3 rounded-full flex-shrink-0 bg-blue-500" />
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm truncate">{entry.projectName}</div>
+                  <div className="font-medium text-sm truncate">{entry.project.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {formatDate(entry.startTime)} - {entry.endTime ? formatDate(entry.endTime) : "Running"}
                   </div>
@@ -74,7 +56,7 @@ export function TimeEntries({ entries, projects, onDeleteEntry }: TimeEntriesPro
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onDeleteEntry(entry.id)}
+                  onClick={() => onDeleteEntry(entry.id.toString())}
                   className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                 >
                   <Trash2 className="h-4 w-4" />

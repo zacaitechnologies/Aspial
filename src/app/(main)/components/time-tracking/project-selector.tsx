@@ -2,17 +2,10 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { FolderOpen, Building2, ChevronDown } from "lucide-react"
-
-interface Project {
-  id: string
-  name: string
-  color: string
-  client?: string
-}
+import { Project } from "@prisma/client"
 
 interface ProjectSelectorProps {
   projects: Project[]
@@ -40,11 +33,11 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, di
           >
             {selectedProject ? (
               <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: selectedProject.color }} />
+                <div className="w-4 h-4 rounded-full bg-blue-500" />
                 <div className="text-left">
                   <div className="font-medium">{selectedProject.name}</div>
-                  {selectedProject.client && (
-                    <div className="text-xs text-muted-foreground">{selectedProject.client}</div>
+                  {selectedProject.description && (
+                    <div className="text-xs text-muted-foreground">{selectedProject.description}</div>
                   )}
                 </div>
               </div>
@@ -70,13 +63,13 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, di
                 }}
               >
                 <div className="flex items-center gap-3 w-full">
-                  <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
+                  <div className="w-4 h-4 rounded-full flex-shrink-0 bg-blue-500" />
                   <div className="text-left flex-1">
                     <div className="font-medium">{project.name}</div>
-                    {project.client && (
+                    {project.description && (
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Building2 className="h-3 w-3" />
-                        {project.client}
+                        {project.description}
                       </div>
                     )}
                   </div>
