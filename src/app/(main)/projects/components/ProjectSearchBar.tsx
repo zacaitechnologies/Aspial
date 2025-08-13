@@ -26,7 +26,7 @@ export default function ProjectSearchBar({
   onStatusFilterChange,
 }: ProjectSearchBarProps) {
   return (
-    <div className="flex flex-col sm:flex-row gap-4 mb-6 py-4 w-min-300 bg-muted/50 rounded-lg">
+    <div className="flex flex-col sm:flex-row gap-4 py-4 w-min-300 bg-muted/50 rounded-lg">
       <div className="flex-1 min-w-0">
         <Label htmlFor="project-search" className="sr-only">
           Search projects

@@ -23,6 +23,7 @@ import {
   Clock,
   Users,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { getAllProjects, updateProjectStatus } from "./action";
 import { isUserProjectOwner } from "./permissions";
@@ -67,9 +68,9 @@ export default function ProjectsPage() {
   // Calculate project statistics
   const getProjectStats = (projects: ProjectWithQuotation[]) => {
     const total = projects.length;
-    const newProjects = projects.filter(p => p.status === 'planning').length;
-    const ongoing = projects.filter(p => p.status === 'in_progress').length;
-    const completed = projects.filter(p => p.status === 'completed').length;
+    const newProjects = projects.filter((p) => p.status === "planning").length;
+    const ongoing = projects.filter((p) => p.status === "in_progress").length;
+    const completed = projects.filter((p) => p.status === "completed").length;
 
     return { total, newProjects, ongoing, completed };
   };
@@ -104,56 +105,56 @@ export default function ProjectsPage() {
     }
   }, [enhancedUser?.id]);
 
-  // const handleStatusUpdate = async (projectId: string, newStatus: string) => {
-  //   try {
-  //     await updateProjectStatus(projectId, newStatus);
-  //     await fetchProjects();
-  //   } catch (error) {
-  //     console.error("Error updating project status:", error);
-  //   }
-  // };
+  const handleStatusUpdate = async (projectId: string, newStatus: string) => {
+    try {
+      await updateProjectStatus(projectId, newStatus);
+      await fetchProjects();
+    } catch (error) {
+      console.error("Error updating project status:", error);
+    }
+  };
 
   // const handleEditProject = (project: ProjectWithQuotation) => {
   //   setEditingProject(project);
   //   setIsEditOpen(true);
   // };
 
-  // const handleManageCollaborators = (project: ProjectWithQuotation) => {
-  //   setSelectedProject(project);
-  //   setIsCollaboratorsOpen(true);
-  // };
+  const handleManageCollaborators = (project: ProjectWithQuotation) => {
+    setSelectedProject(project);
+    setIsCollaboratorsOpen(true);
+  };
 
-  // const getStatusBadge = (status: string) => {
-  //   const statusConfig = projectStatusOptions.find(
-  //     (opt) => opt.value === status
-  //   );
-  //   return (
-  //     <Badge variant={statusConfig?.color || "secondary"}>
-  //       {statusConfig?.label || status}
-  //     </Badge>
-  //   );
-  // };
+  const getStatusBadge = (status: string) => {
+    const statusConfig = projectStatusOptions.find(
+      (opt) => opt.value === status
+    );
+    return (
+      <Badge variant={statusConfig?.color || "secondary"}>
+        {statusConfig?.label || status}
+      </Badge>
+    );
+  };
 
-  // // Filter projects based on search query and status filter
-  // const filteredProjects = projects.filter((project) => {
-  //   const matchesSearch =
-  //     project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-  //     (project.description &&
-  //       project.description
-  //         .toLowerCase()
-  //         .includes(searchQuery.toLowerCase())) ||
-  //     project.createdByUser.firstName
-  //       .toLowerCase()
-  //       .includes(searchQuery.toLowerCase()) ||
-  //     project.createdByUser.lastName
-  //       .toLowerCase()
-  //       .includes(searchQuery.toLowerCase());
+  // Filter projects based on search query and status filter
+  const filteredProjects = projects.filter((project) => {
+    const matchesSearch =
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (project.description &&
+        project.description
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase())) ||
+      project.createdByUser.firstName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      project.createdByUser.lastName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
 
-  //   const matchesStatus =
-  //     statusFilter === "all" || project.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all" || project.status === statusFilter;
 
-  //   return matchesSearch && matchesStatus;
-  // });
+    return matchesSearch && matchesStatus;
+  });
 
   if (loading) {
     return (
@@ -184,9 +185,117 @@ export default function ProjectsPage() {
         </p>
       </div>
 
-      <div className="flex flex-row justify-between items-center">
-        <p className="text-lg w-200 font-bold text-[var(--lightGreen)]">
-          Project Status:
+      <p className="text-lg w-200 mb-2 font-bold text-[var(--lightGreen)]">
+        Project Status:
+      </p>
+
+      <div className="w-full bg-[var(--lightGreen)] p-4 rounded-md grid lg:grid-cols-4 grid-cols-2 gap-4">
+        {(() => {
+          const stats = getProjectStats(projects);
+          const boxes = [];
+
+          if (stats.total >= 0) {
+            boxes.push(
+              <Card key="total" className="p-6 bg-blue-50 border-blue-200">
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Briefcase className="h-8 w-8 text-blue-600 mb-4" />
+
+                      <p className="text-xl font-bold text-blue-600">Total</p>
+                      <p className="text-2xl font-bold text-blue-900">
+                        {stats.total}
+                      </p>
+                      <p className="text-lg font-semibold text-blue-600">
+                        Projects
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }
+
+          if (stats.newProjects >= 0) {
+            boxes.push(
+              <Card key="new" className="p-6 bg-yellow-50 border-yellow-200">
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Calendar className="h-8 w-8 text-yellow-600 mb-4" />
+
+                      <p className="text-xl font-bold text-yellow-600">New</p>
+                      <p className="text-2xl font-bold text-yellow-900">
+                        {stats.newProjects}
+                      </p>
+                      <p className="text-lg font-semibold text-yellow-600">
+                        Projects
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }
+
+          if (stats.ongoing >= 0) {
+            boxes.push(
+              <Card key="ongoing" className="p-6 bg-green-50 border-green-200">
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Clock className="h-8 w-8 text-green-600 mb-4" />
+
+                      <p className="text-xl font-bold text-green-600">
+                        Ongoing
+                      </p>
+                      <p className="text-2xl font-bold text-green-900">
+                        {stats.ongoing}
+                      </p>
+                      <p className="text-lg font-semibold text-green-600">
+                        Projects
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }
+
+          if (stats.completed >= 0) {
+            boxes.push(
+              <Card
+                key="completed"
+                className="p-6 bg-purple-50 border-purple-200"
+              >
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <DollarSign className="h-8 w-8 text-purple-600 mb-4" />
+
+                      <p className="text-xl font-bold text-purple-600">
+                        Completed
+                      </p>
+                      <p className="text-2xl font-bold text-purple-900">
+                        {stats.completed}
+                      </p>
+                      <p className="text-lg font-semibold text-purple-600">
+                        Projects
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          }
+
+          return boxes.length > 0 ? boxes : null;
+        })()}
+      </div>
+
+      <div className="mt-6 flex flex-row justify-between items-center">
+        <p className="text-[var(--lightGreen)] text-lg font-bold">
+          Management:
         </p>
         <ProjectSearchBar
           searchQuery={searchQuery}
@@ -196,78 +305,18 @@ export default function ProjectsPage() {
         />
       </div>
 
-             <div className="w-full rounded-md grid lg:grid-cols-4 grid-cols-2 gap-4 mt-6">
-         {(() => {
-           const stats = getProjectStats(projects);
-           const boxes = [];
-           
-           if (stats.total >= 0) {
-             boxes.push(
-               <Card key="total" className="p-6 bg-blue-50 border-blue-200">
-                 <CardContent className="p-0">
-                   <div className="flex items-center justify-between">
-                     <div>
-                       <p className="text-sm font-medium text-blue-600">Total Projects</p>
-                       <p className="text-2xl font-bold text-blue-900">{stats.total}</p>
-                     </div>
-                     <Briefcase className="h-8 w-8 text-blue-600" />
-                   </div>
-                 </CardContent>
-               </Card>
-             );
-           }
-           
-           if (stats.newProjects >= 0) {
-             boxes.push(
-               <Card key="new" className="p-6 bg-yellow-50 border-yellow-200">
-                 <CardContent className="p-0">
-                   <div className="flex items-center justify-between">
-                     <div>
-                       <p className="text-sm font-medium text-yellow-600">New Projects</p>
-                       <p className="text-2xl font-bold text-yellow-900">{stats.newProjects}</p>
-                     </div>
-                     <Calendar className="h-8 w-8 text-yellow-600" />
-                   </div>
-                 </CardContent>
-               </Card>
-             );
-           }
-           
-           if (stats.ongoing >= 0) {
-             boxes.push(
-               <Card key="ongoing" className="p-6 bg-green-50 border-green-200">
-                 <CardContent className="p-0">
-                   <div className="flex items-center justify-between">
-                     <div>
-                       <p className="text-sm font-medium text-green-600">Ongoing Projects</p>
-                       <p className="text-2xl font-bold text-green-900">{stats.ongoing}</p>
-                     </div>
-                     <Clock className="h-8 w-8 text-green-600" />
-                   </div>
-                 </CardContent>
-               </Card>
-             );
-           }
-           
-           if (stats.completed >= 0) {
-             boxes.push(
-               <Card key="completed" className="p-6 bg-purple-50 border-purple-200">
-                 <CardContent className="p-0">
-                   <div className="flex items-center justify-between">
-                     <div>
-                       <p className="text-sm font-medium text-purple-600">Completed Projects</p>
-                       <p className="text-2xl font-bold text-purple-900">{stats.completed}</p>
-                     </div>
-                     <DollarSign className="h-8 w-8 text-purple-600" />
-                   </div>
-                 </CardContent>
-               </Card>
-             );
-           }
-           
-           return boxes.length > 0 ? boxes : null;
-         })()}
-       </div>
+      <div className="grid grid-row">
+        <div className="grid gap-x-2 items-start justify-center   grid-cols-6">
+          <Checkbox className="border-[var(--lightGreen)] border-2" />
+          <p className="text-[var(--lightGreen)] font-medium">Project Name</p>
+          <p className="text-[var(--lightGreen)] font-medium">Start Date</p>
+          <p className="text-[var(--lightGreen)] font-medium">End Date</p>
+          <p className="text-[var(--lightGreen)] font-medium">People</p>
+          <p className="text-[var(--lightGreen)] font-medium">Priority</p>
+        </div>
+        <hr className="mt-2 border-1 border-[var(--lightGreen)]" />
+        <div></div>
+      </div>
     </div>
   );
 
