@@ -30,6 +30,12 @@ import {
 } from "../permissions";
 import { User, Users, X, Crown, Eye, Edit } from "lucide-react";
 import { useSession } from "../../contexts/SessionProvider";
+import { 
+  ProjectPermission, 
+  AvailableUser, 
+  ProjectInvitation,
+  InvitePermissions 
+} from "../types";
 
 interface ProjectCollaboratorsDialogProps {
   isOpen: boolean;
@@ -37,52 +43,6 @@ interface ProjectCollaboratorsDialogProps {
   projectId: number;
   projectName: string;
 }
-
-type ProjectPermission = {
-  id: number;
-  userId: string;
-  projectId: number;
-  canView: boolean;
-  canEdit: boolean;
-  isOwner: boolean;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-};
-
-type AvailableUser = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  supabase_id: string;
-};
-
-type ProjectInvitation = {
-  id: number;
-  projectId: number;
-  invitedBy: string;
-  invitedUser: string;
-  status: string;
-  canView: boolean;
-  canEdit: boolean;
-  isOwner: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  inviter: {
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-  invitee: {
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-};
 
 export default function ProjectCollaboratorsDialog({
   isOpen,
@@ -97,17 +57,13 @@ export default function ProjectCollaboratorsDialog({
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
-  const [invitePermissions, setInvitePermissions] = useState({
+  const [invitePermissions, setInvitePermissions] = useState<InvitePermissions>({
     canView: true,
     canEdit: true,
     isOwner: false,
   });
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchPermissions();
-    }
-  }, [isOpen, projectId]);
+
 
   const fetchPermissions = async () => {
     try {
@@ -126,6 +82,12 @@ export default function ProjectCollaboratorsDialog({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPermissions();
+    }
+  }, [isOpen, projectId, fetchPermissions]);
 
   const handleInviteCollaborator = async () => {
     if (!selectedUserId) {

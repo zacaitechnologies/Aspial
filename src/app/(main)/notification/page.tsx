@@ -2,8 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "../contexts/SessionProvider";
-import { getUserInvitations, acceptProjectInvitation, declineProjectInvitation } from "../projects/permissions";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getUserInvitations,
+  acceptProjectInvitation,
+  declineProjectInvitation,
+} from "../projects/permissions";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, Check, X, Users, Eye, Edit, Crown } from "lucide-react";
@@ -46,12 +56,6 @@ export default function NotificationPage() {
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (enhancedUser?.id) {
-      fetchInvitations();
-    }
-  }, [enhancedUser?.id]);
-
   const fetchInvitations = async () => {
     try {
       setLoading(true);
@@ -63,6 +67,12 @@ export default function NotificationPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (enhancedUser?.id) {
+      fetchInvitations();
+    }
+  }, [enhancedUser?.id, fetchInvitations]);
 
   const handleAcceptInvitation = async (invitationId: number) => {
     try {
@@ -120,7 +130,10 @@ export default function NotificationPage() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Project Invitations</h2>
           {invitations.map((invitation) => (
-            <Card key={invitation.id} className="hover:shadow-md transition-shadow">
+            <Card
+              key={invitation.id}
+              className="hover:shadow-md transition-shadow"
+            >
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
@@ -129,10 +142,14 @@ export default function NotificationPage() {
                       Project Invitation: {invitation.project.name}
                     </CardTitle>
                     <CardDescription>
-                      Invited by {invitation.inviter.firstName} {invitation.inviter.lastName} ({invitation.inviter.email})
+                      Invited by {invitation.inviter.firstName}{" "}
+                      {invitation.inviter.lastName} ({invitation.inviter.email})
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="text-yellow-700 bg-yellow-100">
+                  <Badge
+                    variant="outline"
+                    className="text-yellow-700 bg-yellow-100"
+                  >
                     Pending
                   </Badge>
                 </div>
@@ -142,31 +159,52 @@ export default function NotificationPage() {
                   <div>
                     <h4 className="font-medium mb-2">Project Details</h4>
                     <div className="space-y-1 text-sm">
-                      <p><strong>Project:</strong> {invitation.project.name}</p>
+                      <p>
+                        <strong>Project:</strong> {invitation.project.name}
+                      </p>
                       {invitation.project.description && (
-                        <p><strong>Description:</strong> {invitation.project.description}</p>
+                        <p>
+                          <strong>Description:</strong>{" "}
+                          {invitation.project.description}
+                        </p>
                       )}
-                      <p><strong>Value:</strong> RM{invitation.project.quotation.totalPrice.toFixed(2)}</p>
-                      <p><strong>Created by:</strong> {invitation.project.createdByUser.firstName} {invitation.project.createdByUser.lastName}</p>
+                      <p>
+                        <strong>Value:</strong> RM
+                        {invitation.project.quotation.totalPrice.toFixed(2)}
+                      </p>
+                      <p>
+                        <strong>Created by:</strong>{" "}
+                        {invitation.project.createdByUser.firstName}{" "}
+                        {invitation.project.createdByUser.lastName}
+                      </p>
                     </div>
                   </div>
                   <div>
                     <h4 className="font-medium mb-2">Your Permissions</h4>
                     <div className="flex flex-wrap gap-2">
                       {invitation.canView && (
-                        <Badge variant="outline" className="flex items-center gap-1">
+                        <Badge
+                          variant="outline"
+                          className="flex items-center gap-1"
+                        >
                           <Eye className="w-3 h-3" />
                           View
                         </Badge>
                       )}
                       {invitation.canEdit && (
-                        <Badge variant="outline" className="flex items-center gap-1">
+                        <Badge
+                          variant="outline"
+                          className="flex items-center gap-1"
+                        >
                           <Edit className="w-3 h-3" />
                           Edit
                         </Badge>
                       )}
                       {invitation.isOwner && (
-                        <Badge variant="outline" className="flex items-center gap-1">
+                        <Badge
+                          variant="outline"
+                          className="flex items-center gap-1"
+                        >
                           <Crown className="w-3 h-3" />
                           Owner
                         </Badge>
@@ -174,7 +212,7 @@ export default function NotificationPage() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2 pt-4 border-t">
                   <Button
                     onClick={() => handleAcceptInvitation(invitation.id)}
