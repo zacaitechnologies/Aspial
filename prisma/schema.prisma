@@ -123,6 +123,7 @@ model Project {
   status        String      @default("planning") // "planning" | "in_progress" | "completed" | "cancelled"
   startDate     DateTime?
   endDate       DateTime?
+  priority      String      @default("low") // "low" | "medium" | "high"
   created_at    DateTime    @default(now())
   updated_at    DateTime    @default(now())
   timeEntries   TimeEntry[]
