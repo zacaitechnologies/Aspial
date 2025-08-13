@@ -30,9 +30,13 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import Image from "next/image";
 
 const mainNavItems = [
+  {
+    title: "Project Management",
+    url: "/projects",
+    icon: Briefcase,
+  },
   {
     title: "Services",
     url: "/services",
@@ -42,11 +46,6 @@ const mainNavItems = [
     title: "Quotations",
     url: "/quotations",
     icon: Receipt,
-  },
-  {
-    title: "Projects",
-    url: "/projects",
-    icon: Briefcase,
   },
   {
     title: "Equipment Bookings",

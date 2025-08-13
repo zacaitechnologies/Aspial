@@ -1,33 +1,20 @@
 "use client";
-import { Eye } from "lucide-react";
+import { Calendar, Eye } from "lucide-react";
 
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Briefcase,
   DollarSign,
-  User,
   Clock,
-  Users,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { getAllProjects, updateProjectStatus } from "./action";
 import { isUserProjectOwner } from "./permissions";
-import { Button } from "@/components/ui/button";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
 import ProjectCollaboratorsDialog from "./components/ProjectCollaboratorsDialog";
