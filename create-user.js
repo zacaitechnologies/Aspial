@@ -39,6 +39,13 @@ async function createOrReplaceUsers() {
       email: 'bong7054@gmail.com',
       role: 'member',
     },
+    {
+      supabase_id: '78510265-c571-4ef8-a258-50eeb8375f62',
+      firstName: 'Super',
+      lastName: 'User',
+      email: 'twetingyau333@gmail.com',
+      role: 'member',
+    },
   ];
 
   // 3️⃣ Create or replace each user, then assign role

@@ -16,9 +16,7 @@ import {
 } from "@/components/ui/select";
 import {
   Briefcase,
-  Calendar,
   DollarSign,
-  Edit,
   User,
   Clock,
   Users,
