@@ -1,4 +1,6 @@
 "use client";
+import { Eye } from "lucide-react";
+
 import {
   Card,
   CardContent,
@@ -37,6 +39,7 @@ import {
   projectStatusOptions,
   ProjectOwnershipState,
 } from "./types";
+import Link from "next/link";
 
 export default function ProjectsPage() {
   const { enhancedUser } = useSession();
@@ -306,17 +309,83 @@ export default function ProjectsPage() {
       </div>
 
       <div className="grid grid-row">
-        <div className="grid gap-x-2 items-start justify-center   grid-cols-6">
+        <div className="grid gap-x-2 items-start justify-center grid-cols-7">
           <Checkbox className="border-[var(--lightGreen)] border-2" />
           <p className="text-[var(--lightGreen)] font-medium">Project Name</p>
           <p className="text-[var(--lightGreen)] font-medium">Start Date</p>
           <p className="text-[var(--lightGreen)] font-medium">End Date</p>
           <p className="text-[var(--lightGreen)] font-medium">People</p>
           <p className="text-[var(--lightGreen)] font-medium">Priority</p>
+          <p className="text-[var(--lightGreen)] font-medium">View Button</p>
         </div>
         <hr className="mt-2 border-1 border-[var(--lightGreen)]" />
-        <div></div>
+        <div className="space-y-2">
+          {filteredProjects.map((project) => (
+            <div
+              key={project.id}
+              className="grid gap-x-2 items-center grid-cols-7 py-3 hover:bg-gray-50 rounded-md"
+            >
+              <Checkbox className="border-[var(--lightGreen)] border-2" />
+              <div className="text-sm font-medium text-[var(--lightGreen)]">
+                {project.name}
+              </div>
+              <div className="text-sm  font-medium text-[var(--lightGreen)]">
+                {project.startDate
+                  ? new Date(project.startDate).toLocaleDateString()
+                  : "Not set"}
+              </div>
+              <div className="text-sm font-medium text-[var(--lightGreen)]">
+                {project.endDate
+                  ? new Date(project.endDate).toLocaleDateString()
+                  : "Not set"}
+              </div>
+              <div className="text-sm font-medium text-[var(--lightGreen)]">
+                {project.createdByUser.firstName}{" "}
+                {project.createdByUser.lastName}
+              </div>
+              <div className="text-sm font-medium text-[var(--lightGreen)]">
+                {project.priority}
+              </div>
+              <Link
+                className="ml-6 text-[var(--lightGreen)] hover:text-black"
+                href={`/projects/${project.id}`}
+              >
+                <Eye />
+              </Link>
+            </div>
+          ))}
+
+          {filteredProjects.length === 0 && projects.length > 0 && (
+            <div className="text-center py-8">
+              <Briefcase className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500">
+                No projects match your search criteria.
+              </p>
+            </div>
+          )}
+
+          {projects.length === 0 && (
+            <div className="text-center py-8">
+              <Briefcase className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+              <p className="text-gray-500">No projects available.</p>
+            </div>
+          )}
+        </div>
       </div>
+
+      <EditProjectDialog
+        isOpen={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        onSuccess={fetchProjects}
+        project={editingProject}
+      />
+
+      <ProjectCollaboratorsDialog
+        isOpen={isCollaboratorsOpen}
+        onOpenChange={setIsCollaboratorsOpen}
+        projectId={selectedProject?.id || 0}
+        projectName={selectedProject?.name || ""}
+      />
     </div>
   );
 
