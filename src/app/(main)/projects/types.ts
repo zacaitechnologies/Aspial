@@ -8,6 +8,7 @@ export type ProjectWithQuotation = {
   endDate: Date | null;
   created_at: Date;
   updated_at: Date;
+  priority: string;
   createdByUser: {
     id: string;
     firstName: string;
