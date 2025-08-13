@@ -6,7 +6,7 @@ import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
 import { TimeEntry, Project } from "@prisma/client"
-import { createTimeEntry, deleteTimeEntry } from "../../time-tracking/action"
+import { createTimeEntry } from "../../time-tracking/action"
 
 interface UserTimeTrackingProps {
   initialTimeEntries: (TimeEntry & {
@@ -103,59 +103,49 @@ export default function UserTimeTracking({
     setPausedTime(0)
   }
 
-  const handleDeleteEntry = async (id: string) => {
-    try {
-      await deleteTimeEntry(parseInt(id))
-      setTimeEntries((prev) => prev.filter((entry) => entry.id !== parseInt(id)))
-    } catch (err) {
-      console.error("Failed to delete time entry:", err)
-    }
-  }
+
 
   return (
-    <div className="min-h-screen bg-[#BDC4A5] p-4 relative">
+    <div className="h-[calc(100vh-80px)] bg-[#BDC4A5] p-4 relative overflow-hidden">
       <FloatingElements />
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="mx-auto max-w-7xl h-full">
         {/* Main Content */}
-        <div className="relative">
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-8 relative">
-            {/* Left Column - Timer Section */}
-            <div className="xl:col-span-3 space-y-8">
-              <div className="relative">
-                <div className="relative z-10 bg-card-background rounded-lg p-6">
-                  <ProjectSelector
-                    projects={projects}
-                    selectedProject={selectedProject}
-                    onProjectSelect={setSelectedProject}
-                    disabled={isTracking}
-                  />
-                </div>
-              </div>
-
-              <div className="relative">
-                <div className="relative z-10 bg-card-background rounded-lg p-6">
-                  <TimerDisplay
-                    selectedProject={selectedProject}
-                    isTracking={isTracking}
-                    isPaused={isPaused}
-                    currentSession={currentSession}
-                    onStart={startTimer}
-                    onPause={pauseTimer}
-                    onStop={stopTimer}
-                  />
-                </div>
+        <div className="h-full grid grid-cols-1 xl:grid-cols-5 gap-6">
+          {/* Left Column - Timer Section */}
+          <div className="xl:col-span-3 flex flex-col space-y-6">
+            <div className="relative">
+              <div className="relative z-10 bg-card-background rounded-lg p-6">
+                <ProjectSelector
+                  projects={projects}
+                  selectedProject={selectedProject}
+                  onProjectSelect={setSelectedProject}
+                  disabled={isTracking}
+                />
               </div>
             </div>
 
-            {/* Right Column - Time Entries */}
-            <div className="xl:col-span-2 relative">
+            <div className="relative flex-1">
               <div className="relative z-10 bg-card-background rounded-lg p-6 h-full">
-                <TimeEntries
-                  entries={timeEntries}
-                  projects={projects}
-                  onDeleteEntry={handleDeleteEntry}
+                <TimerDisplay
+                  selectedProject={selectedProject}
+                  isTracking={isTracking}
+                  isPaused={isPaused}
+                  currentSession={currentSession}
+                  onStart={startTimer}
+                  onPause={pauseTimer}
+                  onStop={stopTimer}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Right Column - Time Entries */}
+          <div className="xl:col-span-2 relative">
+            <div className="relative z-10 bg-card-background rounded-lg p-6 h-full flex flex-col">
+              <TimeEntries
+                entries={timeEntries}
+                projects={projects}
+              />
             </div>
           </div>
         </div>

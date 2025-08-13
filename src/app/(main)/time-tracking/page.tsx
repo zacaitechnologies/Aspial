@@ -2,6 +2,7 @@ import { getUserWithRole, fetchAllUserTimeEntries, fetchAllUsers, fetchAllProjec
 import AdminTimeTracking from "../components/time-tracking/AdminTimeTracking"
 import UserTimeTracking from "../components/time-tracking/UserTimeTracking"
 import { LoadingSpinner } from "../components/time-tracking/LoadingSpinner"
+import { isRedirectError } from "next/dist/client/components/redirect-error"
 
 export default async function TimeTrackingPage() {
   try {
@@ -38,6 +39,7 @@ export default async function TimeTrackingPage() {
       )
     }
   } catch (error) {
+    if (isRedirectError(error)) throw error;
     console.error("Error loading time tracking page:", error)
     return <LoadingSpinner />
   }

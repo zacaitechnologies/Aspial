@@ -25,90 +25,92 @@ export function TimerDisplay({
   onStop,
 }: TimerDisplayProps) {
   return (
-          <div className="space-y-6">
-        <div className="flex items-center gap-2 text-lg">
-          <Timer className="h-5 w-5 text-brand" />
-          Timer
-        </div>
+    <div className="h-full flex flex-col">
+      <div className="flex items-center gap-2 text-lg mb-6">
+        <Timer className="h-5 w-5 text-brand" />
+        Timer
+      </div>
 
-      {/* Timer Display */}
-      <div className="text-center space-y-6 py-8">
-        <div className="relative">
-          <div
-            className={`text-7xl font-mono font-bold py-6 px-8 rounded-2xl ${
-              isTracking
-                ? "text-brand bg-white/60"
-                : "text-slate-600 bg-white/60"
-            }`}
-          >
-            {formatTime(currentSession)}
+      {/* Timer Display - Takes up most of the space */}
+      <div className="flex-1 flex flex-col justify-center">
+        <div className="text-center space-y-8">
+          <div className="relative">
+            <div
+              className={`text-8xl font-mono font-bold py-8 px-12 rounded-3xl ${
+                isTracking
+                  ? "text-brand bg-white/60"
+                  : "text-slate-600 bg-white/60"
+              }`}
+            >
+              {formatTime(currentSession)}
+            </div>
+          </div>
+
+          {/* Timer Control Buttons */}
+          <div className="flex justify-center gap-4">
+            {!isTracking ? (
+              <Button
+                onClick={onStart}
+                disabled={!selectedProject}
+                size="lg"
+                className="bg-brand hover:bg-brand-dark text-lg px-8 py-3"
+              >
+                <Play className="h-6 w-6 mr-2" />
+                Start Timer
+              </Button>
+            ) : (
+              <>
+                {!isPaused ? (
+                  <Button
+                    onClick={onPause}
+                    size="lg"
+                    variant="outline"
+                    className="border-amber-300 text-amber-600 hover:bg-amber-50 text-lg px-8 py-3"
+                  >
+                    <Pause className="h-6 w-6 mr-2" />
+                    Pause
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={onStart}
+                    size="lg"
+                    variant="outline"
+                    className="border-green-300 text-green-600 hover:bg-green-50 text-lg px-8 py-3"
+                  >
+                    <Play className="h-6 w-6 mr-2" />
+                    Resume
+                  </Button>
+                )}
+                <Button
+                  onClick={onStop}
+                  size="lg"
+                  variant="destructive"
+                  className="text-lg px-8 py-3"
+                >
+                  <Square className="h-6 w-6 mr-2" />
+                  Stop
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Status Indicator */}
+          <div className="flex items-center justify-center gap-2 text-sm">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isTracking && !isPaused
+                  ? "bg-green-500"
+                  : isPaused
+                    ? "bg-amber-500"
+                    : "bg-slate-300"
+              }`}
+            />
+            <span className="text-muted-foreground">
+              {isTracking && !isPaused ? "Timer is running" : isPaused ? "Timer is paused" : "Timer is stopped"}
+            </span>
           </div>
         </div>
       </div>
-
-      {/* Timer Control Buttons */}
-      <div className="flex justify-center gap-4">
-        {!isTracking ? (
-          <Button
-            onClick={onStart}
-            disabled={!selectedProject}
-            size="lg"
-            className="bg-brand hover:bg-brand-dark"
-          >
-            <Play className="h-5 w-5 mr-2" />
-            Start Timer
-          </Button>
-        ) : (
-          <>
-            {!isPaused ? (
-              <Button
-                onClick={onPause}
-                size="lg"
-                variant="outline"
-                className="border-amber-300 text-amber-600 hover:bg-amber-50"
-              >
-                <Pause className="h-5 w-5 mr-2" />
-                Pause
-              </Button>
-            ) : (
-              <Button
-                onClick={onStart}
-                size="lg"
-                variant="outline"
-                className="border-green-300 text-green-600 hover:bg-green-50"
-              >
-                <Play className="h-5 w-5 mr-2" />
-                Resume
-              </Button>
-            )}
-            <Button
-              onClick={onStop}
-              size="lg"
-              variant="destructive"
-            >
-              <Square className="h-5 w-5 mr-2" />
-              Stop
-            </Button>
-          </>
-        )}
-      </div>
-
-      {/* Status Indicator */}
-      <div className="flex items-center justify-center gap-2 text-sm">
-        <div
-          className={`w-2 h-2 rounded-full ${
-            isTracking && !isPaused
-              ? "bg-green-500"
-              : isPaused
-                ? "bg-amber-500"
-                : "bg-slate-300"
-          }`}
-        />
-        <span className="text-muted-foreground">
-          {isTracking && !isPaused ? "Timer is running" : isPaused ? "Timer is paused" : "Timer is stopped"}
-        </span>
-      </div>
-
     </div>
   )
 }

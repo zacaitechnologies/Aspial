@@ -4,43 +4,61 @@ import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { isRedirectError } from "next/dist/client/components/redirect-error"
 
 // Authentication functions
 export async function getCurrentUser() {
-  const supabase = await createClient()
-  
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
-    redirect("/login")
+  try {
+    const supabase = await createClient()
+    
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      return redirect("/login")
+    }
+    
+    return user
+  } catch (error: any) {
+    // Handle redirect errors
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      // This is a redirect, not an error - don't log it
+      throw error
+    }
+    console.error("Error in getCurrentUser:", error)
+    throw new Error("Authentication failed")
   }
-  
-  return user
 }
 
 export async function getUserWithRole() {
-  const user = await getCurrentUser()
-  
-  const dbUser = await prisma.user.findUnique({
-    where: { supabase_id: user.id },
-    include: {
-      userRoles: {
-        include: {
-          role: true
+  try {
+    const user = await getCurrentUser()
+    
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
         }
       }
+    })
+    
+    if (!dbUser) {
+      return redirect("/login")
     }
-  })
-  
-  if (!dbUser) {
-    redirect("/login")
-  }
-  
-  const isAdmin = dbUser.userRoles.some(userRole => userRole.role.slug === "admin")
-  
-  return {
-    user: dbUser,
-    isAdmin
+    
+    const isAdmin = dbUser.userRoles.some(userRole => userRole.role.slug === "admin")
+    
+    return {
+      user: dbUser,
+      isAdmin
+    }
+  } catch (error: any) {
+    // Handle redirect errors
+    if (isRedirectError(error)) throw error;
+    console.error("Error in getUserWithRole:", error)
+    throw new Error("Failed to get user with role")
   }
 }
 
@@ -156,50 +174,56 @@ export async function createTimeEntry(data: {
   duration: number
   description?: string
 }) {
-  const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
-    throw new Error("Unauthorized")
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id }
+    })
+
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+
+    // Verify project exists
+    const project = await prisma.project.findUnique({
+      where: { id: data.projectId },
+    })
+
+    if (!project) {
+      throw new Error("Project not found")
+    }
+
+    const timeEntry = await prisma.timeEntry.create({
+      data: {
+        userId: dbUser.id,
+        projectId: data.projectId,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        duration: data.duration,
+        description: data.description,
+      },
+      include: {
+        project: true,
+      },
+    })
+
+    revalidatePath("/time-tracking")
+    return timeEntry
+  } catch (error: any) {
+    // Handle redirect errors
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      // This is a redirect, not an error - don't log it
+      throw error
+    }
+    console.error("Error in createTimeEntry:", error)
+    throw error
   }
-  console.log("user", user.id)
-
-  const dbUser = await prisma.user.findUnique({
-    where: { supabase_id: user.id }
-  })
-  
-
-  if (!dbUser) {
-    throw new Error("User not found")
-  }
-
-  console.log("dbUser", dbUser?.id)
-
-  // Verify project exists
-  const project = await prisma.project.findUnique({
-    where: { id: data.projectId },
-  })
-
-  if (!project) {
-    throw new Error("Project not found")
-  }
-
-  const timeEntry = await prisma.timeEntry.create({
-    data: {
-      userId: dbUser.id,
-      projectId: data.projectId,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      duration: data.duration,
-      description: data.description,
-    },
-    include: {
-      project: true,
-    },
-  })
-
-  revalidatePath("/time-tracking")
-  return timeEntry
 }
 
 export async function updateTimeEntry(id: number, data: {
@@ -207,121 +231,109 @@ export async function updateTimeEntry(id: number, data: {
   duration: number
   description?: string
 }) {
-  const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
-    throw new Error("Unauthorized")
-  }
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { supabase_id: user.id }
-  })
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id }
+    })
 
-  if (!dbUser) {
-    throw new Error("User not found")
-  }
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
 
-  // Verify the time entry belongs to the user
-  const existingEntry = await prisma.timeEntry.findFirst({
-    where: { id, userId: dbUser.id },
-  })
+    // Verify the time entry belongs to the user
+    const existingEntry = await prisma.timeEntry.findFirst({
+      where: { id, userId: dbUser.id },
+    })
 
-  if (!existingEntry) {
-    throw new Error("Time entry not found")
-  }
+    if (!existingEntry) {
+      throw new Error("Time entry not found")
+    }
 
-  const timeEntry = await prisma.timeEntry.update({
-    where: { id },
-    data: {
-      endTime: data.endTime,
-      duration: data.duration,
-      description: data.description,
-    },
-    include: {
-      project: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
+    const timeEntry = await prisma.timeEntry.update({
+      where: { id },
+      data: {
+        endTime: data.endTime,
+        duration: data.duration,
+        description: data.description,
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
         },
       },
-    },
-  })
+    })
 
-  revalidatePath("/time-tracking")
-  return timeEntry
+    revalidatePath("/time-tracking")
+    return timeEntry
+  } catch (error: any) {
+    // Handle redirect errors
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      // This is a redirect, not an error - don't log it
+      throw error
+    }
+    console.error("Error in updateTimeEntry:", error)
+    throw error
+  }
 }
 
-export async function deleteTimeEntry(id: number) {
-  const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
-    throw new Error("Unauthorized")
-  }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { supabase_id: user.id }
-  })
-
-  if (!dbUser) {
-    throw new Error("User not found")
-  }
-
-  // Verify the time entry belongs to the user
-  const timeEntry = await prisma.timeEntry.findFirst({
-    where: { id, userId: dbUser.id },
-  })
-
-  if (!timeEntry) {
-    throw new Error("Time entry not found")
-  }
-
-  await prisma.timeEntry.update({
-    where: { id },
-    data: { isActive: false },
-  })
-
-  revalidatePath("/time-tracking")
-  return { message: "Time entry deleted successfully" }
-}
 
 // Get time entries for API calls (used by client components)
 export async function getTimeEntries() {
-  const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
-    throw new Error("Unauthorized")
-  }
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { supabase_id: user.id }
-  })
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id }
+    })
 
-  if (!dbUser) {
-    throw new Error("User not found")
-  }
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
 
-  const timeEntries = await prisma.timeEntry.findMany({
-    where: {
-      userId: dbUser.id,
-      isActive: true,
-    },
-    include: {
-      project: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
+    const timeEntries = await prisma.timeEntry.findMany({
+      where: {
+        userId: dbUser.id,
+        isActive: true,
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          },
         },
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  })
+      orderBy: {
+        createdAt: "desc",
+      },
+    })
 
-  return timeEntries
+    return timeEntries
+  } catch (error: any) {
+    // Handle redirect errors
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      // This is a redirect, not an error - don't log it
+      throw error
+    }
+    console.error("Error in getTimeEntries:", error)
+    throw error
+  }
 } 
