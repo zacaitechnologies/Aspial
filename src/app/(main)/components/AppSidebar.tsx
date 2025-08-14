@@ -15,6 +15,7 @@ import {
   Receipt,
   Briefcase,
   Clock,
+  Users,
 } from "lucide-react";
 
 import {
@@ -63,9 +64,9 @@ const mainNavItems = [
     icon: Calendar,
   },
   {
-    title: "Reports",
-    url: "#",
-    icon: FileText,
+    title: "Clients",
+    url: "/clients",
+    icon: Users,
   },
 ];
 
