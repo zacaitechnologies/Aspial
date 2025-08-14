@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Briefcase, AlertTriangle } from "lucide-react";
+import { Edit, Trash2, Briefcase, AlertTriangle, User, Mail, Building2 } from "lucide-react";
 import { QuotationWithServices, statusOptions } from "../types";
 
 interface QuotationCardProps {
@@ -103,6 +103,32 @@ export default function QuotationCard({
         <CardDescription className="mb-3">
           {quotation.description}
         </CardDescription>
+        
+        {/* Client Information */}
+        {quotation.Client && (
+          <div className="mb-3 p-3 bg-muted/50 rounded-lg">
+            <p className="text-sm font-medium mb-2 flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Client Information
+            </p>
+            <div className="space-y-1 text-sm">
+              <p className="font-medium">{quotation.Client.name}</p>
+              <div className="flex items-center gap-4 text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Mail className="w-3 h-3" />
+                  {quotation.Client.email}
+                </span>
+                {quotation.Client.company && (
+                  <span className="flex items-center gap-1">
+                    <Building2 className="w-3 h-3" />
+                    {quotation.Client.company}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="space-y-2">
           <p className="text-sm font-medium">Services included:</p>
           <div className="flex flex-wrap gap-1">

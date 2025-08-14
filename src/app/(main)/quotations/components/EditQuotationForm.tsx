@@ -24,6 +24,7 @@ import { editQuotationById } from "../action";
 import { getAllServices } from "../../services/action";
 import type { Services } from "@prisma/client";
 import { QuotationWithServices, EditFormData, statusOptions } from "../types";
+import ClientSelection from "./ClientSelection";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ export default function EditQuotationForm({
 }: EditQuotationFormProps) {
   const [services, setServices] = useState<Services[]>([]);
   const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<string[]>([]);
+  const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -49,6 +51,15 @@ export default function EditQuotationForm({
     discountType: "percentage",
     duration: "",
     startDate: "",
+    clientId: "",
+    newClient: {
+      name: "",
+      email: "",
+      phone: "",
+      company: "",
+      address: "",
+      notes: "",
+    },
   });
 
   useEffect(() => {
@@ -66,10 +77,22 @@ export default function EditQuotationForm({
         discountType: editingQuotation.discountType || "percentage",
         duration: editingQuotation.duration?.toString() || "",
         startDate: editingQuotation.startDate ? new Date(editingQuotation.startDate).toISOString().split('T')[0] : "",
+        clientId: editingQuotation.clientId || "",
+        newClient: {
+          name: "",
+          email: "",
+          phone: "",
+          company: "",
+          address: "",
+          notes: "",
+        },
       });
       setEditSelectedServiceIds(
         editingQuotation.services.map((qs) => qs.service.id.toString())
       );
+      
+      // Set client mode based on whether there's an existing client
+      setClientMode(editingQuotation.clientId ? "existing" : "new");
     }
   }, [editingQuotation]);
 
@@ -141,6 +164,19 @@ export default function EditQuotationForm({
       return;
     }
 
+    // Validate client information
+    if (clientMode === "existing" && !editForm.clientId) {
+      alert("Please select a client.");
+      return;
+    }
+
+    if (clientMode === "new") {
+      if (!editForm.newClient?.name || !editForm.newClient?.email) {
+        alert("Please fill in the required client information (name and email).");
+        return;
+      }
+    }
+
     const validStatuses = [
       "draft",
       "sent",
@@ -171,6 +207,8 @@ export default function EditQuotationForm({
           | "unpaid"
           | "partially_paid"
           | "deposit_paid",
+        clientId: clientMode === "existing" ? editForm.clientId : undefined,
+        newClient: clientMode === "new" ? editForm.newClient : undefined,
         discountValue: editForm.discountValue
           ? parseFloat(editForm.discountValue)
           : undefined,
@@ -214,6 +252,20 @@ export default function EditQuotationForm({
                 }
               />
             </div>
+
+            {/* Client Selection */}
+            <ClientSelection
+              selectedClientId={editForm.clientId}
+              newClientData={editForm.newClient}
+              onClientSelect={(clientId) =>
+                setEditForm((prev) => ({ ...prev, clientId }))
+              }
+              onNewClientDataChange={(newClientData) =>
+                setEditForm((prev) => ({ ...prev, newClient: newClientData }))
+              }
+              onModeChange={setClientMode}
+              mode={clientMode}
+            />
             <div className="grid gap-2">
               <Label htmlFor="edit-description">Description</Label>
               <Textarea

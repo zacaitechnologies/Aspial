@@ -11,6 +11,16 @@ export type QuotationWithServices = {
   duration?: number;
   startDate?: Date;
   endDate?: Date;
+  clientId?: string;
+  Client?: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    company?: string;
+    address?: string;
+    notes?: string;
+  };
   createdBy: {
     id: string;
     firstName: string;
@@ -45,6 +55,15 @@ export type QuotationFormData = {
   discountType: "percentage" | "fixed";
   duration: string;
   startDate: string;
+  clientId?: string;
+  newClient?: {
+    name: string;
+    email: string;
+    phone?: string;
+    company?: string;
+    address?: string;
+    notes?: string;
+  };
 };
 
 export type EditFormData = {
@@ -56,6 +75,15 @@ export type EditFormData = {
   discountType: "percentage" | "fixed";
   duration: string;
   startDate: string;
+  clientId?: string;
+  newClient?: {
+    name: string;
+    email: string;
+    phone?: string;
+    company?: string;
+    address?: string;
+    notes?: string;
+  };
 };
 
 export const statusOptions = [

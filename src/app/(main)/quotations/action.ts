@@ -17,6 +17,7 @@ export async function getAllQuotations(userId?: string) {
       },
       projects: true, // Include projects to check if one exists
       createdBy: true, // Include the createdBy relation
+      Client: true, // Include the client relation
     },
     orderBy: { created_at: "desc" },
   })
@@ -32,6 +33,15 @@ export async function createQuotation(data: {
   discountType?: "percentage" | "fixed"
   duration?: number
   startDate?: string
+  clientId?: string
+  newClient?: {
+    name: string
+    email: string
+    phone?: string
+    company?: string
+    address?: string
+    notes?: string
+  }
 }) {
   // Calculate end date if start date and duration are provided
   let endDate: Date | undefined = undefined;
@@ -41,26 +51,55 @@ export async function createQuotation(data: {
     endDate.setMonth(endDate.getMonth() + data.duration);
   }
 
-  const quotation = await prisma.quotation.create({
-    data: {
-      name: data.name,
-      description: data.description,
-      totalPrice: data.totalPrice,
-      createdById: data.createdById,
-      discountValue: data.discountValue || null,
-      discountType: data.discountType || null,
-      duration: data.duration || null,
-      startDate: data.startDate ? new Date(data.startDate) : null,
-      endDate: endDate,
+  return await prisma.$transaction(async (tx) => {
+    let finalClientId = data.clientId;
 
-      services: {
-        create: data.serviceIds.map((serviceId) => ({
-          serviceId: Number.parseInt(serviceId),
-        })),
+    // If creating a new client, create it first
+    if (data.newClient && !data.clientId) {
+      const newClient = await tx.client.create({
+        data: {
+          name: data.newClient.name,
+          email: data.newClient.email,
+          phone: data.newClient.phone,
+          company: data.newClient.company,
+          address: data.newClient.address,
+          notes: data.newClient.notes,
+        }
+      });
+      finalClientId = newClient.id;
+    }
+
+    const quotation = await tx.quotation.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        totalPrice: data.totalPrice,
+        createdById: data.createdById,
+        clientId: finalClientId,
+        discountValue: data.discountValue || null,
+        discountType: data.discountType || null,
+        duration: data.duration || null,
+        startDate: data.startDate ? new Date(data.startDate) : null,
+        endDate: endDate,
+
+        services: {
+          create: data.serviceIds.map((serviceId) => ({
+            serviceId: Number.parseInt(serviceId),
+          })),
+        },
       },
-    },
-  })
-  return quotation
+      include: {
+        Client: true,
+        services: {
+          include: {
+            service: true,
+          },
+        },
+        createdBy: true,
+      },
+    })
+    return quotation
+  });
 }
 
 export async function editQuotationById(
@@ -75,71 +114,101 @@ export async function editQuotationById(
     serviceIds?: string[]
     duration?: number
     startDate?: string
+    clientId?: string
+    newClient?: {
+      name: string
+      email: string
+      phone?: string
+      company?: string
+      address?: string
+      notes?: string
+    }
   },
 ) {
-  // First, get the current quotation to check if it has a project
-  const currentQuotation = await prisma.quotation.findUnique({
-    where: { id: Number.parseInt(id) },
-    include: { projects: true }
-  });
+  return await prisma.$transaction(async (tx) => {
+    // First, get the current quotation to check if it has a project
+    const currentQuotation = await tx.quotation.findUnique({
+      where: { id: Number.parseInt(id) },
+      include: { projects: true }
+    });
 
-  // Delete existing quotation services
-  await prisma.quotationService.deleteMany({
-    where: { quotationId: Number.parseInt(id) },
-  });
+    // Delete existing quotation services
+    await tx.quotationService.deleteMany({
+      where: { quotationId: Number.parseInt(id) },
+    });
 
-  // Calculate end date if start date and duration are provided
-  let endDate: Date | undefined = undefined;
-  if (data.startDate && data.duration) {
-    const startDate = new Date(data.startDate);
-    endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + data.duration);
-  }
-
-  // Update the quotation
-  const updatedQuotation = await prisma.quotation.update({
-    where: { id: Number.parseInt(id) },
-    data: {
-      name: data.name,
-      description: data.description,
-      totalPrice: data.totalPrice,
-      status: data.status,
-      discountValue: data.discountValue || null,
-      discountType: data.discountType || null,
-      duration: data.duration || null,
-      startDate: data.startDate ? new Date(data.startDate) : undefined,
-      endDate: endDate,
-      services: data.serviceIds ? {
-        create: data.serviceIds.map((serviceId) => ({
-          serviceId: Number.parseInt(serviceId),
-        })),
-      } : undefined,
-    },
-  });
-
-  // Update the associated project if it exists
-  if (currentQuotation && currentQuotation.projects.length > 0) {
-    const project = currentQuotation.projects[0];
-    const startDate = project.startDate || new Date();
+    // Calculate end date if start date and duration are provided
     let endDate: Date | undefined = undefined;
-    
-    if (data.duration) {
+    if (data.startDate && data.duration) {
+      const startDate = new Date(data.startDate);
       endDate = new Date(startDate);
       endDate.setMonth(endDate.getMonth() + data.duration);
     }
-    
-    await prisma.project.update({
-      where: { id: project.id },
+
+    let finalClientId = data.clientId;
+
+    // If creating a new client, create it first
+    if (data.newClient && !data.clientId) {
+      const newClient = await tx.client.create({
+        data: {
+          name: data.newClient.name,
+          email: data.newClient.email,
+          phone: data.newClient.phone,
+          company: data.newClient.company,
+          address: data.newClient.address,
+          notes: data.newClient.notes,
+        }
+      });
+      finalClientId = newClient.id;
+    }
+
+    // Update the quotation
+    const updatedQuotation = await tx.quotation.update({
+      where: { id: Number.parseInt(id) },
       data: {
         name: data.name,
         description: data.description,
-        startDate: startDate,
+        totalPrice: data.totalPrice,
+        status: data.status,
+        clientId: finalClientId,
+        discountValue: data.discountValue || null,
+        discountType: data.discountType || null,
+        duration: data.duration || null,
+        startDate: data.startDate ? new Date(data.startDate) : undefined,
         endDate: endDate,
+        services: data.serviceIds ? {
+          create: data.serviceIds.map((serviceId) => ({
+            serviceId: Number.parseInt(serviceId),
+          })),
+        } : undefined,
       },
     });
-  }
 
-  return updatedQuotation;
+    // Update the associated project if it exists
+    if (currentQuotation && currentQuotation.projects.length > 0) {
+      const project = currentQuotation.projects[0];
+      const startDate = project.startDate || new Date();
+      let endDate: Date | undefined = undefined;
+      
+      if (data.duration) {
+        endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + data.duration);
+      }
+      
+      await tx.project.update({
+        where: { id: project.id },
+        data: {
+          name: data.name,
+          description: data.description,
+          clientId: finalClientId,
+          startDate: startDate,
+          endDate: endDate,
+        },
+      });
+    }
+
+    return updatedQuotation;
+  });
 }
 
 export async function deleteQuotationById(id: string) {
@@ -151,5 +220,19 @@ export async function deleteQuotationById(id: string) {
   // Then delete the quotation
   return await prisma.quotation.delete({
     where: { id: Number.parseInt(id) },
+  })
+}
+
+export async function getAllClientsForQuotation() {
+  return await prisma.client.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      company: true,
+    },
+    orderBy: {
+      name: "asc"
+    }
   })
 } 
