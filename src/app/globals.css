@@ -56,6 +56,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.147 0.004 49.25);
   --lightGreen: #799F78;
+  --mediumGreen: #BDC4A5;
   --primary: #202F21;
   --primary-foreground: oklch(0.985 0.001 106.423);
   --secondary: oklch(0.97 0.001 106.424);
