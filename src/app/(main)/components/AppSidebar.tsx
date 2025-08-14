@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Building2,
   Settings,
@@ -88,14 +89,24 @@ export function AppSidebar() {
 
   return (
     <Sidebar className="border-r border-slate-200 bg-card-background text-card-foreground">
-      <SidebarHeader className="p-4 bg-card-background">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">ASPIAL</h1>
+      <SidebarHeader className="p-0 bg-card-background">
+        <div className="flex items-center w-full h-16 px-4 pt-0 pb-0"> {/* px-4 to match nav items */}
+          <div className="flex-shrink-0"> {/* Prevent logo from shrinking */}
+            <Image
+              src="/images/SidebarLogo.png"
+              alt="ASPIAL Logo"
+              width={160}  // Reasonable width for sidebar
+              height={50}  // Reasonable height
+              className="h-10 w-auto" // Fixed height, auto width
+              priority
+              style={{ objectFit: 'contain', objectPosition: 'left center' }}
+            />
+          </div>
         </div>
       </SidebarHeader>
 
       <SidebarContent className="bg-card-background">
-        <SidebarGroup>
+        <SidebarGroup className="pt-0">
           <SidebarGroupLabel className="text-slate-600 font-medium">
             CRM
           </SidebarGroupLabel>
