@@ -262,35 +262,95 @@ export default function ClientDetailPage() {
           </TabsList>
           <TabsContent value="quotations">
             {/* Quotations Content */}
-            {client.quotations.map((quotation) => (
-              <div key={quotation.id} className="mb-4">
-                <h3 className="text-xl font-bold mb-2" style={{ color: "#202F21" }}>
-                  {quotation.name}
-                </h3>
-                <p className="text-sm leading-relaxed" style={{ color: "#898D74" }}>
-                  Amount: ${quotation.totalPrice.toLocaleString()}
-                </p>
-                <p className="text-sm leading-relaxed" style={{ color: "#898D74" }}>
-                  Status: {quotation.status}
-                </p>
-              </div>
-            ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {client.quotations.length === 0 ? (
+                <div className="col-span-full text-center py-8">
+                  <FileText className="w-12 h-12 mx-auto mb-4" style={{ color: "#898D74" }} />
+                  <p style={{ color: "#898D74" }}>No quotations found for this client.</p>
+                </div>
+              ) : (
+                client.quotations.map((quotation) => (
+                  <Card key={quotation.id} className="bg-white border-2 hover:shadow-md transition-shadow gap-0" style={{ borderColor: "#BDC4A5" }}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg" style={{ color: "#202F21" }}>
+                        {quotation.name}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium" style={{ color: "#898D74" }}>Amount:</span>
+                        <span className="text-lg font-bold" style={{ color: "#202F21" }}>
+                          ${quotation.totalPrice.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium" style={{ color: "#898D74" }}>Status:</span>
+                        <Badge 
+                          variant="outline" 
+                          className="capitalize"
+                          style={{ borderColor: "#BDC4A5", color: "#202F21" }}
+                        >
+                          {quotation.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium" style={{ color: "#898D74" }}>Created:</span>
+                        <span className="text-sm" style={{ color: "#898D74" }}>
+                          {formatDate(quotation.created_at)}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           </TabsContent>
           <TabsContent value="projects">
             {/* Projects Content */}
-            {client.projects.map((project) => (
-              <div key={project.id} className="mb-4">
-                <h3 className="text-xl font-bold mb-2" style={{ color: "#202F21" }}>
-                  {project.name}
-                </h3>
-                <p className="text-sm leading-relaxed" style={{ color: "#898D74" }}>
-                  {project.description}
-                </p>
-                <p className="text-sm leading-relaxed" style={{ color: "#898D74" }}>
-                  Status: {project.status}
-                </p>
-              </div>
-            ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {client.projects.length === 0 ? (
+                <div className="col-span-full text-center py-8">
+                  <FolderOpen className="w-12 h-12 mx-auto mb-4" style={{ color: "#898D74" }} />
+                  <p style={{ color: "#898D74" }}>No projects found for this client.</p>
+                </div>
+              ) : (
+                client.projects.map((project) => (
+                  <Card key={project.id} className="bg-white border-2 hover:shadow-md transition-shadow" style={{ borderColor: "#BDC4A5" }}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg" style={{ color: "#202F21" }}>
+                        {project.name}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {project.description && (
+                        <div>
+                          <span className="text-sm font-medium" style={{ color: "#898D74" }}>Description:</span>
+                          <p className="text-sm mt-1" style={{ color: "#898D74" }}>
+                            {project.description}
+                          </p>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium" style={{ color: "#898D74" }}>Status:</span>
+                        <Badge 
+                          variant="outline" 
+                          className="capitalize"
+                          style={{ borderColor: "#BDC4A5", color: "#202F21" }}
+                        >
+                          {project.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium" style={{ color: "#898D74" }}>Created:</span>
+                        <span className="text-sm" style={{ color: "#898D74" }}>
+                          {formatDate(project.created_at)}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
