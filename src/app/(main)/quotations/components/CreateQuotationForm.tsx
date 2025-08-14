@@ -27,6 +27,7 @@ import { getAllServices } from "../../services/action";
 import type { Services } from "@prisma/client";
 import { useSession } from "../../contexts/SessionProvider";
 import { QuotationFormData } from "../types";
+import ClientSelection from "./ClientSelection";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -48,11 +49,21 @@ export default function CreateQuotationForm({
     discountType: "percentage",
     duration: "",
     startDate: "",
+    clientId: "",
+    newClient: {
+      name: "",
+      email: "",
+      phone: "",
+      company: "",
+      address: "",
+      notes: "",
+    },
   });
 
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [totalPrice, setTotalPrice] = useState(0);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
+  const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
 
   useEffect(() => {
     fetchServices();
@@ -159,18 +170,33 @@ export default function CreateQuotationForm({
       return;
     }
 
+    // Validate client information
+    if (clientMode === "existing" && !quotationForm.clientId) {
+      alert("Please select a client.");
+      return;
+    }
+
+    if (clientMode === "new") {
+      if (!quotationForm.newClient?.name || !quotationForm.newClient?.email) {
+        alert("Please fill in the required client information (name and email).");
+        return;
+      }
+    }
+
     if (!enhancedUser.id) {
       alert("User not authenticated. Please try logging in again.");
       return;
     }
 
     try {
-                   await createQuotation({
+      await createQuotation({
         name: quotationForm.name,
         description: quotationForm.description,
         totalPrice: discountedTotal,
         serviceIds: selectedServiceIds,
         createdById: enhancedUser.id,
+        clientId: clientMode === "existing" ? quotationForm.clientId : undefined,
+        newClient: clientMode === "new" ? quotationForm.newClient : undefined,
         discountValue: quotationForm.discountValue
           ? parseFloat(quotationForm.discountValue)
           : undefined,
@@ -199,10 +225,20 @@ export default function CreateQuotationForm({
       discountType: "percentage",
       duration: "",
       startDate: "",
+      clientId: "",
+      newClient: {
+        name: "",
+        email: "",
+        phone: "",
+        company: "",
+        address: "",
+        notes: "",
+      },
     });
     setSelectedServiceIds([]);
     setTotalPrice(0);
     setServiceSearchQuery("");
+    setClientMode("existing");
   };
 
   return (
@@ -230,6 +266,20 @@ export default function CreateQuotationForm({
                 placeholder="Enter quotation name"
               />
             </div>
+
+            {/* Client Selection */}
+            <ClientSelection
+              selectedClientId={quotationForm.clientId}
+              newClientData={quotationForm.newClient}
+              onClientSelect={(clientId) =>
+                setQuotationForm((prev) => ({ ...prev, clientId }))
+              }
+              onNewClientDataChange={(newClientData) =>
+                setQuotationForm((prev) => ({ ...prev, newClient: newClientData }))
+              }
+              onModeChange={setClientMode}
+              mode={clientMode}
+            />
                          <div className="grid gap-2">
                <Label htmlFor="quotation-description">Description</Label>
                <Textarea
