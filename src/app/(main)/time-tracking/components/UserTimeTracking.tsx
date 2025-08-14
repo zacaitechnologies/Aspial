@@ -6,7 +6,7 @@ import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
 import { TimeEntry, Project } from "@prisma/client"
-import { createTimeEntry } from "../../time-tracking/action"
+import { createTimeEntry } from "../action"
 
 interface UserTimeTrackingProps {
   initialTimeEntries: (TimeEntry & {

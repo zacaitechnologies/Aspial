@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { History, Clock, Calendar, Filter } from "lucide-react"
-import { formatTime, formatDate } from "../../time-tracking/utils"
+import { formatTime, formatDate } from "../utils"
 import { TimeEntry, Project } from "@prisma/client"
 
 interface TimeEntryWithProject extends TimeEntry {

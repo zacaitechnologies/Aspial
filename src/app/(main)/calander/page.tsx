@@ -6,10 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
-import { CalendarDay } from "../components/calendar/CalendarDay"
-import { BookingDetailsDialog } from "../components/calendar/BookingDetailsDialog"
-import { DatePicker } from "../components/calendar/DatePicker"
-import { LoadingSpinner } from "../components/calendar/LoadingSpinner"
+import { CalendarDay } from "./components/CalendarDay"
+import { BookingDetailsDialog } from "./components/BookingDetailsDialog"
+import { DatePicker } from "./components/DatePicker"
+import { LoadingSpinner } from "./components/LoadingSpinner"
 
 interface EquipmentBooking {
   id: number

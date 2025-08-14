@@ -1,7 +1,7 @@
 "use client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Timer, Play, Pause, Square } from "lucide-react"
-import { formatTime } from "../../time-tracking/utils"
+import { formatTime } from "../utils"
 import { Button } from "@/components/ui/button"
 import { Project } from "@prisma/client"
 
