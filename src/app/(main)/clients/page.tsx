@@ -5,12 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import {
-  Plus,
   Search,
   Filter,
   Mail,
@@ -26,7 +23,10 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { getAllClients, createCustomerClient, deleteClient } from "./action"
+import { getAllClients, deleteClient } from "./action"
+import CreateClientDialog from "./components/CreateClientDialog"
+import EditClientDialog from "./components/EditClientDialog"
+import DeleteClientDialog from "./components/DeleteClientDialog"
 
 type ClientStatus = "active" | "inactive" | "prospect" | "archived"
 
@@ -54,17 +54,10 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<ClientStatus | "all">("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    company: "",
-    city: "",
-    country: "",
-    address: "",
-    notes: ""
-  })
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deletingClient, setDeletingClient] = useState<Client | null>(null)
 
   const fetchClients = useCallback(async () => {
     try {
@@ -82,41 +75,21 @@ export default function ClientsPage() {
     fetchClients()
   }, [fetchClients])
 
-  const handleCreateClient = async () => {
-    try {
-      await createCustomerClient({
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone || undefined,
-        company: formData.company || undefined,
-        address: formData.address || undefined,
-        notes: formData.notes || undefined,
-      })
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        company: "",
-        city: "",
-        country: "",
-        address: "",
-        notes: ""
-      })
-      setIsAddDialogOpen(false)
-      await fetchClients()
-    } catch (error) {
-      console.error("Failed to create client:", error)
-      alert("Failed to create client. Please try again.")
-    }
+  const handleEditClient = (client: Client) => {
+    setEditingClient(client)
+    setIsEditDialogOpen(true)
   }
 
-  const handleDeleteClient = async (clientId: string) => {
-    if (!confirm("Are you sure you want to delete this client?")) {
-      return
-    }
+  const handleDeleteClient = (client: Client) => {
+    setDeletingClient(client)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDeleteClient = async () => {
+    if (!deletingClient) return
     
     try {
-      await deleteClient(clientId)
+      await deleteClient(deletingClient.id)
       await fetchClients()
     } catch (error) {
       console.error("Failed to delete client:", error)
@@ -166,107 +139,7 @@ export default function ClientsPage() {
               Manage your client relationships and track business opportunities
             </p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="text-white" style={{ backgroundColor: "#202F21" }}>
-                <Plus className="w-5 h-5 mr-2" />
-                Add Client
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle style={{ color: "#202F21" }}>Add New Client</DialogTitle>
-              </DialogHeader>
-              <div className="grid grid-cols-2 gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="John Smith" 
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="john@company.com" 
-                    value={formData.email}
-                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input 
-                    id="phone" 
-                    placeholder="+1 (555) 123-4567" 
-                    value={formData.phone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="company">Company</Label>
-                  <Input 
-                    id="company" 
-                    placeholder="Company Name" 
-                    value={formData.company}
-                    onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input 
-                    id="city" 
-                    placeholder="San Francisco" 
-                    value={formData.city}
-                    onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Input 
-                    id="country" 
-                    placeholder="USA" 
-                    value={formData.country}
-                    onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
-                  />
-                </div>
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input 
-                    id="address" 
-                    placeholder="123 Business Avenue" 
-                    value={formData.address}
-                    onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                  />
-                </div>
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea 
-                    id="notes" 
-                    placeholder="Additional notes about the client..." 
-                    value={formData.notes}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button 
-                  style={{ backgroundColor: "#202F21" }} 
-                  className="text-white"
-                  onClick={handleCreateClient}
-                  disabled={!formData.name || !formData.email}
-                >
-                  Add Client
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+                     <CreateClientDialog onSuccess={fetchClients} />
         </div>
 
         {/* Stats Cards */}
@@ -493,6 +366,7 @@ export default function ClientsPage() {
                       size="sm"
                       className="border-2 bg-transparent"
                       style={{ borderColor: "#BDC4A5", color: "#202F21" }}
+                      onClick={() => handleEditClient(client)}
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -500,7 +374,7 @@ export default function ClientsPage() {
                       variant="outline"
                       size="sm"
                       className="border-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
-                      onClick={() => handleDeleteClient(client.id)}
+                      onClick={() => handleDeleteClient(client)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -512,13 +386,29 @@ export default function ClientsPage() {
         </div>
         )}
 
-        {!loading && clients.length === 0 && (
-          <div className="text-center py-12">
-            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No clients available.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+                 {!loading && clients.length === 0 && (
+           <div className="text-center py-12">
+             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+             <p className="text-muted-foreground">No clients available.</p>
+           </div>
+         )}
+
+                   {/* Edit Client Dialog */}
+          <EditClientDialog
+            client={editingClient}
+            isOpen={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            onSuccess={fetchClients}
+          />
+
+          {/* Delete Client Dialog */}
+          <DeleteClientDialog
+            isOpen={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
+            onConfirm={confirmDeleteClient}
+            clientName={deletingClient?.name || ""}
+          />
+       </div>
+     </div>
+   )
+ }
