@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Plus, FileText } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getAllQuotations, deleteQuotationById } from "./action";
 import { createProject } from "../projects/action";
 import CreateQuotationForm from "./components/CreateQuotationForm";
@@ -20,7 +20,7 @@ export default function QuotationsPage() {
   const [editingQuotation, setEditingQuotation] =
     useState<QuotationWithServices | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       if (!enhancedUser?.id) {
         console.error("User not authenticated");
@@ -33,7 +33,7 @@ export default function QuotationsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enhancedUser?.id]);
 
   useEffect(() => {
     if (enhancedUser?.id) {
