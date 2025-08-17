@@ -1,11 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronLeft, ChevronRight, Plus, Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
+import { Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
 import { CalendarDay } from "./components/CalendarDay"
 import { BookingDetailsDialog } from "./components/BookingDetailsDialog"
 import { DatePicker } from "./components/DatePicker"
@@ -55,8 +54,8 @@ export interface CalendarBooking {
 }
 
 const bookingTypes = {
-  equipment: { color: "bg-blue-500", label: "Equipment" },
-  studio: { color: "bg-green-500", label: "Studio" },
+  equipment: { color: "bg-[var(--color-primary)]", label: "Equipment" },
+  studio: { color: "bg-[var(--color-accent)]", label: "Studio" },
 }
 
 // Function to fetch all bookings from the database
@@ -223,7 +222,7 @@ export default function OrganizationCalendar() {
 
     // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-24 border border-gray-100"></div>)
+      days.push(<div key={`empty-${i}`} className="h-24 border border-[var(--color-border)]"></div>)
     }
 
     // Days of the month
@@ -254,13 +253,13 @@ export default function OrganizationCalendar() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+    <div className="min-h-screen bg-[var(--color-background)] p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 animate-in fade-in-0 slide-in-from-top-4 duration-500">
+        <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-gray-600">Manage your team&apos;s bookings and events</p>
+              <p className="text-[var(--color-muted-foreground)]">Manage your team&apos;s bookings and events</p>
             </div>
             <div className="flex items-center gap-4">
               <Select value={filterType} onValueChange={setFilterType}>
@@ -280,19 +279,18 @@ export default function OrganizationCalendar() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            {Object.entries(bookingTypes).map(([type, config], index) => {
+            {Object.entries(bookingTypes).map(([type, config]) => {
               const count = bookings.filter((b) => b.type === type).length
               return (
                 <Card
                   key={type}
-                  className={`transition-all duration-300 hover:shadow-lg hover:-translate-y-1 animate-in fade-in-0 slide-in-from-bottom-4`}
-                  style={{ animationDelay: `${index * 100}ms` }}
+                  className="bg-[var(--color-card)] border-[var(--color-border)]"
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-600">{config.label}s</p>
-                        <p className="text-2xl font-bold">{count}</p>
+                        <p className="text-sm text-[var(--color-muted-foreground)]">{config.label}s</p>
+                        <p className="text-2xl font-bold text-[var(--color-foreground)]">{count}</p>
                       </div>
                       <div className={`w-3 h-3 rounded-full ${config.color}`}></div>
                     </div>
@@ -304,10 +302,10 @@ export default function OrganizationCalendar() {
         </div>
 
         {/* Calendar */}
-        <Card className="animate-in fade-in-0 slide-in-from-bottom-4 duration-700">
+        <Card className="bg-[var(--color-card)] border-[var(--color-border)]">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-semibold">
+              <CardTitle className="text-xl font-semibold text-[var(--color-foreground)]">
                 Calendar
               </CardTitle>
               <DatePicker 
@@ -318,7 +316,7 @@ export default function OrganizationCalendar() {
           </CardHeader>
           <CardContent>
             {isLoading && (
-              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
+              <div className="absolute inset-0 bg-[var(--color-card)]/80 backdrop-blur-sm z-10 flex items-center justify-center">
                 <LoadingSpinner text="Loading bookings..." />
               </div>
             )}
@@ -326,21 +324,21 @@ export default function OrganizationCalendar() {
             {/* Calendar Header */}
             <div className="grid grid-cols-7 gap-0 mb-2">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                <div key={day} className="p-2 text-center text-sm font-medium text-gray-500 border-b">
+                <div key={day} className="p-2 text-center text-sm font-medium text-[var(--color-muted-foreground)] border-b border-[var(--color-border)]">
                   {day}
                 </div>
               ))}
             </div>
 
             {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-0 border-l border-t relative">{renderCalendarDays()}</div>
+            <div className="grid grid-cols-7 gap-0 border-l border-t border-[var(--color-border)] relative">{renderCalendarDays()}</div>
           </CardContent>
         </Card>
 
         {/* Upcoming Bookings */}
-        <Card className="mt-6 animate-in fade-in-0 slide-in-from-bottom-4 duration-900">
+        <Card className="mt-6 bg-[var(--color-card)] border-[var(--color-border)]">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-[var(--color-foreground)]">
               <Calendar className="w-5 h-5" />
               Upcoming Bookings
             </CardTitle>
@@ -351,20 +349,19 @@ export default function OrganizationCalendar() {
                 .filter((booking) => new Date(booking.date) >= new Date())
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                 .slice(0, 5)
-                .map((booking, index) => (
+                .map((booking) => (
                   <div
                     key={booking.id}
-                    className={`p-4 rounded-lg border-l-4 bg-gray-50 hover:bg-gray-100 transition-all duration-200 hover:shadow-md animate-in fade-in-0 slide-in-from-left-4`}
+                    className="p-4 rounded-lg border-l-4 bg-[var(--color-muted)] border-[var(--color-border)]"
                     style={{
-                      borderLeftColor: booking.color.replace("bg-", "").replace("-500", ""),
-                      animationDelay: `${index * 100}ms`,
+                      borderLeftColor: booking.color.includes("primary") ? "var(--color-primary)" : "var(--color-accent)",
                     }}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">{booking.title}</h4>
-                        <p className="text-sm text-gray-600 mt-1">{booking.description}</p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                        <h4 className="font-semibold text-[var(--color-foreground)]">{booking.title}</h4>
+                        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">{booking.description}</p>
+                        <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-muted-foreground)]">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
                             {new Date(booking.date).toLocaleDateString()}
