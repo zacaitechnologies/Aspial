@@ -52,38 +52,38 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
 
   return (
     <div className="relative h-full">
-      <div className="relative z-10 bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-xl h-full">
+      <div className="relative z-10 bg-[var(--color-card)] rounded-2xl p-6 border border-[var(--color-border)] shadow-xl h-full">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg">
-            <Activity className="w-5 h-5 text-white" />
+          <div className="p-2 bg-[var(--color-secondary)] rounded-lg">
+            <Activity className="w-5 h-5 text-[var(--color-secondary-foreground)]" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
+          <h2 className="text-xl font-semibold text-[var(--color-foreground)]">Recent Activity</h2>
         </div>
 
         <div className="space-y-3 max-h-[600px] overflow-y-auto">
           {recentActivities.map((activity) => (
             <div
               key={activity.id}
-              className="flex items-start gap-3 p-3 bg-gradient-to-r from-gray-50 to-white rounded-lg border border-gray-100 hover:shadow-sm transition-all duration-200"
+              className="flex items-start gap-3 p-3 bg-[var(--color-muted)] rounded-lg border border-[var(--color-border)]"
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+              <div className="w-8 h-8 bg-[var(--color-secondary)] rounded-full flex items-center justify-center text-[var(--color-secondary-foreground)] text-sm font-semibold flex-shrink-0">
                 {activity.user?.firstName.charAt(0).toUpperCase()}
               </div>
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-gray-900 text-sm">{`${activity.user?.firstName} ${activity.user?.lastName}`}</span>
-                  <span className="text-gray-500 text-xs">worked on</span>
+                  <span className="font-medium text-[var(--color-foreground)] text-sm">{`${activity.user?.firstName} ${activity.user?.lastName}`}</span>
+                  <span className="text-[var(--color-muted-foreground)] text-xs">worked on</span>
                 </div>
 
                 <div className="flex items-center gap-2 mb-2">
                   <div
-                    className="w-3 h-3 rounded-full flex-shrink-0 bg-blue-500"
+                    className="w-3 h-3 rounded-full flex-shrink-0 bg-[var(--color-accent)]"
                   />
-                  <span className="text-sm text-gray-700 font-medium truncate">{activity.project?.name}</span>
+                  <span className="text-sm text-[var(--color-foreground)] font-medium truncate">{activity.project?.name}</span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center justify-between text-xs text-[var(--color-muted-foreground)]">
                   <div className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {formatDuration(activity.duration)}
@@ -97,8 +97,8 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
 
         {recentActivities.length === 0 && (
           <div className="text-center py-12">
-            <Activity className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No recent activity found</p>
+            <Activity className="w-12 h-12 text-[var(--color-muted-foreground)] mx-auto mb-4" />
+            <p className="text-[var(--color-muted-foreground)]">No recent activity found</p>
           </div>
         )}
       </div>
