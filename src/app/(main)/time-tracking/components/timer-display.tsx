@@ -27,7 +27,7 @@ export function TimerDisplay({
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2 text-lg mb-6">
-        <Timer className="h-5 w-5 text-brand" />
+        <Timer className="h-5 w-5 text-[var(--color-primary)]" />
         Timer
       </div>
 
@@ -38,8 +38,8 @@ export function TimerDisplay({
             <div
               className={`text-8xl font-mono font-bold py-8 px-12 rounded-3xl ${
                 isTracking
-                  ? "text-brand bg-white/60"
-                  : "text-slate-600 bg-white/60"
+                  ? "text-[var(--color-primary)] bg-white/60"
+                  : "text-[var(--color-muted-foreground)] bg-white/60"
               }`}
             >
               {formatTime(currentSession)}
@@ -53,7 +53,7 @@ export function TimerDisplay({
                 onClick={onStart}
                 disabled={!selectedProject}
                 size="lg"
-                className="bg-brand hover:bg-brand-dark text-lg px-8 py-3"
+                className="bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-lg px-8 py-3"
               >
                 <Play className="h-6 w-6 mr-2" />
                 Start Timer
@@ -65,7 +65,7 @@ export function TimerDisplay({
                     onClick={onPause}
                     size="lg"
                     variant="outline"
-                    className="border-amber-300 text-amber-600 hover:bg-amber-50 text-lg px-8 py-3"
+                    className="border-[var(--color-accent)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 text-lg px-8 py-3"
                   >
                     <Pause className="h-6 w-6 mr-2" />
                     Pause
@@ -75,7 +75,7 @@ export function TimerDisplay({
                     onClick={onStart}
                     size="lg"
                     variant="outline"
-                    className="border-green-300 text-green-600 hover:bg-green-50 text-lg px-8 py-3"
+                    className="border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 text-lg px-8 py-3"
                   >
                     <Play className="h-6 w-6 mr-2" />
                     Resume
@@ -105,7 +105,7 @@ export function TimerDisplay({
                     : "bg-slate-300"
               }`}
             />
-            <span className="text-muted-foreground">
+            <span className="text-[var(--color-muted-foreground)]">
               {isTracking && !isPaused ? "Timer is running" : isPaused ? "Timer is paused" : "Timer is stopped"}
             </span>
           </div>
