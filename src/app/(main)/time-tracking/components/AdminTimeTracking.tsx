@@ -28,32 +28,32 @@ export default function AdminTimeTracking({
   const [selectedPeriod, setSelectedPeriod] = useState<"week" | "month" | "quarter">("week")
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-blue-50/30 p-4 relative">
+    <div className="min-h-screen bg-[var(--color-background)] p-4 relative">
       <FloatingElements />
       <div className="mx-auto max-w-7xl space-y-8">
         {/* Header */}
         <div className="relative">
-          <div className="relative z-10 bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 shadow-xl">
+          <div className="relative z-10 bg-[var(--color-card)] rounded-2xl p-8 border border-[var(--color-border)] shadow-xl">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                <h1 className="text-4xl font-bold text-[var(--color-foreground)]">
                   Admin Dashboard
                 </h1>
-                <p className="text-muted-foreground mt-2 text-lg">
+                <p className="text-[var(--color-muted-foreground)] mt-2 text-lg">
                   Monitor team productivity and time tracking insights
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="flex bg-white/60 rounded-lg p-1 border border-white/30">
+                <div className="flex bg-[var(--color-muted)] rounded-lg p-1 border border-[var(--color-border)]">
                   {(["week", "month", "quarter"] as const).map((period) => (
                     <button
                       key={period}
                       onClick={() => setSelectedPeriod(period)}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      className={`px-4 py-2 rounded-md text-sm font-medium ${
                         selectedPeriod === period
-                          ? "bg-purple-600 text-white shadow-sm"
-                          : "text-gray-600 hover:text-purple-600"
+                          ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-sm"
+                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]"
                       }`}
                     >
                       {period.charAt(0).toUpperCase() + period.slice(1)}
