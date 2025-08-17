@@ -88,8 +88,8 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <Sidebar className="border-r border-[var(--color-sidebar-border)]">
-      <SidebarHeader className="p-0">
+              <Sidebar className="border-r border-[var(--color-sidebar-border)] bg-[#f0e8d8]">
+       <SidebarHeader className="p-0 bg-[#f0e8d8]">
         <div className="flex items-center w-full h-18 px-4 pt-0 pb-0">
           {" "}
           {/* px-4 to match nav items */}
@@ -109,7 +109,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-hidden">
+             <SidebarContent className="overflow-hidden bg-[#f0e8d8]">
       <div className="mx-2 my-0 border-t border-[var(--color-accent)]" />
         <SidebarGroup className="pt-0">
         
@@ -167,7 +167,7 @@ export function AppSidebar() {
         
       </SidebarContent>
 
-      <SidebarFooter className=" border-t border-slate-200 overflow-hidden">
+             <SidebarFooter className="border-t border-slate-200 overflow-hidden bg-[#f0e8d8]">
       <div className="mx-0 my-0 border-t border-[var(--color-accent)]" />
         <SidebarMenu>
           <SidebarMenuItem>
