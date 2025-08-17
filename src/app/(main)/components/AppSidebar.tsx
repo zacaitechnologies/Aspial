@@ -88,25 +88,31 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   return (
-    <Sidebar className="border-r border-slate-200 bg-card-background text-card-foreground">
-      <SidebarHeader className="p-0 bg-card-background">
-        <div className="flex items-center w-full h-16 px-4 pt-0 pb-0"> {/* px-4 to match nav items */}
-          <div className="flex-shrink-0"> {/* Prevent logo from shrinking */}
+    <Sidebar className="border-r border-[var(--color-sidebar-border)]">
+      <SidebarHeader className="p-0">
+        <div className="flex items-center w-full h-18 px-4 pt-0 pb-0">
+          {" "}
+          {/* px-4 to match nav items */}
+          <div className="flex-shrink-0">
+            {" "}
+            {/* Prevent logo from shrinking */}
             <Image
-              src="/images/SidebarLogo.png"
+              src="/images/logoPng.png"
               alt="ASPIAL Logo"
-              width={160}  // Reasonable width for sidebar
-              height={50}  // Reasonable height
+              width={160} // Reasonable width for sidebar
+              height={50} // Reasonable height
               className="h-10 w-auto" // Fixed height, auto width
               priority
-              style={{ objectFit: 'contain', objectPosition: 'left center' }}
+              style={{ objectFit: "contain", objectPosition: "left center" }}
             />
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="bg-card-background">
+      <SidebarContent className="overflow-hidden">
+      <div className="mx-2 my-0 border-t border-[var(--color-accent)]" />
         <SidebarGroup className="pt-0">
+        
           <SidebarGroupLabel className="text-slate-600 font-medium">
             CRM
           </SidebarGroupLabel>
@@ -133,7 +139,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator className="my-4" />
+        <div className="mx-2 my-0 border-t border-[var(--color-accent)]" />
 
         <SidebarGroup>
           <SidebarGroupLabel className="text-slate-600 font-medium">
@@ -157,9 +163,12 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t border-slate-200 bg-card-background">
+      <SidebarFooter className=" border-t border-slate-200 overflow-hidden">
+      <div className="mx-0 my-0 border-t border-[var(--color-accent)]" />
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-brand-light">

@@ -37,12 +37,12 @@ export function AppHeader() {
     };
 
   return (
-    <header className="border-b border-slate-200 bg-white px-6 py-4">
+    <header className="border-b border-[var(--color-sidebar-border)] bg-sidebar px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="hover:bg-slate-100" />
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold text-card">{getPageTitle()}</h1>
+            <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
           </div>
         </div>
 
