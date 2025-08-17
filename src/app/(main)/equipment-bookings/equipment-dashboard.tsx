@@ -68,6 +68,7 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const [showEquipmentForm, setShowEquipmentForm] = useState(false)
   const [showBookingForm, setShowBookingForm] = useState(false)
   const [showStudioBookingForm, setShowStudioBookingForm] = useState(false)
+  const [activeTab, setActiveTab] = useState("studios")
 
   const handleRefresh = () => {
     window.location.reload()
@@ -98,28 +99,36 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   }
 
   return (
-    <Tabs defaultValue="studios" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 bg-card-background text-white">
-                 <TabsTrigger 
-           value="studios" 
-           className="text-white data-[state=active]:bg-white data-[state=active]:text-card-background"
-         >
-           Studios
-         </TabsTrigger>
-         <TabsTrigger 
-           value="equipment" 
-           className="text-white data-[state=active]:bg-white data-[state=active]:text-card-background"
-         >
-           Equipment
-         </TabsTrigger>
-      </TabsList>
+    <Tabs defaultValue="studios" className="w-full" onValueChange={setActiveTab}>
+             <div className="relative">
+         <TabsList className="grid w-full grid-cols-2 bg-transparent border-primary border-1 transition-all duration-300 ease-in-out">
+           <TabsTrigger 
+             value="studios" 
+             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+           >
+             Studios
+           </TabsTrigger>
+           <TabsTrigger 
+             value="equipment" 
+             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+           >
+             Equipment
+           </TabsTrigger>
+         </TabsList>
+                             {/* Sliding indicator */}
+           <div 
+             className={`absolute top-1 left-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
+               activeTab === "studios" ? "w-[calc(50%-4px)]" : "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+             }`}
+           />
+       </div>
 
       <TabsContent value="studios" className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold text-card-background">Studios ({studios.length})</h2>
+          <h2 className="text-2xl font-semibold">Studios ({studios.length})</h2>
           <Dialog open={showStudioForm} onOpenChange={setShowStudioForm}>
             <DialogTrigger asChild>
-              <Button className="bg-card-background">
+              <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Studio
               </Button>
@@ -241,10 +250,10 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
 
       <TabsContent value="equipment" className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold text-card-background">Equipment ({equipment.length})</h2>
+          <h2 className="text-2xl font-semibold">Equipment ({equipment.length})</h2>
           <Dialog open={showEquipmentForm} onOpenChange={setShowEquipmentForm}>
             <DialogTrigger asChild>
-              <Button className="bg-card-background">
+              <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Equipment
               </Button>
