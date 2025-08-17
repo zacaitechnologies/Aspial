@@ -106,7 +106,7 @@ export default function UserTimeTracking({
 
 
   return (
-    <div className="h-[calc(100vh-80px)] bg-[#BDC4A5] p-4 relative overflow-hidden">
+    <div className="h-[calc(100vh-80px)] p-4 relative overflow-hidden">
       <FloatingElements />
       <div className="mx-auto max-w-7xl h-full">
         {/* Main Content */}
@@ -114,7 +114,7 @@ export default function UserTimeTracking({
           {/* Left Column - Timer Section */}
           <div className="xl:col-span-3 flex flex-col space-y-6">
             <div className="relative">
-              <div className="relative z-10 bg-card-background rounded-lg p-6">
+              <div className="relative z-10 bg-card-background rounded-lg p-6 border-card-border border-1">
                 <ProjectSelector
                   projects={projects}
                   selectedProject={selectedProject}
@@ -125,7 +125,7 @@ export default function UserTimeTracking({
             </div>
 
             <div className="relative flex-1">
-              <div className="relative z-10 bg-card-background rounded-lg p-6 h-full">
+              <div className="relative z-10 bg-card-background rounded-lg p-6 h-full border-card-border border-1">
                 <TimerDisplay
                   selectedProject={selectedProject}
                   isTracking={isTracking}
@@ -141,7 +141,7 @@ export default function UserTimeTracking({
 
           {/* Right Column - Time Entries */}
           <div className="xl:col-span-2 relative">
-            <div className="relative z-10 bg-card-background rounded-lg p-6 h-full flex flex-col">
+            <div className="relative z-10 bg-card-background rounded-lg p-6 h-full flex flex-col border-card-border border-1">
               <TimeEntries
                 entries={timeEntries}
                 projects={projects}
