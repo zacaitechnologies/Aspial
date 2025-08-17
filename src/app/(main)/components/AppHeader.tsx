@@ -23,7 +23,7 @@ export function AppHeader() {
     // Get page title based on current path
     const getPageTitle = () => {
       const navItems = [
-        { path: "/service", title: "Services" },
+        { path: "/services", title: "Services" },
         { path: "/quotations", title: "Quotations" },
         { path: "/projects", title: "Projects" },
         { path: "/equipment-bookings", title: "Equipment Bookings" },
@@ -42,7 +42,7 @@ export function AppHeader() {
         <div className="flex items-center gap-4">
           <SidebarTrigger className="hover:bg-slate-100" />
           <div className="flex items-center">
-            <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
+            <h1 className="text-2xl font-bold text-sidebar-foreground">{getPageTitle()}</h1>
           </div>
         </div>
 
