@@ -315,12 +315,6 @@ export default function OrganizationCalendar() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading && (
-              <div className="absolute inset-0 bg-[var(--color-card)]/80 backdrop-blur-sm z-10 flex items-center justify-center">
-                <LoadingSpinner text="Loading bookings..." />
-              </div>
-            )}
-            
             {/* Calendar Header */}
             <div className="grid grid-cols-7 gap-0 mb-2">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
