@@ -3,19 +3,61 @@
 import { prisma } from "@/lib/prisma"
 
 export async function getAllQuotations(userId?: string) {
+  if (!userId) {
+    return await prisma.quotation.findMany({
+      include: {
+        services: {
+          include: {
+            service: true,
+          },
+        },
+        projects: true,
+        createdBy: true,
+        Client: true,
+      },
+      orderBy: { created_at: "desc" },
+    })
+  }
+
+  // Check if user is admin
+  const userWithRoles = await prisma.user.findUnique({
+    where: { supabase_id: userId },
+    include: { userRoles: { include: { role: true } } },
+  })
+
+  const isAdmin = userWithRoles?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
+
+  if (isAdmin) {
+    // Admin can see all quotations
+    return await prisma.quotation.findMany({
+      include: {
+        services: {
+          include: {
+            service: true,
+          },
+        },
+        projects: true,
+        createdBy: true,
+        Client: true,
+      },
+      orderBy: { created_at: "desc" },
+    })
+  }
+
+  // Non-admin users can only see their own quotations
   return await prisma.quotation.findMany({
-    where: userId ? {
+    where: {
       createdById: userId
-    } : undefined,
+    },
     include: {
       services: {
         include: {
           service: true,
         },
       },
-      projects: true, // Include projects to check if one exists
-      createdBy: true, // Include the createdBy relation
-      Client: true, // Include the client relation
+      projects: true,
+      createdBy: true,
+      Client: true,
     },
     orderBy: { created_at: "desc" },
   })
