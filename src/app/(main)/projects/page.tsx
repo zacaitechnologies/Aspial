@@ -288,7 +288,7 @@ export default function ProjectsPage() {
           <p className="text-[var(--lightGreen)] font-medium">People</p>
           <p className="text-[var(--lightGreen)] font-medium">Priority</p>
           <p className="text-[var(--lightGreen)] font-medium">Tasks</p>
-          <p className="text-[var(--lightGreen)] font-medium">View Button</p>
+          <p className="text-[var(--lightGreen)] font-medium">View</p>
         </div>
         <hr className="mt-2 border-1 border-[var(--lightGreen)]" />
         <div className="space-y-2 px-12">
@@ -326,7 +326,6 @@ export default function ProjectsPage() {
                 href={`/projects/${project.id}`}
               >
                 <Eye />
-                <span className="text-sm">View Tasks</span>
               </Link>
             </div>
           ))}
