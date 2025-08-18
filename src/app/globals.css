@@ -45,6 +45,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-base2: var(--base2);
 }
 
 :root {
@@ -58,6 +59,7 @@
   --lightGreen: #799F78;
   --mediumGreen: #BDC4A5;
   --base: #F0E8D8;
+  --base2: #e3bb69;
   --primary: #202F21;
   --primary-foreground: #f0e8d8;
   --secondary: #898D74;
