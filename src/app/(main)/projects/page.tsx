@@ -221,7 +221,7 @@ export default function ProjectsPage() {
 
           if (stats.total >= 0) {
             boxes.push(
-              <Card key="total" className="p-6 bg-blue-50 border-blue-200">
+              <Card key="total" className="card p-6 bg-blue-50 border-blue-200">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -243,7 +243,7 @@ export default function ProjectsPage() {
 
           if (stats.newProjects >= 0) {
             boxes.push(
-              <Card key="new" className="p-6 bg-yellow-50 border-yellow-200">
+              <Card key="new" className="card p-6 bg-yellow-50 border-yellow-200">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -265,7 +265,7 @@ export default function ProjectsPage() {
 
           if (stats.ongoing >= 0) {
             boxes.push(
-              <Card key="ongoing" className="p-6 bg-green-50 border-green-200">
+              <Card key="ongoing" className="card p-6 bg-green-50 border-green-200">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -291,7 +291,7 @@ export default function ProjectsPage() {
             boxes.push(
               <Card
                 key="completed"
-                className="p-6 bg-purple-50 border-purple-200"
+                className="card p-6 bg-purple-50 border-purple-200"
               >
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
@@ -335,7 +335,7 @@ export default function ProjectsPage() {
       {/* Projects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredProjects.map((project) => (
-          <Card key={project.id} className="hover:shadow-md transition-shadow">
+          <Card key={project.id} className="card">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>

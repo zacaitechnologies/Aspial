@@ -273,7 +273,7 @@ export default function ServicesPage() {
       {/* Services Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredServices.map((service) => (
-          <Card key={service.id} className="hover:shadow-md transition-shadow">
+          <Card key={service.id} className="card">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
