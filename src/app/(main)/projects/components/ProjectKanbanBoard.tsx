@@ -80,6 +80,21 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
 
   return (
     <div className="max-w-7xl mx-auto">
+      {/* Create Task Button at the top */}
+      <div className="mb-6 flex justify-center">
+        <TaskForm
+          projectId={parseInt(projectId)}
+          availableUsers={users}
+          onTaskCreated={handleTaskCreated}
+          trigger={
+            <Button className="flex items-center gap-2 bg-[var(--lightGreen)] hover:bg-[var(--mediumGreen)] text-white">
+              <Plus className="h-4 w-4" />
+              Create New Task
+            </Button>
+          }
+        />
+      </div>
+
       <div className="flex gap-6 overflow-x-auto pb-6">
         {columns.map((column) => {
           const columnTasks = getTasksForColumn(column.id)
@@ -88,21 +103,9 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
               <div className={`rounded-lg ${column.color} p-4 mb-4`}>
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-gray-800">{column.title}</h3>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="bg-white/50">
-                      {columnTasks.length}
-                    </Badge>
-                    <TaskForm
-                      projectId={parseInt(projectId)}
-                      availableUsers={users}
-                      onTaskCreated={handleTaskCreated}
-                      trigger={
-                        <Button variant="ghost" size="sm">
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      }
-                    />
-                  </div>
+                  <Badge variant="secondary" className="bg-white/50 text-black">
+                    {columnTasks.length}
+                  </Badge>
                 </div>
               </div>
 
