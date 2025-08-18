@@ -323,12 +323,12 @@ export default function ProjectsPage() {
           Management:
         </p>
         <div className="flex items-center gap-4">
-          <ProjectSearchBar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-          />
+        <ProjectSearchBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+        />
         </div>
       </div>
 
@@ -346,7 +346,7 @@ export default function ProjectsPage() {
                       {project.priority}
                     </Badge>
                   </div>
-                </div>
+        </div>
                 <div className="flex gap-2">
                   <Link href={`/projects/${project.id}`}>
                     <Button
@@ -382,47 +382,47 @@ export default function ProjectsPage() {
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="w-4 h-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
-                    {project.startDate
-                      ? new Date(project.startDate).toLocaleDateString()
+                {project.startDate
+                  ? new Date(project.startDate).toLocaleDateString()
                       : "Not set"} - {project.endDate
-                      ? new Date(project.endDate).toLocaleDateString()
-                      : "Not set"}
+                  ? new Date(project.endDate).toLocaleDateString()
+                  : "Not set"}
                   </span>
-                </div>
+              </div>
                 <div className="flex items-center gap-2 text-sm">
                   <Briefcase className="w-4 h-4 text-muted-foreground" />
                   <span className="text-muted-foreground">
                     Created by: {project.createdByUser.firstName}{" "}
-                    {project.createdByUser.lastName}
+                {project.createdByUser.lastName}
                   </span>
-                </div>
+              </div>
               </div>
             </CardContent>
           </Card>
         ))}
-      </div>
+            </div>
 
-      {filteredProjects.length === 0 && projects.length > 0 && (
+          {filteredProjects.length === 0 && projects.length > 0 && (
         <div className="text-center py-12">
           <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">
-            No projects match your search criteria.
-          </p>
+                No projects match your search criteria.
+              </p>
           <p className="text-sm text-muted-foreground mt-2">
             Try adjusting your search or filter settings.
           </p>
-        </div>
-      )}
+            </div>
+          )}
 
-      {projects.length === 0 && (
+          {projects.length === 0 && (
         <div className="text-center py-12">
           <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">No projects available.</p>
           <p className="text-sm text-muted-foreground mt-2">
             Create projects from accepted or paid quotations.
           </p>
-        </div>
-      )}
+            </div>
+          )}
 
       <EditProjectDialog
         isOpen={isEditOpen}

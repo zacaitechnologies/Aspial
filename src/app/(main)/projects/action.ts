@@ -1,10 +1,8 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { getVisibleProjectsForUser, isUserAdmin } from "./permissions"
 import { CreateProjectData, UpdateProjectData } from "./types"
-
-const prisma = new PrismaClient()
 
 export async function getAllProjects(userId?: string) {
   if (!userId) {

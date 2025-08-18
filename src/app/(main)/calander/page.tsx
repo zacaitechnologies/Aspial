@@ -8,7 +8,6 @@ import { Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
 import { CalendarDay } from "./components/CalendarDay"
 import { BookingDetailsDialog } from "./components/BookingDetailsDialog"
 import { DatePicker } from "./components/DatePicker"
-import { LoadingSpinner } from "./components/LoadingSpinner"
 
 interface EquipmentBooking {
   id: number

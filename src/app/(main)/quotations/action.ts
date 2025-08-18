@@ -1,8 +1,6 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
 
 export async function getAllQuotations(userId?: string) {
   return await prisma.quotation.findMany({

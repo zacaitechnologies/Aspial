@@ -10,6 +10,8 @@ import { StudioForm } from "@/app/(main)/equipment-bookings/components/studio-fo
 import { EquipmentForm } from "@/app/(main)/equipment-bookings/components/equipment-form"
 import { BookingForm } from "@/app/(main)/equipment-bookings/components/booking-form"
 import { StudioBookingForm } from "@/app/(main)/equipment-bookings/components/studio-booking-form"
+import { DatePicker } from "@/app/(main)/equipment-bookings/components/date-picker"
+import { BookingList } from "@/app/(main)/equipment-bookings/components/booking-list"
 import { deleteStudio, deleteEquipment, cancelBooking, cancelStudioBooking } from "@/app/(main)/equipment-bookings/actions"
 import { Edit, Trash2, Plus, Calendar, MapPin, Users, Package, Clock } from "lucide-react"
 
@@ -68,7 +70,8 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const [showEquipmentForm, setShowEquipmentForm] = useState(false)
   const [showBookingForm, setShowBookingForm] = useState(false)
   const [showStudioBookingForm, setShowStudioBookingForm] = useState(false)
-  const [activeTab, setActiveTab] = useState("studios")
+  const [activeTab, setActiveTab] = useState("booking")
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
 
   const handleRefresh = () => {
     window.location.reload()
@@ -98,30 +101,75 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
     }
   }
 
+  const handleBookEquipment = (equipment: Equipment, startTime: Date, endTime: Date) => {
+    setSelectedBookingEquipment(equipment)
+    setShowBookingForm(true)
+  }
+
+  const handleBookStudio = (studio: Studio, startTime: Date, endTime: Date) => {
+    setSelectedBookingStudio(studio)
+    setShowStudioBookingForm(true)
+  }
+
   return (
-    <Tabs defaultValue="studios" className="w-full" onValueChange={setActiveTab}>
-             <div className="relative">
-         <TabsList className="grid w-full grid-cols-2 bg-transparent border-primary border-1 transition-all duration-300 ease-in-out">
-           <TabsTrigger 
-             value="studios" 
-             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
-           >
-             Studios
-           </TabsTrigger>
-           <TabsTrigger 
-             value="equipment" 
-             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
-           >
-             Equipment
-           </TabsTrigger>
-         </TabsList>
-                             {/* Sliding indicator */}
-           <div 
-             className={`absolute top-1 left-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
-               activeTab === "studios" ? "w-[calc(50%-4px)]" : "left-[calc(50%+2px)] w-[calc(50%-4px)]"
-             }`}
-           />
-       </div>
+    <Tabs defaultValue="booking" className="w-full" onValueChange={setActiveTab}>
+      <div className="relative">
+        <TabsList className="grid w-full grid-cols-3 bg-transparent border-primary border-1 transition-all duration-300 ease-in-out">
+          <TabsTrigger 
+            value="booking" 
+            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+          >
+            Bookings
+          </TabsTrigger>
+          <TabsTrigger 
+            value="studios" 
+            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+          >
+            Studios
+          </TabsTrigger>
+          <TabsTrigger 
+            value="equipment" 
+            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+          >
+            Equipment
+          </TabsTrigger>
+        </TabsList>
+        {/* Sliding indicator */}
+        <div 
+          className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
+            activeTab === "booking" ? "left-1 w-[calc(33.33%-4px)]" : 
+            activeTab === "studios" ? "left-[calc(33.33%+2px)] w-[calc(33.33%-4px)]" : 
+            "left-[calc(66.66%+2px)] w-[calc(33.33%-4px)]"
+          }`}
+        />
+      </div>
+
+      <TabsContent value="booking" className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-semibold">Book Equipment & Studios</h2>
+          <Button onClick={handleRefresh} variant="outline">
+            <Clock className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="max-w-xs">
+            <DatePicker
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+            />
+          </div>
+
+          <BookingList
+            selectedDate={selectedDate}
+            equipment={equipment}
+            studios={studios}
+            onBookEquipment={handleBookEquipment}
+            onBookStudio={handleBookStudio}
+          />
+        </div>
+      </TabsContent>
 
       <TabsContent value="studios" className="space-y-6">
         <div className="flex justify-between items-center">
@@ -150,7 +198,7 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {studios.map((studio) => (
-            <Card key={studio.id} className="hover:shadow-lg transition-shadow gap-0">
+            <Card key={studio.id} className="card gap-0">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg">{studio.name}</CardTitle>
@@ -276,7 +324,7 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {equipment.map((item) => (
-            <Card key={item.id} className="hover:shadow-lg transition-shadow gap-0">
+            <Card key={item.id} className="card gap-0">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg">{item.name}</CardTitle>

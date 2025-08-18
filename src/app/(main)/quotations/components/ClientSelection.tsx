@@ -1,17 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Building2, Mail, Phone, MapPin, FileText } from "lucide-react";
@@ -99,14 +91,14 @@ export default function ClientSelection({
         </TabsList>
 
         <TabsContent value="existing" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+          <div className="border rounded-lg p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
                 <User className="w-5 h-5" />
                 Select from Existing Clients
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              </h3>
+            </div>
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="client-search">Search Clients</Label>
                 <Input
@@ -163,21 +155,21 @@ export default function ClientSelection({
                       </div>
                     ))
                   )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                                 </div>
+               )}
+             </div>
+           </div>
         </TabsContent>
 
         <TabsContent value="new" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+          <div className="border rounded-lg p-6">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
                 <User className="w-5 h-5" />
                 Create New Client
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              </h3>
+            </div>
+            <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="new-client-name">Full Name *</Label>
@@ -244,8 +236,8 @@ export default function ClientSelection({
                   rows={2}
                 />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

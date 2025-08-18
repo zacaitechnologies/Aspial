@@ -38,8 +38,8 @@ export function StudioForm({ studio, onClose }: StudioFormProps) {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardContent>
+    <div className="w-full max-w-md border rounded-lg p-6">
+      <div>
         <form action={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
@@ -76,8 +76,8 @@ export function StudioForm({ studio, onClose }: StudioFormProps) {
               Cancel
             </Button>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+                 </form>
+       </div>
+     </div>
   )
 }

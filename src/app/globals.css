@@ -213,8 +213,7 @@
   .card:hover {
     transform:
       translateY(var(--card-hover-translate))
-      rotate(var(--card-hover-rotate))
-      scale(var(--card-hover-scale));
+      rotate(var(--card-hover-rotate));
     box-shadow: var(--card-shadow-hover);
     border-color: var(--card-border-hover);
   }

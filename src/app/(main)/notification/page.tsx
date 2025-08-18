@@ -214,7 +214,7 @@ export default function NotificationPage() {
           {invitations.map((invitation) => (
             <Card
               key={invitation.id}
-              className="hover:shadow-md transition-shadow"
+              className="card"
             >
               <CardHeader>
                 <div className="flex justify-between items-start">

@@ -44,8 +44,8 @@ export function EquipmentForm({ equipment, onClose, onSuccess }: EquipmentFormPr
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardContent>
+    <div className="w-full max-w-md border rounded-lg p-6">
+      <div>
         <form action={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
@@ -104,8 +104,8 @@ export function EquipmentForm({ equipment, onClose, onSuccess }: EquipmentFormPr
               Cancel
             </Button>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+                 </form>
+       </div>
+     </div>
   )
 }
