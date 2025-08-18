@@ -54,4 +54,10 @@ export async function updateProject(
     where: { id: Number.parseInt(id) },
     data,
   })
+}
+
+export async function deleteProject(id: string) {
+  return await prisma.project.delete({
+    where: { id: Number.parseInt(id) },
+  })
 } 
