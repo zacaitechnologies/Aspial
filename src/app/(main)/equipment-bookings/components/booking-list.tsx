@@ -11,8 +11,8 @@ import { cn } from "@/lib/utils"
 interface Booking {
   id: number
   bookedBy: string
-  startDate: string
-  endDate: string
+  startDate: Date
+  endDate: Date
   purpose: string | null
   status: string
 }
@@ -20,8 +20,8 @@ interface Booking {
 interface StudioBooking {
   id: number
   bookedBy: string
-  startDate: string
-  endDate: string
+  startDate: Date
+  endDate: Date
   purpose: string | null
   attendees: number
   status: string
@@ -53,8 +53,8 @@ interface BookingListProps {
   selectedDate: Date
   equipment: Equipment[]
   studios: Studio[]
-  onBookEquipment: (equipment: Equipment, startTime: Date, endTime: Date) => void
-  onBookStudio: (studio: Studio, startTime: Date, endTime: Date) => void
+  onBookEquipment: (equipment: Equipment, slots: { start: Date; end: Date }[]) => void
+  onBookStudio: (studio: Studio, slots: { start: Date; end: Date }[]) => void
 }
 
 export function BookingList({ 
@@ -65,7 +65,7 @@ export function BookingList({
   onBookStudio 
 }: BookingListProps) {
   const [selectedSlots, setSelectedSlots] = useState<{
-    [key: string]: { start: Date; end: Date } | null
+    [key: string]: { start: Date; end: Date }[]
   }>({})
 
 
@@ -98,8 +98,9 @@ export function BookingList({
   const isSlotBooked = (item: Equipment | Studio, slot: { start: Date; end: Date }) => {
     const bookings = item.bookings || []
     return bookings.some(booking => {
-      const bookingStart = new Date(booking.startDate)
-      const bookingEnd = new Date(booking.endDate)
+      // Since booking dates are already Date objects from the database
+      const bookingStart = booking.startDate
+      const bookingEnd = booking.endDate
       return (
         (slot.start >= bookingStart && slot.start < bookingEnd) ||
         (slot.end > bookingStart && slot.end <= bookingEnd) ||
@@ -109,34 +110,49 @@ export function BookingList({
   }
 
   const handleSlotClick = (itemId: string, slot: { start: Date; end: Date }) => {
-    setSelectedSlots(prev => ({
-      ...prev,
-      [itemId]: prev[itemId]?.start === slot.start ? null : { start: slot.start, end: slot.end }
-    }))
+    setSelectedSlots(prev => {
+      const currentSlots = prev[itemId] || []
+      const slotExists = currentSlots.some(s => s.start.getTime() === slot.start.getTime())
+      
+      if (slotExists) {
+        // Remove slot if already selected
+        return {
+          ...prev,
+          [itemId]: currentSlots.filter(s => s.start.getTime() !== slot.start.getTime())
+        }
+      } else {
+        // Add slot if not selected
+        return {
+          ...prev,
+          [itemId]: [...currentSlots, slot]
+        }
+      }
+    })
   }
 
   const handleBook = (item: Equipment | Studio) => {
-    const selectedSlot = selectedSlots[`${item.constructor.name}-${item.id}`]
-    if (!selectedSlot) return
+    const itemId = 'type' in item ? `Equipment-${item.id}` : `Studio-${item.id}`
+    const selectedSlotArray = selectedSlots[itemId]
+    if (!selectedSlotArray || selectedSlotArray.length === 0) return
 
     if ('type' in item) {
-      // Equipment
-      onBookEquipment(item as Equipment, selectedSlot.start, selectedSlot.end)
+      // Equipment - pass all selected slots at once
+      onBookEquipment(item as Equipment, selectedSlotArray)
     } else {
-      // Studio
-      onBookStudio(item as Studio, selectedSlot.start, selectedSlot.end)
+      // Studio - pass all selected slots at once
+      onBookStudio(item as Studio, selectedSlotArray)
     }
     
     // Clear selection
     setSelectedSlots(prev => ({
       ...prev,
-      [`${item.constructor.name}-${item.id}`]: null
+      [itemId]: []
     }))
   }
 
   const renderEquipmentItem = (equipment: Equipment) => {
     const itemId = `Equipment-${equipment.id}`
-    const selectedSlot = selectedSlots[itemId]
+    const selectedSlotArray = selectedSlots[itemId] || []
 
     return (
       <Card key={itemId} className="p-4">
@@ -167,50 +183,50 @@ export function BookingList({
           {/* Right side - Time slots */}
           <div className="flex-1">
             <div className="grid grid-cols-7 gap-1">
-              {timeSlots.map((slot, index) => {
-                const isBooked = isSlotBooked(equipment, slot)
-                const isSelected = selectedSlot?.start === slot.start
-                const isDisabled = !equipment.isAvailable || slot.isPast || isBooked
+                             {timeSlots.map((slot, index) => {
+                 const isBooked = isSlotBooked(equipment, slot)
+                 const isSelected = selectedSlotArray?.some(s => s.start.getTime() === slot.start.getTime())
+                 const isDisabled = !equipment.isAvailable || slot.isPast || isBooked
 
-                return (
-                  <button
-                    key={index}
-                    onClick={() => !isDisabled && handleSlotClick(itemId, slot)}
-                    disabled={isDisabled}
-                    className={cn(
-                      "p-2 text-xs border rounded transition-colors",
-                      {
-                        "bg-gray-100 text-gray-400 cursor-not-allowed": isDisabled,
-                        "bg-red-100 text-red-600 border-red-200": isBooked,
-                        "bg-blue-500 text-white border-blue-600": isSelected,
-                        "bg-white hover:bg-gray-50 border-gray-200": !isDisabled && !isSelected,
-                      }
-                    )}
-                    title={
-                      isBooked
-                        ? "Already booked"
-                        : isDisabled
-                        ? "Unavailable"
-                        : `${slot.timeLabel} - ${format(slot.end, "HH:mm")}`
-                    }
-                  >
-                    {slot.timeLabel}
-                  </button>
-                )
-              })}
+                 return (
+                   <button
+                     key={index}
+                     onClick={() => !isDisabled && handleSlotClick(itemId, slot)}
+                     disabled={isDisabled}
+                     className={cn(
+                       "p-2 text-xs border rounded transition-colors",
+                       {
+                         "bg-gray-100 text-gray-400 cursor-not-allowed": isDisabled,
+                         "bg-red-100 text-red-600 border-red-200": isBooked,
+                         "bg-blue-500 text-white border-blue-600": isSelected,
+                         "bg-white hover:bg-gray-50 border-gray-200": !isDisabled && !isSelected,
+                       }
+                     )}
+                     title={
+                       isBooked
+                         ? "Already booked"
+                         : isDisabled
+                         ? "Unavailable"
+                         : `${slot.timeLabel} - ${format(slot.end, "HH:mm")}`
+                     }
+                   >
+                     {slot.timeLabel}
+                   </button>
+                 )
+               })}
             </div>
             
-            {selectedSlot && (
-              <div className="mt-2 flex gap-2">
-                <Button 
-                  size="sm" 
-                  onClick={() => handleBook(equipment)}
-                  className="flex-1"
-                >
-                  Book {format(selectedSlot.start, "HH:mm")} - {format(selectedSlot.end, "HH:mm")}
-                </Button>
-              </div>
-            )}
+                         {selectedSlotArray && selectedSlotArray.length > 0 && (
+               <div className="mt-2 flex gap-2">
+                 <Button 
+                   size="sm" 
+                   onClick={() => handleBook(equipment)}
+                   className="flex-1"
+                 >
+                   Book {selectedSlotArray.length} slot{selectedSlotArray.length > 1 ? 's' : ''} ({selectedSlotArray.length * 60} min)
+                 </Button>
+               </div>
+             )}
           </div>
         </div>
       </Card>
@@ -219,7 +235,7 @@ export function BookingList({
 
   const renderStudioItem = (studio: Studio) => {
     const itemId = `Studio-${studio.id}`
-    const selectedSlot = selectedSlots[itemId]
+    const selectedSlotArray = selectedSlots[itemId] || []
 
     return (
       <Card key={itemId} className="p-4">
@@ -253,50 +269,50 @@ export function BookingList({
           {/* Right side - Time slots */}
           <div className="flex-1">
             <div className="grid grid-cols-7 gap-1">
-              {timeSlots.map((slot, index) => {
-                const isBooked = isSlotBooked(studio, slot)
-                const isSelected = selectedSlot?.start === slot.start
-                const isDisabled = !studio.isActive || slot.isPast || isBooked
+                             {timeSlots.map((slot, index) => {
+                 const isBooked = isSlotBooked(studio, slot)
+                 const isSelected = selectedSlotArray?.some(s => s.start.getTime() === slot.start.getTime())
+                 const isDisabled = !studio.isActive || slot.isPast || isBooked
 
-                return (
-                  <button
-                    key={index}
-                    onClick={() => !isDisabled && handleSlotClick(itemId, slot)}
-                    disabled={isDisabled}
-                    className={cn(
-                      "p-2 text-xs border rounded transition-colors",
-                      {
-                        "bg-gray-100 text-gray-400 cursor-not-allowed": isDisabled,
-                        "bg-red-100 text-red-600 border-red-200": isBooked,
-                        "bg-blue-500 text-white border-blue-600": isSelected,
-                        "bg-white hover:bg-gray-50 border-gray-200": !isDisabled && !isSelected,
-                      }
-                    )}
-                    title={
-                      isBooked
-                        ? "Already booked"
-                        : isDisabled
-                        ? "Unavailable"
-                        : `${slot.timeLabel} - ${format(slot.end, "HH:mm")}`
-                    }
-                  >
-                    {slot.timeLabel}
-                  </button>
-                )
-              })}
+                 return (
+                   <button
+                     key={index}
+                     onClick={() => !isDisabled && handleSlotClick(itemId, slot)}
+                     disabled={isDisabled}
+                     className={cn(
+                       "p-2 text-xs border rounded transition-colors",
+                       {
+                         "bg-gray-100 text-gray-400 cursor-not-allowed": isDisabled,
+                         "bg-red-100 text-red-600 border-red-200": isBooked,
+                         "bg-blue-500 text-white border-blue-600": isSelected,
+                         "bg-white hover:bg-gray-50 border-gray-200": !isDisabled && !isSelected,
+                       }
+                     )}
+                     title={
+                       isBooked
+                         ? "Already booked"
+                         : isDisabled
+                         ? "Unavailable"
+                         : `${slot.timeLabel} - ${format(slot.end, "HH:mm")}`
+                     }
+                   >
+                     {slot.timeLabel}
+                   </button>
+                 )
+               })}
             </div>
             
-            {selectedSlot && (
-              <div className="mt-2 flex gap-2">
-                <Button 
-                  size="sm" 
-                  onClick={() => handleBook(studio)}
-                  className="flex-1"
-                >
-                  Book {format(selectedSlot.start, "HH:mm")} - {format(selectedSlot.end, "HH:mm")}
-                </Button>
-              </div>
-            )}
+                         {selectedSlotArray && selectedSlotArray.length > 0 && (
+               <div className="mt-2 flex gap-2">
+                 <Button 
+                   size="sm" 
+                   onClick={() => handleBook(studio)}
+                   className="flex-1"
+                 >
+                   Book {selectedSlotArray.length} slot{selectedSlotArray.length > 1 ? 's' : ''} ({selectedSlotArray.length * 60} min)
+                 </Button>
+               </div>
+             )}
           </div>
         </div>
       </Card>
