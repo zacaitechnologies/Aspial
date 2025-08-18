@@ -4,6 +4,13 @@ import { prisma } from "@/lib/prisma";
 
 async function getStudios() {
   return await prisma.studio.findMany({
+    include: {
+      bookings: {
+        where: {
+          status: "active"
+        }
+      }
+    },
     orderBy: {
       createdAt: "desc",
     },
@@ -12,6 +19,13 @@ async function getStudios() {
 
 async function getEquipment() {
   return await prisma.equipment.findMany({
+    include: {
+      bookings: {
+        where: {
+          status: "active"
+        }
+      }
+    },
     orderBy: {
       createdAt: "desc",
     },
