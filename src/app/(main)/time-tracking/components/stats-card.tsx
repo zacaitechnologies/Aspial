@@ -21,7 +21,7 @@ const colorClasses = {
 export function StatsCard({ title, value, icon: Icon, color, isActive }: StatsCardProps) {
   return (
     <Card
-      className={`transition-all duration-300 hover:shadow-lg hover:scale-105 ${
+      className={`card ${
         isActive ? "ring-2 ring-purple-500 shadow-lg" : ""
       }`}
     >
