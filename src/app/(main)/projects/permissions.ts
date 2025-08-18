@@ -18,7 +18,7 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
   const isAdmin = await isUserAdmin(userSupabaseId)
 
   if (isAdmin) {
-    return await prisma.project.findMany({
+    const projects = await prisma.project.findMany({
       include: {
         quotation: {
           include: {
@@ -28,9 +28,19 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
           },
         },
         createdByUser: true,
+        _count: {
+          select: {
+            tasks: true,
+          },
+        },
       },
       orderBy: { created_at: "desc" },
     })
+
+    return projects.map(project => ({
+      ...project,
+      taskCount: project._count.tasks,
+    }))
   }
 
   const userPermissions = await prisma.projectPermission.findMany({
@@ -52,6 +62,11 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
             },
           },
           createdByUser: true,
+          _count: {
+            select: {
+              tasks: true,
+            },
+          },
         },
       },
     },
@@ -60,7 +75,10 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
     },
   })
 
-  return userPermissions.map((permission) => permission.project)
+  return userPermissions.map((permission) => ({
+    ...permission.project,
+    taskCount: permission.project._count.tasks,
+  }))
 }
 
 export async function inviteProjectCollaborator(
