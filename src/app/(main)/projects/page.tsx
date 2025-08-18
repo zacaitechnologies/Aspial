@@ -1,16 +1,9 @@
 "use client";
 import { Calendar, Eye } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Briefcase,
-  DollarSign,
-  Clock,
-} from "lucide-react";
+import { Briefcase, DollarSign, Clock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { getAllProjects, updateProjectStatus } from "./action";
@@ -155,21 +148,14 @@ export default function ProjectsPage() {
   return (
     <div className="container mx-auto px-6">
       <div>
-        <p className="text-4xl font-extrabold text-[var(--lightGreen)]">
-          "Project
+        <p className="text-[var(--lightGreen)] mt-6 text-xl font-semibold">
+          Hi, {enhancedUser?.profile?.firstName}. Welcome Back!{" "}
         </p>
-        <p className="text-3xl font-bold text-[var(--lightGreen)]">
-          Management"
-        </p>
-        <p className="text-sm font-light text-[var(--lightGreen)] my-2">
+        <p className="text-sm font-light mb-6 text-[var(--lightGreen)]">
           Last Updated:{" "}
           {getLatestUpdatedTime(projects)
             ? getLatestUpdatedTime(projects)!.toLocaleString()
             : "No projects"}
-        </p>
-
-        <p className="text-[var(--lightGreen)] my-6 text-xl font-semibold">
-          Hi, {enhancedUser?.profile?.firstName}. Welcome Back!{" "}
         </p>
       </div>
 
@@ -281,7 +267,7 @@ export default function ProjectsPage() {
         })()}
       </div>
 
-      <div className="mt-6 flex flex-row justify-between items-center">
+      <div className="mt-6 mx-10 flex flex-row justify-between items-center">
         <p className="text-[var(--lightGreen)] text-lg font-bold">
           Management:
         </p>
@@ -293,22 +279,23 @@ export default function ProjectsPage() {
         />
       </div>
 
-      <div className="grid grid-row">
-        <div className="grid gap-x-2 items-start justify-center grid-cols-7">
+      <div className="grid grid-row mx-4">
+        <div className="grid gap-x-2 items-start justify-center grid-cols-8 px-12">
           <Checkbox className="border-[var(--lightGreen)] border-2" />
           <p className="text-[var(--lightGreen)] font-medium">Project Name</p>
           <p className="text-[var(--lightGreen)] font-medium">Start Date</p>
           <p className="text-[var(--lightGreen)] font-medium">End Date</p>
           <p className="text-[var(--lightGreen)] font-medium">People</p>
           <p className="text-[var(--lightGreen)] font-medium">Priority</p>
+          <p className="text-[var(--lightGreen)] font-medium">Tasks</p>
           <p className="text-[var(--lightGreen)] font-medium">View Button</p>
         </div>
         <hr className="mt-2 border-1 border-[var(--lightGreen)]" />
-        <div className="space-y-2">
+        <div className="space-y-2 px-12">
           {filteredProjects.map((project) => (
             <div
               key={project.id}
-              className="grid gap-x-2 items-center grid-cols-7 py-3 hover:bg-gray-50 rounded-md"
+              className="grid gap-x-2 items-center grid-cols-8 py-3 hover:bg-gray-50 rounded-md"
             >
               <Checkbox className="border-[var(--lightGreen)] border-2" />
               <div className="text-sm font-medium text-[var(--lightGreen)]">
@@ -331,11 +318,15 @@ export default function ProjectsPage() {
               <div className="text-sm font-medium text-[var(--lightGreen)]">
                 {project.priority}
               </div>
+              <div className="text-sm font-medium text-[var(--lightGreen)]">
+                {project.taskCount || 0}
+              </div>
               <Link
-                className="ml-6 text-[var(--lightGreen)] hover:text-black"
+                className="ml-6 text-[var(--lightGreen)] hover:text-black flex items-center gap-2"
                 href={`/projects/${project.id}`}
               >
                 <Eye />
+                <span className="text-sm">View Tasks</span>
               </Link>
             </div>
           ))}
