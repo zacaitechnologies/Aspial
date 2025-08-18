@@ -278,7 +278,7 @@ export default function ServicesPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-lg">{service.name}</CardTitle>
-                  <Badge variant="secondary" className="mt-1">
+                  <Badge variant="secondary" className="mt-1 bg-accent">
                     ${service.basePrice.toFixed(2)}
                   </Badge>
                 </div>
