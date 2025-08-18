@@ -92,6 +92,13 @@ export default function CreateQuotationForm({
         return total + (svc?.basePrice || 0);
       }, 0);
 
+      console.log("Service toggle:", {
+        serviceId,
+        prev,
+        newSelection,
+        newTotal,
+      });
+
       setTotalPrice(newTotal);
       return newSelection;
     });
@@ -146,21 +153,32 @@ export default function CreateQuotationForm({
     if (!quotationForm.startDate || !quotationForm.duration) {
       return "Please select start date and duration";
     }
-    
+
     const startDate = new Date(quotationForm.startDate);
     const duration = parseInt(quotationForm.duration);
-    
+
     if (isNaN(duration) || duration <= 0) {
       return "Invalid duration";
     }
-    
+
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + duration);
-    
+
     return endDate.toLocaleDateString("en-GB");
   };
 
   const handleCreateQuotation = async () => {
+    // Debug logging to help identify the issue
+    console.log("Form validation check:", {
+      name: quotationForm.name,
+      description: quotationForm.description,
+      selectedServiceIds: selectedServiceIds,
+      selectedServiceIdsLength: selectedServiceIds.length,
+      nameEmpty: !quotationForm.name,
+      descriptionEmpty: !quotationForm.description,
+      servicesEmpty: selectedServiceIds.length === 0,
+    });
+
     if (
       !quotationForm.name ||
       !quotationForm.description ||
@@ -178,7 +196,9 @@ export default function CreateQuotationForm({
 
     if (clientMode === "new") {
       if (!quotationForm.newClient?.name || !quotationForm.newClient?.email) {
-        alert("Please fill in the required client information (name and email).");
+        alert(
+          "Please fill in the required client information (name and email)."
+        );
         return;
       }
     }
@@ -195,7 +215,8 @@ export default function CreateQuotationForm({
         totalPrice: discountedTotal,
         serviceIds: selectedServiceIds,
         createdById: enhancedUser.id,
-        clientId: clientMode === "existing" ? quotationForm.clientId : undefined,
+        clientId:
+          clientMode === "existing" ? quotationForm.clientId : undefined,
         newClient: clientMode === "new" ? quotationForm.newClient : undefined,
         discountValue: quotationForm.discountValue
           ? parseFloat(quotationForm.discountValue)
@@ -275,66 +296,70 @@ export default function CreateQuotationForm({
                 setQuotationForm((prev) => ({ ...prev, clientId }))
               }
               onNewClientDataChange={(newClientData) =>
-                setQuotationForm((prev) => ({ ...prev, newClient: newClientData }))
+                setQuotationForm((prev) => ({
+                  ...prev,
+                  newClient: newClientData,
+                }))
               }
               onModeChange={setClientMode}
               mode={clientMode}
             />
-                         <div className="grid gap-2">
-               <Label htmlFor="quotation-description">Description</Label>
-               <Textarea
-                 id="quotation-description"
-                 value={quotationForm.description}
-                 onChange={(e) =>
-                   setQuotationForm((prev) => ({
-                     ...prev,
-                     description: e.target.value,
-                   }))
-                 }
-                 placeholder="Enter quotation description"
-                 rows={3}
-               />
-             </div>
-             <div className="grid gap-2">
-               <Label htmlFor="startDate">Start Date</Label>
-               <Input
-                 id="startDate"
-                 type="date"
-                 value={quotationForm.startDate}
-                 onChange={(e) =>
-                   setQuotationForm((prev) => ({
-                     ...prev,
-                     startDate: e.target.value,
-                   }))
-                 }
-               />
-             </div>
-             <div className="grid gap-2">
-               <Label htmlFor="duration">Duration (Months)</Label>
-               <Input
-                 id="duration"
-                 type="number"
-                 min="1"
-                 value={quotationForm.duration}
-                 onChange={(e) =>
-                   setQuotationForm((prev) => ({
-                     ...prev,
-                     duration: e.target.value,
-                   }))
-                 }
-                 placeholder="e.g., 6"
-               />
-             </div>
-             {quotationForm.startDate && quotationForm.duration && (
-               <div className="grid gap-2">
-                 <Label htmlFor="endDate">Calculated End Date</Label>
-                 <div className="p-3 bg-muted rounded-md">
-                   <span className="text-sm font-medium">
-                     {calculateEndDate()}
-                   </span>
-                 </div>
-               </div>
-             )}
+            <div className="grid gap-2">
+              <Label htmlFor="quotation-description">Description</Label>
+              <Textarea
+                className="text-black"
+                id="quotation-description"
+                value={quotationForm.description}
+                onChange={(e) =>
+                  setQuotationForm((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder="Enter quotation description"
+                rows={3}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="startDate">Start Date</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={quotationForm.startDate}
+                onChange={(e) =>
+                  setQuotationForm((prev) => ({
+                    ...prev,
+                    startDate: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="duration">Duration (Months)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min="1"
+                value={quotationForm.duration}
+                onChange={(e) =>
+                  setQuotationForm((prev) => ({
+                    ...prev,
+                    duration: e.target.value,
+                  }))
+                }
+                placeholder="e.g., 6"
+              />
+            </div>
+            {quotationForm.startDate && quotationForm.duration && (
+              <div className="grid gap-2">
+                <Label htmlFor="endDate">Calculated End Date</Label>
+                <div className="p-3 bg-muted rounded-md">
+                  <span className="text-sm font-medium">
+                    {calculateEndDate()}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-4">
               <Label>Select Services</Label>
@@ -362,6 +387,7 @@ export default function CreateQuotationForm({
                       className="flex items-start space-x-3 p-3 border rounded-lg"
                     >
                       <Checkbox
+                        className="border-black"
                         checked={selectedServiceIds.includes(
                           service.id.toString()
                         )}
@@ -486,4 +512,4 @@ export default function CreateQuotationForm({
       </DialogContent>
     </Dialog>
   );
-} 
+}

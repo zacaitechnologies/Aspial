@@ -63,10 +63,12 @@ export default function ClientSelection({
       setLoading(true);
       const clientsData = await getAllClientsForQuotation();
       // Transform null to undefined to match the interface
-      setClients(clientsData.map(client => ({
-        ...client,
-        company: client.company || undefined
-      })));
+      setClients(
+        clientsData.map((client) => ({
+          ...client,
+          company: client.company || undefined,
+        }))
+      );
     } catch (error) {
       console.error("Failed to fetch clients:", error);
     } finally {
@@ -81,7 +83,10 @@ export default function ClientSelection({
       client.company?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleNewClientDataChange = (field: keyof NewClientData, value: string) => {
+  const handleNewClientDataChange = (
+    field: keyof NewClientData,
+    value: string
+  ) => {
     onNewClientDataChange({
       ...newClientData,
       [field]: value,
@@ -91,8 +96,11 @@ export default function ClientSelection({
   return (
     <div className="space-y-4">
       <Label className="text-base font-semibold">Client Information</Label>
-      
-      <Tabs value={mode} onValueChange={(value) => onModeChange(value as "existing" | "new")}>
+
+      <Tabs
+        value={mode}
+        onValueChange={(value) => onModeChange(value as "existing" | "new")}
+      >
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="existing">Select Existing Client</TabsTrigger>
           <TabsTrigger value="new">Create New Client</TabsTrigger>
@@ -126,7 +134,9 @@ export default function ClientSelection({
                   {filteredClients.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-muted-foreground">
-                        {searchQuery ? "No clients found matching your search." : "No clients available."}
+                        {searchQuery
+                          ? "No clients found matching your search."
+                          : "No clients available."}
                       </p>
                     </div>
                   ) : (
@@ -184,7 +194,9 @@ export default function ClientSelection({
                   <Input
                     id="new-client-name"
                     value={newClientData?.name || ""}
-                    onChange={(e) => handleNewClientDataChange("name", e.target.value)}
+                    onChange={(e) =>
+                      handleNewClientDataChange("name", e.target.value)
+                    }
                     placeholder="Enter client's full name"
                     required
                   />
@@ -196,7 +208,9 @@ export default function ClientSelection({
                     id="new-client-email"
                     type="email"
                     value={newClientData?.email || ""}
-                    onChange={(e) => handleNewClientDataChange("email", e.target.value)}
+                    onChange={(e) =>
+                      handleNewClientDataChange("email", e.target.value)
+                    }
                     placeholder="Enter client's email"
                     required
                   />
@@ -207,7 +221,9 @@ export default function ClientSelection({
                   <Input
                     id="new-client-phone"
                     value={newClientData?.phone || ""}
-                    onChange={(e) => handleNewClientDataChange("phone", e.target.value)}
+                    onChange={(e) =>
+                      handleNewClientDataChange("phone", e.target.value)
+                    }
                     placeholder="Enter client's phone number"
                   />
                 </div>
@@ -217,7 +233,9 @@ export default function ClientSelection({
                   <Input
                     id="new-client-company"
                     value={newClientData?.company || ""}
-                    onChange={(e) => handleNewClientDataChange("company", e.target.value)}
+                    onChange={(e) =>
+                      handleNewClientDataChange("company", e.target.value)
+                    }
                     placeholder="Enter company name"
                   />
                 </div>
@@ -226,9 +244,12 @@ export default function ClientSelection({
               <div className="space-y-2">
                 <Label htmlFor="new-client-address">Address</Label>
                 <Textarea
+                  className="text-black"
                   id="new-client-address"
                   value={newClientData?.address || ""}
-                  onChange={(e) => handleNewClientDataChange("address", e.target.value)}
+                  onChange={(e) =>
+                    handleNewClientDataChange("address", e.target.value)
+                  }
                   placeholder="Enter client's address"
                   rows={2}
                 />
@@ -239,7 +260,9 @@ export default function ClientSelection({
                 <Textarea
                   id="new-client-notes"
                   value={newClientData?.notes || ""}
-                  onChange={(e) => handleNewClientDataChange("notes", e.target.value)}
+                  onChange={(e) =>
+                    handleNewClientDataChange("notes", e.target.value)
+                  }
                   placeholder="Additional notes about the client"
                   rows={2}
                 />

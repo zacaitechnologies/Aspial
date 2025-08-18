@@ -1,126 +1,163 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { X, Plus } from "lucide-react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import { CreateTaskData, UpdateTaskData, TaskWithAssignee, taskStatusOptions, taskPriorityOptions, taskTypeOptions } from "../types"
-import { createTask, updateTask } from "../task-actions"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { X, Plus } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import {
+  CreateTaskData,
+  UpdateTaskData,
+  TaskWithAssignee,
+  taskStatusOptions,
+  taskPriorityOptions,
+  taskTypeOptions,
+} from "../types";
+import { createTask, updateTask } from "../task-actions";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
-  status: z.enum(["todo", "in_progress", "done"]),
   priority: z.enum(["low", "medium", "high"]),
   type: z.enum(["task", "milestone"]),
   assigneeId: z.string().optional(),
   startDate: z.string().optional(),
   dueDate: z.string().optional(),
   tags: z.array(z.string()).optional().default([]),
-})
+});
 
-type TaskFormData = z.infer<typeof taskSchema>
+type TaskFormData = z.infer<typeof taskSchema>;
 
 interface TaskFormProps {
-  projectId: number
-  task?: TaskWithAssignee
+  projectId: number;
+  task?: TaskWithAssignee;
   availableUsers: Array<{
-    id: string
-    firstName: string
-    lastName: string
-    email: string
-    supabase_id: string
-  }>
-  onTaskCreated?: (task: TaskWithAssignee) => void
-  onTaskUpdated?: (task: TaskWithAssignee) => void
-  trigger?: React.ReactNode
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    supabase_id: string;
+  }>;
+  onTaskCreated?: (task: TaskWithAssignee) => void;
+  onTaskUpdated?: (task: TaskWithAssignee) => void;
+  trigger?: React.ReactNode;
 }
 
-export function TaskForm({ 
-  projectId, 
-  task, 
-  availableUsers, 
-  onTaskCreated, 
+export function TaskForm({
+  projectId,
+  task,
+  availableUsers,
+  onTaskCreated,
   onTaskUpdated,
-  trigger 
+  trigger,
 }: TaskFormProps) {
-  const [open, setOpen] = useState(false)
-  const [newTag, setNewTag] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [open, setOpen] = useState(false);
+  const [newTag, setNewTag] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
       title: task?.title || "",
       description: task?.description || "",
-      status: task?.status || "todo",
       priority: task?.priority || "low",
       type: task?.type || "task",
-      assigneeId: task?.assigneeId || "",
-      startDate: task?.startDate ? new Date(task.startDate).toISOString().split('T')[0] : "",
-      dueDate: task?.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "",
+      assigneeId: task?.assigneeId || "unassigned",
+      startDate: task?.startDate
+        ? new Date(task.startDate).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      dueDate: task?.dueDate
+        ? new Date(task.dueDate).toISOString().split("T")[0]
+        : "",
       tags: task?.tags || [],
     },
-  } as any)
+  } as any);
 
   const onSubmit = async (data: TaskFormData) => {
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
       const taskData = {
         ...data,
         projectId,
+        status: "todo",
+        startDate: data.startDate ? new Date(data.startDate) : undefined,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-        assigneeId: data.assigneeId || undefined,
-      }
+        assigneeId:
+          data.assigneeId === "unassigned" ? undefined : data.assigneeId,
+      };
 
       if (task) {
         // Update existing task
-        const updatedTask = await updateTask(task.id, taskData as UpdateTaskData)
-        onTaskUpdated?.(updatedTask)
+        const updatedTask = await updateTask(
+          task.id,
+          taskData as UpdateTaskData
+        );
+        onTaskUpdated?.(updatedTask);
       } else {
         // Create new task
-        const newTask = await createTask(taskData as CreateTaskData)
-        onTaskCreated?.(newTask)
+        const newTask = await createTask(taskData as CreateTaskData);
+        onTaskCreated?.(newTask);
       }
-      
-      setOpen(false)
-      form.reset()
+
+      setOpen(false);
+      form.reset();
     } catch (error) {
-      console.error("Error saving task:", error)
+      console.error("Error saving task:", error);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const addTag = () => {
     if (newTag.trim() && !form.getValues("tags").includes(newTag.trim())) {
-      const currentTags = form.getValues("tags")
-      form.setValue("tags", [...currentTags, newTag.trim()])
-      setNewTag("")
+      const currentTags = form.getValues("tags");
+      form.setValue("tags", [...currentTags, newTag.trim()]);
+      setNewTag("");
     }
-  }
+  };
 
   const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues("tags")
-    form.setValue("tags", currentTags.filter(tag => tag !== tagToRemove))
-  }
+    const currentTags = form.getValues("tags");
+    form.setValue(
+      "tags",
+      currentTags.filter((tag) => tag !== tagToRemove)
+    );
+  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      e.preventDefault()
-      addTag()
+      e.preventDefault();
+      addTag();
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -136,7 +173,7 @@ export function TaskForm({
         <DialogHeader>
           <DialogTitle>{task ? "Edit Task" : "Create New Task"}</DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -160,7 +197,10 @@ export function TaskForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select type" />
@@ -187,10 +227,10 @@ export function TaskForm({
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Enter task description" 
-                      className="min-h-[100px]"
-                      {...field} 
+                    <Textarea
+                      placeholder="Enter task description"
+                      className="min-h-[100px] text-black"
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
@@ -198,39 +238,17 @@ export function TaskForm({
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {taskStatusOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
@@ -255,16 +273,22 @@ export function TaskForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Assignee</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || "unassigned"}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select assignee" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Unassigned</SelectItem>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
                         {availableUsers.map((user) => (
-                          <SelectItem key={user.supabase_id} value={user.supabase_id}>
+                          <SelectItem
+                            key={user.supabase_id}
+                            value={user.supabase_id}
+                          >
                             {user.firstName} {user.lastName}
                           </SelectItem>
                         ))}
@@ -276,19 +300,35 @@ export function TaskForm({
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="dueDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Due Date</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="dueDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Due Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label>Tags</Label>
@@ -305,7 +345,11 @@ export function TaskForm({
               </div>
               <div className="flex flex-wrap gap-2">
                 {form.watch("tags").map((tag) => (
-                  <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                  >
                     {tag}
                     <button
                       type="button"
@@ -320,16 +364,24 @@ export function TaskForm({
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : task ? "Update Task" : "Create Task"}
+                {isSubmitting
+                  ? "Saving..."
+                  : task
+                  ? "Update Task"
+                  : "Create Task"}
               </Button>
             </div>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
