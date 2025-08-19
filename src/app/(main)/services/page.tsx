@@ -273,13 +273,13 @@ export default function ServicesPage() {
       {/* Services Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredServices.map((service) => (
-          <Card key={service.id} className="hover:shadow-md transition-shadow">
+          <Card key={service.id} className="card">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-lg">{service.name}</CardTitle>
-                  <Badge variant="secondary" className="mt-1">
-                    ${service.basePrice.toFixed(2)}
+                  <Badge variant="secondary" className="mt-1 bg-accent">
+                    RM{service.basePrice.toFixed(2)}
                   </Badge>
                 </div>
                 <div className="flex space-x-1">

@@ -41,13 +41,13 @@ export type ProjectWithQuotation = {
 export type ProjectStatusOption = {
   value: string;
   label: string;
-  color?: "secondary" | "default" | "destructive";
+  color?: "secondary" | "default" | "destructive" | "outline";
 };
 
 export const projectStatusOptions: ProjectStatusOption[] = [
   { value: "planning", label: "Planning", color: "secondary" },
   { value: "in_progress", label: "In Progress", color: "default" },
-  { value: "completed", label: "Completed", color: "default" },
+  { value: "completed", label: "Completed", color: "outline" },
   { value: "cancelled", label: "Cancelled", color: "destructive" },
 ];
 

@@ -207,7 +207,6 @@ export default function ProjectPage() {
                     {isProjectOwner && (
                       <Button
                         onClick={handleManageCollaborators}
-                        className="bg-[var(--mediumGreen)] hover:bg-[var(--darkGreen)] text-white"
                       >
                         + Add people
                       </Button>
@@ -217,7 +216,7 @@ export default function ProjectPage() {
               </Card>
 
               {/* Project Details Card */}
-              <Card className="bg-[var(--lightGreen)]">
+              <Card className="bg-accent">
                 <CardContent>
                   <h2 className="text-xl font-semibold text-black mb-4">Project Name:</h2>
                   <h1 className="text-2xl font-bold italic text-black mb-6">"{project.name}"</h1>
@@ -255,11 +254,11 @@ export default function ProjectPage() {
                       <span className="text-sm text-black">75% to complete</span>
                     </div>
                     <div className="w-full bg-white rounded-full h-2">
-                      <div className="bg-[var(--mediumGreen)] h-2 rounded-full relative" style={{ width: '75%' }}>
-                        <div className="absolute top-0 left-1/5 w-1 h-2 bg-[var(--mediumGreen)] rounded-full"></div>
-                        <div className="absolute top-0 left-2/5 w-1 h-2 bg-[var(--mediumGreen)] rounded-full"></div>
-                        <div className="absolute top-0 left-3/5 w-1 h-2 bg-[var(--mediumGreen)] rounded-full"></div>
-                        <div className="absolute top-0 left-4/5 w-1 h-2 bg-[var(--mediumGreen)] rounded-full"></div>
+                      <div className="bg-primary h-2 rounded-full relative" style={{ width: '75%' }}>
+                        <div className="absolute top-0 left-1/5 w-2 h-2 bg-base rounded-full"></div>
+                        <div className="absolute top-0 left-2/5 w-2 h-2 bg-base rounded-full"></div>
+                        <div className="absolute top-0 left-3/5 w-2 h-2 bg-base rounded-full"></div>
+                        <div className="absolute top-0 left-4/5 w-2 h-2 bg-base rounded-full"></div>
                       </div>
                     </div>
                   </div>

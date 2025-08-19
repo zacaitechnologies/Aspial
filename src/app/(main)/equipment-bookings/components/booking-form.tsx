@@ -59,11 +59,11 @@ export function BookingForm({ equipment, onClose }: BookingFormProps) {
   const defaultEnd = new Date(now.getTime() + 3 * 60 * 60 * 1000) // 3 hours from now
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle>Book Equipment: {equipment.name}</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full max-w-md border rounded-lg p-6">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold">Book Equipment: {equipment.name}</h3>
+      </div>
+      <div>
         <form action={handleSubmit} className="space-y-4">
           {error && (
             <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
@@ -119,8 +119,8 @@ export function BookingForm({ equipment, onClose }: BookingFormProps) {
               Cancel
             </Button>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+                 </form>
+       </div>
+     </div>
   )
 }

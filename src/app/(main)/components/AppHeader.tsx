@@ -32,7 +32,7 @@ export function AppHeader() {
         { path: "/clients", title: "Clients" },
       ];
       
-      const currentItem = navItems.find(item => pathname === item.path);
+      const currentItem = navItems.find(item => pathname.includes(item.path.replace('/', '')));
       return currentItem?.title || "Dashboard";
     };
 

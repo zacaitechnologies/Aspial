@@ -4,10 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  Building2,
   Settings,
-  FileText,
-  TrendingUp,
   Bell,
   HelpCircle,
   Calendar,
@@ -30,7 +27,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 const mainNavItems = [
@@ -71,19 +67,6 @@ const mainNavItems = [
   },
 ];
 
-const businessItems = [
-  {
-    title: "Growth",
-    url: "#",
-    icon: TrendingUp,
-  },
-  {
-    title: "Company",
-    url: "#",
-    icon: Building2,
-  },
-];
-
 export function AppSidebar() {
   const pathname = usePathname();
 
@@ -118,7 +101,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => {
-                const isActive = pathname === item.url;
+                const isActive = pathname.includes(item.url.replace('/', ''));
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton

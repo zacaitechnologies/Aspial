@@ -1,12 +1,22 @@
 "use client";
-import { Calendar, Eye } from "lucide-react";
+import { Calendar, Eye, Edit, Trash2 } from "lucide-react";
 
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, DollarSign, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Briefcase,
+  DollarSign,
+  Clock,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
-import { getAllProjects, updateProjectStatus } from "./action";
+import { getAllProjects, updateProjectStatus, deleteProject } from "./action";
 import { isUserProjectOwner } from "./permissions";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
@@ -33,6 +43,7 @@ export default function ProjectsPage() {
     useState<ProjectWithQuotation | null>(null);
   const [projectOwnership, setProjectOwnership] =
     useState<ProjectOwnershipState>({});
+
 
   const getLatestUpdatedTime = (projects: ProjectWithQuotation[]) => {
     if (projects.length === 0) return null;
@@ -95,10 +106,22 @@ export default function ProjectsPage() {
     }
   };
 
-  // const handleEditProject = (project: ProjectWithQuotation) => {
-  //   setEditingProject(project);
-  //   setIsEditOpen(true);
-  // };
+  const handleEditProject = (project: ProjectWithQuotation) => {
+    setEditingProject(project);
+    setIsEditOpen(true);
+  };
+
+  const handleDelete = async (projectId: string) => {
+    if (!confirm("Are you sure you want to delete this project?")) return;
+    
+    try {
+      await deleteProject(projectId);
+      await fetchProjects();
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      alert("Failed to delete project. Please try again.");
+    }
+  };
 
   const handleManageCollaborators = (project: ProjectWithQuotation) => {
     setSelectedProject(project);
@@ -109,8 +132,28 @@ export default function ProjectsPage() {
     const statusConfig = projectStatusOptions.find(
       (opt) => opt.value === status
     );
+    
+    // Custom color mapping for better visual distinction
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case "planning":
+          return "bg-blue-100 text-blue-800 border-blue-200";
+        case "in_progress":
+          return "bg-yellow-100 text-yellow-800 border-yellow-200";
+        case "completed":
+          return "bg-green-100 text-green-800 border-green-200";
+        case "cancelled":
+          return "bg-red-100 text-red-800 border-red-200";
+        default:
+          return "bg-gray-100 text-gray-800 border-gray-200";
+      }
+    };
+
     return (
-      <Badge variant={statusConfig?.color || "secondary"}>
+      <Badge 
+        variant="outline" 
+        className={`${getStatusColor(status)} border`}
+      >
         {statusConfig?.label || status}
       </Badge>
     );
@@ -146,31 +189,38 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="container mx-auto px-6">
+    <div className="container mx-auto p-4">
       <div>
-        <p className="text-[var(--lightGreen)] mt-6 text-xl font-semibold">
-          Hi, {enhancedUser?.profile?.firstName}. Welcome Back!{" "}
+        <p className="text-4xl font-extrabold text-primary">
+          "Project
         </p>
-        <p className="text-sm font-light mb-6 text-[var(--lightGreen)]">
+        <p className="text-3xl font-bold text-primary">
+          Management"
+        </p>
+        <p className="text-sm font-light text-primary my-2">
           Last Updated:{" "}
           {getLatestUpdatedTime(projects)
             ? getLatestUpdatedTime(projects)!.toLocaleString()
             : "No projects"}
         </p>
+
+        <p className="text-primary my-6 text-xl font-semibold">
+          Hi, {enhancedUser?.profile?.firstName}. Welcome Back!{" "}
+        </p>
       </div>
 
-      <p className="text-lg w-200 mb-2 font-bold text-[var(--lightGreen)]">
+      <p className="text-lg w-200 mb-2 font-bold text-primary">
         Project Status:
       </p>
 
-      <div className="w-full bg-[var(--lightGreen)] p-4 rounded-md grid lg:grid-cols-4 grid-cols-2 gap-4">
+      <div className="w-full p-0 rounded-md grid lg:grid-cols-4 grid-cols-2 gap-4">
         {(() => {
           const stats = getProjectStats(projects);
           const boxes = [];
 
           if (stats.total >= 0) {
             boxes.push(
-              <Card key="total" className="p-6 bg-blue-50 border-blue-200">
+              <Card key="total" className="card p-6 bg-blue-50 border-blue-200">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -192,7 +242,7 @@ export default function ProjectsPage() {
 
           if (stats.newProjects >= 0) {
             boxes.push(
-              <Card key="new" className="p-6 bg-yellow-50 border-yellow-200">
+              <Card key="new" className="card p-6 bg-yellow-50 border-yellow-200">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -214,7 +264,7 @@ export default function ProjectsPage() {
 
           if (stats.ongoing >= 0) {
             boxes.push(
-              <Card key="ongoing" className="p-6 bg-green-50 border-green-200">
+              <Card key="ongoing" className="card p-6 bg-green-50 border-green-200">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -240,7 +290,7 @@ export default function ProjectsPage() {
             boxes.push(
               <Card
                 key="completed"
-                className="p-6 bg-purple-50 border-purple-200"
+                className="card p-6 bg-purple-50 border-purple-200"
               >
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
@@ -267,90 +317,111 @@ export default function ProjectsPage() {
         })()}
       </div>
 
-      <div className="mt-6 mx-10 flex flex-row justify-between items-center">
-        <p className="text-[var(--lightGreen)] text-lg font-bold">
+      <div className="mt-6 flex flex-row justify-between items-center">
+        <p className="text-primary text-lg font-bold">
           Management:
         </p>
+        <div className="flex items-center gap-4">
         <ProjectSearchBar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
         />
-      </div>
-
-      <div className="grid grid-row mx-4">
-        <div className="grid gap-x-2 items-start justify-center grid-cols-9 px-12">
-          <Checkbox className="border-[var(--lightGreen)] border-2" />
-          <p className="text-[var(--lightGreen)] font-medium">Project Name</p>
-          <p className="text-[var(--lightGreen)] font-medium">Client</p>
-          <p className="text-[var(--lightGreen)] font-medium">Start Date</p>
-          <p className="text-[var(--lightGreen)] font-medium">End Date</p>
-          <p className="text-[var(--lightGreen)] font-medium">People</p>
-          <p className="text-[var(--lightGreen)] font-medium">Priority</p>
-          <p className="text-[var(--lightGreen)] font-medium">Tasks</p>
-          <p className="text-[var(--lightGreen)] font-medium">View</p>
-        </div>
-        <hr className="mt-2 border-1 border-[var(--lightGreen)]" />
-        <div className="space-y-2 px-12">
-          {filteredProjects.map((project) => (
-            <div
-              key={project.id}
-              className="grid gap-x-2 items-center grid-cols-9 py-3 hover:bg-gray-50 rounded-md"
-            >
-              <Checkbox className="border-[var(--lightGreen)] border-2" />
-              <div className="text-sm font-medium text-[var(--lightGreen)]">
-                {project.name}
-              </div>
-              <div className="text-sm font-medium text-[var(--lightGreen)]">
-                {project.clientName || "N/A"}
-              </div>
-              <div className="text-sm  font-medium text-[var(--lightGreen)]">
-                {project.startDate
-                  ? new Date(project.startDate).toLocaleDateString()
-                  : "Not set"}
-              </div>
-              <div className="text-sm font-medium text-[var(--lightGreen)]">
-                {project.endDate
-                  ? new Date(project.endDate).toLocaleDateString()
-                  : "Not set"}
-              </div>
-              <div className="text-sm font-medium text-[var(--lightGreen)]">
-                {project.createdByUser.firstName}{" "}
-                {project.createdByUser.lastName}
-              </div>
-              <div className="text-sm font-medium text-[var(--lightGreen)]">
-                {project.priority}
-              </div>
-              <div className="text-sm font-medium text-[var(--lightGreen)]">
-                {project.taskCount || 0}
-              </div>
-              <Link
-                className="ml-6 text-[var(--lightGreen)] hover:text-black flex items-center gap-2"
-                href={`/projects/${project.id}`}
-              >
-                <Eye />
-              </Link>
-            </div>
-          ))}
-
-          {filteredProjects.length === 0 && projects.length > 0 && (
-            <div className="text-center py-8">
-              <Briefcase className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500">
-                No projects match your search criteria.
-              </p>
-            </div>
-          )}
-
-          {projects.length === 0 && (
-            <div className="text-center py-8">
-              <Briefcase className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500">No projects available.</p>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Projects Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredProjects.map((project) => (
+          <Card key={project.id} className="card">
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-lg">{project.name}</CardTitle>
+                  <div className="flex items-center gap-2 mt-1">
+                    {getStatusBadge(project.status)}
+                    <Badge variant="outline" className="text-xs">
+                      {project.priority}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Link href={`/projects/${project.id}`}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-2 bg-transparent hover:bg-primary hover:text-primary-foreground border-primary text-primary"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-2 bg-transparent"
+                    style={{ borderColor: "#BDC4A5", color: "#202F21" }}
+                    onClick={() => handleEditProject(project)}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
+                    onClick={() => handleDelete(project.id.toString())}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    {project.startDate
+                      ? new Date(project.startDate).toLocaleDateString()
+                      : "Not set"} - {project.endDate
+                      ? new Date(project.endDate).toLocaleDateString()
+                      : "Not set"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Briefcase className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    Created by: {project.createdByUser.firstName}{" "}
+                    {project.createdByUser.lastName}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {filteredProjects.length === 0 && projects.length > 0 && (
+        <div className="text-center py-12">
+          <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">
+            No projects match your search criteria.
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Try adjusting your search or filter settings.
+          </p>
+        </div>
+      )}
+
+      {projects.length === 0 && (
+        <div className="text-center py-12">
+          <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">No projects available.</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Create projects from accepted or paid quotations.
+          </p>
+        </div>
+      )}
 
       <EditProjectDialog
         isOpen={isEditOpen}
@@ -367,170 +438,4 @@ export default function ProjectsPage() {
       />
     </div>
   );
-
-  // return (
-  //   <div className="container mx-auto px-6">
-  //     <p className="text-gray-800">
-  //       Manage and track all your projects in one place
-  //     </p>
-  //     <div className="flex items-center">
-  //       <div className="flex items-center space-x-4">
-  //         <div className="relative">
-  //           <ProjectSearchBar
-  //             searchQuery={searchQuery}
-  //             onSearchChange={setSearchQuery}
-  //             statusFilter={statusFilter}
-  //             onStatusFilterChange={setStatusFilter}
-  //           />
-  //         </div>
-  //       </div>
-  //     </div>
-
-  //     <div className="grid bg-gray-100 rounded-md h-full p-4 grid-cols-1 lg:grid-cols-2 gap-6">
-  //       {filteredProjects.map((project) => (
-  //         <Card
-  //           key={project.id}
-  //           className="hover:shadow-lg hover:border-green-300 border-2 lg:w-120 transition-shadow"
-  //         >
-  //           <CardHeader>
-  //             <div className="flex justify-between items-start">
-  //               <div>
-  //                 <CardTitle className="text-lg">{project.name}</CardTitle>
-  //                 <div className="flex items-center gap-2 mt-1">
-  //                   {getStatusBadge(project.status)}
-  //                 </div>
-  //               </div>
-  //               <div className="flex items-center gap-2">
-  //                 {projectOwnership[project.id] && (
-  //                   <Button
-  //                     variant="outline"
-  //                     size="sm"
-  //                     onClick={() => handleManageCollaborators(project)}
-  //                     title="Invite Collaborators"
-  //                     className="text-blue-600 border-blue-600 hover:bg-blue-50"
-  //                   >
-  //                     <Users className="w-4 h-4 mr-1" />
-  //                     Invite
-  //                   </Button>
-  //                 )}
-  //                 <Select
-  //                   value={project.status}
-  //                   onValueChange={(value) =>
-  //                     handleStatusUpdate(project.id.toString(), value)
-  //                   }
-  //                 >
-  //                   <SelectTrigger>
-  //                     <SelectValue />
-  //                   </SelectTrigger>
-  //                   <SelectContent>
-  //                     {projectStatusOptions.map((option) => (
-  //                       <SelectItem key={option.value} value={option.value}>
-  //                         {option.label}
-  //                       </SelectItem>
-  //                     ))}
-  //                   </SelectContent>
-  //                 </Select>
-  //               </div>
-  //             </div>
-  //           </CardHeader>
-  //           <hr className="border-gray-400" />
-  //           <CardContent className="space-y-4">
-  //             <div className="space-y-2">
-  //               {project.description && (
-  //                 <div>
-  //                   <p className="text-sm font-medium">Description:</p>
-  //                   <CardDescription>{project.description}</CardDescription>
-  //                 </div>
-  //               )}
-
-  //               <div className="grid grid-cols-2 gap-4">
-  //                 <div className="flex items-center gap-2">
-  //                   <DollarSign className="w-4 h-4 text-muted-foreground" />
-  //                   <span className="text-sm">
-  //                     RM{project.quotation.totalPrice.toFixed(2)}
-  //                   </span>
-  //                 </div>
-  //               </div>
-
-  //               <div className="grid grid-cols-2 gap-4">
-  //                 <div className="flex items-center gap-2">
-  //                   <Clock className="w-4 h-4 text-muted-foreground" />
-  //                   <span className="text-sm">
-  //                     Start:{" "}
-  //                     {project.startDate
-  //                       ? new Date(project.startDate).toLocaleDateString()
-  //                       : "Not set"}
-  //                   </span>
-  //                 </div>
-  //                 <div className="flex items-center gap-2">
-  //                   <Clock className="w-4 h-4 text-muted-foreground" />
-  //                   <span className="text-sm">
-  //                     End:{" "}
-  //                     {project.endDate
-  //                       ? new Date(project.endDate).toLocaleDateString()
-  //                       : "Not set"}
-  //                   </span>
-  //                 </div>
-  //               </div>
-
-  //               <div className="space-y-2">
-  //                 <p className="text-sm font-medium">Services included:</p>
-  //                 <div className="flex flex-wrap gap-1">
-  //                   {project.quotation.services.map((qs) => (
-  //                     <Badge key={qs.id} variant="outline" className="text-xs">
-  //                       {qs.service.name}
-  //                     </Badge>
-  //                   ))}
-  //                 </div>
-  //               </div>
-  //               <div className="flex items-center gap-2">
-  //                 <User className="w-4 h-4 text-muted-foreground" />
-  //                 <span className="text-sm">
-  //                   Created by: {project.createdByUser.firstName}{" "}
-  //                   {project.createdByUser.lastName}
-  //                 </span>
-  //               </div>
-  //             </div>
-  //           </CardContent>
-  //         </Card>
-  //       ))}
-  //     </div>
-
-  //     {filteredProjects.length === 0 && projects.length > 0 && (
-  //       <div className="text-center py-12">
-  //         <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-  //         <p className="text-muted-foreground">
-  //           No projects match your search criteria.
-  //         </p>
-  //         <p className="text-sm text-muted-foreground mt-2">
-  //           Try adjusting your search or filter settings.
-  //         </p>
-  //       </div>
-  //     )}
-
-  //     {projects.length === 0 && (
-  //       <div className="text-center py-12">
-  //         <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-  //         <p className="text-muted-foreground">No projects available.</p>
-  //         <p className="text-sm text-muted-foreground mt-2">
-  //           Create projects from accepted or paid quotations.
-  //         </p>
-  //       </div>
-  //     )}
-
-  //     <EditProjectDialog
-  //       isOpen={isEditOpen}
-  //       onOpenChange={setIsEditOpen}
-  //       onSuccess={fetchProjects}
-  //       project={editingProject}
-  //     />
-
-  //     <ProjectCollaboratorsDialog
-  //       isOpen={isCollaboratorsOpen}
-  //       onOpenChange={setIsCollaboratorsOpen}
-  //       projectId={selectedProject?.id || 0}
-  //       projectName={selectedProject?.name || ""}
-  //     />
-  //   </div>
-  // );
 }
