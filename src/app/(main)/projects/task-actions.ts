@@ -1,9 +1,7 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { CreateTaskData, UpdateTaskData, TaskWithAssignee } from "./types"
-
-const prisma = new PrismaClient()
 
 // Get all tasks for a project
 export async function getProjectTasks(projectId: number): Promise<TaskWithAssignee[]> {
@@ -192,4 +190,89 @@ export async function getProjectCollaborators(projectId: number) {
   })
 
   return permissions.map(permission => permission.user)
+}
+
+// Get all tasks for a user (across all projects they have access to)
+export async function getAllUserTasks(userId: string): Promise<TaskWithAssignee[]> {
+  try {
+    console.log('getAllUserTasks called with userId:', userId)
+    
+    // First get all projects the user has access to
+    const userWithRoles = await prisma.user.findUnique({
+      where: { supabase_id: userId },
+      include: { userRoles: { include: { role: true } } },
+    })
+
+    console.log('User with roles:', userWithRoles)
+
+    const isAdmin = userWithRoles?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
+    console.log('Is admin:', isAdmin)
+
+    let projectIds: number[]
+
+    if (isAdmin) {
+      // Admin can see all projects
+      const allProjects = await prisma.project.findMany({
+        select: { id: true },
+      })
+      projectIds = allProjects.map(p => p.id)
+      console.log('Admin - all project IDs:', projectIds)
+    } else {
+      // Get projects user has permissions for
+      const userPermissions = await prisma.projectPermission.findMany({
+        where: { 
+          userId, 
+          OR: [
+            { isOwner: true },
+            { canView: true }
+          ]
+        },
+        select: { projectId: true },
+      })
+      projectIds = userPermissions.map(p => p.projectId)
+      console.log('Non-admin - accessible project IDs:', projectIds)
+    }
+
+    if (projectIds.length === 0) {
+      console.log('No projects found for user')
+      return []
+    }
+
+    // Get all tasks from these projects
+    const tasks = await prisma.task.findMany({
+      where: { 
+        projectId: { in: projectIds },
+        dueDate: { not: null } // Only tasks with due dates
+      },
+      include: {
+        assignee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            supabase_id: true,
+          },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [
+        { dueDate: 'asc' },
+        { createdAt: 'asc' }
+      ],
+    }) as TaskWithAssignee[]
+
+    console.log('Found tasks with due dates:', tasks.length)
+    console.log('Tasks:', tasks)
+
+    return tasks
+  } catch (error) {
+    console.error('Error in getAllUserTasks:', error)
+    throw error
+  }
 }

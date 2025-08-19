@@ -189,6 +189,10 @@ export type TaskWithAssignee = Task & {
     email: string;
     supabase_id: string;
   } | null;
+  project?: {
+    id: number;
+    name: string;
+  };
 };
 
 export type TaskStatus = "todo" | "in_progress" | "done";
