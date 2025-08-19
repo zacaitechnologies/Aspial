@@ -273,7 +273,7 @@ export default function ClientsPage() {
           {filteredClients.map((client) => (
             <Card
               key={client.id}
-              className="bg-white border-2 hover:shadow-lg transition-shadow"
+              className="card bg-white border-2"
               style={{ borderColor: "#BDC4A5" }}
             >
               <CardHeader className="pb-4">

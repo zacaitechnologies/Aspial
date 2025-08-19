@@ -1,10 +1,8 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { getVisibleProjectsForUser, isUserAdmin } from "./permissions"
 import { CreateProjectData, UpdateProjectData } from "./types"
-
-const prisma = new PrismaClient()
 
 export async function getAllProjects(userId?: string) {
   if (!userId) {
@@ -62,5 +60,11 @@ export async function updateProject(
   return await prisma.project.update({
     where: { id: Number.parseInt(id) },
     data,
+  })
+}
+
+export async function deleteProject(id: string) {
+  return await prisma.project.delete({
+    where: { id: Number.parseInt(id) },
   })
 } 

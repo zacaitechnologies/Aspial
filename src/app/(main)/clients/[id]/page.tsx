@@ -270,7 +270,7 @@ export default function ClientDetailPage() {
                 </div>
               ) : (
                 client.quotations.map((quotation) => (
-                  <Card key={quotation.id} className="bg-white border-2 hover:shadow-md transition-shadow gap-0" style={{ borderColor: "#BDC4A5" }}>
+                  <Card key={quotation.id} className="card bg-white border-2 gap-0" style={{ borderColor: "#BDC4A5" }}>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-lg" style={{ color: "#202F21" }}>
                         {quotation.name}
@@ -315,7 +315,7 @@ export default function ClientDetailPage() {
                 </div>
               ) : (
                 client.projects.map((project) => (
-                  <Card key={project.id} className="bg-white border-2 hover:shadow-md transition-shadow" style={{ borderColor: "#BDC4A5" }}>
+                  <Card key={project.id} className="card bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-lg" style={{ color: "#202F21" }}>
                         {project.name}

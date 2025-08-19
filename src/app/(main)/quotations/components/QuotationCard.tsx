@@ -52,7 +52,7 @@ export default function QuotationCard({
   };
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="card">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>

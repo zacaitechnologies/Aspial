@@ -1,11 +1,16 @@
 import { Suspense } from "react"
 import { BookingDashboard } from "./equipment-dashboard"
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 async function getStudios() {
   return await prisma.studio.findMany({
+    include: {
+      bookings: {
+        where: {
+          status: "active"
+        }
+      }
+    },
     orderBy: {
       createdAt: "desc",
     },
@@ -14,6 +19,13 @@ async function getStudios() {
 
 async function getEquipment() {
   return await prisma.equipment.findMany({
+    include: {
+      bookings: {
+        where: {
+          status: "active"
+        }
+      }
+    },
     orderBy: {
       createdAt: "desc",
     },
