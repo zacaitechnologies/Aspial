@@ -4,10 +4,12 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
+import { Calendar, Clock, MapPin, Users, Filter, CheckSquare } from "lucide-react"
 import { CalendarDay } from "./components/CalendarDay"
 import { BookingDetailsDialog } from "./components/BookingDetailsDialog"
 import { DatePicker } from "./components/DatePicker"
+import { getAllUserTasks } from "../projects/task-actions"
+import { useSession } from "../contexts/SessionProvider"
 
 interface EquipmentBooking {
   id: number
@@ -45,20 +47,21 @@ export interface CalendarBooking {
   date: string
   startTime: string
   endTime: string
-  type: "equipment" | "studio"
+  type: "equipment" | "studio" | "task"
   location: string
   attendees: number
   color: string
-  originalData: EquipmentBooking | StudioBooking
+  originalData: EquipmentBooking | StudioBooking | any
 }
 
 const bookingTypes = {
   equipment: { color: "bg-[var(--color-primary)]", label: "Equipment" },
   studio: { color: "bg-[var(--color-accent)]", label: "Studio" },
+  task: { color: "bg-green-500", label: "Task" },
 }
 
 // Function to fetch all bookings from the database
-async function fetchAllBookings(): Promise<CalendarBooking[]> {
+async function fetchAllBookings(userId?: string): Promise<CalendarBooking[]> {
   try {
     const [equipmentResponse, studioResponse] = await Promise.all([
       fetch('/api/bookings/equipment'),
@@ -124,6 +127,39 @@ async function fetchAllBookings(): Promise<CalendarBooking[]> {
       }
     })
 
+    // Fetch and transform tasks if user is provided
+    if (userId) {
+      try {
+        console.log('Fetching tasks for user:', userId)
+        const tasks = await getAllUserTasks(userId)
+        console.log('Fetched tasks:', tasks)
+        
+        tasks.forEach((task) => {
+          if (task.dueDate) {
+            const dueDate = new Date(task.dueDate)
+            console.log('Processing task:', task.title, 'due date:', dueDate)
+            
+            calendarBookings.push({
+              id: `task-${task.id}`,
+              title: `${task.title} - ${task.project?.name || 'Unknown Project'}`,
+              description: task.description || `Task due on ${dueDate.toLocaleDateString()}`,
+              date: dueDate.toISOString().split('T')[0],
+              startTime: "00:00",
+              endTime: "23:59",
+              type: "task",
+              location: task.project?.name || 'Unknown Project',
+              attendees: 1,
+              color: bookingTypes.task.color,
+              originalData: task
+            })
+          }
+        })
+        console.log('Total calendar bookings after tasks:', calendarBookings.length)
+      } catch (error) {
+        console.error('Error fetching tasks:', error)
+      }
+    }
+
     return calendarBookings
   } catch (error) {
     console.error('Error fetching bookings:', error)
@@ -132,6 +168,7 @@ async function fetchAllBookings(): Promise<CalendarBooking[]> {
 }
 
 export default function OrganizationCalendar() {
+  const { enhancedUser } = useSession()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [bookings, setBookings] = useState<CalendarBooking[]>([])
   const [filterType, setFilterType] = useState<string>("all")
@@ -145,7 +182,7 @@ export default function OrganizationCalendar() {
     const loadBookings = async () => {
       setIsLoading(true)
       try {
-        const fetchedBookings = await fetchAllBookings()
+        const fetchedBookings = await fetchAllBookings(enhancedUser?.id)
         setBookings(fetchedBookings)
       } catch (error) {
         console.error('Error loading bookings:', error)
@@ -154,8 +191,10 @@ export default function OrganizationCalendar() {
       }
     }
     
-    loadBookings()
-  }, [])
+    if (enhancedUser?.id) {
+      loadBookings()
+    }
+  }, [enhancedUser?.id])
 
   const monthNames = [
     "January",
@@ -270,6 +309,7 @@ export default function OrganizationCalendar() {
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="equipment">Equipment</SelectItem>
                   <SelectItem value="studio">Studio</SelectItem>
+                  <SelectItem value="task">Tasks</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -277,7 +317,7 @@ export default function OrganizationCalendar() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {Object.entries(bookingTypes).map(([type, config]) => {
               const count = bookings.filter((b) => b.type === type).length
               return (
@@ -359,17 +399,21 @@ export default function OrganizationCalendar() {
                             <Calendar className="w-3 h-3" />
                             {new Date(booking.date).toLocaleDateString()}
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {booking.startTime} - {booking.endTime}
-                          </div>
+                          {booking.type !== "task" && (
+                            <>
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {booking.startTime} - {booking.endTime}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {booking.attendees} attendees
+                              </div>
+                            </>
+                          )}
                           <div className="flex items-center gap-1">
                             <MapPin className="w-3 h-3" />
                             {booking.location}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Users className="w-3 h-3" />
-                            {booking.attendees} attendees
                           </div>
                         </div>
                       </div>
