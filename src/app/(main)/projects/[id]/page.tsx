@@ -301,7 +301,7 @@ export default function ProjectPage() {
               </Card>
 
               {/* Project Details Card */}
-              <Card className="bg-accent/5 border-accent/20">
+              <Card className="bg-accent border-accent/20">
                 <CardHeader>
                   <CardTitle className="text-foreground">
                     Project Name:
