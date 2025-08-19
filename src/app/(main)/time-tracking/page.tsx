@@ -1,3 +1,7 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = "nodejs";
+
 import { getUserWithRole, fetchAllUserTimeEntries, fetchAllUsers, fetchAllProjects, fetchUserTimeEntries, fetchUserProjects } from "./action"
 import AdminTimeTracking from "./components/AdminTimeTracking"
 import UserTimeTracking from "./components/UserTimeTracking"
