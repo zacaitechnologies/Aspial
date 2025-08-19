@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProjectWithQuotation } from "../types";
-import { getAllProjects } from "../action";
-import { isUserProjectOwner } from "../permissions";
+import { getProjectById } from "../action";
+
 import { useSession } from "../../contexts/SessionProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,41 +53,13 @@ export default function ProjectPage() {
       try {
         if (!enhancedUser?.id || !params.id) return;
 
-        const projects = await getAllProjects(enhancedUser.id);
-        const foundProject = projects.find(
-          (p) => p.id.toString() === params.id
-        );
+        const projectData = await getProjectById(enhancedUser.id, params.id as string);
 
-        if (foundProject) {
-          setProject(foundProject as ProjectWithQuotation);
-
-          // Check if user is project owner
-          const isOwner = await isUserProjectOwner(
-            enhancedUser.id,
-            foundProject.id
-          );
-          setIsProjectOwner(isOwner);
-
-          // Fetch project collaborators
-          try {
-            const { getProjectPermissions } = await import("../permissions");
-            const collaboratorsData = await getProjectPermissions(
-              foundProject.id
-            );
-            setCollaborators(collaboratorsData);
-          } catch (error) {
-            console.error("Failed to fetch collaborators:", error);
-            setCollaborators([]);
-          }
-
-          // Fetch task statistics
-          try {
-            const stats = await getProjectTaskStats(foundProject.id);
-            setTaskStats(stats);
-          } catch (error) {
-            console.error("Failed to fetch task stats:", error);
-            setTaskStats(null);
-          }
+        if (projectData) {
+          setProject(projectData.project as any);
+          setCollaborators(projectData.collaborators);
+          setTaskStats(projectData.taskStats);
+          setIsProjectOwner(projectData.userPermission.isOwner);
         }
       } catch (error) {
         console.error("Failed to fetch project:", error);

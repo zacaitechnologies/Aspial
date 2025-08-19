@@ -190,4 +190,150 @@ export async function deleteProject(id: string) {
   return await prisma.project.delete({
     where: { id: Number.parseInt(id) },
   })
+}
+
+export async function getProjectById(userId: string, projectId: string) {
+  if (!userId || !projectId) {
+    return null;
+  }
+
+  const isAdmin = await isUserAdmin(userId);
+  
+  // Check if user has access to this project
+  const userPermission = await prisma.projectPermission.findUnique({
+    where: {
+      userId_projectId: {
+        userId,
+        projectId: parseInt(projectId),
+      },
+    },
+    select: {
+      isOwner: true,
+      canEdit: true,
+      canView: true,
+    },
+  });
+
+  // If not admin and no permission, return null
+  if (!isAdmin && !userPermission) {
+    return null;
+  }
+
+  // Fetch project with all necessary data in a single query
+  const project = await prisma.project.findUnique({
+    where: { id: parseInt(projectId) },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      status: true,
+      priority: true,
+      startDate: true,
+      endDate: true,
+      created_at: true,
+      updated_at: true,
+      clientName: true,
+      clientId: true,
+      createdByUser: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      Client: {
+        select: {
+          name: true,
+        },
+      },
+      quotation: {
+        select: {
+          id: true,
+          totalPrice: true,
+          status: true,
+          services: {
+            select: {
+              service: {
+                select: {
+                  name: true,
+                  description: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          tasks: true,
+        },
+      },
+    },
+  });
+
+  if (!project) {
+    return null;
+  }
+
+  // Get collaborators in the same query
+  const collaborators = await prisma.projectPermission.findMany({
+    where: { projectId: parseInt(projectId) },
+    select: {
+      isOwner: true,
+      canEdit: true,
+      canView: true,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  // Get task statistics
+  const taskStats = await prisma.task.groupBy({
+    by: ['status'],
+    where: { projectId: parseInt(projectId) },
+    _count: {
+      status: true,
+    },
+  });
+
+  // Transform task stats
+  const stats = {
+    total: 0,
+    todo: 0,
+    inProgress: 0,
+    done: 0,
+  };
+
+  taskStats.forEach((stat) => {
+    const count = stat._count.status;
+    stats.total += count;
+    
+    switch (stat.status) {
+      case 'todo':
+        stats.todo = count;
+        break;
+      case 'in_progress':
+        stats.inProgress = count;
+        break;
+      case 'done':
+        stats.done = count;
+        break;
+    }
+  });
+
+  return {
+    project: {
+      ...project,
+      taskCount: project._count.tasks,
+    },
+    collaborators,
+    taskStats: stats,
+    userPermission: userPermission || { isOwner: false, canEdit: false, canView: false },
+  };
 } 
