@@ -259,6 +259,7 @@ export default function ClientSelection({
                 <Label htmlFor="new-client-notes">Notes</Label>
                 <Textarea
                   id="new-client-notes"
+                  className="text-black"
                   value={newClientData?.notes || ""}
                   onChange={(e) =>
                     handleNewClientDataChange("notes", e.target.value)

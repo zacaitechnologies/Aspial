@@ -28,6 +28,7 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
           },
         },
         createdByUser: true,
+        Client: true,
         _count: {
           select: {
             tasks: true,
@@ -52,23 +53,24 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
       ]
     },
     include: {
-      project: {
-        include: {
-          quotation: {
-            include: {
-              services: {
-                include: { service: true },
+              project: {
+          include: {
+            quotation: {
+              include: {
+                services: {
+                  include: { service: true },
+                },
+              },
+            },
+            createdByUser: true,
+            Client: true,
+            _count: {
+              select: {
+                tasks: true,
               },
             },
           },
-          createdByUser: true,
-          _count: {
-            select: {
-              tasks: true,
-            },
-          },
         },
-      },
     },
     orderBy: {
       project: { created_at: "desc" },

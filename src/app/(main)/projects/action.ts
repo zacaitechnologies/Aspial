@@ -22,7 +22,16 @@ export async function getAllProjects(userId?: string) {
 
 export async function createProject(data: CreateProjectData) {
   const project = await prisma.project.create({
-    data,
+    data: {
+      name: data.name,
+      description: data.description,
+      quotationId: data.quotationId,
+      createdBy: data.createdBy,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      clientName: data.clientName,
+      clientId: data.clientId,
+    },
   })
 
   // Create owner permission for the project creator

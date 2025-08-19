@@ -10,6 +10,8 @@ export type ProjectWithQuotation = {
   updated_at: Date;
   priority: string;
   taskCount?: number;
+  clientName?: string;
+  clientId?: string;
   createdByUser: {
     id: string;
     firstName: string;
@@ -73,6 +75,8 @@ export type CreateProjectData = {
   createdBy: string;
   startDate?: Date;
   endDate?: Date;
+  clientName?: string;
+  clientId?: string;
 };
 
 export type UpdateProjectData = {

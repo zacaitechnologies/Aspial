@@ -94,6 +94,8 @@ export default function QuotationsPage() {
         createdBy: quotation.createdBy.supabase_id, // Pass the createdBy from quotation
         startDate: startDate,
         endDate: endDate,
+        clientName: quotation.Client?.company || quotation.Client?.name, // Use company name if available, otherwise use client name
+        clientId: quotation.clientId,
       });
 
       alert("Project created successfully!");
