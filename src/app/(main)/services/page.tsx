@@ -279,7 +279,7 @@ export default function ServicesPage() {
                 <div>
                   <CardTitle className="text-lg">{service.name}</CardTitle>
                   <Badge variant="secondary" className="mt-1 bg-accent">
-                    ${service.basePrice.toFixed(2)}
+                    RM{service.basePrice.toFixed(2)}
                   </Badge>
                 </div>
                 <div className="flex space-x-1">
