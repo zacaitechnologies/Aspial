@@ -153,7 +153,7 @@ export default function ProjectPage() {
                   <h2 className="text-xl font-semibold text-black mb-4">Responsible Team:</h2>
                   <div className="flex items-center gap-4 mb-6">
                     <div className="w-16 h-16 rounded-full flex items-center justify-center">
-                      <User className="w-8 h-8 text-white bg-black rounded-full" />
+                      <User className="w-8 h-8 p-2 text-white bg-black rounded-full" />
                     </div>
                     <div>
                       <p className="text-lg font-bold">{project.createdByUser.firstName}</p>
@@ -171,7 +171,7 @@ export default function ProjectPage() {
                             className="w-8 h-8 bg-[var(--lightGreen)] rounded-full flex items-center justify-center relative group cursor-pointer"
                             title={`${collaborator.user.firstName} ${collaborator.user.lastName} - ${collaborator.user.email}`}
                           >
-                            <User className="w-4 h-4 text-white" />
+                            <User className="w-4 h-4  text-white" />
                             {/* Hover tooltip */}
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
                               {collaborator.user.firstName} {collaborator.user.lastName}
@@ -225,7 +225,7 @@ export default function ProjectPage() {
                   <div className="space-y-3 mb-6">
                     <div className="flex items-center gap-2">
                       <span className="text-black">•</span>
-                      <span className="text-black">Client Name: {project.createdByUser.firstName}</span>
+                      <span className="text-black">Client Name: {project.clientName || project.createdByUser.firstName}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-black">•</span>

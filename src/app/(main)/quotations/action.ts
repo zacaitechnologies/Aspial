@@ -237,12 +237,23 @@ export async function editQuotationById(
         endDate.setMonth(endDate.getMonth() + data.duration);
       }
       
+      // Get client information for the project update
+      let clientName: string | undefined = undefined;
+      if (finalClientId) {
+        const client = await tx.client.findUnique({
+          where: { id: finalClientId },
+          select: { company: true, name: true }
+        });
+        clientName = client?.company || client?.name;
+      }
+      
       await tx.project.update({
         where: { id: project.id },
         data: {
           name: data.name,
           description: data.description,
           clientId: finalClientId,
+          clientName: clientName,
           startDate: startDate,
           endDate: endDate,
         },

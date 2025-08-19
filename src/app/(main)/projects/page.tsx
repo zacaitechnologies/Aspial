@@ -280,9 +280,10 @@ export default function ProjectsPage() {
       </div>
 
       <div className="grid grid-row mx-4">
-        <div className="grid gap-x-2 items-start justify-center grid-cols-8 px-12">
+        <div className="grid gap-x-2 items-start justify-center grid-cols-9 px-12">
           <Checkbox className="border-[var(--lightGreen)] border-2" />
           <p className="text-[var(--lightGreen)] font-medium">Project Name</p>
+          <p className="text-[var(--lightGreen)] font-medium">Client</p>
           <p className="text-[var(--lightGreen)] font-medium">Start Date</p>
           <p className="text-[var(--lightGreen)] font-medium">End Date</p>
           <p className="text-[var(--lightGreen)] font-medium">People</p>
@@ -295,11 +296,14 @@ export default function ProjectsPage() {
           {filteredProjects.map((project) => (
             <div
               key={project.id}
-              className="grid gap-x-2 items-center grid-cols-8 py-3 hover:bg-gray-50 rounded-md"
+              className="grid gap-x-2 items-center grid-cols-9 py-3 hover:bg-gray-50 rounded-md"
             >
               <Checkbox className="border-[var(--lightGreen)] border-2" />
               <div className="text-sm font-medium text-[var(--lightGreen)]">
                 {project.name}
+              </div>
+              <div className="text-sm font-medium text-[var(--lightGreen)]">
+                {project.clientName || "N/A"}
               </div>
               <div className="text-sm  font-medium text-[var(--lightGreen)]">
                 {project.startDate
