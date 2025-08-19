@@ -10,6 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
   Calendar,
   User,
@@ -22,6 +28,7 @@ import {
   Plus,
   Flag,
   MoreHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog";
@@ -38,6 +45,8 @@ export default function ProjectPage() {
   const [isProjectOwner, setIsProjectOwner] = useState(false);
   const [taskStats, setTaskStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "tasks">("overview");
+  const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">("createDate");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -92,6 +101,47 @@ export default function ProjectPage() {
 
   const handleManageCollaborators = () => {
     setIsCollaboratorsOpen(true);
+  };
+
+  // Sorting function
+  const sortTasks = (tasks: any[]) => {
+    return [...tasks].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case "dueDate":
+          const aDueDate = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+          const bDueDate = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+          comparison = aDueDate - bDueDate;
+          break;
+        case "createDate":
+          const aCreateDate = new Date(a.createdAt).getTime();
+          const bCreateDate = new Date(b.createdAt).getTime();
+          comparison = aCreateDate - bCreateDate;
+          break;
+        case "priority":
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
+          const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+          const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+          comparison = aPriority - bPriority;
+          break;
+      }
+      
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+  };
+
+  const getSortLabel = () => {
+    switch (sortBy) {
+      case "dueDate":
+        return "Due Date";
+      case "createDate":
+        return "Create Date";
+      case "priority":
+        return "Priority";
+      default:
+        return "Sort by";
+    }
   };
 
   if (loading) {
@@ -395,8 +445,44 @@ export default function ProjectPage() {
                   Manage and track all tasks for this project
                 </p>
               </div>
+              
+              {/* Sorting Controls */}
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-2">
+                      {getSortLabel()}
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSortBy("createDate")}>
+                      Create Date
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("dueDate")}>
+                      Due Date
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("priority")}>
+                      Priority
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                  className="flex items-center gap-2"
+                >
+                  {sortOrder === "asc" ? "↑" : "↓"}
+                </Button>
+              </div>
             </div>
-            <KanbanBoard projectId={params.id as string} />
+            <KanbanBoard 
+              projectId={params.id as string} 
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+            />
           </div>
         )}
       </div>

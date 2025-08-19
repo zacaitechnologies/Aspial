@@ -21,9 +21,11 @@ type User = {
 
 interface KanbanBoardProps {
   projectId: string
+  sortBy?: "dueDate" | "createDate" | "priority"
+  sortOrder?: "asc" | "desc"
 }
 
-export function KanbanBoard({ projectId }: KanbanBoardProps) {
+export function KanbanBoard({ projectId, sortBy = "createDate", sortOrder = "desc" }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TaskWithAssignee[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +50,33 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
   }, [projectId])
 
   const getTasksForColumn = (columnId: string) => {
-    return tasks.filter((task) => task.status === columnId)
+    const columnTasks = tasks.filter((task) => task.status === columnId)
+    
+    // Sort tasks based on props
+    return columnTasks.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case "dueDate":
+          const aDueDate = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+          const bDueDate = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+          comparison = aDueDate - bDueDate;
+          break;
+        case "createDate":
+          const aCreateDate = new Date(a.createdAt).getTime();
+          const bCreateDate = new Date(b.createdAt).getTime();
+          comparison = aCreateDate - bCreateDate;
+          break;
+        case "priority":
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
+          const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+          const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+          comparison = aPriority - bPriority;
+          break;
+      }
+      
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
   }
 
   const handleTaskCreated = (newTask: TaskWithAssignee) => {
@@ -100,10 +128,7 @@ export function KanbanBoard({ projectId }: KanbanBoardProps) {
     <div className="space-y-6">
       {/* Tasks Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Project Tasks</h2>
-          <p className="text-muted-foreground">Manage and track all tasks for this project</p>
-        </div>
+
         <TaskForm
           projectId={parseInt(projectId)}
           availableUsers={users}
