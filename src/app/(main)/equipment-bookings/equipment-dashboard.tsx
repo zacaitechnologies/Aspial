@@ -14,6 +14,7 @@ import { BookingList } from "@/app/(main)/equipment-bookings/components/booking-
 import { deleteStudio, deleteEquipment, cancelBooking, cancelStudioBooking } from "@/app/(main)/equipment-bookings/actions"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import { Edit, Trash2, Plus, Calendar, MapPin, Users, Package, Clock, User } from "lucide-react"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 interface Booking {
   id: number
@@ -76,6 +77,14 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
+  
+  // Confirmation dialog states
+  const [showDeleteStudioDialog, setShowDeleteStudioDialog] = useState(false)
+  const [showDeleteEquipmentDialog, setShowDeleteEquipmentDialog] = useState(false)
+  const [showCancelBookingDialog, setShowCancelBookingDialog] = useState(false)
+  const [showCancelStudioBookingDialog, setShowCancelStudioBookingDialog] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<{ id: number; name: string; type: 'studio' | 'equipment' } | null>(null)
+  const [bookingToCancel, setBookingToCancel] = useState<{ id: number; type: 'equipment' | 'studio' } | null>(null)
 
   // Get user name for filtering bookings
   const userName = enhancedUser.profile 
@@ -117,27 +126,55 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
   const endIndex = startIndex + itemsPerPage
   const currentBookings = allUserBookings.slice(startIndex, endIndex)
 
-  const handleDeleteStudio = async (id: number) => {
-    if (confirm("Are you sure you want to delete this studio?")) {
-      await deleteStudio(id)
+  const handleDeleteStudio = (id: number, name: string) => {
+    setItemToDelete({ id, name, type: 'studio' })
+    setShowDeleteStudioDialog(true)
+  }
+
+  const handleDeleteEquipment = (id: number, name: string) => {
+    setItemToDelete({ id, name, type: 'equipment' })
+    setShowDeleteEquipmentDialog(true)
+  }
+
+  const confirmDeleteStudio = async () => {
+    if (itemToDelete && itemToDelete.type === 'studio') {
+      await deleteStudio(itemToDelete.id)
+      setShowDeleteStudioDialog(false)
+      setItemToDelete(null)
     }
   }
 
-  const handleDeleteEquipment = async (id: number) => {
-    if (confirm("Are you sure you want to delete this equipment?")) {
-      await deleteEquipment(id)
+  const confirmDeleteEquipment = async () => {
+    if (itemToDelete && itemToDelete.type === 'equipment') {
+      await deleteEquipment(itemToDelete.id)
+      setShowDeleteEquipmentDialog(false)
+      setItemToDelete(null)
     }
   }
 
-  const handleCancelBooking = async (bookingId: number) => {
-    if (confirm("Are you sure you want to cancel this booking?")) {
-      await cancelBooking(bookingId)
+  const handleCancelBooking = (bookingId: number) => {
+    setBookingToCancel({ id: bookingId, type: 'equipment' })
+    setShowCancelBookingDialog(true)
+  }
+
+  const handleCancelStudioBooking = (bookingId: number) => {
+    setBookingToCancel({ id: bookingId, type: 'studio' })
+    setShowCancelStudioBookingDialog(true)
+  }
+
+  const confirmCancelBooking = async () => {
+    if (bookingToCancel && bookingToCancel.type === 'equipment') {
+      await cancelBooking(bookingToCancel.id)
+      setShowCancelBookingDialog(false)
+      setBookingToCancel(null)
     }
   }
 
-  const handleCancelStudioBooking = async (bookingId: number) => {
-    if (confirm("Are you sure you want to cancel this studio booking?")) {
-      await cancelStudioBooking(bookingId)
+  const confirmCancelStudioBooking = async () => {
+    if (bookingToCancel && bookingToCancel.type === 'studio') {
+      await cancelStudioBooking(bookingToCancel.id)
+      setShowCancelStudioBookingDialog(false)
+      setBookingToCancel(null)
     }
   }
 
@@ -430,7 +467,7 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
                   <Button 
                     size="sm" 
                     variant="destructive" 
-                    onClick={() => handleDeleteStudio(studio.id)}
+                    onClick={() => handleDeleteStudio(studio.id, studio.name)}
                     className="flex-1 min-w-0"
                   >
                     <Trash2 className="w-4 h-4 mr-1 flex-shrink-0" />
@@ -533,7 +570,7 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
                   <Button 
                     size="sm" 
                     variant="destructive" 
-                    onClick={() => handleDeleteEquipment(item.id)}
+                    onClick={() => handleDeleteEquipment(item.id, item.name)}
                     className="flex-1 min-w-0"
                   >
                     <Trash2 className="w-4 h-4 mr-1 flex-shrink-0" />
@@ -569,6 +606,63 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Confirmation Dialogs */}
+        <ConfirmationDialog
+          isOpen={showDeleteStudioDialog}
+          onClose={() => {
+            setShowDeleteStudioDialog(false)
+            setItemToDelete(null)
+          }}
+          onConfirm={confirmDeleteStudio}
+          title="Delete Studio"
+          description={`Are you sure you want to delete "${itemToDelete?.name}"? This action will permanently delete the studio AND ALL ASSOCIATED BOOKINGS. This cannot be undone.`}
+          confirmText="Delete Studio"
+          cancelText="Cancel"
+          variant="danger"
+        />
+
+        <ConfirmationDialog
+          isOpen={showDeleteEquipmentDialog}
+          onClose={() => {
+            setShowDeleteEquipmentDialog(false)
+            setItemToDelete(null)
+          }}
+          onConfirm={confirmDeleteEquipment}
+          title="Delete Equipment"
+          description={`Are you sure you want to delete "${itemToDelete?.name}"? This action will permanently delete the equipment AND ALL ASSOCIATED BOOKINGS. This cannot be undone.`}
+          confirmText="Delete Equipment"
+          cancelText="Cancel"
+          variant="danger"
+        />
+
+        <ConfirmationDialog
+          isOpen={showCancelBookingDialog}
+          onClose={() => {
+            setShowCancelBookingDialog(false)
+            setBookingToCancel(null)
+          }}
+          onConfirm={confirmCancelBooking}
+          title="Cancel Equipment Booking"
+          description="Are you sure you want to cancel this equipment booking? This action cannot be undone."
+          confirmText="Cancel Booking"
+          cancelText="Keep Booking"
+          variant="warning"
+        />
+
+        <ConfirmationDialog
+          isOpen={showCancelStudioBookingDialog}
+          onClose={() => {
+            setShowCancelStudioBookingDialog(false)
+            setBookingToCancel(null)
+          }}
+          onConfirm={confirmCancelStudioBooking}
+          title="Cancel Studio Booking"
+          description="Are you sure you want to cancel this studio booking? This action cannot be undone."
+          confirmText="Cancel Booking"
+          cancelText="Keep Booking"
+          variant="warning"
+        />
     </Tabs>
   )
 }
