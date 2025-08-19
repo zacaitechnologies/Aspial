@@ -1,19 +1,10 @@
 "use client";
 import { Calendar, Eye, Edit, Trash2 } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Briefcase,
-  DollarSign,
-  Clock,
-} from "lucide-react";
+import { Briefcase, DollarSign, Clock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { getAllProjects, updateProjectStatus, deleteProject } from "./action";
@@ -43,7 +34,6 @@ export default function ProjectsPage() {
     useState<ProjectWithQuotation | null>(null);
   const [projectOwnership, setProjectOwnership] =
     useState<ProjectOwnershipState>({});
-
 
   const getLatestUpdatedTime = (projects: ProjectWithQuotation[]) => {
     if (projects.length === 0) return null;
@@ -113,7 +103,7 @@ export default function ProjectsPage() {
 
   const handleDelete = async (projectId: string) => {
     if (!confirm("Are you sure you want to delete this project?")) return;
-    
+
     try {
       await deleteProject(projectId);
       await fetchProjects();
@@ -132,7 +122,7 @@ export default function ProjectsPage() {
     const statusConfig = projectStatusOptions.find(
       (opt) => opt.value === status
     );
-    
+
     // Custom color mapping for better visual distinction
     const getStatusColor = (status: string) => {
       switch (status) {
@@ -150,10 +140,7 @@ export default function ProjectsPage() {
     };
 
     return (
-      <Badge 
-        variant="outline" 
-        className={`${getStatusColor(status)} border`}
-      >
+      <Badge variant="outline" className={`${getStatusColor(status)} border`}>
         {statusConfig?.label || status}
       </Badge>
     );
@@ -190,26 +177,17 @@ export default function ProjectsPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <div>
-        <p className="text-4xl font-extrabold text-primary">
-          "Project
-        </p>
-        <p className="text-3xl font-bold text-primary">
-          Management"
-        </p>
-        <p className="text-sm font-light text-primary my-2">
-          Last Updated:{" "}
-          {getLatestUpdatedTime(projects)
-            ? getLatestUpdatedTime(projects)!.toLocaleString()
-            : "No projects"}
-        </p>
+      <p className="text-primary text-xl font-semibold">
+        Hi, {enhancedUser?.profile?.firstName}. Welcome Back!{" "}
+      </p>
+      <p className="text-sm font-light text-primary">
+        Last Updated:{" "}
+        {getLatestUpdatedTime(projects)
+          ? getLatestUpdatedTime(projects)!.toLocaleString()
+          : "No projects"}
+      </p>
 
-        <p className="text-primary my-6 text-xl font-semibold">
-          Hi, {enhancedUser?.profile?.firstName}. Welcome Back!{" "}
-        </p>
-      </div>
-
-      <p className="text-lg w-200 mb-2 font-bold text-primary">
+      <p className="text-lg w-200 mb-2 mt-4 font-bold text-primary">
         Project Status:
       </p>
 
@@ -242,7 +220,10 @@ export default function ProjectsPage() {
 
           if (stats.newProjects >= 0) {
             boxes.push(
-              <Card key="new" className="card p-6 bg-yellow-50 border-yellow-200">
+              <Card
+                key="new"
+                className="card p-6 bg-yellow-50 border-yellow-200"
+              >
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -264,7 +245,10 @@ export default function ProjectsPage() {
 
           if (stats.ongoing >= 0) {
             boxes.push(
-              <Card key="ongoing" className="card p-6 bg-green-50 border-green-200">
+              <Card
+                key="ongoing"
+                className="card p-6 bg-green-50 border-green-200"
+              >
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between">
                     <div>
@@ -318,16 +302,14 @@ export default function ProjectsPage() {
       </div>
 
       <div className="mt-6 flex flex-row justify-between items-center">
-        <p className="text-primary text-lg font-bold">
-          Management:
-        </p>
+        <p className="text-primary text-lg font-bold">Management:</p>
         <div className="flex items-center gap-4">
-        <ProjectSearchBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
-        />
+          <ProjectSearchBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+          />
         </div>
       </div>
 
@@ -383,7 +365,9 @@ export default function ProjectsPage() {
                   <span className="text-muted-foreground">
                     {project.startDate
                       ? new Date(project.startDate).toLocaleDateString()
-                      : "Not set"} - {project.endDate
+                      : "Not set"}{" "}
+                    -{" "}
+                    {project.endDate
                       ? new Date(project.endDate).toLocaleDateString()
                       : "Not set"}
                   </span>
