@@ -18,6 +18,129 @@ export async function getAllProjects(userId?: string) {
   return await getVisibleProjectsForUser(userId)
 }
 
+export async function getAllProjectsOptimized(userId?: string) {
+  if (!userId) {
+    return []
+  }
+
+  const isAdmin = await isUserAdmin(userId);
+  
+  if (isAdmin) {
+    // For admins: load only essential data for list view
+    const projects = await prisma.project.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        priority: true,
+        startDate: true,
+        endDate: true,
+        created_at: true,
+        updated_at: true,
+        createdByUser: {
+          select: {
+            firstName: true,
+            lastName: true,
+          }
+        },
+        Client: {
+          select: {
+            name: true,
+          }
+        },
+        _count: {
+          select: {
+            tasks: true,
+          },
+        },
+      },
+      orderBy: { created_at: "desc" },
+    });
+
+    // Get ownership information for all projects in a single query
+    const projectIds = projects.map(p => p.id);
+    const userPermissions = await prisma.projectPermission.findMany({
+      where: {
+        userId,
+        projectId: { in: projectIds },
+        OR: [
+          { isOwner: true },
+          { canEdit: true }
+        ]
+      },
+      select: {
+        projectId: true,
+        isOwner: true,
+        canEdit: true
+      }
+    });
+
+    // Create ownership map
+    const ownershipMap: { [key: number]: boolean } = {};
+    userPermissions.forEach(permission => {
+      ownershipMap[permission.projectId] = permission.isOwner || permission.canEdit;
+    });
+
+    return projects.map(project => ({
+      ...project,
+      taskCount: project._count.tasks,
+      isOwner: ownershipMap[project.id] || false
+    }));
+  }
+
+  // For non-admins: load projects with permissions in single query
+  const userPermissions = await prisma.projectPermission.findMany({
+    where: { 
+      userId, 
+      OR: [
+        { isOwner: true },
+        { canView: true }
+      ]
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          priority: true,
+          startDate: true,
+          endDate: true,
+          created_at: true,
+          updated_at: true,
+          createdByUser: {
+            select: {
+              firstName: true,
+              lastName: true,
+            }
+          },
+          Client: {
+            select: {
+              name: true,
+            }
+          },
+          _count: {
+            select: {
+              tasks: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      project: { created_at: "desc" },
+    },
+  });
+
+  return userPermissions.map((permission) => ({
+    ...permission.project,
+    taskCount: permission.project._count.tasks,
+    isOwner: permission.isOwner || permission.canEdit
+  }));
+}
+
 export async function createProject(data: CreateProjectData) {
   const project = await prisma.project.create({
     data: {
