@@ -272,13 +272,23 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                       <p className="text-sm mt-1">{booking.purpose}</p>
                     )}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => booking.type === 'equipment' ? handleCancelBooking(booking.id) : handleCancelStudioBooking(booking.id)}
-                  >
-                    Cancel
-                  </Button>
+                  {(() => {
+                    const now = new Date()
+                    const bookingEndDate = new Date(booking.endDate)
+                    const hasPassed = bookingEndDate < now
+                    
+                    return (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={hasPassed}
+                        onClick={() => booking.type === 'equipment' ? handleCancelBooking(booking.id) : handleCancelStudioBooking(booking.id)}
+                        title={hasPassed ? "Cannot cancel past bookings" : "Cancel booking"}
+                      >
+                        {hasPassed ? "Expired" : "Cancel"}
+                      </Button>
+                    )
+                  })()}
                 </div>
               </Card>
             ))}
