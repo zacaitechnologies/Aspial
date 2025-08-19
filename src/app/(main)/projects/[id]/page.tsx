@@ -8,7 +8,21 @@ import { useSession } from "../../contexts/SessionProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, User, DollarSign, Clock, Users, Edit3, CheckSquare, ListTodo } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  ArrowLeft,
+  Calendar,
+  User,
+  DollarSign,
+  Clock,
+  Users,
+  Edit3,
+  CheckSquare,
+  ListTodo,
+  Plus,
+  Flag,
+  MoreHorizontal,
+} from "lucide-react";
 import Link from "next/link";
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog";
 import { KanbanBoard } from "../components/ProjectKanbanBoard";
@@ -23,7 +37,7 @@ export default function ProjectPage() {
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [isProjectOwner, setIsProjectOwner] = useState(false);
   const [taskStats, setTaskStats] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'tasks'>('overview');
+  const [activeTab, setActiveTab] = useState<"overview" | "tasks">("overview");
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -37,15 +51,20 @@ export default function ProjectPage() {
 
         if (foundProject) {
           setProject(foundProject as ProjectWithQuotation);
-          
+
           // Check if user is project owner
-          const isOwner = await isUserProjectOwner(enhancedUser.id, foundProject.id);
+          const isOwner = await isUserProjectOwner(
+            enhancedUser.id,
+            foundProject.id
+          );
           setIsProjectOwner(isOwner);
-          
+
           // Fetch project collaborators
           try {
             const { getProjectPermissions } = await import("../permissions");
-            const collaboratorsData = await getProjectPermissions(foundProject.id);
+            const collaboratorsData = await getProjectPermissions(
+              foundProject.id
+            );
             setCollaborators(collaboratorsData);
           } catch (error) {
             console.error("Failed to fetch collaborators:", error);
@@ -120,146 +139,203 @@ export default function ProjectPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex space-x-1 mb-6 border-b">
-          <Button
-            variant={activeTab === 'overview' ? 'default' : 'ghost'}
-            onClick={() => setActiveTab('overview')}
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+        <div className="flex gap-4 border-b border-border mb-6">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`px-4 py-2 border-b-2 font-medium transition-colors ${
+              activeTab === "overview"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
             Overview
-          </Button>
-          <Button
-            variant={activeTab === 'tasks' ? 'default' : 'ghost'}
-            onClick={() => setActiveTab('tasks')}
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary"
+          </button>
+          <button
+            onClick={() => setActiveTab("tasks")}
+            className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+              activeTab === "tasks"
+                ? "border-b-2 border-primary text-primary"
+                : "border-b-2 border-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
-            <ListTodo className="w-4 h-4 mr-2" />
             Tasks
             {taskStats && (
-              <Badge variant="secondary" className="ml-2">
+              <Badge
+                variant="secondary"
+                className="bg-muted text-muted-foreground"
+              >
                 {taskStats.total}
               </Badge>
             )}
-          </Button>
+          </button>
         </div>
 
-        {activeTab === 'overview' && (
+        {activeTab === "overview" && (
           <>
             {/* Top Row - Team and Project Info */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Responsible Team Card */}
-              <Card className="bg-white">
-                <CardContent className="p-6">
-                  <h2 className="text-xl font-semibold text-black mb-4">Responsible Team:</h2>
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-16 h-16 rounded-full flex items-center justify-center">
-                      <User className="w-8 h-8 p-2 text-white bg-black rounded-full" />
-                    </div>
+              {/* Team Card */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-card-foreground">
+                    Responsible Team:
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar>
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {project.createdByUser.firstName.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
                     <div>
-                      <p className="text-lg font-bold">{project.createdByUser.firstName}</p>
-                      <p className="text-gray-600">Team Lead</p>
+                      <div className="font-medium text-card-foreground">
+                        {project.createdByUser.firstName}{" "}
+                        {project.createdByUser.lastName}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Team Lead
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="mb-4">
-                    <p className="text-sm font-medium mb-2">Team Members:</p>
-                    <div className="flex items-center gap-2">
-                      {collaborators && collaborators.length > 0 ? (
-                        collaborators.slice(0, 3).map((collaborator: any, index: number) => (
-                          <div
-                            key={collaborator.id}
-                            className="w-8 h-8 bg-[var(--lightGreen)] rounded-full flex items-center justify-center relative group cursor-pointer"
-                            title={`${collaborator.user.firstName} ${collaborator.user.lastName} - ${collaborator.user.email}`}
-                          >
-                            <User className="w-4 h-4  text-white" />
-                            {/* Hover tooltip */}
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                              {collaborator.user.firstName} {collaborator.user.lastName}
-                              <br />
-                              {collaborator.user.email}
-                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
-                            </div>
+
+                  <div>
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Team Members:
+                    </div>
+                    {collaborators && collaborators.length > 0 ? (
+                      <div className="flex items-center gap-2">
+                        {collaborators
+                          .slice(0, 3)
+                          .map((collaborator: any, index: number) => (
+                            <Avatar key={collaborator.id} className="w-8 h-8">
+                              <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
+                                {collaborator.user.firstName.charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                          ))}
+                        {collaborators.length > 3 && (
+                          <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-secondary-foreground text-xs font-bold">
+                            +{collaborators.length - 3}
                           </div>
-                        ))
-                      ) : (
-                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                          <User className="w-4 h-4 text-gray-500" />
-                        </div>
-                      )}
-                      
-                      {/* Show +X if there are more than 3 collaborators */}
-                      {collaborators && collaborators.length > 3 && (
-                        <div className="w-8 h-8 bg-[var(--lightGreen)] rounded-full flex items-center justify-center text-white text-xs font-bold">
-                          +{collaborators.length - 3}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm text-gray-500">
-                      Last updated: {new Date(project.updated_at).toLocaleDateString('en-US', { 
-                        day: 'numeric', 
-                        month: 'long', 
-                        year: 'numeric' 
-                      })}
-                    </p>
-                    {isProjectOwner && (
-                      <Button
-                        onClick={handleManageCollaborators}
-                      >
-                        + Add people
-                      </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
+                          {project.createdByUser.firstName.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
                     )}
                   </div>
+
+                  <div className="text-sm text-muted-foreground">
+                    Last updated:{" "}
+                    {new Date(project.updated_at).toLocaleDateString("en-US", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </div>
+
+                  {isProjectOwner && (
+                    <Button
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                      onClick={handleManageCollaborators}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add people
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
 
               {/* Project Details Card */}
-              <Card className="bg-accent">
-                <CardContent>
-                  <h2 className="text-xl font-semibold text-black mb-4">Project Name:</h2>
-                  <h1 className="text-2xl font-bold italic text-black mb-6">"{project.name}"</h1>
-                  
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-center gap-2">
-                      <span className="text-black">•</span>
-                      <span className="text-black">Client Name: {project.clientName || project.createdByUser.firstName}</span>
+              <Card className="bg-accent/5 border-accent/20">
+                <CardHeader>
+                  <CardTitle className="text-foreground">
+                    Project Name:
+                  </CardTitle>
+                  <div className="text-2xl font-bold text-foreground italic">
+                    "{project.name}"
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        Client Name:
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {project.clientName || project.createdByUser.firstName}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-black">•</span>
-                      <span className="text-black">Start Date: {project.startDate ? new Date(project.startDate).toLocaleDateString('en-US', { 
-                        day: 'numeric', 
-                        month: 'short', 
-                        year: 'numeric' 
-                      }).toUpperCase() : "Not set"}</span>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Start Date:</span>
+                      <span className="font-medium text-foreground">
+                        {project.startDate
+                          ? new Date(project.startDate)
+                              .toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "2-digit",
+                                year: "numeric",
+                              })
+                              .toUpperCase()
+                          : "Not set"}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-black">•</span>
-                      <span className="text-black">End Date: {project.endDate ? new Date(project.endDate).toLocaleDateString('en-US', { 
-                        day: 'numeric', 
-                        month: 'short', 
-                        year: 'numeric' 
-                      }).toUpperCase() : "Not set"}</span>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">End Date:</span>
+                      <span className="font-medium text-foreground">
+                        {project.endDate
+                          ? new Date(project.endDate)
+                              .toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "2-digit",
+                                year: "numeric",
+                              })
+                              .toUpperCase()
+                          : "Not set"}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-black">•</span>
-                      <span className="text-black">Priority: {project.priority}</span>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Flag className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Priority:</span>
+                      <Badge
+                        variant="outline"
+                        className="text-muted-foreground border-muted-foreground/30"
+                      >
+                        {project.priority || "low"}
+                      </Badge>
                     </div>
                   </div>
-                  
+
                   <div>
-                    <p className="text-black mb-2">Your progress</p>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm text-black">75% to complete</span>
+                    <div className="text-sm font-medium text-foreground mb-2">
+                      Your progress
                     </div>
-                    <div className="w-full bg-white rounded-full h-2">
-                      <div className="bg-primary h-2 rounded-full relative" style={{ width: '75%' }}>
-                        <div className="absolute top-0 left-1/5 w-2 h-2 bg-base rounded-full"></div>
-                        <div className="absolute top-0 left-2/5 w-2 h-2 bg-base rounded-full"></div>
-                        <div className="absolute top-0 left-3/5 w-2 h-2 bg-base rounded-full"></div>
-                        <div className="absolute top-0 left-4/5 w-2 h-2 bg-base rounded-full"></div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 bg-muted rounded-full h-2">
+                        <div
+                          className="bg-primary h-2 rounded-full"
+                          style={{
+                            width:
+                              taskStats && taskStats.total > 0
+                                ? `${(taskStats.done / taskStats.total) * 100}%`
+                                : "0%",
+                          }}
+                        ></div>
                       </div>
+                      <Badge className="bg-primary text-primary-foreground">
+                        {taskStats && taskStats.total > 0
+                          ? `${Math.round(
+                              (taskStats.done / taskStats.total) * 100
+                            )}% to complete`
+                          : "0% to complete"}
+                      </Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -278,19 +354,27 @@ export default function ProjectPage() {
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">{taskStats.total}</div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {taskStats.total}
+                      </div>
                       <div className="text-sm text-gray-600">Total Tasks</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">{taskStats.todo}</div>
+                      <div className="text-2xl font-bold text-blue-600">
+                        {taskStats.todo}
+                      </div>
                       <div className="text-sm text-gray-600">To Do</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-yellow-600">{taskStats.inProgress}</div>
+                      <div className="text-2xl font-bold text-yellow-600">
+                        {taskStats.inProgress}
+                      </div>
                       <div className="text-sm text-gray-600">In Progress</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">{taskStats.done}</div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {taskStats.done}
+                      </div>
                       <div className="text-sm text-gray-600">Done</div>
                     </div>
                   </div>
@@ -300,13 +384,17 @@ export default function ProjectPage() {
           </>
         )}
 
-        {activeTab === 'tasks' && (
+        {activeTab === "tasks" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Project Tasks</h2>
-              <p className="text-sm text-gray-600">
-                Manage and track all tasks for this project
-              </p>
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">
+                  Project Tasks
+                </h2>
+                <p className="text-muted-foreground">
+                  Manage and track all tasks for this project
+                </p>
+              </div>
             </div>
             <KanbanBoard projectId={params.id as string} />
           </div>

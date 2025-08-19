@@ -1,14 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Calendar, Clock, Flag, MoreHorizontal, Target, User, Edit, Trash2 } from "lucide-react"
-import { TaskWithAssignee, taskPriorityOptions } from "../types"
+import { Calendar, Flag, MoreHorizontal, Target, Edit, Trash2 } from "lucide-react"
+import { TaskWithAssignee } from "../types"
 import { TaskForm } from "./TaskForm"
 import { deleteTask } from "../task-actions"
 
@@ -23,20 +23,11 @@ interface TaskCardProps {
   }>
   onTaskUpdated?: (task: TaskWithAssignee) => void
   onTaskDeleted?: (taskId: number) => void
+  onDragStart?: (e: React.DragEvent) => void
 }
 
-export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted }: TaskCardProps) {
+export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted, onDragStart }: TaskCardProps) {
   const [isDeleting, setIsDeleting] = useState(false)
-
-  const getPriorityColor = (priority: string) => {
-    const option = taskPriorityOptions.find(opt => opt.value === priority)
-    return option?.color || "text-gray-600 bg-gray-50 border-gray-200"
-  }
-
-  const isOverdue = (dueDate: Date | null) => {
-    if (!dueDate) return false
-    return new Date(dueDate) < new Date()
-  }
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this task?")) return
@@ -54,19 +45,21 @@ export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted }:
 
   return (
     <Card
-      className={`hover:shadow-md transition-shadow cursor-pointer ${
+      className={`bg-card border-border hover:shadow-md transition-shadow cursor-move mb-3 ${
         task.type === "milestone" ? "border-l-4 border-l-yellow-400 bg-yellow-50/30" : ""
       }`}
+      draggable
+      onDragStart={onDragStart}
     >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
               {task.type === "milestone" && <Target className="h-4 w-4 text-yellow-600" />}
-              <h4 className="font-medium text-sm leading-tight">{task.title}</h4>
+              <h4 className="font-medium text-card-foreground">{task.title}</h4>
             </div>
             {task.description && (
-              <p className="text-xs text-gray-600 line-clamp-2">{task.description}</p>
+              <p className="text-sm text-muted-foreground">{task.description}</p>
             )}
           </div>
           <DropdownMenu>
@@ -118,49 +111,33 @@ export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted }:
           </div>
         )}
 
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1">
-            <Flag className="h-3 w-3" />
-            <Badge variant="outline" className={`text-xs ${getPriorityColor(task.priority)}`}>
-              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center gap-2">
+            <Flag className="w-3 h-3 text-muted-foreground" />
+            <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30 capitalize">
+              {task.priority}
             </Badge>
           </div>
           {task.dueDate && (
-            <div
-              className={`flex items-center gap-1 ${isOverdue(task.dueDate) ? "text-red-600" : "text-gray-600"}`}
-            >
-              <Calendar className="h-3 w-3" />
-              <span>{new Date(task.dueDate).toLocaleDateString()}</span>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Calendar className="w-3 h-3" />
+              {new Date(task.dueDate).toLocaleDateString()}
             </div>
           )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <User className="h-3 w-3 text-gray-400" />
-            {task.assignee ? (
-              <>
-                <Avatar className="h-6 w-6">
-                  <AvatarImage src="/placeholder.svg" alt={task.assignee.firstName} />
-                  <AvatarFallback className="text-xs">
-                    {task.assignee.firstName[0]}{task.assignee.lastName[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-xs text-gray-600">
-                  {task.assignee.firstName} {task.assignee.lastName}
-                </span>
-              </>
-            ) : (
-              <span className="text-xs text-gray-500">Unassigned</span>
-            )}
+        {task.assignee && (
+          <div className="flex items-center gap-2 pt-1">
+            <Avatar className="w-6 h-6">
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                {task.assignee.firstName.charAt(0)}{task.assignee.lastName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-xs text-muted-foreground">
+              {task.assignee.firstName} {task.assignee.lastName}
+            </span>
           </div>
-          {task.dueDate && isOverdue(task.dueDate) && task.status !== "done" && (
-            <Badge variant="destructive" className="text-xs">
-              <Clock className="h-3 w-3 mr-1" />
-              Overdue
-            </Badge>
-          )}
-        </div>
+        )}
       </CardContent>
     </Card>
   )
