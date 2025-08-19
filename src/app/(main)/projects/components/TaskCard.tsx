@@ -118,12 +118,16 @@ export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted, o
               {task.priority}
             </Badge>
           </div>
-          {task.dueDate && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar className="w-3 h-3" />
-              {new Date(task.dueDate).toLocaleDateString()}
-            </div>
-          )}
+                     {task.dueDate && (
+             <div className="flex items-center gap-2 text-xs text-muted-foreground">
+               <Calendar className="w-3 h-3" />
+               {new Date(task.dueDate).toLocaleDateString("en-UK", {
+                 day: "numeric",
+                 month: "short",
+                 year: "numeric"
+               })}
+             </div>
+           )}
         </div>
 
         {task.assignee && (
