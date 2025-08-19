@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, Clock, MapPin, Users, Filter, CheckSquare } from "lucide-react"
 import { CalendarDay } from "./components/CalendarDay"
 import { BookingDetailsDialog } from "./components/BookingDetailsDialog"
+import { DateEventsDialog } from "./components/DateEventsDialog"
 import { DatePicker } from "./components/DatePicker"
 import { getAllUserTasks } from "../projects/task-actions"
 import { useSession } from "../contexts/SessionProvider"
@@ -175,6 +176,8 @@ export default function OrganizationCalendar() {
   const [hoveredDate, setHoveredDate] = useState<string>("")
   const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<string>("")
+  const [isDateEventsDialogOpen, setIsDateEventsDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   // Load all bookings on component mount
@@ -249,8 +252,8 @@ export default function OrganizationCalendar() {
   }
 
   const handleDateClick = (dateString: string) => {
-    // You can implement new booking creation here if needed
-    console.log("Clicked date:", dateString)
+    setSelectedDate(dateString)
+    setIsDateEventsDialogOpen(true)
   }
 
   const renderCalendarDays = () => {
@@ -437,6 +440,22 @@ export default function OrganizationCalendar() {
           }}
           onEdit={handleBookingEdit}
           onDelete={handleBookingDelete}
+        />
+
+        {/* Date Events Dialog */}
+        <DateEventsDialog
+          isOpen={isDateEventsDialogOpen}
+          onClose={() => {
+            setIsDateEventsDialogOpen(false)
+            setSelectedDate("")
+          }}
+          date={selectedDate}
+          events={getBookingsForDate(selectedDate)}
+          onEventClick={(event) => {
+            setSelectedBooking(event)
+            setIsDateEventsDialogOpen(false)
+            setIsDetailsDialogOpen(true)
+          }}
         />
       </div>
     </div>
