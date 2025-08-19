@@ -8,8 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { StudioForm } from "@/app/(main)/equipment-bookings/components/studio-form"
 import { EquipmentForm } from "@/app/(main)/equipment-bookings/components/equipment-form"
-import { BookingForm } from "@/app/(main)/equipment-bookings/components/booking-form"
-import { StudioBookingForm } from "@/app/(main)/equipment-bookings/components/studio-booking-form"
 import { MultipleBookingForm } from "@/app/(main)/equipment-bookings/components/multiple-booking-form"
 import { DatePicker } from "@/app/(main)/equipment-bookings/components/date-picker"
 import { BookingList } from "@/app/(main)/equipment-bookings/components/booking-list"
@@ -61,9 +59,10 @@ interface Equipment {
 interface AdminDashboardProps {
   studios: Studio[]
   equipment: Equipment[]
+  isAdmin: boolean
 }
 
-export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
+export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboardProps) {
   const { enhancedUser } = useSession()
   const [selectedStudio, setSelectedStudio] = useState<Studio | null>(null)
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null)
@@ -73,7 +72,6 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const [showStudioForm, setShowStudioForm] = useState(false)
   const [showEquipmentForm, setShowEquipmentForm] = useState(false)
   const [showBookingForm, setShowBookingForm] = useState(false)
-  const [showStudioBookingForm, setShowStudioBookingForm] = useState(false)
   const [activeTab, setActiveTab] = useState("booking")
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [currentPage, setCurrentPage] = useState(1)
@@ -152,13 +150,13 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const handleBookStudio = (studio: Studio, slots: { start: Date; end: Date }[]) => {
     setSelectedBookingStudio(studio)
     setSelectedSlots(slots)
-    setShowStudioBookingForm(true)
+    setShowBookingForm(true)
   }
 
   return (
     <Tabs defaultValue="booking" className="w-full" onValueChange={setActiveTab}>
       <div className="relative">
-        <TabsList className="grid w-full grid-cols-4 bg-transparent border-primary border-1 transition-all duration-300 ease-in-out">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-2'} bg-transparent border-primary border-1 transition-all duration-300 ease-in-out`}>
           <TabsTrigger 
             value="booking" 
             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
@@ -171,26 +169,35 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
           >
             My Bookings
           </TabsTrigger>
-          <TabsTrigger 
-            value="studios" 
-            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
-          >
-            Studios
-          </TabsTrigger>
-          <TabsTrigger 
-            value="equipment" 
-            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
-          >
-            Equipment
-          </TabsTrigger>
+          {isAdmin && (
+            <>
+              <TabsTrigger 
+                value="studios" 
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              >
+                Studios
+              </TabsTrigger>
+              <TabsTrigger 
+                value="equipment" 
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              >
+                Equipment
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
         {/* Sliding indicator */}
         <div 
           className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
-            activeTab === "booking" ? "left-1 w-[calc(25%-4px)]" : 
-            activeTab === "my-bookings" ? "left-[calc(25%+2px)] w-[calc(25%-4px)]" : 
-            activeTab === "studios" ? "left-[calc(50%+2px)] w-[calc(25%-4px)]" : 
-            "left-[calc(75%+2px)] w-[calc(25%-4px)]"
+            isAdmin ? (
+              activeTab === "booking" ? "left-1 w-[calc(25%-4px)]" : 
+              activeTab === "my-bookings" ? "left-[calc(25%+2px)] w-[calc(25%-4px)]" : 
+              activeTab === "studios" ? "left-[calc(50%+2px)] w-[calc(25%-4px)]" : 
+              "left-[calc(75%+2px)] w-[calc(25%-4px)]"
+            ) : (
+              activeTab === "booking" ? "left-1 w-[calc(50%-4px)]" : 
+              "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+            )
           }`}
         />
       </div>
@@ -410,28 +417,16 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                 <div className="flex flex-wrap gap-2 pt-2">
                   <Button
                     size="sm"
-                    variant="default"
+                    variant="outline"
                     onClick={() => {
-                      setSelectedBookingStudio(studio)
-                      setShowStudioBookingForm(true)
+                      setSelectedStudio(studio)
+                      setShowStudioForm(true)
                     }}
-                    className="flex-1 min-w-0"
+                    className="flex-1 min-w-0 text-black"
                   >
-                    <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Book</span>
+                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Edit</span>
                   </Button>
-                                     <Button
-                     size="sm"
-                     variant="outline"
-                     onClick={() => {
-                       setSelectedStudio(studio)
-                       setShowStudioForm(true)
-                     }}
-                     className="flex-1 min-w-0 text-black"
-                   >
-                     <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
-                     <span className="truncate">Edit</span>
-                   </Button>
                   <Button 
                     size="sm" 
                     variant="destructive" 
@@ -525,29 +520,16 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                 <div className="flex flex-wrap gap-2 pt-2">
                   <Button
                     size="sm"
-                    variant="default"
-                    disabled={!item.isAvailable}
+                    variant="outline"
                     onClick={() => {
-                      setSelectedBookingEquipment(item)
-                      setShowBookingForm(true)
+                      setSelectedEquipment(item)
+                      setShowEquipmentForm(true)
                     }}
-                    className="flex-1 min-w-0"
+                    className="flex-1 min-w-0 text-black"
                   >
-                    <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Book</span>
+                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Edit</span>
                   </Button>
-                                     <Button
-                     size="sm"
-                     variant="outline"
-                     onClick={() => {
-                       setSelectedEquipment(item)
-                       setShowEquipmentForm(true)
-                     }}
-                     className="flex-1 min-w-0 text-black"
-                   >
-                     <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
-                     <span className="truncate">Edit</span>
-                   </Button>
                   <Button 
                     size="sm" 
                     variant="destructive" 
@@ -563,67 +545,27 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
           ))}
         </div>
 
-        <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
-          <DialogContent>
-            <DialogTitle>
-              Book Equipment: {selectedBookingEquipment?.name}
-            </DialogTitle>
-            {selectedBookingEquipment && selectedSlots.length > 0 && (
-              selectedSlots.length === 1 ? (
-                <BookingForm
-                  equipment={selectedBookingEquipment}
-                  onClose={() => {
-                    setShowBookingForm(false)
-                    setSelectedBookingEquipment(null)
-                    setSelectedSlots([])
-                  }}
-                />
-              ) : (
-                <MultipleBookingForm
-                  item={selectedBookingEquipment}
-                  slots={selectedSlots}
-                  isStudio={false}
-                  onClose={() => {
-                    setShowBookingForm(false)
-                    setSelectedBookingEquipment(null)
-                    setSelectedSlots([])
-                  }}
-                  onSuccess={handleRefresh}
-                />
-              )
-            )}
-          </DialogContent>
-        </Dialog>
+
       </TabsContent>
 
-              <Dialog open={showStudioBookingForm} onOpenChange={setShowStudioBookingForm}>
+              <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
           <DialogContent>
             <DialogTitle>
-              Book Studio: {selectedBookingStudio?.name}
+              Book {selectedBookingStudio ? 'Studio' : 'Equipment'}: {selectedBookingStudio?.name || selectedBookingEquipment?.name}
             </DialogTitle>
-            {selectedBookingStudio && selectedSlots.length > 0 && (
-              selectedSlots.length === 1 ? (
-                <StudioBookingForm
-                  studio={selectedBookingStudio}
-                  onClose={() => {
-                    setShowStudioBookingForm(false)
-                    setSelectedBookingStudio(null)
-                    setSelectedSlots([])
-                  }}
-                />
-              ) : (
-                <MultipleBookingForm
-                  item={selectedBookingStudio}
-                  slots={selectedSlots}
-                  isStudio={true}
-                  onClose={() => {
-                    setShowStudioBookingForm(false)
-                    setSelectedBookingStudio(null)
-                    setSelectedSlots([])
-                  }}
-                  onSuccess={handleRefresh}
-                />
-              )
+            {(selectedBookingStudio || selectedBookingEquipment) && selectedSlots.length > 0 && (
+              <MultipleBookingForm
+                item={selectedBookingStudio || selectedBookingEquipment!}
+                slots={selectedSlots}
+                isStudio={!!selectedBookingStudio}
+                onClose={() => {
+                  setShowBookingForm(false)
+                  setSelectedBookingStudio(null)
+                  setSelectedBookingEquipment(null)
+                  setSelectedSlots([])
+                }}
+                onSuccess={handleRefresh}
+              />
             )}
           </DialogContent>
         </Dialog>
