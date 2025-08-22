@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Briefcase } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createQuotation } from "../action";
 import { getAllServices } from "../../services/action";
@@ -28,6 +28,7 @@ import type { Services } from "@prisma/client";
 import { useSession } from "../../contexts/SessionProvider";
 import { QuotationFormData } from "../types";
 import ClientSelection from "./ClientSelection";
+import ProjectSelection from "./ProjectSelection";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -58,12 +59,22 @@ export default function CreateQuotationForm({
       address: "",
       notes: "",
     },
+    newProject: {
+      name: "",
+      description: "",
+      startDate: "",
+      endDate: "",
+      priority: "low",
+    },
   });
 
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [totalPrice, setTotalPrice] = useState(0);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
+
+  // Project selection state
+  const [projectMode, setProjectMode] = useState<"existing" | "new" | "none">("none");
 
   useEffect(() => {
     fetchServices();
@@ -167,6 +178,13 @@ export default function CreateQuotationForm({
     return endDate.toLocaleDateString("en-GB");
   };
 
+  const handleProjectSelected = (projectId: number, projectName: string) => {
+    setQuotationForm(prev => ({
+      ...prev,
+      projectId: projectId
+    }));
+  };
+
   const handleCreateQuotation = async () => {
     // Debug logging to help identify the issue
     console.log("Form validation check:", {
@@ -228,6 +246,7 @@ export default function CreateQuotationForm({
           ? parseInt(quotationForm.duration)
           : undefined,
         startDate: quotationForm.startDate || undefined,
+        projectId: quotationForm.projectId, // Add project ID if selected
       });
 
       resetForm();
@@ -260,6 +279,7 @@ export default function CreateQuotationForm({
     setTotalPrice(0);
     setServiceSearchQuery("");
     setClientMode("existing");
+    setProjectMode("none");
   };
 
   return (
@@ -303,6 +323,22 @@ export default function CreateQuotationForm({
               }
               onModeChange={setClientMode}
               mode={clientMode}
+            />
+
+            {/* Project Selection */}
+            <ProjectSelection
+              selectedProjectId={quotationForm.projectId}
+              newProjectData={quotationForm.newProject}
+              onProjectSelect={handleProjectSelected}
+              onNewProjectDataChange={(newProjectData) =>
+                setQuotationForm((prev) => ({
+                  ...prev,
+                  newProject: newProjectData,
+                }))
+              }
+              onModeChange={setProjectMode}
+              mode={projectMode}
+              currentUserId={enhancedUser.id}
             />
             <div className="grid gap-2">
               <Label htmlFor="quotation-description">Description</Label>
@@ -510,6 +546,8 @@ export default function CreateQuotationForm({
           </div>
         </div>
       </DialogContent>
+
+
     </Dialog>
   );
 }

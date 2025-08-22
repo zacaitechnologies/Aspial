@@ -36,7 +36,7 @@ export type QuotationWithServices = {
     id: number;
     service: Services;
   }[];
-  projects: {
+  project: {
     id: number;
     name: string;
     description?: string;
@@ -45,7 +45,7 @@ export type QuotationWithServices = {
     endDate?: Date;
     created_at: Date;
     updated_at: Date;
-  }[];
+  } | null;
 };
 
 export type QuotationFormData = {
@@ -56,6 +56,7 @@ export type QuotationFormData = {
   duration: string;
   startDate: string;
   clientId?: string;
+  projectId?: number;
   newClient?: {
     name: string;
     email: string;
@@ -63,6 +64,13 @@ export type QuotationFormData = {
     company?: string;
     address?: string;
     notes?: string;
+  };
+  newProject?: {
+    name: string;
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    priority: "low" | "medium" | "high";
   };
 };
 
@@ -76,6 +84,7 @@ export type EditFormData = {
   duration: string;
   startDate: string;
   clientId?: string;
+  projectId?: number;
   newClient?: {
     name: string;
     email: string;
@@ -83,6 +92,13 @@ export type EditFormData = {
     company?: string;
     address?: string;
     notes?: string;
+  };
+  newProject?: {
+    name: string;
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    priority: "low" | "medium" | "high";
   };
 };
 

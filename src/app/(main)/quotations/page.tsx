@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Plus, FileText } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
-import { getAllQuotations, deleteQuotationById } from "./action";
+import { getAllQuotations, deleteQuotationById, editQuotationById } from "./action";
 import { createProject } from "../projects/action";
 import CreateQuotationForm from "./components/CreateQuotationForm";
 import EditQuotationForm from "./components/EditQuotationForm";
@@ -72,7 +72,7 @@ export default function QuotationsPage() {
     }
 
     // Check if project already exists
-    if (quotation.projects && quotation.projects.length > 0) {
+    if (quotation.project) {
       alert("A project already exists for this quotation.");
       return;
     }
@@ -87,15 +87,23 @@ export default function QuotationsPage() {
         endDate.setMonth(endDate.getMonth() + quotation.duration);
       }
 
-      await createProject({
+      const newProject = await createProject({
         name: quotation.name,
         description: quotation.description,
-        quotationId: quotation.id,
         createdBy: quotation.createdBy.supabase_id, // Pass the createdBy from quotation
         startDate: startDate,
         endDate: endDate,
         clientName: quotation.Client?.company || quotation.Client?.name, // Use company name if available, otherwise use client name
         clientId: quotation.clientId,
+      });
+
+      // Update the quotation to reference the new project
+      await editQuotationById(quotation.id.toString(), {
+        name: quotation.name,
+        description: quotation.description,
+        totalPrice: quotation.totalPrice,
+        status: quotation.status,
+        projectId: newProject.id,
       });
 
       alert("Project created successfully!");
