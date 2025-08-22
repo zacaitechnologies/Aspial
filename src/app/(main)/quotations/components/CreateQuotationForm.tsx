@@ -74,7 +74,7 @@ export default function CreateQuotationForm({
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
 
   // Project selection state
-  const [projectMode, setProjectMode] = useState<"existing" | "new" | "none">("none");
+  const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
 
   useEffect(() => {
     fetchServices();
@@ -279,7 +279,7 @@ export default function CreateQuotationForm({
     setTotalPrice(0);
     setServiceSearchQuery("");
     setClientMode("existing");
-    setProjectMode("none");
+    setProjectMode("existing");
   };
 
   return (

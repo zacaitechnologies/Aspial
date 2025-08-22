@@ -16,14 +16,12 @@ interface QuotationCardProps {
   quotation: QuotationWithServices;
   onEdit: (quotation: QuotationWithServices) => void;
   onDelete: (quotationId: string) => void;
-  onCreateProject: (quotation: QuotationWithServices) => void;
 }
 
 export default function QuotationCard({
   quotation,
   onEdit,
   onDelete,
-  onCreateProject,
 }: QuotationCardProps) {
   const getStatusBadge = (status: string) => {
     const statusConfig = statusOptions.find((opt) => opt.value === status);
@@ -35,8 +33,6 @@ export default function QuotationCard({
   };
 
   const hasProject = quotation.project !== null;
-  const allowedStatuses = ["accepted", "paid", "partially_paid", "deposit_paid"];
-  const canCreateProject = allowedStatuses.includes(quotation.status) && !hasProject;
 
   const handleDelete = () => {
     if (hasProject) {
@@ -78,16 +74,7 @@ export default function QuotationCard({
             >
               <Edit className="w-4 h-4" />
             </Button>
-            {canCreateProject && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onCreateProject(quotation)}
-                title="Create Project"
-              >
-                <Briefcase className="w-4 h-4" />
-              </Button>
-            )}
+
             <Button
               variant="ghost"
               size="sm"
@@ -151,13 +138,7 @@ export default function QuotationCard({
             </p>
           </div>
         )}
-        {canCreateProject && (
-          <div className="mt-2">
-            <p className="text-sm text-green-600">
-              ✅ Click the briefcase icon to manually create a project
-            </p>
-          </div>
-        )}
+
         {hasProject && (
           <div className="mt-2 flex items-center gap-1 text-sm text-amber-600">
             <AlertTriangle className="w-3 h-3" />

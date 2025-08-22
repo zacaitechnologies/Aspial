@@ -47,7 +47,7 @@ export default function EditQuotationForm({
   const [services, setServices] = useState<Services[]>([]);
   const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<string[]>([]);
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
-  const [projectMode, setProjectMode] = useState<"existing" | "new" | "none">("none");
+  const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -106,12 +106,12 @@ export default function EditQuotationForm({
         editingQuotation.services.map((qs) => qs.service.id.toString())
       );
       
-      // Set project mode based on whether there's an existing project
-      if (editingQuotation.project) {
-        setProjectMode("existing");
-      } else {
-        setProjectMode("none");
-      }
+             // Set project mode based on whether there's an existing project
+       if (editingQuotation.project) {
+         setProjectMode("existing");
+       } else {
+         setProjectMode("existing");
+       }
       
       // Set client mode based on whether there's an existing client
       setClientMode(editingQuotation.clientId ? "existing" : "new");

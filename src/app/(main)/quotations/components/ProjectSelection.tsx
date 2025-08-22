@@ -39,8 +39,8 @@ interface ProjectSelectionProps {
   newProjectData?: NewProjectData;
   onProjectSelect: (projectId: number, projectName: string) => void;
   onNewProjectDataChange: (data: NewProjectData) => void;
-  onModeChange: (mode: "existing" | "new" | "none") => void;
-  mode: "existing" | "new" | "none";
+  onModeChange: (mode: "existing" | "new") => void;
+  mode: "existing" | "new";
   currentUserId: string;
 }
 
@@ -118,29 +118,20 @@ export default function ProjectSelection({
     <div className="space-y-4">
       <Label className="text-base font-semibold">Link to Project</Label>
 
-      <Tabs
-        value={mode}
-        onValueChange={(value) => onModeChange(value as "existing" | "new" | "none")}
-      >
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="none">No Project</TabsTrigger>
-          <TabsTrigger value="existing">Select Existing Project</TabsTrigger>
-          <TabsTrigger value="new">Create New Project</TabsTrigger>
-        </TabsList>
+             <Tabs
+         value={mode}
+         onValueChange={(value) => onModeChange(value as "existing" | "new")}
+       >
+         <TabsList className="flex w-full">
+           <TabsTrigger value="existing" className="flex-1 min-w-0">Select Existing Project</TabsTrigger>
+           <TabsTrigger value="new" className="flex-1 min-w-0">Create New Project</TabsTrigger>
+         </TabsList>
 
-        <TabsContent value="none" className="space-y-4">
-          <div className="border rounded-lg p-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Briefcase className="w-5 h-5" />
-                No Project Link
-              </h3>
-            </div>
-            <p className="text-muted-foreground">
-              This quotation will not be linked to any project. You can link it to a project later.
-            </p>
-          </div>
-        </TabsContent>
+         {!selectedProjectId && (
+           <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg">
+             💡 Optional: You can leave this quotation unlinked to any project, or select/create a project to link it.
+           </div>
+         )}
 
         <TabsContent value="existing" className="space-y-4">
           <div className="border rounded-lg p-6">

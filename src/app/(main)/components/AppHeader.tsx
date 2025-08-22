@@ -47,10 +47,10 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="relative hover:bg-slate-100 transition-colors duration-150">
+          {/* <Button variant="ghost" size="icon" className="relative hover:bg-slate-100 transition-colors duration-150">
             <Bell className="w-5 h-5" />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-          </Button>
+          </Button> */}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

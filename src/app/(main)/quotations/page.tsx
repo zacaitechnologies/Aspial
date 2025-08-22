@@ -3,8 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Plus, FileText } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
-import { getAllQuotations, deleteQuotationById, editQuotationById } from "./action";
-import { createProject } from "../projects/action";
+import { getAllQuotations, deleteQuotationById } from "./action";
 import CreateQuotationForm from "./components/CreateQuotationForm";
 import EditQuotationForm from "./components/EditQuotationForm";
 import QuotationCard from "./components/QuotationCard";
@@ -56,63 +55,7 @@ export default function QuotationsPage() {
     }
   };
 
-  const handleCreateProject = async (quotation: QuotationWithServices) => {
-    // Check if quotation has appropriate status for project creation
-    const allowedStatuses = [
-      "accepted",
-      "paid",
-      "partially_paid",
-      "deposit_paid",
-    ];
-    if (!allowedStatuses.includes(quotation.status)) {
-      alert(
-        "Only accepted, paid, partially paid, or deposit paid quotations can be converted to projects."
-      );
-      return;
-    }
 
-    // Check if project already exists
-    if (quotation.project) {
-      alert("A project already exists for this quotation.");
-      return;
-    }
-
-    try {
-      // Calculate start and end dates based on duration in months
-      const startDate = new Date();
-      let endDate: Date | undefined = undefined;
-
-      if (quotation.duration) {
-        endDate = new Date(startDate);
-        endDate.setMonth(endDate.getMonth() + quotation.duration);
-      }
-
-      const newProject = await createProject({
-        name: quotation.name,
-        description: quotation.description,
-        createdBy: quotation.createdBy.supabase_id, // Pass the createdBy from quotation
-        startDate: startDate,
-        endDate: endDate,
-        clientName: quotation.Client?.company || quotation.Client?.name, // Use company name if available, otherwise use client name
-        clientId: quotation.clientId,
-      });
-
-      // Update the quotation to reference the new project
-      await editQuotationById(quotation.id.toString(), {
-        name: quotation.name,
-        description: quotation.description,
-        totalPrice: quotation.totalPrice,
-        status: quotation.status,
-        projectId: newProject.id,
-      });
-
-      alert("Project created successfully!");
-      await fetchData(); // Refresh the data to show the new project
-    } catch (error) {
-      console.error("Error creating project:", error);
-      alert("Failed to create project. Please try again.");
-    }
-  };
 
   if (loading) {
     return (
@@ -129,8 +72,7 @@ export default function QuotationsPage() {
           <div>
             <h1 className="text-3xl font-bold">Quotations Management</h1>
             <p className="text-muted-foreground">
-              Create and manage client quotations. Create projects manually for
-              eligible quotations using the briefcase icon.
+              Create and manage client quotations. Link quotations to projects using the integrated project selection.
             </p>
           </div>
 
@@ -148,7 +90,6 @@ export default function QuotationsPage() {
               quotation={quotation}
               onEdit={handleEditQuotation}
               onDelete={handleDeleteQuotation}
-              onCreateProject={handleCreateProject}
             />
           ))}
         </div>
