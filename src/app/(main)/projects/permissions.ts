@@ -407,3 +407,65 @@ export async function getProjectInvitations(projectId: number) {
     },
   })
 }
+
+// Admin-specific can see all invitations and help accept/decline
+export async function getAllPendingInvitations() {
+  return await prisma.projectInvitation.findMany({
+    where: { status: "pending" },
+    include: {
+      project: {
+        include: {
+          quotation: true,
+          createdByUser: true,
+        },
+      },
+      inviter: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      invitee: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  })
+}
+
+export async function getAllInvitations() {
+  return await prisma.projectInvitation.findMany({
+    include: {
+      project: {
+        include: {
+          quotation: true,
+          createdByUser: true,
+        },
+      },
+      inviter: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      invitee: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  })
+}
