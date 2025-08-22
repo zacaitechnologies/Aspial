@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { useState, useEffect } from "react";
+import { useSession } from "../contexts/SessionProvider";
 import {
   Settings,
   Bell,
@@ -15,6 +17,8 @@ import {
   Clock,
   Users,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { getAllPendingInvitations, isUserAdmin } from "../projects/permissions";
 
 import {
   Sidebar,
@@ -69,6 +73,29 @@ const mainNavItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { enhancedUser } = useSession();
+  const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const fetchPendingInvitations = async () => {
+      if (!enhancedUser?.id) return;
+
+      try {
+        const adminStatus = await isUserAdmin(enhancedUser.id);
+        setIsAdmin(adminStatus);
+
+        if (adminStatus) {
+          const pendingInvitations = await getAllPendingInvitations();
+          setPendingInvitationsCount(pendingInvitations.length);
+        }
+      } catch (error) {
+        console.error("Failed to fetch pending invitations:", error);
+      }
+    };
+
+    fetchPendingInvitations();
+  }, [enhancedUser?.id]);
 
   return (
     <Sidebar className="border-r border-[var(--color-sidebar-border)] bg-[#f0e8d8]">
@@ -152,9 +179,17 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
-              <Link href="/notification" className="flex items-center gap-3">
+              <Link href="/notification" className="flex items-center gap-3 relative">
                 <Bell className="w-5 h-5" />
                 <span>Notifications</span>
+                {isAdmin && pendingInvitationsCount > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+                  >
+                    {pendingInvitationsCount > 99 ? '99+' : pendingInvitationsCount}
+                  </Badge>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

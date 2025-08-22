@@ -116,34 +116,6 @@ export default function ProjectCollaboratorsDialog({
         invitationsData = [];
       }
       
-      // If no users were loaded, add some mock users for testing
-      if (availableUsersData.length === 0) {
-        console.log("No users found, adding mock users for testing...");
-        availableUsersData = [
-          {
-            id: 1,
-            firstName: "John",
-            lastName: "Doe",
-            email: "john.doe@example.com",
-            supabase_id: "mock-user-1"
-          },
-          {
-            id: 2,
-            firstName: "Jane",
-            lastName: "Smith",
-            email: "jane.smith@example.com",
-            supabase_id: "mock-user-2"
-          },
-          {
-            id: 3,
-            firstName: "Mike",
-            lastName: "Johnson",
-            email: "mike.johnson@example.com",
-            supabase_id: "mock-user-3"
-          }
-        ];
-      }
-      
       // Set all the data
       setPermissions(permissionsData as ProjectPermission[]);
       setAvailableUsers(availableUsersData as AvailableUser[]);
