@@ -11,7 +11,7 @@ export async function getAllQuotations(userId?: string) {
             service: true,
           },
         },
-        projects: true,
+        project: true,
         createdBy: true,
         Client: true,
       },
@@ -36,7 +36,7 @@ export async function getAllQuotations(userId?: string) {
             service: true,
           },
         },
-        projects: true,
+        project: true,
         createdBy: true,
         Client: true,
       },
@@ -55,7 +55,7 @@ export async function getAllQuotations(userId?: string) {
           service: true,
         },
       },
-      projects: true,
+      project: true,
       createdBy: true,
       Client: true,
     },
@@ -74,6 +74,7 @@ export async function createQuotation(data: {
   duration?: number
   startDate?: string
   clientId?: string
+  projectId?: number
   newClient?: {
     name: string
     email: string
@@ -116,6 +117,7 @@ export async function createQuotation(data: {
         totalPrice: data.totalPrice,
         createdById: data.createdById,
         clientId: finalClientId,
+        projectId: data.projectId || null,
         discountValue: data.discountValue || null,
         discountType: data.discountType || null,
         duration: data.duration || null,
@@ -155,6 +157,7 @@ export async function editQuotationById(
     duration?: number
     startDate?: string
     clientId?: string
+    projectId?: number
     newClient?: {
       name: string
       email: string
@@ -169,7 +172,7 @@ export async function editQuotationById(
     // First, get the current quotation to check if it has a project
     const currentQuotation = await tx.quotation.findUnique({
       where: { id: Number.parseInt(id) },
-      include: { projects: true }
+      include: { project: true }
     });
 
     // Delete existing quotation services
@@ -211,6 +214,7 @@ export async function editQuotationById(
         totalPrice: data.totalPrice,
         status: data.status,
         clientId: finalClientId,
+        projectId: data.projectId || null,
         discountValue: data.discountValue || null,
         discountType: data.discountType || null,
         duration: data.duration || null,
@@ -225,8 +229,8 @@ export async function editQuotationById(
     });
 
     // Update the associated project if it exists
-    if (currentQuotation && currentQuotation.projects.length > 0) {
-      const project = currentQuotation.projects[0];
+    if (currentQuotation && currentQuotation.project) {
+      const project = currentQuotation.project;
       const startDate = project.startDate || new Date();
       let endDate: Date | undefined = undefined;
       
@@ -265,7 +269,7 @@ export async function editQuotationById(
 export async function deleteQuotationById(id: string) {
   // First, delete any associated projects
   await prisma.project.deleteMany({
-    where: { quotationId: Number.parseInt(id) },
+    where: { quotations: { some: { id: Number.parseInt(id) } } },
   });
 
   // Then delete the quotation

@@ -146,7 +146,7 @@ export async function createProject(data: CreateProjectData) {
     data: {
       name: data.name,
       description: data.description,
-      quotationId: data.quotationId,
+      // quotationId: data.quotationId || 0, // Will work after migration
       createdBy: data.createdBy,
       startDate: data.startDate,
       endDate: data.endDate,
@@ -168,6 +168,8 @@ export async function createProject(data: CreateProjectData) {
 
   return project
 }
+
+
 
 export async function updateProjectStatus(id: string, status: string) {
   return await prisma.project.update({
@@ -246,23 +248,23 @@ export async function getProjectById(userId: string, projectId: string) {
           name: true,
         },
       },
-      quotation: {
-        select: {
-          id: true,
-          totalPrice: true,
-          status: true,
-          services: {
-            select: {
-              service: {
-                select: {
-                  name: true,
-                  description: true,
-                },
-              },
-            },
-          },
-        },
-      },
+      // quotation: { // Will work after migration
+      //   select: {
+      //     id: true,
+      //     totalPrice: true,
+      //     status: true,
+      //     services: {
+      //       select: {
+      //         service: {
+      //           select: {
+      //             name: true,
+      //             description: true,
+      //           },
+      //         },
+      //       },
+      //     },
+      //   },
+      // },
       _count: {
         select: {
           tasks: true,
@@ -327,11 +329,11 @@ export async function getProjectById(userId: string, projectId: string) {
     }
   });
 
-  return {
-    project: {
-      ...project,
-      taskCount: project._count.tasks,
-    },
+      return {
+      project: {
+        ...project,
+        taskCount: 0, // project._count.tasks, // Will work after migration
+      },
     collaborators,
     taskStats: stats,
     userPermission: userPermission || { isOwner: false, canEdit: false, canView: false },

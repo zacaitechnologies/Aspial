@@ -19,21 +19,14 @@ import {
   ArrowLeft,
   Calendar,
   User,
-  DollarSign,
-  Clock,
-  Users,
-  Edit3,
   CheckSquare,
-  ListTodo,
   Plus,
   Flag,
-  MoreHorizontal,
   ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog";
 import { KanbanBoard } from "../components/ProjectKanbanBoard";
-import { getProjectTaskStats } from "../task-actions";
 
 export default function ProjectPage() {
   const params = useParams();

@@ -1,5 +1,5 @@
 // Project-related types
-export type ProjectWithQuotation = {
+export type ProjectWithQuotations = {
   id: number;
   name: string;
   description: string | null;
@@ -19,7 +19,7 @@ export type ProjectWithQuotation = {
     email: string;
     supabase_id: string;
   };
-  quotation: {
+  quotations: {
     id: number;
     name: string;
     description: string;
@@ -34,8 +34,11 @@ export type ProjectWithQuotation = {
         basePrice: number;
       };
     }[];
-  };
+  }[];
 };
+
+// Keep the old type for backward compatibility during transition
+export type ProjectWithQuotation = ProjectWithQuotations;
 
 // Project status options
 export type ProjectStatusOption = {
@@ -71,12 +74,13 @@ export type ProjectFormData = {
 export type CreateProjectData = {
   name: string;
   description?: string;
-  quotationId: number;
+  quotationId?: number; // Make optional - can create project without quotation
   createdBy: string;
   startDate?: Date;
   endDate?: Date;
   clientName?: string;
   clientId?: string;
+  priority?: "low" | "medium" | "high";
 };
 
 export type UpdateProjectData = {
@@ -241,3 +245,14 @@ export const taskTypeOptions = [
   { value: "task", label: "Task" },
   { value: "milestone", label: "Milestone" },
 ];
+
+// New type for project selection
+export type AvailableProject = {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  clientName: string | null;
+  created_at: Date;
+  quotationCount: number;
+};

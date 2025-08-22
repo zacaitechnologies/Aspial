@@ -34,7 +34,7 @@ export default function QuotationCard({
     );
   };
 
-  const hasProject = quotation.projects && quotation.projects.length > 0;
+  const hasProject = quotation.project !== null;
   const allowedStatuses = ["accepted", "paid", "partially_paid", "deposit_paid"];
   const canCreateProject = allowedStatuses.includes(quotation.status) && !hasProject;
 

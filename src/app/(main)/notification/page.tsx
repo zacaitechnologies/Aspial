@@ -37,11 +37,11 @@ type ProjectInvitation = {
     id: number;
     name: string;
     description: string | null;
-    quotation: {
+    quotations: {
       id: number;
       name: string;
       totalPrice: number;
-    };
+    }[];
     createdByUser: {
       firstName: string;
       lastName: string;
@@ -96,48 +96,6 @@ export default function NotificationPage() {
           message: error instanceof Error ? error.message : 'Unknown error',
           stack: error instanceof Error ? error.stack : undefined
         });
-        
-        // Add mock invitation for testing
-        console.log("Adding mock invitation for testing...");
-        data = [
-          {
-            id: 1,
-            projectId: 1,
-            invitedBy: "mock-inviter",
-            invitedUser: enhancedUser.id,
-            status: "pending",
-            canView: true,
-            canEdit: true,
-            isOwner: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            project: {
-              id: 1,
-              name: "Test Project",
-              description: "This is a test project invitation",
-              quotation: {
-                id: 1,
-                name: "Test Quotation",
-                totalPrice: 1500.00
-              },
-              createdByUser: {
-                firstName: "Test",
-                lastName: "User",
-                email: "test@example.com"
-              }
-            },
-            inviter: {
-              firstName: "John",
-              lastName: "Doe",
-              email: "john.doe@example.com"
-            },
-            invitee: {
-              firstName: enhancedUser.profile?.firstName || "User",
-              lastName: enhancedUser.profile?.lastName || "Name",
-              email: enhancedUser.email || "user@example.com"
-            }
-          }
-        ];
       }
       
       setInvitations(data as ProjectInvitation[]);
@@ -314,9 +272,9 @@ export default function NotificationPage() {
             <div className="flex items-center gap-2 mb-4">
               <Users className="w-5 h-5" />
               <h2 className="text-xl font-semibold">My Invitations</h2>
-            </div>
-            
-            {invitations.length === 0 ? (
+      </div>
+
+      {invitations.length === 0 ? (
               <Card>
                 <CardContent className="p-6 text-center">
                   <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -327,42 +285,42 @@ export default function NotificationPage() {
               invitations.map((invitation) => (
                 <Card key={invitation.id} className="p-4">
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div>
+                <div className="flex justify-between items-start">
+                  <div>
                         <CardTitle className="text-lg">{invitation.project.name}</CardTitle>
-                        <CardDescription>
+                    <CardDescription>
                           Invited by {invitation.inviter.firstName} {invitation.inviter.lastName}
-                        </CardDescription>
-                      </div>
+                    </CardDescription>
+                  </div>
                       {getStatusBadge(invitation.status)}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Project Details</h4>
+                    <div className="space-y-1 text-sm">
+                      <p>
+                        <strong>Project:</strong> {invitation.project.name}
+                      </p>
+                      {invitation.project.description && (
+                        <p>
+                          <strong>Description:</strong>{" "}
+                          {invitation.project.description}
+                        </p>
+                      )}
+                      <p>
+                        <strong>Value:</strong> RM
+                        {invitation.project.quotations[0]?.totalPrice.toFixed(2) || '0.00'}
+                      </p>
+                      <p>
+                        <strong>Created by:</strong>{" "}
+                        {invitation.project.createdByUser.firstName}{" "}
+                        {invitation.project.createdByUser.lastName}
+                      </p>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="font-medium mb-2">Project Details</h4>
-                        <div className="space-y-1 text-sm">
-                          <p>
-                            <strong>Project:</strong> {invitation.project.name}
-                          </p>
-                          {invitation.project.description && (
-                            <p>
-                              <strong>Description:</strong>{" "}
-                              {invitation.project.description}
-                            </p>
-                          )}
-                          <p>
-                            <strong>Value:</strong> RM
-                            {invitation.project.quotation.totalPrice.toFixed(2)}
-                          </p>
-                          <p>
-                            <strong>Created by:</strong>{" "}
-                            {invitation.project.createdByUser.firstName}{" "}
-                            {invitation.project.createdByUser.lastName}
-                          </p>
-                        </div>
-                      </div>
-                      <div>
+                  </div>
+                  <div>
                         <h4 className="font-medium mb-2">Permissions</h4>
                         <div className="flex flex-wrap gap-1 mb-2">
                           {getPermissionBadges(invitation)}
@@ -436,7 +394,7 @@ export default function NotificationPage() {
                           </p>
                           <p>
                             <strong>Value:</strong> RM
-                            {invitation.project.quotation.totalPrice.toFixed(2)}
+                            {invitation.project.quotations[0]?.totalPrice.toFixed(2) || '0.00'}
                           </p>
                           <p>
                             <strong>Inviter:</strong> {invitation.inviter.firstName} {invitation.inviter.lastName}
@@ -466,7 +424,7 @@ export default function NotificationPage() {
                         Accept as Admin
                       </Button>
                       <Button
-                        variant="outline"
+                          variant="outline"
                         onClick={() => handleAdminDeclineInvitation(invitation.id)}
                         className="flex-1"
                       >
@@ -525,7 +483,7 @@ export default function NotificationPage() {
                           </p>
                           <p>
                             <strong>Value:</strong> RM
-                            {invitation.project.quotation.totalPrice.toFixed(2)}
+                            {invitation.project.quotations[0]?.totalPrice.toFixed(2) || '0.00'}
                           </p>
                           <p>
                             <strong>Inviter:</strong> {invitation.inviter.firstName} {invitation.inviter.lastName}
@@ -623,15 +581,15 @@ export default function NotificationPage() {
                         )}
                         <p>
                           <strong>Value:</strong> RM
-                          {invitation.project.quotation.totalPrice.toFixed(2)}
+                          {invitation.project.quotations[0]?.totalPrice.toFixed(2) || '0.00'}
                         </p>
                         <p>
                           <strong>Created by:</strong>{" "}
                           {invitation.project.createdByUser.firstName}{" "}
                           {invitation.project.createdByUser.lastName}
                         </p>
-                      </div>
                     </div>
+                  </div>
                     <div>
                       <h4 className="font-medium mb-2">Permissions</h4>
                       <div className="flex flex-wrap gap-1 mb-2">
@@ -641,29 +599,29 @@ export default function NotificationPage() {
                         <strong>Invited:</strong> {new Date(invitation.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                  </div>
+                </div>
 
                   {invitation.status === "pending" && (
                     <div className="flex gap-2">
-                      <Button
-                        onClick={() => handleAcceptInvitation(invitation.id)}
+                  <Button
+                    onClick={() => handleAcceptInvitation(invitation.id)}
                         className="flex-1"
-                      >
-                        <Check className="w-4 h-4 mr-2" />
+                  >
+                    <Check className="w-4 h-4 mr-2" />
                         Accept
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => handleDeclineInvitation(invitation.id)}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDeclineInvitation(invitation.id)}
                         className="flex-1"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Decline
-                      </Button>
-                    </div>
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Decline
+                  </Button>
+                </div>
                   )}
-                </CardContent>
-              </Card>
+              </CardContent>
+            </Card>
             ))
           )}
         </div>

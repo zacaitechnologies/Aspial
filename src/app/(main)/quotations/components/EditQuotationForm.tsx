@@ -22,9 +22,13 @@ import {
 import { useState, useEffect } from "react";
 import { editQuotationById } from "../action";
 import { getAllServices } from "../../services/action";
+import { getAllProjects } from "../../projects/action";
+import { useSession } from "../../contexts/SessionProvider";
 import type { Services } from "@prisma/client";
 import { QuotationWithServices, EditFormData, statusOptions } from "../types";
 import ClientSelection from "./ClientSelection";
+import ProjectSelection from "./ProjectSelection";
+import { Briefcase } from "lucide-react";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -39,9 +43,11 @@ export default function EditQuotationForm({
   onSuccess,
   editingQuotation,
 }: EditQuotationFormProps) {
+  const { enhancedUser } = useSession();
   const [services, setServices] = useState<Services[]>([]);
   const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<string[]>([]);
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
+  const [projectMode, setProjectMode] = useState<"existing" | "new" | "none">("none");
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -52,6 +58,7 @@ export default function EditQuotationForm({
     duration: "",
     startDate: "",
     clientId: "",
+    projectId: undefined,
     newClient: {
       name: "",
       email: "",
@@ -78,6 +85,7 @@ export default function EditQuotationForm({
         duration: editingQuotation.duration?.toString() || "",
         startDate: editingQuotation.startDate ? new Date(editingQuotation.startDate).toISOString().split('T')[0] : "",
         clientId: editingQuotation.clientId || "",
+        projectId: editingQuotation.project?.id || undefined,
         newClient: {
           name: "",
           email: "",
@@ -86,10 +94,24 @@ export default function EditQuotationForm({
           address: "",
           notes: "",
         },
+        newProject: {
+          name: "",
+          description: "",
+          startDate: "",
+          endDate: "",
+          priority: "low",
+        },
       });
       setEditSelectedServiceIds(
         editingQuotation.services.map((qs) => qs.service.id.toString())
       );
+      
+      // Set project mode based on whether there's an existing project
+      if (editingQuotation.project) {
+        setProjectMode("existing");
+      } else {
+        setProjectMode("none");
+      }
       
       // Set client mode based on whether there's an existing client
       setClientMode(editingQuotation.clientId ? "existing" : "new");
@@ -137,6 +159,13 @@ export default function EditQuotationForm({
 
   const editTotalPrice = calculateEditTotalPrice();
   const editDiscountedTotal = calculateEditDiscountedTotal();
+
+  const handleProjectSelected = (projectId: number, projectName: string) => {
+    setEditForm(prev => ({
+      ...prev,
+      projectId: projectId
+    }));
+  };
 
   const calculateEditEndDate = () => {
     if (!editForm.startDate || !editForm.duration) {
@@ -220,6 +249,7 @@ export default function EditQuotationForm({
           ? parseInt(editForm.duration)
           : undefined,
         startDate: editForm.startDate || undefined,
+        projectId: editForm.projectId,
       });
 
       onSuccess();
@@ -265,6 +295,22 @@ export default function EditQuotationForm({
               }
               onModeChange={setClientMode}
               mode={clientMode}
+            />
+
+            {/* Project Selection */}
+            <ProjectSelection
+              selectedProjectId={editForm.projectId}
+              newProjectData={editForm.newProject}
+              onProjectSelect={handleProjectSelected}
+              onNewProjectDataChange={(newProjectData) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  newProject: newProjectData,
+                }))
+              }
+              onModeChange={setProjectMode}
+              mode={projectMode}
+              currentUserId={enhancedUser.id}
             />
             <div className="grid gap-2">
               <Label htmlFor="edit-description">Description</Label>
@@ -473,6 +519,8 @@ export default function EditQuotationForm({
           </div>
         </div>
       </DialogContent>
+
+
     </Dialog>
   );
 } 

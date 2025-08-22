@@ -18,7 +18,7 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
   if (isAdmin) {
     const projects = await prisma.project.findMany({
       include: {
-        quotation: {
+        quotations: {
           include: {
             services: {
               include: { service: true },
@@ -53,7 +53,7 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
     include: {
               project: {
           include: {
-            quotation: {
+            quotations: {
               include: {
                 services: {
                   include: { service: true },
@@ -169,7 +169,7 @@ export async function getUserProjectPermissions(userId: string) {
     include: {
       project: {
         include: {
-          quotation: true,
+          quotations: true,
           createdByUser: true,
         },
       },
@@ -317,7 +317,7 @@ export async function getUserInvitations(userId: string) {
     include: {
       project: {
         include: {
-          quotation: true,
+          quotations: true,
           createdByUser: true,
         },
       },
@@ -415,7 +415,7 @@ export async function getAllPendingInvitations() {
     include: {
       project: {
         include: {
-          quotation: true,
+          quotations: true,
           createdByUser: true,
         },
       },
@@ -445,7 +445,7 @@ export async function getAllInvitations() {
     include: {
       project: {
         include: {
-          quotation: true,
+          quotations: true,
           createdByUser: true,
         },
       },
