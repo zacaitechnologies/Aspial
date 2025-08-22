@@ -8,14 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { StudioForm } from "@/app/(main)/equipment-bookings/components/studio-form"
 import { EquipmentForm } from "@/app/(main)/equipment-bookings/components/equipment-form"
-import { BookingForm } from "@/app/(main)/equipment-bookings/components/booking-form"
-import { StudioBookingForm } from "@/app/(main)/equipment-bookings/components/studio-booking-form"
 import { MultipleBookingForm } from "@/app/(main)/equipment-bookings/components/multiple-booking-form"
 import { DatePicker } from "@/app/(main)/equipment-bookings/components/date-picker"
 import { BookingList } from "@/app/(main)/equipment-bookings/components/booking-list"
 import { deleteStudio, deleteEquipment, cancelBooking, cancelStudioBooking } from "@/app/(main)/equipment-bookings/actions"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import { Edit, Trash2, Plus, Calendar, MapPin, Users, Package, Clock, User } from "lucide-react"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 interface Booking {
   id: number
@@ -61,9 +60,10 @@ interface Equipment {
 interface AdminDashboardProps {
   studios: Studio[]
   equipment: Equipment[]
+  isAdmin: boolean
 }
 
-export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
+export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboardProps) {
   const { enhancedUser } = useSession()
   const [selectedStudio, setSelectedStudio] = useState<Studio | null>(null)
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null)
@@ -73,11 +73,18 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const [showStudioForm, setShowStudioForm] = useState(false)
   const [showEquipmentForm, setShowEquipmentForm] = useState(false)
   const [showBookingForm, setShowBookingForm] = useState(false)
-  const [showStudioBookingForm, setShowStudioBookingForm] = useState(false)
   const [activeTab, setActiveTab] = useState("booking")
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
+  
+  // Confirmation dialog states
+  const [showDeleteStudioDialog, setShowDeleteStudioDialog] = useState(false)
+  const [showDeleteEquipmentDialog, setShowDeleteEquipmentDialog] = useState(false)
+  const [showCancelBookingDialog, setShowCancelBookingDialog] = useState(false)
+  const [showCancelStudioBookingDialog, setShowCancelStudioBookingDialog] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<{ id: number; name: string; type: 'studio' | 'equipment' } | null>(null)
+  const [bookingToCancel, setBookingToCancel] = useState<{ id: number; type: 'equipment' | 'studio' } | null>(null)
 
   // Get user name for filtering bookings
   const userName = enhancedUser.profile 
@@ -119,27 +126,55 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const endIndex = startIndex + itemsPerPage
   const currentBookings = allUserBookings.slice(startIndex, endIndex)
 
-  const handleDeleteStudio = async (id: number) => {
-    if (confirm("Are you sure you want to delete this studio?")) {
-      await deleteStudio(id)
+  const handleDeleteStudio = (id: number, name: string) => {
+    setItemToDelete({ id, name, type: 'studio' })
+    setShowDeleteStudioDialog(true)
+  }
+
+  const handleDeleteEquipment = (id: number, name: string) => {
+    setItemToDelete({ id, name, type: 'equipment' })
+    setShowDeleteEquipmentDialog(true)
+  }
+
+  const confirmDeleteStudio = async () => {
+    if (itemToDelete && itemToDelete.type === 'studio') {
+      await deleteStudio(itemToDelete.id)
+      setShowDeleteStudioDialog(false)
+      setItemToDelete(null)
     }
   }
 
-  const handleDeleteEquipment = async (id: number) => {
-    if (confirm("Are you sure you want to delete this equipment?")) {
-      await deleteEquipment(id)
+  const confirmDeleteEquipment = async () => {
+    if (itemToDelete && itemToDelete.type === 'equipment') {
+      await deleteEquipment(itemToDelete.id)
+      setShowDeleteEquipmentDialog(false)
+      setItemToDelete(null)
     }
   }
 
-  const handleCancelBooking = async (bookingId: number) => {
-    if (confirm("Are you sure you want to cancel this booking?")) {
-      await cancelBooking(bookingId)
+  const handleCancelBooking = (bookingId: number) => {
+    setBookingToCancel({ id: bookingId, type: 'equipment' })
+    setShowCancelBookingDialog(true)
+  }
+
+  const handleCancelStudioBooking = (bookingId: number) => {
+    setBookingToCancel({ id: bookingId, type: 'studio' })
+    setShowCancelStudioBookingDialog(true)
+  }
+
+  const confirmCancelBooking = async () => {
+    if (bookingToCancel && bookingToCancel.type === 'equipment') {
+      await cancelBooking(bookingToCancel.id)
+      setShowCancelBookingDialog(false)
+      setBookingToCancel(null)
     }
   }
 
-  const handleCancelStudioBooking = async (bookingId: number) => {
-    if (confirm("Are you sure you want to cancel this studio booking?")) {
-      await cancelStudioBooking(bookingId)
+  const confirmCancelStudioBooking = async () => {
+    if (bookingToCancel && bookingToCancel.type === 'studio') {
+      await cancelStudioBooking(bookingToCancel.id)
+      setShowCancelStudioBookingDialog(false)
+      setBookingToCancel(null)
     }
   }
 
@@ -152,13 +187,13 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
   const handleBookStudio = (studio: Studio, slots: { start: Date; end: Date }[]) => {
     setSelectedBookingStudio(studio)
     setSelectedSlots(slots)
-    setShowStudioBookingForm(true)
+    setShowBookingForm(true)
   }
 
   return (
     <Tabs defaultValue="booking" className="w-full" onValueChange={setActiveTab}>
       <div className="relative">
-        <TabsList className="grid w-full grid-cols-4 bg-transparent border-primary border-1 transition-all duration-300 ease-in-out">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-2'} bg-transparent border-primary border-1 transition-all duration-300 ease-in-out`}>
           <TabsTrigger 
             value="booking" 
             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
@@ -171,26 +206,35 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
           >
             My Bookings
           </TabsTrigger>
-          <TabsTrigger 
-            value="studios" 
-            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
-          >
-            Studios
-          </TabsTrigger>
-          <TabsTrigger 
-            value="equipment" 
-            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
-          >
-            Equipment
-          </TabsTrigger>
+          {isAdmin && (
+            <>
+              <TabsTrigger 
+                value="studios" 
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              >
+                Studios
+              </TabsTrigger>
+              <TabsTrigger 
+                value="equipment" 
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              >
+                Equipment
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
         {/* Sliding indicator */}
         <div 
           className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
-            activeTab === "booking" ? "left-1 w-[calc(25%-4px)]" : 
-            activeTab === "my-bookings" ? "left-[calc(25%+2px)] w-[calc(25%-4px)]" : 
-            activeTab === "studios" ? "left-[calc(50%+2px)] w-[calc(25%-4px)]" : 
-            "left-[calc(75%+2px)] w-[calc(25%-4px)]"
+            isAdmin ? (
+              activeTab === "booking" ? "left-1 w-[calc(25%-4px)]" : 
+              activeTab === "my-bookings" ? "left-[calc(25%+2px)] w-[calc(25%-4px)]" : 
+              activeTab === "studios" ? "left-[calc(50%+2px)] w-[calc(25%-4px)]" : 
+              "left-[calc(75%+2px)] w-[calc(25%-4px)]"
+            ) : (
+              activeTab === "booking" ? "left-1 w-[calc(50%-4px)]" : 
+              "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+            )
           }`}
         />
       </div>
@@ -272,13 +316,23 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                       <p className="text-sm mt-1">{booking.purpose}</p>
                     )}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => booking.type === 'equipment' ? handleCancelBooking(booking.id) : handleCancelStudioBooking(booking.id)}
-                  >
-                    Cancel
-                  </Button>
+                  {(() => {
+                    const now = new Date()
+                    const bookingEndDate = new Date(booking.endDate)
+                    const hasPassed = bookingEndDate < now
+                    
+                    return (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={hasPassed}
+                        onClick={() => booking.type === 'equipment' ? handleCancelBooking(booking.id) : handleCancelStudioBooking(booking.id)}
+                        title={hasPassed ? "Cannot cancel past bookings" : "Cancel booking"}
+                      >
+                        {hasPassed ? "Expired" : "Cancel"}
+                      </Button>
+                    )
+                  })()}
                 </div>
               </Card>
             ))}
@@ -400,32 +454,20 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                 <div className="flex flex-wrap gap-2 pt-2">
                   <Button
                     size="sm"
-                    variant="default"
+                    variant="outline"
                     onClick={() => {
-                      setSelectedBookingStudio(studio)
-                      setShowStudioBookingForm(true)
+                      setSelectedStudio(studio)
+                      setShowStudioForm(true)
                     }}
-                    className="flex-1 min-w-0"
+                    className="flex-1 min-w-0 text-black"
                   >
-                    <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Book</span>
+                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Edit</span>
                   </Button>
-                                     <Button
-                     size="sm"
-                     variant="outline"
-                     onClick={() => {
-                       setSelectedStudio(studio)
-                       setShowStudioForm(true)
-                     }}
-                     className="flex-1 min-w-0 text-black"
-                   >
-                     <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
-                     <span className="truncate">Edit</span>
-                   </Button>
                   <Button 
                     size="sm" 
                     variant="destructive" 
-                    onClick={() => handleDeleteStudio(studio.id)}
+                    onClick={() => handleDeleteStudio(studio.id, studio.name)}
                     className="flex-1 min-w-0"
                   >
                     <Trash2 className="w-4 h-4 mr-1 flex-shrink-0" />
@@ -515,33 +557,20 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
                 <div className="flex flex-wrap gap-2 pt-2">
                   <Button
                     size="sm"
-                    variant="default"
-                    disabled={!item.isAvailable}
+                    variant="outline"
                     onClick={() => {
-                      setSelectedBookingEquipment(item)
-                      setShowBookingForm(true)
+                      setSelectedEquipment(item)
+                      setShowEquipmentForm(true)
                     }}
-                    className="flex-1 min-w-0"
+                    className="flex-1 min-w-0 text-black"
                   >
-                    <Calendar className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Book</span>
+                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
+                    <span className="truncate">Edit</span>
                   </Button>
-                                     <Button
-                     size="sm"
-                     variant="outline"
-                     onClick={() => {
-                       setSelectedEquipment(item)
-                       setShowEquipmentForm(true)
-                     }}
-                     className="flex-1 min-w-0 text-black"
-                   >
-                     <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
-                     <span className="truncate">Edit</span>
-                   </Button>
                   <Button 
                     size="sm" 
                     variant="destructive" 
-                    onClick={() => handleDeleteEquipment(item.id)}
+                    onClick={() => handleDeleteEquipment(item.id, item.name)}
                     className="flex-1 min-w-0"
                   >
                     <Trash2 className="w-4 h-4 mr-1 flex-shrink-0" />
@@ -553,70 +582,87 @@ export function BookingDashboard({ studios, equipment }: AdminDashboardProps) {
           ))}
         </div>
 
-        <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
-          <DialogContent>
-            <DialogTitle>
-              Book Equipment: {selectedBookingEquipment?.name}
-            </DialogTitle>
-            {selectedBookingEquipment && selectedSlots.length > 0 && (
-              selectedSlots.length === 1 ? (
-                <BookingForm
-                  equipment={selectedBookingEquipment}
-                  onClose={() => {
-                    setShowBookingForm(false)
-                    setSelectedBookingEquipment(null)
-                    setSelectedSlots([])
-                  }}
-                />
-              ) : (
-                <MultipleBookingForm
-                  item={selectedBookingEquipment}
-                  slots={selectedSlots}
-                  isStudio={false}
-                  onClose={() => {
-                    setShowBookingForm(false)
-                    setSelectedBookingEquipment(null)
-                    setSelectedSlots([])
-                  }}
-                  onSuccess={handleRefresh}
-                />
-              )
-            )}
-          </DialogContent>
-        </Dialog>
+
       </TabsContent>
 
-              <Dialog open={showStudioBookingForm} onOpenChange={setShowStudioBookingForm}>
+              <Dialog open={showBookingForm} onOpenChange={setShowBookingForm}>
           <DialogContent>
             <DialogTitle>
-              Book Studio: {selectedBookingStudio?.name}
+              Book {selectedBookingStudio ? 'Studio' : 'Equipment'}: {selectedBookingStudio?.name || selectedBookingEquipment?.name}
             </DialogTitle>
-            {selectedBookingStudio && selectedSlots.length > 0 && (
-              selectedSlots.length === 1 ? (
-                <StudioBookingForm
-                  studio={selectedBookingStudio}
-                  onClose={() => {
-                    setShowStudioBookingForm(false)
-                    setSelectedBookingStudio(null)
-                    setSelectedSlots([])
-                  }}
-                />
-              ) : (
-                <MultipleBookingForm
-                  item={selectedBookingStudio}
-                  slots={selectedSlots}
-                  isStudio={true}
-                  onClose={() => {
-                    setShowStudioBookingForm(false)
-                    setSelectedBookingStudio(null)
-                    setSelectedSlots([])
-                  }}
-                  onSuccess={handleRefresh}
-                />
-              )
+            {(selectedBookingStudio || selectedBookingEquipment) && selectedSlots.length > 0 && (
+              <MultipleBookingForm
+                item={selectedBookingStudio || selectedBookingEquipment!}
+                slots={selectedSlots}
+                isStudio={!!selectedBookingStudio}
+                onClose={() => {
+                  setShowBookingForm(false)
+                  setSelectedBookingStudio(null)
+                  setSelectedBookingEquipment(null)
+                  setSelectedSlots([])
+                }}
+                onSuccess={handleRefresh}
+              />
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Confirmation Dialogs */}
+        <ConfirmationDialog
+          isOpen={showDeleteStudioDialog}
+          onClose={() => {
+            setShowDeleteStudioDialog(false)
+            setItemToDelete(null)
+          }}
+          onConfirm={confirmDeleteStudio}
+          title="Delete Studio"
+          description={`Are you sure you want to delete "${itemToDelete?.name}"? This action will permanently delete the studio AND ALL ASSOCIATED BOOKINGS. This cannot be undone.`}
+          confirmText="Delete Studio"
+          cancelText="Cancel"
+          variant="danger"
+        />
+
+        <ConfirmationDialog
+          isOpen={showDeleteEquipmentDialog}
+          onClose={() => {
+            setShowDeleteEquipmentDialog(false)
+            setItemToDelete(null)
+          }}
+          onConfirm={confirmDeleteEquipment}
+          title="Delete Equipment"
+          description={`Are you sure you want to delete "${itemToDelete?.name}"? This action will permanently delete the equipment AND ALL ASSOCIATED BOOKINGS. This cannot be undone.`}
+          confirmText="Delete Equipment"
+          cancelText="Cancel"
+          variant="danger"
+        />
+
+        <ConfirmationDialog
+          isOpen={showCancelBookingDialog}
+          onClose={() => {
+            setShowCancelBookingDialog(false)
+            setBookingToCancel(null)
+          }}
+          onConfirm={confirmCancelBooking}
+          title="Cancel Equipment Booking"
+          description="Are you sure you want to cancel this equipment booking? This action cannot be undone."
+          confirmText="Cancel Booking"
+          cancelText="Keep Booking"
+          variant="warning"
+        />
+
+        <ConfirmationDialog
+          isOpen={showCancelStudioBookingDialog}
+          onClose={() => {
+            setShowCancelStudioBookingDialog(false)
+            setBookingToCancel(null)
+          }}
+          onConfirm={confirmCancelStudioBooking}
+          title="Cancel Studio Booking"
+          description="Are you sure you want to cancel this studio booking? This action cannot be undone."
+          confirmText="Cancel Booking"
+          cancelText="Keep Booking"
+          variant="warning"
+        />
     </Tabs>
   )
 }

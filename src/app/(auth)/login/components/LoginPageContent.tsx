@@ -57,7 +57,7 @@ export default function LoginPageContent() {
           {/* Logo */}
           <div className="flex justify-center mb-8">
             <Image
-              src="/images/LoginLogo.png"
+              src="/images/logoPng.png"
               alt="Aspial Production"
               width={200}
               height={60}

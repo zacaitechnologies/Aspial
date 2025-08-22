@@ -48,6 +48,39 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
     ? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim() 
     : enhancedUser.email || 'Unknown User'
 
+  // Function to group consecutive slots
+  const groupConsecutiveSlots = (slots: { start: Date; end: Date }[]) => {
+    if (slots.length === 0) return []
+    
+    // Sort slots by start time
+    const sortedSlots = [...slots].sort((a, b) => a.start.getTime() - b.start.getTime())
+    const groups: { start: Date; end: Date }[][] = []
+    let currentGroup: { start: Date; end: Date }[] = [sortedSlots[0]]
+    
+    for (let i = 1; i < sortedSlots.length; i++) {
+      const currentSlot = sortedSlots[i]
+      const lastSlotInGroup = currentGroup[currentGroup.length - 1]
+      
+      // Check if current slot is consecutive (starts when the previous one ends)
+      if (currentSlot.start.getTime() === lastSlotInGroup.end.getTime()) {
+        currentGroup.push(currentSlot)
+      } else {
+        // Start a new group
+        groups.push([...currentGroup])
+        currentGroup = [currentSlot]
+      }
+    }
+    
+    // Add the last group
+    groups.push(currentGroup)
+    
+    return groups
+  }
+
+  // Group consecutive slots
+  const slotGroups = groupConsecutiveSlots(slots)
+  
+  // Calculate total duration for display
   const totalDuration = slots.length * 60 // minutes
   const totalHours = Math.floor(totalDuration / 60)
   const remainingMinutes = totalDuration % 60
@@ -60,8 +93,8 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
     setIsSubmitting(true)
 
     try {
-      // Create bookings for each slot
-      for (const slot of slots) {
+      // Create bookings for each group of consecutive slots
+      for (const group of slotGroups) {
         const formData = new FormData()
         
         if (isStudio) {
@@ -72,8 +105,9 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
         }
         
         formData.append("bookedBy", userName)
-        formData.append("startDate", slot.start.toISOString())
-        formData.append("endDate", slot.end.toISOString())
+        // Use the start time of the first slot and end time of the last slot
+        formData.append("startDate", group[0].start.toISOString())
+        formData.append("endDate", group[group.length - 1].end.toISOString())
         formData.append("purpose", purpose)
 
         if (isStudio) {
@@ -99,7 +133,7 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
           Book {isStudio ? 'Studio' : 'Equipment'}: {item.name}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
-          {slots.length} slot{slots.length > 1 ? 's' : ''} selected ({durationText})
+          {slots.length} slot{slots.length > 1 ? 's' : ''} selected ({durationText}) - {slotGroups.length} booking{slotGroups.length > 1 ? 's' : ''} will be created
         </p>
       </div>
 
@@ -144,9 +178,18 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
         <div className="space-y-2">
           <Label>Selected Time Slots</Label>
           <div className="max-h-32 overflow-y-auto space-y-1">
-            {slots.map((slot, index) => (
-              <div key={index} className="text-sm bg-muted p-2 rounded">
-                {format(slot.start, "HH:mm")} - {format(slot.end, "HH:mm")}
+            {slotGroups.map((group, groupIndex) => (
+              <div key={groupIndex} className="space-y-1">
+                {group.length > 1 && (
+                  <div className="text-xs text-blue-600 font-medium">
+                    Group {groupIndex + 1} (Combined)
+                  </div>
+                )}
+                {group.map((slot, slotIndex) => (
+                  <div key={`${groupIndex}-${slotIndex}`} className="text-sm bg-muted p-2 rounded">
+                    {format(slot.start, "HH:mm")} - {format(slot.end, "HH:mm")}
+                  </div>
+                ))}
               </div>
             ))}
           </div>
@@ -154,7 +197,7 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 
         <div className="flex gap-2 pt-4">
           <Button type="submit" disabled={isSubmitting} className="flex-1">
-            {isSubmitting ? "Creating..." : `Book ${slots.length} Slot${slots.length > 1 ? 's' : ''}`}
+            {isSubmitting ? "Creating..." : `Create ${slotGroups.length} Booking${slotGroups.length > 1 ? 's' : ''}`}
           </Button>
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
