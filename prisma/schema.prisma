@@ -204,7 +204,7 @@ model Equipment {
 model Booking {
   id          Int       @id @default(autoincrement())
   equipmentId Int
-  equipment   Equipment @relation(fields: [equipmentId], references: [id])
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   bookedBy    String
   startDate   DateTime
   endDate     DateTime
@@ -219,7 +219,7 @@ model Booking {
 model StudioBooking {
   id        Int      @id @default(autoincrement())
   studioId  Int
-  studio    Studio   @relation(fields: [studioId], references: [id])
+  studio    Studio   @relation(fields: [studioId], references: [id], onDelete: Cascade)
   bookedBy  String
   startDate DateTime
   endDate   DateTime

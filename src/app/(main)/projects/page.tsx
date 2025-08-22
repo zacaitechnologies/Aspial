@@ -5,9 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, DollarSign, Clock } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useState, useEffect } from "react";
-import { getAllProjects, updateProjectStatus, deleteProject } from "./action";
+import { useState, useEffect, useMemo } from "react";
+import { getAllProjects, getAllProjectsOptimized, deleteProject } from "./action";
 import { isUserProjectOwner } from "./permissions";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
@@ -16,9 +15,9 @@ import { useSession } from "../contexts/SessionProvider";
 import {
   ProjectWithQuotation,
   projectStatusOptions,
-  ProjectOwnershipState,
 } from "./types";
 import Link from "next/link";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 export default function ProjectsPage() {
   const { enhancedUser } = useSession();
@@ -32,8 +31,16 @@ export default function ProjectsPage() {
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [selectedProject, setSelectedProject] =
     useState<ProjectWithQuotation | null>(null);
-  const [projectOwnership, setProjectOwnership] =
-    useState<ProjectOwnershipState>({});
+
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [hasMore, setHasMore] = useState(true);
+  
+  // Confirmation dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
 
   const getLatestUpdatedTime = (projects: ProjectWithQuotation[]) => {
     if (projects.length === 0) return null;
@@ -57,23 +64,27 @@ export default function ProjectsPage() {
     return { total, newProjects, ongoing, completed };
   };
 
-  const fetchProjects = async () => {
+  // Memoize project statistics
+  const projectStats = useMemo(() => getProjectStats(projects), [projects]);
+
+  const fetchProjects = async (page = 1) => {
     try {
       if (!enhancedUser?.id) {
         console.error("User not authenticated");
         return;
       }
-      const data = await getAllProjects(enhancedUser.id);
-      setProjects(data as ProjectWithQuotation[]);
+      
+      setLoading(true);
+      const data = await getAllProjectsOptimized(enhancedUser.id);
+      
+      // Simple pagination - take first 20 projects for initial load
+      const paginatedData = data.slice(0, page * pageSize);
+      setProjects(paginatedData as any);
+      setHasMore(data.length > page * pageSize);
+      setCurrentPage(page);
 
-      const ownershipMap: { [key: number]: boolean } = {};
-      for (const project of data) {
-        ownershipMap[project.id] = await isUserProjectOwner(
-          enhancedUser.id,
-          project.id
-        );
-      }
-      setProjectOwnership(ownershipMap);
+      // Note: Ownership information is now included in the server response
+      // No need for additional client-side permission checks
     } catch (error) {
       console.error("Failed to fetch projects:", error);
     } finally {
@@ -87,35 +98,28 @@ export default function ProjectsPage() {
     }
   }, [enhancedUser?.id]);
 
-  const handleStatusUpdate = async (projectId: string, newStatus: string) => {
-    try {
-      await updateProjectStatus(projectId, newStatus);
-      await fetchProjects();
-    } catch (error) {
-      console.error("Error updating project status:", error);
-    }
-  };
-
   const handleEditProject = (project: ProjectWithQuotation) => {
     setEditingProject(project);
     setIsEditOpen(true);
   };
 
-  const handleDelete = async (projectId: string) => {
-    if (!confirm("Are you sure you want to delete this project?")) return;
+  const handleDelete = (projectId: string) => {
+    setProjectToDelete(projectId);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!projectToDelete) return;
 
     try {
-      await deleteProject(projectId);
+      await deleteProject(projectToDelete);
       await fetchProjects();
+      setShowDeleteDialog(false);
+      setProjectToDelete(null);
     } catch (error) {
       console.error("Error deleting project:", error);
       alert("Failed to delete project. Please try again.");
     }
-  };
-
-  const handleManageCollaborators = (project: ProjectWithQuotation) => {
-    setSelectedProject(project);
-    setIsCollaboratorsOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -146,26 +150,28 @@ export default function ProjectsPage() {
     );
   };
 
-  // Filter projects based on search query and status filter
-  const filteredProjects = projects.filter((project) => {
-    const matchesSearch =
-      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (project.description &&
-        project.description
+  // Filter projects based on search query and status filter - optimized with useMemo
+  const filteredProjects = useMemo(() => {
+    return projects.filter((project) => {
+      const matchesSearch =
+        project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (project.description &&
+          project.description
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase())) ||
+        project.createdByUser.firstName
           .toLowerCase()
-          .includes(searchQuery.toLowerCase())) ||
-      project.createdByUser.firstName
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      project.createdByUser.lastName
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
+          .includes(searchQuery.toLowerCase()) ||
+        project.createdByUser.lastName
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
 
-    const matchesStatus =
-      statusFilter === "all" || project.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" || project.status === statusFilter;
 
-    return matchesSearch && matchesStatus;
-  });
+      return matchesSearch && matchesStatus;
+    });
+  }, [projects, searchQuery, statusFilter]);
 
   if (loading) {
     return (
@@ -193,7 +199,7 @@ export default function ProjectsPage() {
 
       <div className="w-full p-0 rounded-md grid lg:grid-cols-4 grid-cols-2 gap-4">
         {(() => {
-          const stats = getProjectStats(projects);
+          const stats = projectStats;
           const boxes = [];
 
           if (stats.total >= 0) {
@@ -407,6 +413,19 @@ export default function ProjectsPage() {
         </div>
       )}
 
+      {/* Load More Button */}
+      {hasMore && filteredProjects.length > 0 && (
+        <div className="flex justify-center mt-6">
+          <Button
+            onClick={() => fetchProjects(currentPage + 1)}
+            disabled={loading}
+            variant="outline"
+          >
+            {loading ? "Loading..." : "Load More Projects"}
+          </Button>
+        </div>
+      )}
+
       <EditProjectDialog
         isOpen={isEditOpen}
         onOpenChange={setIsEditOpen}
@@ -419,6 +438,21 @@ export default function ProjectsPage() {
         onOpenChange={setIsCollaboratorsOpen}
         projectId={selectedProject?.id || 0}
         projectName={selectedProject?.name || ""}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setProjectToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Project"
+        description="Are you sure you want to delete this project? This action cannot be undone."
+        confirmText="Delete Project"
+        cancelText="Cancel"
+        variant="danger"
       />
     </div>
   );
