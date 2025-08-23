@@ -17,7 +17,7 @@ interface DateEventsDialogProps {
 const eventTypeColors = {
   equipment: "bg-blue-500",
   studio: "bg-purple-500", 
-  task: "bg-green-500"
+  task: "bg-red-500"
 }
 
 const eventTypeLabels = {
