@@ -146,7 +146,6 @@ export async function createProject(data: CreateProjectData) {
     data: {
       name: data.name,
       description: data.description,
-      // quotationId: data.quotationId || 0, // Will work after migration
       createdBy: data.createdBy,
       startDate: data.startDate,
       endDate: data.endDate,
@@ -248,23 +247,23 @@ export async function getProjectById(userId: string, projectId: string) {
           name: true,
         },
       },
-      // quotation: { // Will work after migration
-      //   select: {
-      //     id: true,
-      //     totalPrice: true,
-      //     status: true,
-      //     services: {
-      //       select: {
-      //         service: {
-      //           select: {
-      //             name: true,
-      //             description: true,
-      //           },
-      //         },
-      //       },
-      //     },
-      //   },
-      // },
+      quotations: {
+        select: {
+          id: true,
+          totalPrice: true,
+          status: true,
+          services: {
+            select: {
+              service: {
+                select: {
+                  name: true,
+                  description: true,
+                },
+              },
+            },
+          },
+        },
+      },
       _count: {
         select: {
           tasks: true,
