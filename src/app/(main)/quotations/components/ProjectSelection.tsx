@@ -59,7 +59,7 @@ export default function ProjectSelection({
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  });
 
   const fetchProjects = async () => {
     try {

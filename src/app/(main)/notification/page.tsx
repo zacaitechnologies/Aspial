@@ -126,7 +126,7 @@ export default function NotificationPage() {
     if (enhancedUser?.id) {
       fetchInvitations();
     }
-  }, [enhancedUser?.id]);
+  }, [enhancedUser?.id, fetchInvitations]);
 
   const handleAcceptInvitation = async (invitationId: number) => {
     try {

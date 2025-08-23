@@ -139,7 +139,7 @@ export default function ProjectCollaboratorsDialog({
     if (isOpen && projectId) {
       fetchPermissions();
     }
-  }, [isOpen, projectId]);
+  }, [isOpen, projectId, fetchPermissions]);
 
   const handleInviteCollaborator = async () => {
     if (!selectedUserId) {
