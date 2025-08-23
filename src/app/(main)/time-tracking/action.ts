@@ -97,7 +97,7 @@ export async function fetchAllUsers() {
 export async function fetchAllProjects() {
   const projects = await prisma.project.findMany({
     include: {
-      quotation: true,
+      quotations: true,
       createdByUser: true
     },
     orderBy: {
@@ -156,7 +156,7 @@ export async function fetchUserProjects(supabaseId: string) {
     //   ]
     // },
     include: {
-      quotation: true
+      quotations: true
     },
     orderBy: {
       created_at: "desc"
