@@ -58,7 +58,7 @@ export interface CalendarBooking {
 const bookingTypes = {
   equipment: { color: "bg-[var(--color-primary)]", label: "Equipment" },
   studio: { color: "bg-[var(--color-accent)]", label: "Studio" },
-  task: { color: "bg-green-500", label: "Task" },
+  task: { color: "bg-yellow-500 ", label: "Task" },
 }
 
 // Function to fetch all bookings from the database
@@ -138,11 +138,18 @@ async function fetchAllBookings(userId?: string): Promise<CalendarBooking[]> {
         tasks.forEach((task) => {
           if (task.dueDate) {
             const dueDate = new Date(task.dueDate)
-            console.log('Processing task:', task.title, 'due date:', dueDate)
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const isOverdue = dueDate < today
+            console.log('Processing task:', task.title, 'due date:', dueDate, 'overdue:', isOverdue)
+            
+            const taskTitle = isOverdue 
+              ? `OVERDUE: ${task.title} - ${task.project?.name || 'Unknown Project'}`
+              : `DUE: ${task.title} - ${task.project?.name || 'Unknown Project'}`
             
             calendarBookings.push({
               id: `task-${task.id}`,
-              title: `${task.title} - ${task.project?.name || 'Unknown Project'}`,
+              title: taskTitle,
               description: task.description || `Task due on ${dueDate.toLocaleDateString()}`,
               date: dueDate.toISOString().split('T')[0],
               startTime: "00:00",
@@ -150,8 +157,8 @@ async function fetchAllBookings(userId?: string): Promise<CalendarBooking[]> {
               type: "task",
               location: task.project?.name || 'Unknown Project',
               attendees: 1,
-              color: bookingTypes.task.color,
-              originalData: task
+              color: isOverdue ? "bg-red-600" : bookingTypes.task.color,
+              originalData: { ...task, isOverdue, dueDate: dueDate.toISOString() }
             })
           }
         })

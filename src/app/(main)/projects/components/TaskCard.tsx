@@ -1,52 +1,78 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Calendar, Flag, MoreHorizontal, Target, Edit, Trash2 } from "lucide-react"
-import { TaskWithAssignee } from "../types"
-import { TaskForm } from "./TaskForm"
-import { deleteTask } from "../task-actions"
+import { useState } from "react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Clock,
+  Flag,
+  MoreHorizontal,
+  Target,
+  Edit,
+  Trash2,
+} from "lucide-react";
+import { TaskWithAssignee } from "../types";
+import { TaskForm } from "./TaskForm";
+import { deleteTask } from "../task-actions";
 
 interface TaskCardProps {
-  task: TaskWithAssignee
+  task: TaskWithAssignee;
   availableUsers: Array<{
-    id: string
-    firstName: string
-    lastName: string
-    email: string
-    supabase_id: string
-  }>
-  onTaskUpdated?: (task: TaskWithAssignee) => void
-  onTaskDeleted?: (taskId: number) => void
-  onDragStart?: (e: React.DragEvent) => void
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    supabase_id: string;
+  }>;
+  onTaskUpdated?: (task: TaskWithAssignee) => void;
+  onTaskDeleted?: (taskId: number) => void;
+  onDragStart?: (e: React.DragEvent) => void;
 }
 
-export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted, onDragStart }: TaskCardProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
+export function TaskCard({
+  task,
+  availableUsers,
+  onTaskUpdated,
+  onTaskDeleted,
+  onDragStart,
+}: TaskCardProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this task?")) return
-    
-    setIsDeleting(true)
+    if (!confirm("Are you sure you want to delete this task?")) return;
+
+    setIsDeleting(true);
     try {
-      await deleteTask(task.id)
-      onTaskDeleted?.(task.id)
+      await deleteTask(task.id);
+      onTaskDeleted?.(task.id);
     } catch (error) {
-      console.error("Error deleting task:", error)
+      console.error("Error deleting task:", error);
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   return (
     <Card
       className={`bg-card border-border hover:shadow-md transition-shadow cursor-move mb-3 ${
-        task.type === "milestone" ? "border-l-4 border-l-yellow-400 bg-yellow-50/30" : ""
+        task.type === "milestone"
+          ? "border-l-4 border-l-yellow-400 bg-yellow-50/30"
+          : ""
       }`}
       draggable
       onDragStart={onDragStart}
@@ -55,11 +81,15 @@ export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted, o
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
-              {task.type === "milestone" && <Target className="h-4 w-4 text-yellow-600" />}
+              {task.type === "milestone" && (
+                <Target className="h-4 w-4 text-yellow-600" />
+              )}
               <h4 className="font-medium text-card-foreground">{task.title}</h4>
             </div>
             {task.description && (
-              <p className="text-sm text-muted-foreground">{task.description}</p>
+              <p className="text-sm text-muted-foreground">
+                {task.description}
+              </p>
             )}
           </div>
           <DropdownMenu>
@@ -88,7 +118,7 @@ export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted, o
                   />
                 </DialogContent>
               </Dialog>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onSelect={handleDelete}
                 disabled={isDeleting}
                 className="text-red-600"
@@ -114,27 +144,37 @@ export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted, o
         <div className="flex items-center justify-between pt-2">
           <div className="flex items-center gap-2">
             <Flag className="w-3 h-3 text-muted-foreground" />
-            <Badge variant="outline" className="text-xs text-muted-foreground border-muted-foreground/30 capitalize">
+            <Badge
+              variant="outline"
+              className="text-xs text-muted-foreground border-muted-foreground/30 capitalize"
+            >
               {task.priority}
             </Badge>
           </div>
-                     {task.dueDate && (
-             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-               <Calendar className="w-3 h-3" />
-               {new Date(task.dueDate).toLocaleDateString("en-UK", {
-                 day: "numeric",
-                 month: "short",
-                 year: "numeric"
-               })}
-             </div>
-           )}
+          {task.startDate && task.dueDate && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              {new Date(task.startDate).toLocaleDateString("en-UK", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+              -
+              {new Date(task.dueDate).toLocaleDateString("en-UK", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+            </div>
+          )}
         </div>
 
         {task.assignee && (
           <div className="flex items-center gap-2 pt-1">
             <Avatar className="w-6 h-6">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {task.assignee.firstName.charAt(0)}{task.assignee.lastName.charAt(0)}
+                {task.assignee.firstName.charAt(0)}
+                {task.assignee.lastName.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <span className="text-xs text-muted-foreground">
@@ -144,5 +184,5 @@ export function TaskCard({ task, availableUsers, onTaskUpdated, onTaskDeleted, o
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
