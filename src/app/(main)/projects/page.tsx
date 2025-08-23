@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, DollarSign, Clock } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { getAllProjectsOptimized, deleteProject } from "./action";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
@@ -66,7 +66,7 @@ export default function ProjectsPage() {
   // Memoize project statistics
   const projectStats = useMemo(() => getProjectStats(projects), [projects]);
 
-  const fetchProjects = async (page = 1) => {
+  const fetchProjects = useCallback(async (page = 1) => {
     try {
       if (!enhancedUser?.id) {
         console.error("User not authenticated");
@@ -89,7 +89,7 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enhancedUser?.id, pageSize]);
 
   useEffect(() => {
     if (enhancedUser?.id) {

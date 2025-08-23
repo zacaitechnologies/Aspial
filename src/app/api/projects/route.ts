@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         name: true,
         description: true,
         status: true,
-        quotation: {
+        quotations: {
           select: {
             name: true,
             createdBy: {
@@ -58,8 +58,8 @@ export async function GET(request: NextRequest) {
         description: project.description,
         status: project.status,
         color: colors[index % colors.length],
-        client: project.quotation?.createdBy 
-          ? `${project.quotation.createdBy.firstName} ${project.quotation.createdBy.lastName}`
+        client: project.quotations?.[0]?.createdBy 
+          ? `${project.quotations[0].createdBy.firstName} ${project.quotations[0].createdBy.lastName}`
           : "Unknown Client",
       }
     })
