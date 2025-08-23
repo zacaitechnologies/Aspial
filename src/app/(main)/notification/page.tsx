@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "../contexts/SessionProvider";
 import {
   getUserInvitations,
@@ -68,7 +68,7 @@ export default function NotificationPage() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const fetchInvitations = async () => {
+  const fetchInvitations = useCallback(async () => {
     try {
       setLoading(true);
       console.log("Fetching invitations for user:", enhancedUser?.id);
@@ -120,7 +120,7 @@ export default function NotificationPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [enhancedUser?.id]);
 
   useEffect(() => {
     if (enhancedUser?.id) {

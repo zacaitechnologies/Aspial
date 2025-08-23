@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   inviteProjectCollaborator, 
   getProjectPermissions, 
@@ -66,7 +66,7 @@ export default function ProjectCollaboratorsDialog({
 
 
 
-  const fetchPermissions = async () => {
+  const fetchPermissions = useCallback(async () => {
     try {
       setLoading(true);
       setLoadingError(null);
@@ -133,7 +133,7 @@ export default function ProjectCollaboratorsDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
 
   useEffect(() => {
     if (isOpen && projectId) {
