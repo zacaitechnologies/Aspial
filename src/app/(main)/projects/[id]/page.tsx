@@ -9,12 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import {
   ArrowLeft,
   Calendar,
@@ -22,7 +17,7 @@ import {
   CheckSquare,
   Plus,
   Flag,
-  ChevronDown,
+  Target,
 } from "lucide-react";
 import Link from "next/link";
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog";
@@ -38,7 +33,9 @@ export default function ProjectPage() {
   const [isProjectOwner, setIsProjectOwner] = useState(false);
   const [taskStats, setTaskStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "tasks">("overview");
-  const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">("createDate");
+  const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">(
+    "createDate"
+  );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
@@ -46,7 +43,10 @@ export default function ProjectPage() {
       try {
         if (!enhancedUser?.id || !params.id) return;
 
-        const projectData = await getProjectById(enhancedUser.id, params.id as string);
+        const projectData = await getProjectById(
+          enhancedUser.id,
+          params.id as string
+        );
 
         if (projectData) {
           setProject(projectData.project as any);
@@ -72,7 +72,7 @@ export default function ProjectPage() {
   const sortTasks = (tasks: any[]) => {
     return [...tasks].sort((a, b) => {
       let comparison = 0;
-      
+
       switch (sortBy) {
         case "dueDate":
           const aDueDate = a.dueDate ? new Date(a.dueDate).getTime() : 0;
@@ -86,27 +86,16 @@ export default function ProjectPage() {
           break;
         case "priority":
           const priorityOrder = { high: 3, medium: 2, low: 1 };
-          const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+          const aPriority =
+            priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+          const bPriority =
+            priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
           comparison = aPriority - bPriority;
           break;
       }
-      
+
       return sortOrder === "asc" ? comparison : -comparison;
     });
-  };
-
-  const getSortLabel = () => {
-    switch (sortBy) {
-      case "dueDate":
-        return "Due Date";
-      case "createDate":
-        return "Create Date";
-      case "priority":
-        return "Priority";
-      default:
-        return "Sort by";
-    }
   };
 
   if (loading) {
@@ -142,17 +131,6 @@ export default function ProjectPage() {
   return (
     <div className="min-h-screen">
       <div className="p-6">
-        {/* Header with back button */}
-        <div className="mb-6">
-          <Link href="/projects">
-            <Button variant="outline" className="mb-4">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Projects
-            </Button>
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
-        </div>
-
         {/* Tab Navigation */}
         <div className="flex gap-4 border-b border-border mb-6">
           <button
@@ -165,6 +143,7 @@ export default function ProjectPage() {
           >
             Overview
           </button>
+
           <button
             onClick={() => setActiveTab("tasks")}
             className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
@@ -400,55 +379,13 @@ export default function ProjectPage() {
         )}
 
         {activeTab === "tasks" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">
-                  Project Tasks
-                </h2>
-                <p className="text-muted-foreground">
-                  Manage and track all tasks for this project
-                </p>
-              </div>
-              
-              {/* Sorting Controls */}
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="flex items-center gap-2">
-                      {getSortLabel()}
-                      <ChevronDown className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setSortBy("createDate")}>
-                      Create Date
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("dueDate")}>
-                      Due Date
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("priority")}>
-                      Priority
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                  className="flex items-center gap-2"
-                >
-                  {sortOrder === "asc" ? "↑" : "↓"}
-                </Button>
-              </div>
-            </div>
-            <KanbanBoard 
-              projectId={params.id as string} 
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-            />
-          </div>
+          <KanbanBoard
+            projectId={params.id as string}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSortByChange={setSortBy}
+            onSortOrderChange={setSortOrder}
+          />
         )}
       </div>
 

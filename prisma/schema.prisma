@@ -134,6 +134,7 @@ model Project {
   permissions   ProjectPermission[]
   invitations   ProjectInvitation[]
   tasks         Task[]
+  milestones    Milestone[]
   Client        Client?             @relation(fields: [clientId], references: [id])
   clientId      String?
 
@@ -270,24 +271,43 @@ model ProjectInvitation {
   @@map("project_invitations")
 }
 
+model Milestone {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  projectId   Int
+  dueDate     DateTime?
+  priority    TaskPriority @default(low)
+  status      MilestoneStatus @default(in_progress)
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks    Task[]
+
+  @@map("milestones")
+}
+
 model Task {
   id          Int       @id @default(autoincrement())
   title       String
   description String?
   projectId   Int
+  milestoneId Int?
   status      TaskStatus @default(todo)
   priority    TaskPriority @default(low)
   assigneeId  String?
   startDate   DateTime?
   dueDate     DateTime?
   tags        String[]  @default([])
-  type        TaskType  @default(task)
   order       Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [supabase_id])
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  assignee  User?     @relation("TaskAssignee", fields: [assigneeId], references: [supabase_id])
 
   @@map("tasks")
 }
@@ -304,9 +324,10 @@ enum TaskPriority {
   high
 }
 
-enum TaskType {
-  task
-  milestone
+enum MilestoneStatus {
+  not_started
+  in_progress
+  completed
 }
 
 enum InvitationStatus {

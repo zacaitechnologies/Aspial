@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { CreateTaskData, UpdateTaskData, TaskWithAssignee } from "./types"
+import { updateMilestoneStatus } from "./milestone-actions"
 
 // Get all tasks for a project
 export async function getProjectTasks(projectId: number): Promise<TaskWithAssignee[]> {
@@ -15,6 +16,13 @@ export async function getProjectTasks(projectId: number): Promise<TaskWithAssign
           lastName: true,
           email: true,
           supabase_id: true,
+        },
+      },
+      milestone: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
         },
       },
     },
@@ -37,6 +45,13 @@ export async function getTask(taskId: number): Promise<TaskWithAssignee | null> 
           lastName: true,
           email: true,
           supabase_id: true,
+        },
+      },
+      milestone: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
         },
       },
     },
@@ -69,13 +84,20 @@ export async function createTask(data: CreateTaskData): Promise<TaskWithAssignee
           supabase_id: true,
         },
       },
+      milestone: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+        },
+      },
     },
   }) as TaskWithAssignee
 }
 
 // Update a task
 export async function updateTask(taskId: number, data: UpdateTaskData): Promise<TaskWithAssignee> {
-  return await prisma.task.update({
+  const updatedTask = await prisma.task.update({
     where: { id: taskId },
     data,
     include: {
@@ -88,8 +110,22 @@ export async function updateTask(taskId: number, data: UpdateTaskData): Promise<
           supabase_id: true,
         },
       },
+      milestone: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+        },
+      },
     },
   }) as TaskWithAssignee
+
+  // Update milestone status if task has a milestone
+  if (updatedTask.milestoneId) {
+    await updateMilestoneStatus(updatedTask.milestoneId)
+  }
+
+  return updatedTask
 }
 
 // Delete a task
