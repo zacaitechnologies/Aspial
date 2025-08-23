@@ -26,7 +26,7 @@ import {
   Edit,
   Trash2,
 } from "lucide-react";
-import { TaskWithAssignee } from "../types";
+import { TaskWithAssignee, Milestone } from "../types";
 import { TaskForm } from "./TaskForm";
 import { deleteTask } from "../task-actions";
 
@@ -39,6 +39,7 @@ interface TaskCardProps {
     email: string;
     supabase_id: string;
   }>;
+  availableMilestones?: Milestone[];
   onTaskUpdated?: (task: TaskWithAssignee) => void;
   onTaskDeleted?: (taskId: number) => void;
   onDragStart?: (e: React.DragEvent) => void;
@@ -47,6 +48,7 @@ interface TaskCardProps {
 export function TaskCard({
   task,
   availableUsers,
+  availableMilestones,
   onTaskUpdated,
   onTaskDeleted,
   onDragStart,
@@ -70,7 +72,7 @@ export function TaskCard({
   return (
     <Card
       className={`bg-card border-border hover:shadow-md transition-shadow cursor-move mb-3 ${
-        task.type === "milestone"
+        task.milestone
           ? "border-l-4 border-l-yellow-400 bg-yellow-50/30"
           : ""
       }`}
@@ -81,7 +83,7 @@ export function TaskCard({
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
-              {task.type === "milestone" && (
+              {task.milestone && (
                 <Target className="h-4 w-4 text-yellow-600" />
               )}
               <h4 className="font-medium text-card-foreground">{task.title}</h4>
@@ -114,6 +116,7 @@ export function TaskCard({
                     projectId={task.projectId}
                     task={task}
                     availableUsers={availableUsers}
+                    availableMilestones={availableMilestones}
                     onTaskUpdated={onTaskUpdated}
                   />
                 </DialogContent>

@@ -39,7 +39,7 @@ import {
   TaskWithAssignee,
   taskStatusOptions,
   taskPriorityOptions,
-  taskTypeOptions,
+  Milestone,
 } from "../types";
 import { createTask, updateTask } from "../task-actions";
 
@@ -47,7 +47,7 @@ const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]),
-  type: z.enum(["task", "milestone"]),
+  milestoneId: z.string().optional(),
   assigneeId: z.string().optional(),
   startDate: z.string().optional(),
   dueDate: z.string().optional(),
@@ -66,6 +66,7 @@ interface TaskFormProps {
     email: string;
     supabase_id: string;
   }>;
+  availableMilestones?: Milestone[];
   onTaskCreated?: (task: TaskWithAssignee) => void;
   onTaskUpdated?: (task: TaskWithAssignee) => void;
   trigger?: React.ReactNode;
@@ -88,23 +89,24 @@ const TitleField = ({ form }: { form: any }) => (
   />
 );
 
-const TypeField = ({ form }: { form: any }) => (
+const MilestoneField = ({ form, availableMilestones }: { form: any; availableMilestones?: Milestone[] }) => (
   <FormField
     control={form.control}
-    name="type"
+    name="milestoneId"
     render={({ field }) => (
       <FormItem>
-        <FormLabel>Type</FormLabel>
-        <Select onValueChange={field.onChange} defaultValue={field.value}>
+        <FormLabel>Milestone (Optional)</FormLabel>
+        <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
           <FormControl>
             <SelectTrigger>
-              <SelectValue placeholder="Select type" />
+              <SelectValue placeholder="Select milestone" />
             </SelectTrigger>
           </FormControl>
           <SelectContent>
-            {taskTypeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
+            <SelectItem value="none">No milestone</SelectItem>
+            {availableMilestones?.map((milestone) => (
+              <SelectItem key={milestone.id} value={milestone.id.toString()}>
+                {milestone.title}
               </SelectItem>
             ))}
           </SelectContent>
@@ -267,6 +269,7 @@ const TagsField = ({ form, newTag, setNewTag, addTag, removeTag, handleKeyPress 
 const TaskFormContent = ({ 
   form, 
   availableUsers, 
+  availableMilestones,
   newTag, 
   setNewTag, 
   addTag, 
@@ -279,6 +282,7 @@ const TaskFormContent = ({
 }: {
   form: any;
   availableUsers: any[];
+  availableMilestones?: Milestone[];
   newTag: string;
   setNewTag: (value: string) => void;
   addTag: () => void;
@@ -293,7 +297,7 @@ const TaskFormContent = ({
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <TitleField form={form} />
-        <TypeField form={form} />
+        <MilestoneField form={form} availableMilestones={availableMilestones} />
       </div>
 
       <DescriptionField form={form} />
@@ -334,6 +338,7 @@ export function TaskForm({
   projectId,
   task,
   availableUsers,
+  availableMilestones,
   onTaskCreated,
   onTaskUpdated,
   trigger,
@@ -348,7 +353,7 @@ export function TaskForm({
       title: task?.title || "",
       description: task?.description || "",
       priority: task?.priority || "low",
-      type: task?.type || "task",
+      milestoneId: task?.milestoneId?.toString() || "none",
       assigneeId: task?.assigneeId || "unassigned",
       startDate: task?.startDate
         ? new Date(task.startDate).toISOString().split("T")[0]
@@ -371,6 +376,7 @@ export function TaskForm({
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         assigneeId:
           data.assigneeId === "unassigned" ? undefined : data.assigneeId,
+        milestoneId: data.milestoneId === "none" ? null : data.milestoneId ? parseInt(data.milestoneId) : null,
       };
 
       if (task) {
@@ -423,6 +429,7 @@ export function TaskForm({
         <TaskFormContent
           form={form}
           availableUsers={availableUsers}
+          availableMilestones={availableMilestones}
           newTag={newTag}
           setNewTag={setNewTag}
           addTag={addTag}
@@ -454,6 +461,7 @@ export function TaskForm({
         <TaskFormContent
           form={form}
           availableUsers={availableUsers}
+          availableMilestones={availableMilestones}
           newTag={newTag}
           setNewTag={setNewTag}
           addTag={addTag}

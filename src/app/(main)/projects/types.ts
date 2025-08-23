@@ -160,19 +160,54 @@ export type ProjectStats = {
   completedTasks: number;
 };
 
+// Milestone-related types
+export type Milestone = {
+  id: number;
+  title: string;
+  description: string | null;
+  projectId: number;
+  dueDate: Date | null;
+  priority: TaskPriority;
+  status: MilestoneStatus;
+  order: number;
+  createdAt: Date;
+  updatedAt: Date;
+  tasks?: Task[];
+};
+
+export type MilestoneStatus = "not_started" | "in_progress" | "completed";
+
+export type CreateMilestoneData = {
+  title: string;
+  description?: string;
+  projectId: number;
+  dueDate?: Date;
+  priority?: TaskPriority;
+  order?: number;
+};
+
+export type UpdateMilestoneData = {
+  title?: string;
+  description?: string;
+  dueDate?: Date | null;
+  priority?: TaskPriority;
+  status?: MilestoneStatus;
+  order?: number;
+};
+
 // Task-related types
 export type Task = {
   id: number;
   title: string;
   description: string | null;
   projectId: number;
+  milestoneId: number | null;
   status: TaskStatus;
   priority: TaskPriority;
   assigneeId: string | null;
   startDate: Date | null;
   dueDate: Date | null;
   tags: string[];
-  type: TaskType;
   order: number;
   createdAt: Date;
   updatedAt: Date;
@@ -183,6 +218,7 @@ export type Task = {
     email: string;
     supabase_id: string;
   };
+  milestone?: Milestone;
 };
 
 export type TaskWithAssignee = Task & {
@@ -197,22 +233,22 @@ export type TaskWithAssignee = Task & {
     id: number;
     name: string;
   };
+  milestone?: Milestone;
 };
 
 export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high";
-export type TaskType = "task" | "milestone";
 
 export type CreateTaskData = {
   title: string;
   description?: string;
   projectId: number;
+  milestoneId?: number | null;
   status?: TaskStatus;
   priority?: TaskPriority;
   assigneeId?: string;
   dueDate?: Date;
   tags?: string[];
-  type?: TaskType;
   order?: number;
 };
 
@@ -222,9 +258,9 @@ export type UpdateTaskData = {
   status?: TaskStatus;
   priority?: TaskPriority;
   assigneeId?: string | null;
+  milestoneId?: number | null;
   dueDate?: Date | null;
   tags?: string[];
-  type?: TaskType;
   order?: number;
 };
 
@@ -241,9 +277,10 @@ export const taskPriorityOptions = [
   { value: "high", label: "High", color: "text-red-600 bg-red-50 border-red-200" },
 ];
 
-export const taskTypeOptions = [
-  { value: "task", label: "Task" },
-  { value: "milestone", label: "Milestone" },
+export const milestoneStatusOptions = [
+  { value: "not_started", label: "Not Started", color: "bg-gray-100" },
+  { value: "in_progress", label: "In Progress", color: "bg-blue-100" },
+  { value: "completed", label: "Completed", color: "bg-green-100" },
 ];
 
 // New type for project selection
