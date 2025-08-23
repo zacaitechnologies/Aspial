@@ -223,7 +223,7 @@ export default function ProjectPage() {
                         {collaborators
                           .slice(0, 3)
                           .map((collaborator: any, index: number) => (
-                            <Avatar key={collaborator.id} className="w-8 h-8">
+                            <Avatar key={index} className="w-8 h-8">
                               <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
                                 {collaborator.user.firstName.charAt(0)}
                               </AvatarFallback>

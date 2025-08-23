@@ -95,7 +95,7 @@ export default function ProjectsPage() {
     if (enhancedUser?.id) {
       fetchProjects();
     }
-  }, [enhancedUser?.id]);
+  }, [enhancedUser?.id, fetchProjects]);
 
   const handleEditProject = (project: ProjectWithQuotation) => {
     setEditingProject(project);
