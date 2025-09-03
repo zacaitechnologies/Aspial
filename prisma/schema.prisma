@@ -296,7 +296,7 @@ model Task {
   milestoneId Int?
   status      TaskStatus   @default(todo)
   priority    TaskPriority @default(low)
-  assigneeId  String
+  creatorId  String
   startDate   DateTime
   dueDate     DateTime
   order       Int          @default(0)
@@ -304,7 +304,7 @@ model Task {
   updatedAt   DateTime     @updatedAt
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   milestone Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  creator  User      @relation("TaskCreator", fields: [assigneeId], references: [supabase_id])
+  creator  User      @relation("TaskCreator", fields: [creatorId], references: [supabase_id])
 
   @@map("tasks")
 }

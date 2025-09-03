@@ -328,9 +328,6 @@ export default function ProjectsPage() {
                   <CardTitle className="text-lg">{project.name}</CardTitle>
                   <div className="flex items-center gap-2 mt-1">
                     {getStatusBadge(project.status)}
-                    <Badge variant="outline" className="text-xs">
-                      {project.priority}
-                    </Badge>
                   </div>
                 </div>
                 <div className="flex gap-2">

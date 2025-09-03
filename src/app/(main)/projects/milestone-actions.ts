@@ -4,13 +4,13 @@ import { prisma } from "@/lib/prisma"
 import { CreateMilestoneData, UpdateMilestoneData, Milestone } from "./types"
 
 // Get all milestones for a project
-export async function getProjectMilestones(projectId: number): Promise<Milestone[]> {
+export async function getProjectMilestones(projectId: number) {
   return await prisma.milestone.findMany({
     where: { projectId },
     include: {
       tasks: {
         include: {
-          assignee: {
+          creator: {
             select: {
               id: true,
               firstName: true,
@@ -30,7 +30,7 @@ export async function getProjectMilestones(projectId: number): Promise<Milestone
       { order: 'asc' },
       { createdAt: 'asc' }
     ],
-  }) as Milestone[]
+  })
 }
 
 // Get a single milestone by ID
@@ -40,7 +40,7 @@ export async function getMilestoneById(milestoneId: number): Promise<Milestone |
     include: {
       tasks: {
         include: {
-          assignee: {
+          creator: {
             select: {
               id: true,
               firstName: true,
@@ -56,7 +56,7 @@ export async function getMilestoneById(milestoneId: number): Promise<Milestone |
         ],
       },
     },
-  }) as Milestone | null
+  })
 }
 
 // Create a new milestone
@@ -70,15 +70,22 @@ export async function createMilestone(data: CreateMilestoneData): Promise<Milest
 
   const newOrder = (maxOrder?.order ?? -1) + 1
 
+  const milestoneData: any = {
+    ...data,
+    order: newOrder,
+  }
+
+  // Handle dueDate - if undefined, set to a default date
+  if (!milestoneData.dueDate) {
+    milestoneData.dueDate = new Date()
+  }
+
   return await prisma.milestone.create({
-    data: {
-      ...data,
-      order: newOrder,
-    },
+    data: milestoneData,
     include: {
       tasks: {
         include: {
-          assignee: {
+          creator: {
             select: {
               id: true,
               firstName: true,
@@ -94,18 +101,25 @@ export async function createMilestone(data: CreateMilestoneData): Promise<Milest
         ],
       },
     },
-  }) as Milestone
+  })
 }
 
 // Update a milestone
 export async function updateMilestone(milestoneId: number, data: UpdateMilestoneData): Promise<Milestone> {
+  const updateData: any = { ...data }
+  
+  // Handle dueDate - if null, set to undefined
+  if (updateData.dueDate === null) {
+    updateData.dueDate = undefined
+  }
+
   return await prisma.milestone.update({
     where: { id: milestoneId },
-    data,
+    data: updateData,
     include: {
       tasks: {
         include: {
-          assignee: {
+          creator: {
             select: {
               id: true,
               firstName: true,
@@ -121,7 +135,7 @@ export async function updateMilestone(milestoneId: number, data: UpdateMilestone
         ],
       },
     },
-  }) as Milestone
+  })
 }
 
 // Delete a milestone
@@ -165,7 +179,7 @@ export async function updateMilestoneStatus(milestoneId: number): Promise<Milest
     include: {
       tasks: {
         include: {
-          assignee: {
+          creator: {
             select: {
               id: true,
               firstName: true,
@@ -181,7 +195,7 @@ export async function updateMilestoneStatus(milestoneId: number): Promise<Milest
         ],
       },
     },
-  }) as Milestone
+  })
 }
 
 // Get milestone progress percentage
