@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { isUserAdmin } from "../projects/permissions"
 
 export async function getAllQuotations(userId?: string) {
   if (!userId) {
@@ -290,4 +291,79 @@ export async function getAllClientsForQuotation() {
       name: "asc"
     }
   })
+}
+
+// Optimized function for getting projects for quotations - shows projects immediately with minimal data
+export async function getProjectsForQuotationOptimized(userId?: string) {
+  if (!userId) {
+    return []
+  }
+
+  const isAdmin = await isUserAdmin(userId);
+  
+  if (isAdmin) {
+    // For admins: load only essential data for quotation selection
+    const projects = await prisma.project.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        Client: {
+          select: {
+            name: true,
+          }
+        },
+      },
+      orderBy: { created_at: "desc" },
+    });
+
+    return projects;
+  }
+
+  // For non-admins: load only projects they have access to with minimal data
+  const userPermissions = await prisma.projectPermission.findMany({
+    where: { 
+      userId, 
+      OR: [
+        { isOwner: true },
+        { canView: true }
+      ]
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          Client: {
+            select: {
+              name: true,
+            }
+          },
+        },
+      },
+    },
+    orderBy: {
+      project: { created_at: "desc" },
+    },
+  });
+
+  return userPermissions.map((permission) => permission.project);
+}
+
+// Optimized function for getting clients for quotations - shows clients immediately with minimal data
+export async function getClientsForQuotationOptimized() {
+  return await prisma.client.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      company: true,
+    },
+    orderBy: {
+      name: "asc"
+    }
+  });
 } 

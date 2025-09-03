@@ -1,29 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Briefcase, Calendar, User, Building2, Search, FileText } from "lucide-react";
-import { getAllProjects } from "../../projects/action";
+import {
+  Briefcase,
+} from "lucide-react";
+import { getProjectsForQuotationOptimized } from "../action";
 import { createProject } from "../../projects/action";
 
-interface Project {
+interface ProjectForQuotation {
   id: number;
   name: string;
-  description?: string;
+  description: string | null;
   status: string;
-  startDate?: Date;
-  endDate?: Date;
-  createdByUser?: {
-    firstName: string;
-    lastName: string;
-  };
-  Client?: {
+  Client: {
     name: string;
-  };
+  } | null;
 }
 
 interface NewProjectData {
@@ -53,32 +48,43 @@ export default function ProjectSelection({
   mode,
   currentUserId,
 }: ProjectSelectionProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectForQuotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Fetch projects immediately when component mounts
   useEffect(() => {
     fetchProjects();
-  });
+  }, [currentUserId]);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const projectsData = await getAllProjects(currentUserId);
-      setProjects(projectsData as Project[]);
+      const projectsData = await getProjectsForQuotationOptimized(
+        currentUserId
+      );
+      setProjects(projectsData as ProjectForQuotation[]);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUserId]);
 
-  const filteredProjects = projects.filter(
-    (project) =>
-      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.Client?.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Use useMemo to optimize filtering - only recalculates when projects or searchQuery changes
+  const filteredProjects = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return projects;
+    }
+
+    const query = searchQuery.toLowerCase();
+    return projects.filter(
+      (project) =>
+        project.name.toLowerCase().includes(query) ||
+        project.description?.toLowerCase().includes(query) ||
+        project.Client?.name.toLowerCase().includes(query)
+    );
+  }, [projects, searchQuery]);
 
   const handleNewProjectDataChange = (
     field: keyof NewProjectData,
@@ -101,13 +107,20 @@ export default function ProjectSelection({
         name: newProjectData.name,
         description: newProjectData.description,
         createdBy: currentUserId,
-        startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
-        endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
+        startDate: newProjectData.startDate
+          ? new Date(newProjectData.startDate)
+          : undefined,
+        endDate: newProjectData.endDate
+          ? new Date(newProjectData.endDate)
+          : undefined,
         priority: newProjectData.priority,
       });
 
       onProjectSelect(newProject.id, newProject.name);
       onModeChange("existing");
+
+      // Refresh the projects list to include the new project
+      await fetchProjects();
     } catch (error) {
       console.error("Failed to create project:", error);
       alert("Failed to create project. Please try again.");
@@ -118,20 +131,25 @@ export default function ProjectSelection({
     <div className="space-y-4">
       <Label className="text-base font-semibold">Link to Project</Label>
 
-             <Tabs
-         value={mode}
-         onValueChange={(value) => onModeChange(value as "existing" | "new")}
-       >
-         <TabsList className="flex w-full">
-           <TabsTrigger value="existing" className="flex-1 min-w-0">Select Existing Project</TabsTrigger>
-           <TabsTrigger value="new" className="flex-1 min-w-0">Create New Project</TabsTrigger>
-         </TabsList>
+      <Tabs
+        value={mode}
+        onValueChange={(value) => onModeChange(value as "existing" | "new")}
+      >
+        <TabsList className="flex w-full">
+          <TabsTrigger value="existing" className="flex-1 min-w-0">
+            Select Existing Project
+          </TabsTrigger>
+          <TabsTrigger value="new" className="flex-1 min-w-0">
+            Create New Project
+          </TabsTrigger>
+        </TabsList>
 
-         {!selectedProjectId && (
-           <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg">
-             💡 Optional: You can leave this quotation unlinked to any project, or select/create a project to link it.
-           </div>
-         )}
+        {!selectedProjectId && (
+          <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg">
+            💡 Optional: You can leave this quotation unlinked to any project,
+            or select/create a project to link it.
+          </div>
+        )}
 
         <TabsContent value="existing" className="space-y-4">
           <div className="border rounded-lg p-6">
@@ -175,48 +193,27 @@ export default function ProjectSelection({
                             ? "border-primary bg-primary/5"
                             : "border-border hover:border-primary/50"
                         }`}
-                        onClick={() => onProjectSelect(project.id, project.name)}
+                        onClick={() =>
+                          onProjectSelect(project.id, project.name)
+                        }
                       >
                         <div className="flex items-start justify-between">
                           <div className="space-y-1">
-                            <p className="font-medium">{project.name}</p>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                              {project.description && (
-                                <span className="flex items-center gap-1">
-                                  <FileText className="w-3 h-3" />
-                                  {project.description.length > 50 
-                                    ? `${project.description.substring(0, 50)}...` 
-                                    : project.description}
-                                </span>
-                              )}
-                              {project.Client && (
-                                <span className="flex items-center gap-1">
-                                  <Building2 className="w-3 h-3" />
-                                  {project.Client.name}
-                                </span>
-                              )}
-                              {project.createdByUser && (
-                                <span className="flex items-center gap-1">
-                                  <User className="w-3 h-3" />
-                                  {project.createdByUser.firstName} {project.createdByUser.lastName}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span className={`px-2 py-1 rounded-full ${
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{project.name}</p>
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                                 project.status === 'completed' ? 'bg-green-100 text-green-800' :
                                 project.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
                                 'bg-gray-100 text-gray-800'
                               }`}>
                                 {project.status.replace('_', ' ')}
                               </span>
-                              {project.startDate && (
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="w-3 h-3" />
-                                  {new Date(project.startDate).toLocaleDateString()}
-                                </span>
-                              )}
                             </div>
+                            {project.Client && (
+                              <span className="flex text-sm items-center gap-1">
+                                Client: {project.Client.name}
+                              </span>
+                            )}
                           </div>
                           {selectedProjectId === project.id && (
                             <div className="w-2 h-2 bg-primary rounded-full" />
@@ -260,7 +257,10 @@ export default function ProjectSelection({
                     id="new-project-priority"
                     value={newProjectData?.priority || "low"}
                     onChange={(e) =>
-                      handleNewProjectDataChange("priority", e.target.value as "low" | "medium" | "high")
+                      handleNewProjectDataChange(
+                        "priority",
+                        e.target.value as "low" | "medium" | "high"
+                      )
                     }
                     className="w-full px-3 py-2 border border-input rounded-md"
                   >
