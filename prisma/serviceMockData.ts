@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Starting to seed services...');
 
-  const servicesFilePath = path.join(process.cwd(), 'src/app/(main)/sales/services.json');
+  const servicesFilePath = path.join(process.cwd(), 'src/app/(main)/services/components/services.json');
   const servicesData = JSON.parse(fs.readFileSync(servicesFilePath, 'utf8')) as {
     services: {
       name: string;

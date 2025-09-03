@@ -134,16 +134,6 @@ export function TaskCard({
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
-        {task.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {task.tags.map((tag) => (
-              <Badge key={tag} variant="outline" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-
         <div className="flex items-center justify-between pt-2">
           <div className="flex items-center gap-2">
             <Flag className="w-3 h-3 text-muted-foreground" />
@@ -172,16 +162,16 @@ export function TaskCard({
           )}
         </div>
 
-        {task.assignee && (
+        {task.creator && (
           <div className="flex items-center gap-2 pt-1">
             <Avatar className="w-6 h-6">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {task.assignee.firstName.charAt(0)}
-                {task.assignee.lastName.charAt(0)}
+                {task.creator.firstName.charAt(0)}
+                {task.creator.lastName.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <span className="text-xs text-muted-foreground">
-              {task.assignee.firstName} {task.assignee.lastName}
+              {task.creator.firstName} {task.creator.lastName}
             </span>
           </div>
         )}
