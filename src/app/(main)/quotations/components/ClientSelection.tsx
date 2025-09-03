@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Building2, Mail, Phone, MapPin, FileText } from "lucide-react";
-import { getAllClientsForQuotation } from "../action";
+import { getClientsForQuotationOptimized } from "../action";
 
 interface Client {
   id: string;
   name: string;
   email: string;
-  company?: string;
+  company: string | null;
 }
 
 interface NewClientData {
@@ -46,34 +46,37 @@ export default function ClientSelection({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Fetch clients immediately when component mounts
   useEffect(() => {
     fetchClients();
   }, []);
 
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
-      const clientsData = await getAllClientsForQuotation();
-      // Transform null to undefined to match the interface
-      setClients(
-        clientsData.map((client) => ({
-          ...client,
-          company: client.company || undefined,
-        }))
-      );
+      const clientsData = await getClientsForQuotationOptimized();
+      setClients(clientsData);
     } catch (error) {
       console.error("Failed to fetch clients:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const filteredClients = clients.filter(
-    (client) =>
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.company?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Use useMemo to optimize filtering - only recalculates when clients or searchQuery changes
+  const filteredClients = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return clients;
+    }
+    
+    const query = searchQuery.toLowerCase();
+    return clients.filter(
+      (client) =>
+        client.name.toLowerCase().includes(query) ||
+        client.email.toLowerCase().includes(query) ||
+        client.company?.toLowerCase().includes(query)
+    );
+  }, [clients, searchQuery]);
 
   const handleNewClientDataChange = (
     field: keyof NewClientData,
@@ -165,10 +168,10 @@ export default function ClientSelection({
                       </div>
                     ))
                   )}
-                                 </div>
-               )}
-             </div>
-           </div>
+                </div>
+              )}
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="new" className="space-y-4">
@@ -249,16 +252,16 @@ export default function ClientSelection({
 
               <div className="space-y-2">
                 <Label htmlFor="new-client-notes">Notes</Label>
-                <Textarea
-                  id="new-client-notes"
-                  className="text-black"
-                  value={newClientData?.notes || ""}
-                  onChange={(e) =>
-                    handleNewClientDataChange("notes", e.target.value)
-                  }
-                  placeholder="Additional notes about the client"
-                  rows={2}
-                />
+                                  <Textarea
+                    id="new-client-notes"
+                    className="text-black"
+                    value={newClientData?.notes || ""}
+                    onChange={(e) =>
+                      handleNewClientDataChange("notes", e.target.value)
+                    }
+                    placeholder="Additional notes about the client"
+                    rows={2}
+                  />
               </div>
             </div>
           </div>
