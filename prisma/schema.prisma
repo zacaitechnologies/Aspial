@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["fullTextSearchPostgres"]
@@ -17,7 +11,7 @@ datasource db {
 
 model Role {
   id    String     @id @default(cuid())
-  slug  String     @unique // "admin" | "member"
+  slug  String     @unique
   users UserRole[]
 
   @@map("role")
@@ -26,8 +20,8 @@ model Role {
 model UserRole {
   userId String
   roleId String
-  user   User   @relation(fields: [userId], references: [id])
   role   Role   @relation(fields: [roleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 
   @@id([userId, roleId])
   @@map("user_role")
@@ -38,17 +32,17 @@ model User {
   firstName           String
   lastName            String
   email               String
-  userRoles           UserRole[]
   supabase_id         String              @unique
   created_at          DateTime            @default(now())
   updated_at          DateTime            @default(now())
-  quotations          Quotation[]         @relation("QuotationCreator")
-  projects            Project[]           @relation("ProjectCreator")
-  timeEntries         TimeEntry[]
-  projectPermissions  ProjectPermission[]
   sentInvitations     ProjectInvitation[] @relation("ProjectInviter")
   receivedInvitations ProjectInvitation[] @relation("ProjectInvitee")
+  projectPermissions  ProjectPermission[]
+  projects            Project[]           @relation("ProjectCreator")
+  quotations          Quotation[]         @relation("QuotationCreator")
   assignedTasks       Task[]              @relation("TaskCreator")
+  timeEntries         TimeEntry[]
+  userRoles           UserRole[]
 
   @@map("user")
 }
@@ -61,48 +55,41 @@ model Services {
   created_at  DateTime           @default(now())
   updated_at  DateTime           @default(now())
   quotations  QuotationService[]
+  tags        ServiceTag[]       @relation("ServiceTags")
+}
 
-  @@map("services")
+model ServiceTag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  color     String?   @default("#3B82F6") // Default blue color
+  created_at DateTime @default(now())
+  services  Services[] @relation("ServiceTags")
+
+  @@map("service_tags")
 }
 
 model Quotation {
   id            Int                @id @default(autoincrement())
   name          String
   description   String
-  discountValue Float?
-  discountType  DiscountType?
   totalPrice    Float
-  startDate     DateTime
-  duration      Int // months unit
-  endDate       DateTime
-  services      QuotationService[]
-  status        QuotationStatus    @default(draft)
-  createdById   String
-  projectId     Int?
-  project       Project?           @relation(fields: [projectId], references: [id])
   created_at    DateTime           @default(now())
   updated_at    DateTime           @default(now())
-  createdBy     User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
-  Client        Client            @relation(fields: [clientId], references: [id])
+  status        QuotationStatus    @default(draft)
+  createdById   String
+  discountType  DiscountType?
+  discountValue Float?
+  duration      Int
+  endDate       DateTime
+  startDate     DateTime
   clientId      String
+  projectId     Int?
+  services      QuotationService[]
+  Client        Client             @relation(fields: [clientId], references: [id])
+  createdBy     User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
+  project       Project?           @relation(fields: [projectId], references: [id])
 
   @@map("quotations")
-}
-
-enum QuotationStatus {
-  draft
-  sent
-  accepted
-  rejected
-  paid
-  unpaid
-  partially_paid
-  deposit_paid
-}
-
-enum DiscountType {
-  percentage
-  fixed
 }
 
 model QuotationService {
@@ -117,25 +104,25 @@ model QuotationService {
 }
 
 model Project {
-  id   Int    @id @default(autoincrement())
-  name String
+  id            Int                 @id @default(autoincrement())
+  name          String
   description   String?
-  createdBy     String
-  createdByUser User                @relation("ProjectCreator", fields: [createdBy], references: [supabase_id])
-  status        String              @default("planning") // "planning" | "in_progress" | "completed" | "cancelled"
+  status        String              @default("planning")
   startDate     DateTime
   endDate       DateTime
   created_at    DateTime            @default(now())
   updated_at    DateTime            @default(now())
-  quotations    Quotation[] // One project can have many quotations
-  timeEntries   TimeEntry[]
-  permissions   ProjectPermission[]
-  invitations   ProjectInvitation[]
-  tasks         Task[]
-  milestones    Milestone[]
-  Client        Client              @relation(fields: [clientId], references: [id])
+  createdBy     String
   clientId      String
   clientName    String
+  milestones    Milestone[]
+  invitations   ProjectInvitation[]
+  permissions   ProjectPermission[]
+  Client        Client              @relation(fields: [clientId], references: [id])
+  createdByUser User                @relation("ProjectCreator", fields: [createdBy], references: [supabase_id])
+  quotations    Quotation[]
+  tasks         Task[]
+  timeEntries   TimeEntry[]
 
   @@map("projects")
 }
@@ -147,9 +134,8 @@ model ProjectPermission {
   canView   Boolean @default(true)
   canEdit   Boolean @default(true)
   isOwner   Boolean @default(false)
-
-  user    User    @relation(fields: [userId], references: [supabase_id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [supabase_id], onDelete: Cascade)
 
   @@unique([userId, projectId])
   @@map("project_permissions")
@@ -163,10 +149,10 @@ model Client {
   company    String?
   address    String?
   notes      String?
-  quotations Quotation[]
-  projects   Project[]
   created_at DateTime    @default(now())
   updated_at DateTime    @default(now())
+  projects   Project[]
+  quotations Quotation[]
 
   @@map("clients")
 }
@@ -178,9 +164,9 @@ model Studio {
   capacity    Int
   description String?
   isActive    Boolean         @default(true)
-  bookings    StudioBooking[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  bookings    StudioBooking[]
 
   @@map("studios")
 }
@@ -194,9 +180,9 @@ model Equipment {
   serialNumber String?   @unique
   condition    String    @default("Good")
   isAvailable  Boolean   @default(true)
-  bookings     Booking[]
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  bookings     Booking[]
 
   @@map("equipment")
 }
@@ -204,14 +190,14 @@ model Equipment {
 model Booking {
   id          Int       @id @default(autoincrement())
   equipmentId Int
-  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
   bookedBy    String
   startDate   DateTime
   endDate     DateTime
   purpose     String?
-  status      String    @default("active") // "active" | "cancelled" | "completed"
+  status      String    @default("active")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
 
   @@map("bookings")
 }
@@ -219,15 +205,15 @@ model Booking {
 model StudioBooking {
   id        Int      @id @default(autoincrement())
   studioId  Int
-  studio    Studio   @relation(fields: [studioId], references: [id], onDelete: Cascade)
   bookedBy  String
   startDate DateTime
   endDate   DateTime
   purpose   String?
   attendees Int      @default(1)
-  status    String   @default("active") // "active" | "cancelled" | "completed"
+  status    String   @default("active")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  studio    Studio   @relation(fields: [studioId], references: [id], onDelete: Cascade)
 
   @@map("studio_bookings")
 }
@@ -243,9 +229,8 @@ model TimeEntry {
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("time_entries")
 }
@@ -261,10 +246,9 @@ model ProjectInvitation {
   isOwner     Boolean          @default(false)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  inviter User    @relation("ProjectInviter", fields: [invitedBy], references: [supabase_id], onDelete: Cascade)
-  invitee User    @relation("ProjectInvitee", fields: [invitedUser], references: [supabase_id], onDelete: Cascade)
+  inviter     User             @relation("ProjectInviter", fields: [invitedBy], references: [supabase_id], onDelete: Cascade)
+  invitee     User             @relation("ProjectInvitee", fields: [invitedUser], references: [supabase_id], onDelete: Cascade)
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, invitedUser])
   @@map("project_invitations")
@@ -281,9 +265,8 @@ model Milestone {
   order       Int             @default(0)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tasks   Task[]
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
 
   @@map("milestones")
 }
@@ -293,20 +276,36 @@ model Task {
   title       String
   description String?
   projectId   Int
-  milestoneId Int?
   status      TaskStatus   @default(todo)
   priority    TaskPriority @default(low)
-  creatorId  String
-  startDate   DateTime
+  creatorId   String
   dueDate     DateTime
   order       Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  milestone Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
-  creator  User      @relation("TaskCreator", fields: [creatorId], references: [supabase_id])
+  startDate   DateTime
+  milestoneId Int?
+  creator     User         @relation("TaskCreator", fields: [creatorId], references: [supabase_id])
+  milestone   Milestone?   @relation(fields: [milestoneId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("tasks")
+}
+
+enum QuotationStatus {
+  draft
+  sent
+  accepted
+  rejected
+  paid
+  unpaid
+  partially_paid
+  deposit_paid
+}
+
+enum DiscountType {
+  percentage
+  fixed
 }
 
 enum TaskStatus {
