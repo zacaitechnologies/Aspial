@@ -166,7 +166,7 @@ export type Milestone = {
   title: string;
   description: string | null;
   projectId: number;
-  dueDate: Date | null;
+  dueDate: Date;
   priority: TaskPriority;
   status: MilestoneStatus;
   order: number;
@@ -204,14 +204,13 @@ export type Task = {
   milestoneId: number | null;
   status: TaskStatus;
   priority: TaskPriority;
-  assigneeId: string | null;
-  startDate: Date | null;
-  dueDate: Date | null;
-  tags: string[];
+  creatorId: string;
+  startDate: Date;
+  dueDate: Date;
   order: number;
   createdAt: Date;
   updatedAt: Date;
-  assignee?: {
+  creator?: {
     id: string;
     firstName: string;
     lastName: string;
@@ -222,13 +221,13 @@ export type Task = {
 };
 
 export type TaskWithAssignee = Task & {
-  assignee: {
+  creator: {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
     supabase_id: string;
-  } | null;
+  };
   project?: {
     id: number;
     name: string;
@@ -244,11 +243,11 @@ export type CreateTaskData = {
   description?: string;
   projectId: number;
   milestoneId?: number | null;
-  status?: TaskStatus;
-  priority?: TaskPriority;
-  assigneeId?: string;
-  dueDate?: Date;
-  tags?: string[];
+  status: TaskStatus;
+  priority: TaskPriority;
+  creatorId: string;
+  startDate: Date;
+  dueDate: Date;
   order?: number;
 };
 
@@ -257,10 +256,9 @@ export type UpdateTaskData = {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
-  assigneeId?: string | null;
-  milestoneId?: number | null;
-  dueDate?: Date | null;
-  tags?: string[];
+  creatorId?: string;
+  milestoneId?: number | undefined;
+  dueDate?: Date | undefined;
   order?: number;
 };
 

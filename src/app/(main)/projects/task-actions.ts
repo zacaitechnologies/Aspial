@@ -9,7 +9,7 @@ export async function getProjectTasks(projectId: number): Promise<TaskWithAssign
   return await prisma.task.findMany({
     where: { projectId },
     include: {
-      assignee: {
+      creator: {
         select: {
           id: true,
           firstName: true,
@@ -38,7 +38,7 @@ export async function getTask(taskId: number): Promise<TaskWithAssignee | null> 
   return await prisma.task.findUnique({
     where: { id: taskId },
     include: {
-      assignee: {
+      creator: {
         select: {
           id: true,
           firstName: true,
@@ -75,7 +75,7 @@ export async function createTask(data: CreateTaskData): Promise<TaskWithAssignee
       order: newOrder,
     },
     include: {
-      assignee: {
+      creator: {
         select: {
           id: true,
           firstName: true,
@@ -101,7 +101,7 @@ export async function updateTask(taskId: number, data: UpdateTaskData): Promise<
     where: { id: taskId },
     data,
     include: {
-      assignee: {
+      creator: {
         select: {
           id: true,
           firstName: true,
@@ -141,7 +141,7 @@ export async function updateTaskStatus(taskId: number, status: string): Promise<
     where: { id: taskId },
     data: { status: status as any },
     include: {
-      assignee: {
+      creator: {
         select: {
           id: true,
           firstName: true,
@@ -174,7 +174,7 @@ export async function getTasksByStatus(projectId: number, status: string): Promi
       status: status as any,
     },
     include: {
-      assignee: {
+      creator: {
         select: {
           id: true,
           firstName: true,
@@ -278,10 +278,9 @@ export async function getAllUserTasks(userId: string): Promise<TaskWithAssignee[
     const tasks = await prisma.task.findMany({
       where: { 
         projectId: { in: projectIds },
-        dueDate: { not: null } // Only tasks with due dates
       },
       include: {
-        assignee: {
+        creator: {
           select: {
             id: true,
             firstName: true,
