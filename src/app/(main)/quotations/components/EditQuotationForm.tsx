@@ -357,8 +357,8 @@ export default function EditQuotationForm({
               />
             </div>
             {editForm.startDate && editForm.duration && (
-              <div className="grid gap-2">
-                <Label htmlFor="edit-endDate">Calculated End Date</Label>
+              <div className="grid grid-cols-2 justify-startx">
+                <Label htmlFor="edit-endDate">Calculated End Date:</Label>
                 <div className="p-3 bg-muted rounded-md">
                   <span className="text-sm font-medium">
                     {calculateEditEndDate()}
@@ -482,7 +482,7 @@ export default function EditQuotationForm({
               </div>
             </div>
             
-            <div className="grid gap-2">
+            <div className="grid grid-cols-2 justify-center gap-2">
               <Label htmlFor="edit-totalPrice">Total Price (RM)</Label>
               <div className="p-3 bg-muted rounded-md">
                 {editForm.discountValue && parseFloat(editForm.discountValue) > 0 ? (

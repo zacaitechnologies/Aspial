@@ -285,14 +285,14 @@ export default function CreateQuotationForm({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
-        className="!w-[70vw] !max-w-[70vw] !max-h-[90vh] rounded-lg"
+        className="w-[70vw] max-w-[70vw] max-h-[90vh] rounded-lg"
         showCloseButton={false}
       >
         <div className="custom-scrollbar overflow-y-auto max-h-[calc(90vh-4rem)] pr-2">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
             <DialogTitle>Create New Quotation</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-6 py-4">
+          <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="quotation-name">Quotation Name</Label>
               <Input

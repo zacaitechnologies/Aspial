@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { getProjectsForQuotationOptimized } from "../action";
 import { createProject } from "../../projects/action";
+import { Button } from "@/components/ui/button";
 
 interface ProjectForQuotation {
   id: number;
@@ -128,7 +129,7 @@ export default function ProjectSelection({
   };
 
   return (
-    <div className="space-y-4">
+    <div>
       <Label className="text-base font-semibold">Link to Project</Label>
 
       <Tabs
@@ -153,18 +154,11 @@ export default function ProjectSelection({
 
         <TabsContent value="existing" className="space-y-4">
           <div className="border rounded-lg p-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Briefcase className="w-5 h-5" />
-                Select from Existing Projects
-              </h3>
-            </div>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="project-search">Search Projects</Label>
+              <div className="space-y-2  flex flex-row items-center gap-2">
                 <Input
                   id="project-search"
-                  placeholder="Search by name, description, or client..."
+                  placeholder="Search Project..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -230,12 +224,7 @@ export default function ProjectSelection({
 
         <TabsContent value="new" className="space-y-4">
           <div className="border rounded-lg p-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Briefcase className="w-5 h-5" />
-                Create New Project
-              </h3>
-            </div>
+
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -309,12 +298,12 @@ export default function ProjectSelection({
               </div>
 
               <div className="flex justify-end">
-                <button
+                <Button
                   onClick={handleCreateProject}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
                 >
                   Create Project & Link
-                </button>
+                </Button>
               </div>
             </div>
           </div>

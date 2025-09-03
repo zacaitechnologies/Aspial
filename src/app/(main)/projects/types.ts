@@ -290,6 +290,9 @@ export type AvailableProject = {
   description: string | null;
   status: string;
   clientName: string | null;
+  startDate: Date | null;
+  endDate: Date | null;
+  clientId: string | null;
   created_at: Date;
   quotationCount: number;
 };

@@ -4,9 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Building2, Mail, Phone, MapPin, FileText } from "lucide-react";
+import { User, Building2, Mail } from "lucide-react";
 import { getClientsForQuotationOptimized } from "../action";
 
 interface Client {
@@ -89,7 +88,7 @@ export default function ClientSelection({
   };
 
   return (
-    <div className="space-y-4">
+    <div>
       <Label className="text-base font-semibold">Client Information</Label>
 
       <Tabs
@@ -103,15 +102,8 @@ export default function ClientSelection({
 
         <TabsContent value="existing" className="space-y-4">
           <div className="border rounded-lg p-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <User className="w-5 h-5" />
-                Select from Existing Clients
-              </h3>
-            </div>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="client-search">Search Clients</Label>
+              <div>
                 <Input
                   id="client-search"
                   placeholder="Search by name, email, or company..."
@@ -176,12 +168,6 @@ export default function ClientSelection({
 
         <TabsContent value="new" className="space-y-4">
           <div className="border rounded-lg p-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <User className="w-5 h-5" />
-                Create New Client
-              </h3>
-            </div>
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
