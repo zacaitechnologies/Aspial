@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X } from "lucide-react"
+import { Plus, X, DollarSign, Tag, FileText } from "lucide-react"
 import { 
   createService, 
   updateService, 
@@ -110,121 +110,171 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
 
   const selectedTags = availableTags.filter(tag => selectedTagIds.includes(tag.id))
 
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      resetForm()
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleDialogClose}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button onClick={() => setIsOpen(true)}>
+          <Button onClick={() => setIsOpen(true)} className="bg-blue-600 hover:bg-blue-700">
             <Plus className="w-4 h-4 mr-2" />
             {isEditing ? "Edit Service" : "Create Service"}
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {isEditing ? "Edit Service" : "Create New Service"}
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            {isEditing ? (
+              <>
+                <FileText className="w-5 h-5 text-blue-600" />
+                Edit Service
+              </>
+            ) : (
+              <>
+                <Plus className="w-5 h-5 text-blue-600" />
+                Create New Service
+              </>
+            )}
           </DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="serviceName">Service Name *</Label>
-              <Input
-                id="serviceName"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter service name"
-                required
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Basic Information */}
+          <div className="space-y-6">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Basic Information</h3>
             
-            <div>
-              <Label htmlFor="basePrice">Base Price *</Label>
-              <Input
-                id="basePrice"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.basePrice}
-                onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
-                placeholder="0.00"
-                required
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="serviceName" className="text-sm font-medium flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-gray-500" />
+                  Service Name *
+                </Label>
+                <Input
+                  id="serviceName"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Enter service name"
+                  required
+                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="basePrice" className="text-sm font-medium flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-gray-500" />
+                  Base Price *
+                </Label>
+                <Input
+                  id="basePrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.basePrice}
+                  onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                  required
+                  className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-medium">Description</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Enter detailed service description..."
+                rows={4}
+                className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 resize-none"
               />
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Enter service description"
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <Label>Tags</Label>
-            <div className="space-y-3">
+          {/* Tags Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2 flex items-center gap-2">
+              <Tag className="w-5 h-5 text-blue-600" />
+              Service Tags
+            </h3>
+            
+            <div className="space-y-4">
               {/* Selected Tags */}
               {selectedTags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {selectedTags.map(tag => (
-                    <Badge 
-                      key={tag.id}
-                      style={{ backgroundColor: tag.color, color: 'white' }}
-                      className="px-3 py-1 flex items-center gap-2"
-                    >
-                      {tag.name}
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag.id)}
-                        className="hover:bg-white/20 rounded-full p-0.5"
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium text-gray-700">Selected Tags</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTags.map(tag => (
+                      <Badge 
+                        key={tag.id}
+                        style={{ backgroundColor: tag.color, color: 'white' }}
+                        className="px-3 py-2 flex items-center gap-2 text-sm font-medium shadow-sm"
                       >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
+                        {tag.name}
+                        <button
+                          type="button"
+                          onClick={() => removeTag(tag.id)}
+                          className="hover:bg-white/20 rounded-full p-1 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {/* Available Tags */}
-              <div className="grid grid-cols-2 gap-2">
-                {availableTags.map(tag => (
-                  <div key={tag.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`tag-${tag.id}`}
-                      checked={selectedTagIds.includes(tag.id)}
-                      onCheckedChange={() => toggleTag(tag.id)}
-                    />
-                    <Label 
-                      htmlFor={`tag-${tag.id}`}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <div 
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: tag.color }}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-700">
+                  Available Tags ({availableTags.length})
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-3 bg-gray-50 rounded-lg border">
+                  {availableTags.map(tag => (
+                    <div key={tag.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-white transition-colors">
+                      <Checkbox
+                        id={`tag-${tag.id}`}
+                        checked={selectedTagIds.includes(tag.id)}
+                        onCheckedChange={() => toggleTag(tag.id)}
+                        className="border-gray-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                       />
-                      {tag.name}
-                    </Label>
-                  </div>
-                ))}
+                      <Label 
+                        htmlFor={`tag-${tag.id}`}
+                        className="flex items-center gap-2 cursor-pointer text-sm flex-1"
+                      >
+                        <div 
+                          className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                          style={{ backgroundColor: tag.color }}
+                        />
+                        <span className="font-medium">{tag.name}</span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end space-x-2">
+          {/* Form Actions */}
+          <div className="flex justify-end space-x-3 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
               onClick={() => setIsOpen(false)}
+              className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </Button>
-            <Button type="submit">
+            <Button 
+              type="submit" 
+              className="bg-blue-600 hover:bg-blue-700 px-6"
+              disabled={!formData.name.trim() || formData.basePrice <= 0}
+            >
               {isEditing ? "Update Service" : "Create Service"}
             </Button>
           </div>
