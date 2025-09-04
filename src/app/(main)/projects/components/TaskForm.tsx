@@ -361,7 +361,7 @@ export function TaskForm({
       dueDate: task?.dueDate
         ? new Date(task.dueDate).toISOString().split("T")[0]
         : "",
-      tags: task?.tags || [],
+      tags: [],
     },
   } as any);
 
@@ -374,8 +374,8 @@ export function TaskForm({
         status: "todo",
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-        assigneeId:
-          data.assigneeId === "unassigned" ? undefined : data.assigneeId,
+        creatorId: "current-user-id", // TODO: Get from auth context
+        assigneeId: data.assigneeId === "unassigned" ? undefined : data.assigneeId,
         milestoneId: data.milestoneId === "none" ? null : data.milestoneId ? parseInt(data.milestoneId) : null,
       };
 

@@ -5,9 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Briefcase,
-} from "lucide-react";
 import { getProjectsForQuotationOptimized } from "../action";
 import { createProject } from "../../projects/action";
 import { Button } from "@/components/ui/button";
@@ -53,11 +50,6 @@ export default function ProjectSelection({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch projects immediately when component mounts
-  useEffect(() => {
-    fetchProjects();
-  }, [currentUserId]);
-
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
@@ -70,6 +62,10 @@ export default function ProjectSelection({
     } finally {
       setLoading(false);
     }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    fetchProjects();
   }, [currentUserId]);
 
   // Use useMemo to optimize filtering - only recalculates when projects or searchQuery changes

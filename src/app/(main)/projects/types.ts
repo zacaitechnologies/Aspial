@@ -205,6 +205,7 @@ export type Task = {
   status: TaskStatus;
   priority: TaskPriority;
   creatorId: string;
+  assigneeId: string | null;
   startDate: Date;
   dueDate: Date;
   order: number;
@@ -217,11 +218,25 @@ export type Task = {
     email: string;
     supabase_id: string;
   };
+  assignee?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    supabase_id: string;
+  };
   milestone?: Milestone;
 };
 
 export type TaskWithAssignee = Task & {
   creator: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    supabase_id: string;
+  };
+  assignee?: {
     id: string;
     firstName: string;
     lastName: string;
@@ -246,6 +261,7 @@ export type CreateTaskData = {
   status: TaskStatus;
   priority: TaskPriority;
   creatorId: string;
+  assigneeId?: string | null;
   startDate: Date;
   dueDate: Date;
   order?: number;
@@ -257,6 +273,7 @@ export type UpdateTaskData = {
   status?: TaskStatus;
   priority?: TaskPriority;
   creatorId?: string;
+  assigneeId?: string | null;
   milestoneId?: number | undefined;
   dueDate?: Date | undefined;
   order?: number;

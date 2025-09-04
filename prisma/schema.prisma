@@ -6,7 +6,6 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model Role {
@@ -41,6 +40,7 @@ model User {
   projects            Project[]           @relation("ProjectCreator")
   quotations          Quotation[]         @relation("QuotationCreator")
   assignedTasks       Task[]              @relation("TaskCreator")
+  tasksAssigned       Task[]              @relation("TaskAssignee")
   timeEntries         TimeEntry[]
   userRoles           UserRole[]
 
@@ -279,6 +279,7 @@ model Task {
   status      TaskStatus   @default(todo)
   priority    TaskPriority @default(low)
   creatorId   String
+  assigneeId  String?
   dueDate     DateTime
   order       Int          @default(0)
   createdAt   DateTime     @default(now())
@@ -286,6 +287,7 @@ model Task {
   startDate   DateTime
   milestoneId Int?
   creator     User         @relation("TaskCreator", fields: [creatorId], references: [supabase_id])
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [supabase_id])
   milestone   Milestone?   @relation(fields: [milestoneId], references: [id])
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
