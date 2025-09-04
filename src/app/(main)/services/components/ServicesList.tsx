@@ -1,78 +1,82 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Edit, Trash2, Search, Plus, Loader2, Filter } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { deleteService, searchServices } from "../service-actions"
-import { Service } from "../types"
-import ServiceForm from "./ServiceForm"
-import React from "react"
-import { useServicesCacheContext } from "../contexts/ServicesCacheContext"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Edit, Trash2, Search, Plus, Loader2, Filter } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { deleteService, searchServices } from "../service-actions";
+import { Service } from "../types";
+import ServiceForm from "./ServiceForm";
+import React from "react";
+import { useServicesCacheContext } from "../contexts/ServicesCacheContext";
 
 interface ServicesListProps {
-  services: Service[]
-  isLoading: boolean
-  onRefresh: () => Promise<void>
+  services: Service[];
+  isLoading: boolean;
+  onRefresh: () => Promise<void>;
 }
 
-export default function ServicesList({ services, isLoading, onRefresh }: ServicesListProps) {
-  const { invalidateAllCaches } = useServicesCacheContext()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [editingService, setEditingService] = useState<Service | null>(null)
-  const [isSearching, setIsSearching] = useState(false)
-  const [filteredServices, setFilteredServices] = useState<Service[]>(services)
+export default function ServicesList({
+  services,
+  isLoading,
+  onRefresh,
+}: ServicesListProps) {
+  const { invalidateAllCaches } = useServicesCacheContext();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [filteredServices, setFilteredServices] = useState<Service[]>(services);
 
   // Update filtered services when services prop changes
   React.useEffect(() => {
-    setFilteredServices(services)
-  }, [services])
+    setFilteredServices(services);
+  }, [services]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      setFilteredServices(services)
-      return
+      setFilteredServices(services);
+      return;
     }
 
-    setIsSearching(true)
+    setIsSearching(true);
     try {
-      const searchResults = await searchServices(searchQuery)
-      setFilteredServices(searchResults)
+      const searchResults = await searchServices(searchQuery);
+      setFilteredServices(searchResults);
     } catch (error) {
-      console.error("Error searching services:", error)
+      console.error("Error searching services:", error);
     } finally {
-      setIsSearching(false)
+      setIsSearching(false);
     }
-  }
+  };
 
   const handleDeleteService = async (serviceId: number) => {
-    if (!confirm("Are you sure you want to delete this service?")) return
-    
+    if (!confirm("Are you sure you want to delete this service?")) return;
+
     try {
-      await deleteService(serviceId)
-      invalidateAllCaches()
-      await onRefresh()
+      await deleteService(serviceId);
+      invalidateAllCaches();
+      await onRefresh();
     } catch (error) {
-      console.error("Error deleting service:", error)
+      console.error("Error deleting service:", error);
     }
-  }
+  };
 
   const handleEditService = (service: Service) => {
-    setEditingService(service)
-  }
+    setEditingService(service);
+  };
 
   const handleServiceSuccess = () => {
-    setEditingService(null)
-    invalidateAllCaches()
-    onRefresh()
-  }
+    setEditingService(null);
+    invalidateAllCaches();
+    onRefresh();
+  };
 
   const clearSearch = () => {
-    setSearchQuery("")
-    setFilteredServices(services)
-  }
+    setSearchQuery("");
+    setFilteredServices(services);
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-sm border p-6 space-y-6">
@@ -81,7 +85,8 @@ export default function ServicesList({ services, isLoading, onRefresh }: Service
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Services</h2>
           <p className="text-gray-600 mt-1">
-            {filteredServices.length} service{filteredServices.length !== 1 ? 's' : ''} available
+            {filteredServices.length} service
+            {filteredServices.length !== 1 ? "s" : ""} available
           </p>
         </div>
         <ServiceForm onSuccess={handleServiceSuccess} />
@@ -96,12 +101,12 @@ export default function ServicesList({ services, isLoading, onRefresh }: Service
               placeholder="Search services by name or description..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
               className="pl-10 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500"
             />
           </div>
-          <Button 
-            onClick={handleSearch} 
+          <Button
+            onClick={handleSearch}
             disabled={isSearching}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6"
           >
@@ -113,8 +118,8 @@ export default function ServicesList({ services, isLoading, onRefresh }: Service
             Search
           </Button>
           {searchQuery && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={clearSearch}
               className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
@@ -138,7 +143,10 @@ export default function ServicesList({ services, isLoading, onRefresh }: Service
       {!isLoading && (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredServices.map((service) => (
-            <Card key={service.id} className="hover:shadow-lg transition-all duration-200 border-gray-200 hover:border-blue-200 group">
+            <Card
+              key={service.id}
+              className="hover:shadow-lg transition-all duration-200 border-gray-200 hover:border-blue-200 group"
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-3">
                   <CardTitle className="text-lg font-semibold text-gray-900 leading-tight">
@@ -170,19 +178,19 @@ export default function ServicesList({ services, isLoading, onRefresh }: Service
                   <span className="text-sm text-gray-500">base price</span>
                 </div>
               </CardHeader>
-              
+
               <CardContent className="pt-0 space-y-4">
                 <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
                   {service.description}
                 </p>
-                
+
                 {/* Tags */}
                 {service.tags && service.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {service.tags.map((tag) => (
                       <Badge
                         key={tag.id}
-                        style={{ backgroundColor: tag.color, color: 'white' }}
+                        style={{ backgroundColor: tag.color || '#3B82F6', color: "white" }}
                         className="px-2 py-1 text-xs font-medium shadow-sm"
                       >
                         {tag.name}
@@ -190,13 +198,6 @@ export default function ServicesList({ services, isLoading, onRefresh }: Service
                     ))}
                   </div>
                 )}
-                
-                <div className="pt-2 border-t border-gray-100">
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Created: {new Date(service.created_at).toLocaleDateString()}</span>
-                    <span>Updated: {new Date(service.updated_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
               </CardContent>
             </Card>
           ))}
@@ -213,14 +214,11 @@ export default function ServicesList({ services, isLoading, onRefresh }: Service
             {searchQuery ? "No services found" : "No services yet"}
           </h3>
           <p className="text-gray-600 mb-6">
-            {searchQuery 
+            {searchQuery
               ? "Try adjusting your search terms or create a new service."
-              : "Get started by creating your first service."
-            }
+              : "Get started by creating your first service."}
           </p>
-          {!searchQuery && (
-            <ServiceForm onSuccess={handleServiceSuccess} />
-          )}
+          {!searchQuery && <ServiceForm onSuccess={handleServiceSuccess} />}
         </div>
       )}
 
@@ -229,9 +227,8 @@ export default function ServicesList({ services, isLoading, onRefresh }: Service
         <ServiceForm
           service={editingService}
           onSuccess={handleServiceSuccess}
-          trigger={<div style={{ display: 'none' }} />}
         />
       )}
     </div>
-  )
+  );
 }

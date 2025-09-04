@@ -11,8 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, X, DollarSign, Tag, FileText } from "lucide-react"
 import { 
   createService, 
-  updateService, 
-  getAllServiceTags 
+  updateService
 } from "../service-actions"
 import { 
   Service, 
@@ -20,6 +19,7 @@ import {
   CreateServiceData, 
   UpdateServiceData 
 } from "../types"
+import { useServicesCacheContext } from "../contexts/ServicesCacheContext"
 
 interface ServiceFormProps {
   service?: Service
@@ -28,8 +28,8 @@ interface ServiceFormProps {
 }
 
 export default function ServiceForm({ service, onSuccess, trigger }: ServiceFormProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [availableTags, setAvailableTags] = useState<ServiceTag[]>([])
+  const { serviceTags } = useServicesCacheContext()
+  const [isOpen, setIsOpen] = useState(!!service) // Auto-open if editing
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
   const [formData, setFormData] = useState<CreateServiceData>({
     name: "",
@@ -39,28 +39,19 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
   })
 
   const isEditing = !!service
+  const availableTags = serviceTags.tags
 
   useEffect(() => {
-    loadTags()
     if (service) {
       setFormData({
         name: service.name,
         description: service.description,
         basePrice: service.basePrice,
-        tagIds: service.tags.map(tag => tag.id)
+        tagIds: service.tags?.map(tag => tag.id) || []
       })
-      setSelectedTagIds(service.tags.map(tag => tag.id))
+      setSelectedTagIds(service.tags?.map(tag => tag.id) || [])
     }
   }, [service])
-
-  const loadTags = async () => {
-    try {
-      const tags = await getAllServiceTags()
-      setAvailableTags(tags)
-    } catch (error) {
-      console.error("Error loading tags:", error)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -112,31 +103,35 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
 
   const handleDialogClose = (open: boolean) => {
     if (!open) {
+      setIsOpen(false)
       resetForm()
+      if (isEditing) {
+        onSuccess?.() // Call onSuccess to close the edit mode
+      }
     }
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleDialogClose}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button onClick={() => setIsOpen(true)} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4 mr-2" />
-            {isEditing ? "Edit Service" : "Create Service"}
-          </Button>
-        )}
-      </DialogTrigger>
+      {!isEditing && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button onClick={() => setIsOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="w-4 h-4" />
+              Create Service
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             {isEditing ? (
               <>
-                <FileText className="w-5 h-5 text-blue-600" />
                 Edit Service
               </>
             ) : (
               <>
-                <Plus className="w-5 h-5 text-blue-600" />
                 Create New Service
               </>
             )}
@@ -212,7 +207,7 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
                     {selectedTags.map(tag => (
                       <Badge 
                         key={tag.id}
-                        style={{ backgroundColor: tag.color, color: 'white' }}
+                        style={{ backgroundColor: tag.color || '#3B82F6', color: 'white' }}
                         className="px-3 py-2 flex items-center gap-2 text-sm font-medium shadow-sm"
                       >
                         {tag.name}
@@ -249,7 +244,7 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
                       >
                         <div 
                           className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
-                          style={{ backgroundColor: tag.color }}
+                          style={{ backgroundColor: tag.color || '#3B82F6' }}
                         />
                         <span className="font-medium">{tag.name}</span>
                       </Label>
