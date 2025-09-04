@@ -6,6 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Edit, Trash2, Search, Plus, Loader2, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { deleteService, searchServices } from "../service-actions";
 import { Service } from "../types";
 import ServiceForm from "./ServiceForm";
@@ -23,27 +30,54 @@ export default function ServicesList({
   isLoading,
   onRefresh,
 }: ServicesListProps) {
-  const { invalidateAllCaches } = useServicesCacheContext();
+  const { invalidateAllCaches, serviceTags } = useServicesCacheContext();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all");
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [filteredServices, setFilteredServices] = useState<Service[]>(services);
 
-  // Update filtered services when services prop changes
+  // Update filtered services when services prop or tag filter changes
   React.useEffect(() => {
-    setFilteredServices(services);
-  }, [services]);
+    let filtered = services;
+
+    // Apply tag filter
+    if (selectedTagFilter !== "all") {
+      const tagId = parseInt(selectedTagFilter);
+      filtered = filtered.filter((service) =>
+        service.tags?.some((tag) => tag.id === tagId)
+      );
+    }
+
+    setFilteredServices(filtered);
+  }, [services, selectedTagFilter]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      setFilteredServices(services);
+      // Reset to original services with tag filter applied
+      let filtered = services;
+      if (selectedTagFilter !== "all") {
+        const tagId = parseInt(selectedTagFilter);
+        filtered = filtered.filter((service) =>
+          service.tags?.some((tag) => tag.id === tagId)
+        );
+      }
+      setFilteredServices(filtered);
       return;
     }
 
     setIsSearching(true);
     try {
       const searchResults = await searchServices(searchQuery);
-      setFilteredServices(searchResults);
+      // Apply tag filter to search results
+      let filtered = searchResults;
+      if (selectedTagFilter !== "all") {
+        const tagId = parseInt(selectedTagFilter);
+        filtered = filtered.filter((service) =>
+          service.tags?.some((tag) => tag.id === tagId)
+        );
+      }
+      setFilteredServices(filtered);
     } catch (error) {
       console.error("Error searching services:", error);
     } finally {
@@ -75,6 +109,7 @@ export default function ServicesList({
 
   const clearSearch = () => {
     setSearchQuery("");
+    setSelectedTagFilter("all");
     setFilteredServices(services);
   };
 
@@ -94,38 +129,73 @@ export default function ServicesList({
 
       {/* Search and Filter Section */}
       <div className="bg-gray-50 rounded-lg p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Search services by name or description..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-              className="pl-10 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-          <Button
-            onClick={handleSearch}
-            disabled={isSearching}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6"
-          >
-            {isSearching ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Search className="w-4 h-4 mr-2" />
-            )}
-            Search
-          </Button>
-          {searchQuery && (
+        <div className="space-y-4">
+          {/* Search Row */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search services by name or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                className="pl-10 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+              />
+            </div>
             <Button
-              variant="outline"
-              onClick={clearSearch}
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              onClick={handleSearch}
+              disabled={isSearching}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
             >
-              Clear
+              {isSearching ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Search className="w-4 h-4 mr-2" />
+              )}
+              Search
             </Button>
-          )}
+            {(searchQuery || selectedTagFilter !== "all") && (
+              <Button
+                variant="outline"
+                onClick={clearSearch}
+                className="border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Tag Filter Row */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">
+                Filter by tag:
+              </span>
+            </div>
+            <Select
+              value={selectedTagFilter}
+              onValueChange={setSelectedTagFilter}
+            >
+              <SelectTrigger className="w-48 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500">
+                <SelectValue placeholder="All tags" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All tags</SelectItem>
+                {serviceTags.tags.map((tag) => (
+                  <SelectItem key={tag.id} value={tag.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full border border-white shadow-sm"
+                        style={{ backgroundColor: tag.color || "#3B82F6" }}
+                      />
+                      <span>{tag.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -173,31 +243,40 @@ export default function ServicesList({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-3xl font-bold text-green-600">
-                    ${service.basePrice.toFixed(2)}
+                    RM {service.basePrice.toFixed(2)}
                   </span>
-                  <span className="text-sm text-gray-500">base price</span>
                 </div>
               </CardHeader>
 
-              <CardContent className="pt-0 space-y-4">
+              <CardContent className="space-y-4">
                 <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
                   {service.description}
                 </p>
 
                 {/* Tags */}
-                {service.tags && service.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {service.tags.map((tag) => (
+                <div className="flex flex-wrap gap-2">
+                  {service.tags && service.tags.length > 0 ? (
+                    service.tags.map((tag) => (
                       <Badge
                         key={tag.id}
-                        style={{ backgroundColor: tag.color || '#3B82F6', color: "white" }}
+                        style={{
+                          backgroundColor: tag.color || "#3B82F6",
+                          color: "white",
+                        }}
                         className="px-2 py-1 text-xs font-medium shadow-sm"
                       >
                         {tag.name}
                       </Badge>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  ) : (
+                    <Badge
+                      style={{ backgroundColor: "#9CA3AF", color: "white" }}
+                      className="px-2 py-1 text-xs font-medium shadow-sm"
+                    >
+                      No Tags
+                    </Badge>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
