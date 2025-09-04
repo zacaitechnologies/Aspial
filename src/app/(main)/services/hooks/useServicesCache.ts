@@ -11,20 +11,23 @@ interface UseServicesCacheReturn {
   invalidateCache: () => void
 }
 
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes cache
+
 export function useServicesCache(): UseServicesCacheReturn {
   const [services, setServices] = useState<Service[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const cacheTimestamp = useRef<number>(0)
-  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes cache
+  
 
   const loadServices = useCallback(async (forceRefresh = false) => {
     const now = Date.now()
     
     // Check if cache is still valid
     if (!forceRefresh && now - cacheTimestamp.current < CACHE_DURATION && services.length > 0) {
+      console.log("SERVICES CACHE HIT ✅ Skipping API call")
       return
     }
-
+    console.log("SERVICES CACHE MISS ❌ Loading from API")
     setIsLoading(true)
     try {
       const loadedServices = await getAllServices()

@@ -45,11 +45,6 @@ export default function ClientSelection({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch clients immediately when component mounts
-  useEffect(() => {
-    fetchClients();
-  }, []);
-
   const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
@@ -61,6 +56,10 @@ export default function ClientSelection({
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
 
   // Use useMemo to optimize filtering - only recalculates when clients or searchQuery changes
   const filteredClients = useMemo(() => {

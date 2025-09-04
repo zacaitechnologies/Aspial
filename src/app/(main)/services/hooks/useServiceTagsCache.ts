@@ -11,20 +11,23 @@ interface UseServiceTagsCacheReturn {
   invalidateCache: () => void
 }
 
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes cache
+
 export function useServiceTagsCache(): UseServiceTagsCacheReturn {
   const [tags, setTags] = useState<ServiceTag[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const cacheTimestamp = useRef<number>(0)
-  const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes cache
+  
 
   const loadTags = useCallback(async (forceRefresh = false) => {
     const now = Date.now()
     
     // Check if cache is still valid
     if (!forceRefresh && now - cacheTimestamp.current < CACHE_DURATION && tags.length > 0) {
+      console.log("SERVICE TAGS CACHE HIT ✅ Skipping API call")
       return
     }
-
+    console.log("SERVICE TAGS CACHE MISS ❌ Loading from API")
     setIsLoading(true)
     try {
       const loadedTags = await getAllServiceTags()

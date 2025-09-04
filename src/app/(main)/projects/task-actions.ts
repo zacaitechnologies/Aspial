@@ -84,6 +84,15 @@ export async function createTask(data: CreateTaskData): Promise<TaskWithAssignee
           supabase_id: true,
         },
       },
+      assignee: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+        },
+      },
       milestone: {
         select: {
           id: true,
@@ -102,6 +111,15 @@ export async function updateTask(taskId: number, data: UpdateTaskData): Promise<
     data,
     include: {
       creator: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+        },
+      },
+      assignee: {
         select: {
           id: true,
           firstName: true,
