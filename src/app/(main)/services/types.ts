@@ -2,7 +2,7 @@
 export type ServiceTag = {
   id: number;
   name: string;
-  color: string;
+  color: string | null;
   created_at: Date;
   services?: Service[];
 };
@@ -14,7 +14,7 @@ export type Service = {
   basePrice: number;
   created_at: Date;
   updated_at: Date;
-  tags: ServiceTag[];
+  tags?: ServiceTag[];
 };
 
 export type CreateServiceData = {

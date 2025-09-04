@@ -7,6 +7,22 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Trash2, Edit, Plus, Loader2, Tag, Palette } from "lucide-react"
+
+// Predefined color palette for service tags
+const PREDEFINED_COLORS = [
+  "#3B82F6", // Blue
+  "#EF4444", // Red  
+  "#F97316", // Orange
+  "#22C55E", // Green
+  "#A855F7", // Purple
+  "#EC4899", // Pink
+  "#06B6D4", // Cyan
+  "#84CC16", // Lime
+  "#F59E0B", // Amber
+  "#8B5CF6", // Violet
+  "#10B981", // Emerald
+  "#F43F5E", // Rose
+]
 import { 
   createServiceTag, 
   updateServiceTag, 
@@ -121,32 +137,33 @@ export default function ServiceTagManager() {
                   className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="tagColor" className="text-sm font-medium flex items-center gap-2">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium flex items-center gap-2">
                   <Palette className="w-4 h-4" />
-                  Color
+                  Choose Color
                 </Label>
-                <div className="flex items-center gap-3">
-                  <Input
-                    id="tagColor"
-                    type="color"
-                    value={formData.color}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                    className="w-16 h-12 rounded-lg border-gray-300 cursor-pointer"
-                  />
-                  <Input
-                    value={formData.color}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                    placeholder="#3B82F6"
-                    className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                  />
+                <div className="grid grid-cols-6 gap-2">
+                  {PREDEFINED_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, color })}
+                      className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
+                        formData.color === color 
+                          ? 'border-gray-800 shadow-lg' 
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
                 </div>
                 <div className="flex items-center gap-2">
                   <div 
                     className="w-4 h-4 rounded-full border border-gray-300"
                     style={{ backgroundColor: formData.color }}
                   />
-                  <span className="text-xs text-gray-500">Preview</span>
+                  <span className="text-xs text-gray-500">Selected: {formData.color}</span>
                 </div>
               </div>
               <Button 
@@ -256,32 +273,33 @@ export default function ServiceTagManager() {
                 className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="editTagColor" className="text-sm font-medium flex items-center gap-2">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium flex items-center gap-2">
                 <Palette className="w-4 h-4" />
-                Color
+                Choose Color
               </Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  id="editTagColor"
-                  type="color"
-                  value={formData.color}
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                  className="w-16 h-12 rounded-lg border-gray-300 cursor-pointer"
-                />
-                <Input
-                  value={formData.color}
-                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                  placeholder="#3B82F6"
-                  className="flex-1 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                />
+              <div className="grid grid-cols-6 gap-2">
+                {PREDEFINED_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, color })}
+                    className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
+                      formData.color === color 
+                        ? 'border-gray-800 shadow-lg' 
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
               </div>
               <div className="flex items-center gap-2">
                 <div 
                   className="w-4 h-4 rounded-full border border-gray-300"
                   style={{ backgroundColor: formData.color }}
                 />
-                <span className="text-xs text-gray-500">Preview</span>
+                <span className="text-xs text-gray-500">Selected: {formData.color}</span>
               </div>
             </div>
             <Button 

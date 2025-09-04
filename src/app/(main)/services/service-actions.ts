@@ -15,6 +15,9 @@ export async function createServiceTag(data: CreateServiceTagData): Promise<Serv
 
 export async function getAllServiceTags(): Promise<ServiceTag[]> {
   return await prisma.serviceTag.findMany({
+    include: {
+      services: true,
+    },
     orderBy: { name: 'asc' },
   })
 }
@@ -22,6 +25,9 @@ export async function getAllServiceTags(): Promise<ServiceTag[]> {
 export async function getServiceTagById(id: number): Promise<ServiceTag | null> {
   return await prisma.serviceTag.findUnique({
     where: { id },
+    include: {
+      services: true,
+    },
   })
 }
 
@@ -29,6 +35,9 @@ export async function updateServiceTag(id: number, data: UpdateServiceTagData): 
   return await prisma.serviceTag.update({
     where: { id },
     data,
+    include: {
+      services: true,
+    },
   })
 }
 
