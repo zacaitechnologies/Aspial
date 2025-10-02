@@ -111,6 +111,11 @@ export async function createQuotation(data: {
       finalClientId = newClient.id;
     }
 
+    // Ensure we have a client ID
+    if (!finalClientId) {
+      throw new Error("Client ID is required");
+    }
+
     const quotation = await tx.quotation.create({
       data: {
         name: data.name,
@@ -121,9 +126,9 @@ export async function createQuotation(data: {
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
         discountType: data.discountType || null,
-        duration: data.duration || null,
-        startDate: data.startDate ? new Date(data.startDate) : null,
-        endDate: endDate,
+        duration: data.duration || 0,
+        startDate: data.startDate ? new Date(data.startDate) : new Date(),
+        endDate: endDate || new Date(),
 
         services: {
           create: data.serviceIds.map((serviceId) => ({
@@ -206,6 +211,11 @@ export async function editQuotationById(
       finalClientId = newClient.id;
     }
 
+    // Ensure we have a client ID
+    if (!finalClientId) {
+      throw new Error("Client ID is required");
+    }
+
     // Update the quotation
     const updatedQuotation = await tx.quotation.update({
       where: { id: Number.parseInt(id) },
@@ -218,9 +228,9 @@ export async function editQuotationById(
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
         discountType: data.discountType || null,
-        duration: data.duration || null,
-        startDate: data.startDate ? new Date(data.startDate) : undefined,
-        endDate: endDate,
+        duration: data.duration || 0,
+        startDate: data.startDate ? new Date(data.startDate) : new Date(),
+        endDate: endDate || new Date(),
         services: data.serviceIds ? {
           create: data.serviceIds.map((serviceId) => ({
             serviceId: Number.parseInt(serviceId),
