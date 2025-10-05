@@ -106,7 +106,6 @@ export type EditFormData = {
 
 export const statusOptions = [
   { value: "draft", label: "Draft", color: "secondary" as const },
-  { value: "sent", label: "Sent", color: "default" as const },
   { value: "accepted", label: "Accepted", color: "default" as const },
   { value: "rejected", label: "Rejected", color: "destructive" as const },
   { value: "paid", label: "Paid", color: "default" as const },

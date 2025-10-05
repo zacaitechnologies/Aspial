@@ -188,7 +188,7 @@ export default function CreateQuotationForm({
     }));
   };
 
-  const handleCreateQuotation = async () => {
+  const handleCreateQuotation = async (status: "draft" | "accepted" = "accepted") => {
     // Debug logging to help identify the issue
     console.log("Form validation check:", {
       name: quotationForm.name,
@@ -241,6 +241,7 @@ export default function CreateQuotationForm({
         totalPrice: grandTotal, // Store grand total in totalPrice
         serviceIds: selectedServiceIds,
         createdById: enhancedUser.id,
+        status: status, // Add status parameter
         clientId:
           clientMode === "existing" ? quotationForm.clientId : undefined,
         newClient: clientMode === "new" ? quotationForm.newClient : undefined,
@@ -575,7 +576,15 @@ export default function CreateQuotationForm({
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateQuotation}>Create Quotation</Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleCreateQuotation("draft")}
+            >
+              Save as Draft
+            </Button>
+            <Button onClick={() => handleCreateQuotation("accepted")}>
+              Create Quotation
+            </Button>
           </div>
         </div>
       </DialogContent>

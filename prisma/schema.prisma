@@ -296,7 +296,6 @@ model Task {
 
 enum QuotationStatus {
   draft
-  sent
   accepted
   rejected
   paid

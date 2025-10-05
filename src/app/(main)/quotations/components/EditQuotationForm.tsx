@@ -192,7 +192,7 @@ export default function EditQuotationForm({
     return endDate.toLocaleDateString("en-GB");
   };
 
-  const handleUpdateQuotation = async () => {
+  const handleUpdateQuotation = async (status?: string) => {
     if (!editingQuotation) return;
 
     if (!editForm.name || !editForm.description) {
@@ -241,7 +241,7 @@ export default function EditQuotationForm({
         name: editForm.name,
         description: editForm.description,
         totalPrice: grandTotal, // Store grand total in totalPrice
-        status: editForm.status as
+        status: (status || editForm.status) as
           | "draft"
           | "sent"
           | "accepted"
@@ -551,7 +551,24 @@ export default function EditQuotationForm({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateQuotation}>Update Quotation</Button>
+            {editingQuotation?.status === "draft" && (
+              <Button
+                variant="secondary"
+                onClick={() => handleUpdateQuotation("draft")}
+              >
+                Save as Draft
+              </Button>
+            )}
+            {editingQuotation?.status === "draft" && (
+              <Button onClick={() => handleUpdateQuotation("accepted")}>
+                Create Quotation
+              </Button>
+            )}
+            {editingQuotation?.status !== "draft" && (
+              <Button onClick={() => handleUpdateQuotation(editingQuotation?.status)}>
+                Update Quotation
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
