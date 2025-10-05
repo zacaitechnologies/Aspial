@@ -4,52 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { isUserAdmin } from "../projects/permissions"
 
 export async function getAllQuotations(userId?: string) {
-  if (!userId) {
-    return await prisma.quotation.findMany({
-      include: {
-        services: {
-          include: {
-            service: true,
-          },
-        },
-        project: true,
-        createdBy: true,
-        Client: true,
-      },
-      orderBy: { created_at: "desc" },
-    })
-  }
-
-  // Check if user is admin
-  const userWithRoles = await prisma.user.findUnique({
-    where: { supabase_id: userId },
-    include: { userRoles: { include: { role: true } } },
-  })
-
-  const isAdmin = userWithRoles?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
-
-  if (isAdmin) {
-    // Admin can see all quotations
-    return await prisma.quotation.findMany({
-      include: {
-        services: {
-          include: {
-            service: true,
-          },
-        },
-        project: true,
-        createdBy: true,
-        Client: true,
-      },
-      orderBy: { created_at: "desc" },
-    })
-  }
-
-  // Non-admin users can only see their own quotations
+  // Everyone can see all quotations regardless of who created them
   return await prisma.quotation.findMany({
-    where: {
-      createdById: userId
-    },
     include: {
       services: {
         include: {
