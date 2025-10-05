@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, Briefcase, AlertTriangle, User, Mail, Building2 } from "lucide-react";
 import { QuotationWithServices, statusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
+import { getClientById, updateClientMembershipStatus } from "../action";
+import MembershipStatusDialog from "./MembershipStatusDialog";
 
 interface QuotationCardProps {
   quotation: QuotationWithServices;
@@ -25,6 +28,13 @@ export default function QuotationCard({
   onDelete,
 }: QuotationCardProps) {
   const { enhancedUser } = useSession();
+  const [isMembershipDialogOpen, setIsMembershipDialogOpen] = useState(false);
+  const [clientData, setClientData] = useState<{
+    id: string;
+    name: string;
+    company?: string;
+    membershipType: string;
+  } | null>(null);
   const getStatusBadge = (status: string) => {
     const statusConfig = statusOptions.find((opt) => opt.value === status);
     return (
@@ -50,6 +60,34 @@ export default function QuotationCard({
   };
 
   const handleCreateProject = async (quotation: QuotationWithServices) => {
+    try {
+      // First, get client details to check membership status
+      if (quotation.clientId) {
+        const client = await getClientById(quotation.clientId);
+        
+        if (client && client.membershipType === "NON_MEMBER") {
+          // Store client data and show membership dialog
+          setClientData({
+            id: client.id,
+            name: client.name,
+            company: client.company || undefined,
+            membershipType: client.membershipType,
+          });
+          setIsMembershipDialogOpen(true);
+          return; // Don't create project yet, wait for user decision
+        }
+      }
+
+      // If client is already a member or no client, proceed with project creation
+      await createProjectAndRefresh(quotation);
+      
+    } catch (error) {
+      console.error('Error creating project:', error);
+      alert('Failed to create project. Please try again.');
+    }
+  };
+
+  const createProjectAndRefresh = async (quotation: QuotationWithServices) => {
     try {
       // Import the createProject action
       const { createProject } = await import('../../projects/action');
@@ -78,6 +116,33 @@ export default function QuotationCard({
       console.error('Error creating project:', error);
       alert('Failed to create project. Please try again.');
     }
+  };
+
+  const handleMembershipUpgrade = async () => {
+    if (!clientData) return;
+
+    try {
+      // Update client membership status to MEMBER
+      await updateClientMembershipStatus(clientData.id, "MEMBER");
+      
+      // Now create the project
+      await createProjectAndRefresh(quotation);
+      
+      // Close dialog
+      setIsMembershipDialogOpen(false);
+      setClientData(null);
+      
+    } catch (error) {
+      console.error('Error upgrading membership:', error);
+      alert('Failed to upgrade membership status. Please try again.');
+    }
+  };
+
+  const handleMembershipCancel = () => {
+    // Create project without upgrading membership
+    createProjectAndRefresh(quotation);
+    setIsMembershipDialogOpen(false);
+    setClientData(null);
   };
 
   return (
@@ -191,6 +256,18 @@ export default function QuotationCard({
           Created: {new Date(quotation.created_at).toLocaleDateString()}
         </p>
       </CardContent>
+
+      {/* Membership Status Dialog */}
+      {clientData && (
+        <MembershipStatusDialog
+          isOpen={isMembershipDialogOpen}
+          onOpenChange={setIsMembershipDialogOpen}
+          clientName={clientData.name}
+          clientCompany={clientData.company}
+          onConfirm={handleMembershipUpgrade}
+          onCancel={handleMembershipCancel}
+        />
+      )}
     </Card>
   );
 } 

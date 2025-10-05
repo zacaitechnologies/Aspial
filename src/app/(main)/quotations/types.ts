@@ -22,6 +22,9 @@ export type QuotationWithServices = {
     company?: string;
     address?: string;
     notes?: string;
+    industry?: string;
+    yearlyRevenue?: number;
+    membershipType?: string;
   };
   createdBy: {
     id: string;
@@ -66,6 +69,9 @@ export type QuotationFormData = {
     company?: string;
     address?: string;
     notes?: string;
+    industry?: string;
+    yearlyRevenue?: string;
+    membershipType?: string;
   };
   newProject?: {
     name: string;
@@ -94,6 +100,9 @@ export type EditFormData = {
     company?: string;
     address?: string;
     notes?: string;
+    industry?: string;
+    yearlyRevenue?: string;
+    membershipType?: string;
   };
   newProject?: {
     name: string;

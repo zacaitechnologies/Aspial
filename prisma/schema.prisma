@@ -6,6 +6,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Role {
@@ -141,6 +142,11 @@ model ProjectPermission {
   @@map("project_permissions")
 }
 
+enum MembershipType {
+  MEMBER
+  NON_MEMBER
+}
+
 model Client {
   id         String      @id @default(cuid())
   name       String
@@ -149,6 +155,9 @@ model Client {
   company    String?
   address    String?
   notes      String?
+  industry   String?
+  yearlyRevenue Float?
+  membershipType MembershipType @default(NON_MEMBER)
   created_at DateTime    @default(now())
   updated_at DateTime    @default(now())
   projects   Project[]

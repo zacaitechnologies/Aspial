@@ -59,6 +59,9 @@ export default function CreateQuotationForm({
       company: "",
       address: "",
       notes: "",
+      industry: "",
+      yearlyRevenue: "",
+      membershipType: "",
     },
     newProject: {
       name: "",
@@ -282,6 +285,9 @@ export default function CreateQuotationForm({
         company: "",
         address: "",
         notes: "",
+        industry: "",
+        yearlyRevenue: "",
+        membershipType: "",
       },
     });
     setSelectedServiceIds([]);

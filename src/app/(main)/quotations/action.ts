@@ -40,6 +40,9 @@ export async function createQuotation(data: {
     company?: string
     address?: string
     notes?: string
+    industry?: string
+    yearlyRevenue?: string
+    membershipType?: string
   }
 }) {
   // Calculate end date if start date and duration are provided
@@ -63,6 +66,9 @@ export async function createQuotation(data: {
           company: data.newClient.company,
           address: data.newClient.address,
           notes: data.newClient.notes,
+          industry: data.newClient.industry,
+          yearlyRevenue: data.newClient.yearlyRevenue ? parseFloat(data.newClient.yearlyRevenue) : null,
+          membershipType: data.newClient.membershipType as "MEMBER" | "NON_MEMBER" || "NON_MEMBER",
         }
       });
       finalClientId = newClient.id;
@@ -129,6 +135,9 @@ export async function editQuotationById(
       company?: string
       address?: string
       notes?: string
+      industry?: string
+      yearlyRevenue?: string
+      membershipType?: string
     }
   },
 ) {
@@ -164,6 +173,9 @@ export async function editQuotationById(
           company: data.newClient.company,
           address: data.newClient.address,
           notes: data.newClient.notes,
+          industry: data.newClient.industry,
+          yearlyRevenue: data.newClient.yearlyRevenue ? parseFloat(data.newClient.yearlyRevenue) : null,
+          membershipType: data.newClient.membershipType as "MEMBER" | "NON_MEMBER" || "NON_MEMBER",
         }
       });
       finalClientId = newClient.id;
@@ -332,6 +344,35 @@ export async function getClientsForQuotationOptimized() {
     },
     orderBy: {
       name: "asc"
+    }
+  });
+}
+
+// Get client details including membership status
+export async function getClientById(clientId: string) {
+  return await prisma.client.findUnique({
+    where: { id: clientId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      company: true,
+      membershipType: true,
+    }
+  });
+}
+
+// Update client membership status
+export async function updateClientMembershipStatus(clientId: string, membershipType: "MEMBER" | "NON_MEMBER") {
+  return await prisma.client.update({
+    where: { id: clientId },
+    data: { membershipType },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      company: true,
+      membershipType: true,
     }
   });
 } 

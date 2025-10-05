@@ -20,6 +20,10 @@ import {
   Eye,
   User,
   FileText,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Crown,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -28,7 +32,6 @@ import CreateClientDialog from "./components/CreateClientDialog"
 import EditClientDialog from "./components/EditClientDialog"
 import DeleteClientDialog from "./components/DeleteClientDialog"
 
-type ClientStatus = "active" | "inactive" | "prospect" | "archived"
 
 interface Client {
   id: string
@@ -39,8 +42,10 @@ interface Client {
   address?: string
   city?: string
   country?: string
-  status: ClientStatus
   notes?: string
+  industry?: string
+  yearlyRevenue?: number
+  membershipType: "MEMBER" | "NON_MEMBER"
   quotationsCount: number
   totalValue: number
   created_at: string
@@ -49,11 +54,17 @@ interface Client {
 
 
 
+type SortOption = "name" | "yearlyRevenue" | "totalValue" | "created_at"
+type SortDirection = "asc" | "desc"
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<ClientStatus | "all">("all")
+  const [industryFilter, setIndustryFilter] = useState<string>("all")
+  const [membershipFilter, setMembershipFilter] = useState<"all" | "MEMBER" | "NON_MEMBER">("all")
+  const [sortBy, setSortBy] = useState<SortOption>("created_at")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -70,6 +81,20 @@ export default function ClientsPage() {
       setLoading(false)
     }
   }, [])
+
+  // Get unique industries from all clients
+  const uniqueIndustries = Array.from(
+    new Set(clients.filter(client => client.industry).map(client => client.industry!))
+  ).sort()
+
+  const handleSort = (option: SortOption) => {
+    if (sortBy === option) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      setSortBy(option)
+      setSortDirection("asc")
+    }
+  }
 
   useEffect(() => {
     fetchClients()
@@ -97,32 +122,50 @@ export default function ClientsPage() {
     }
   }
 
-  const getStatusColor = (status: ClientStatus) => {
-    switch (status) {
-      case "active":
-        return "bg-[#BDC4A5] text-[#202F21] border-[#898D74]"
-      case "inactive":
-        return "bg-gray-100 text-gray-800 border-gray-200"
-      case "prospect":
-        return "bg-blue-100 text-blue-800 border-blue-200"
-      case "archived":
-        return "bg-red-100 text-red-800 border-red-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
-    }
-  }
 
-  const filteredClients = clients.filter((client) => {
-    const matchesSearch =
-      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.company?.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || client.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  const filteredAndSortedClients = clients
+    .filter((client) => {
+      const matchesSearch =
+        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        client.company?.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesIndustry = industryFilter === "all" || client.industry === industryFilter
+      const matchesMembership = membershipFilter === "all" || client.membershipType === membershipFilter
+      return matchesSearch && matchesIndustry && matchesMembership
+    })
+    .sort((a, b) => {
+      let aValue: any, bValue: any
+      
+      switch (sortBy) {
+        case "name":
+          aValue = a.name.toLowerCase()
+          bValue = b.name.toLowerCase()
+          break
+        case "yearlyRevenue":
+          aValue = a.yearlyRevenue || 0
+          bValue = b.yearlyRevenue || 0
+          break
+        case "totalValue":
+          aValue = a.totalValue
+          bValue = b.totalValue
+          break
+        case "created_at":
+          aValue = new Date(a.created_at).getTime()
+          bValue = new Date(b.created_at).getTime()
+          break
+        default:
+          return 0
+      }
+      
+      if (sortDirection === "asc") {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
+      }
+    })
 
   const totalClients = clients.length
-  const activeClients = clients.filter((c) => c.status === "active").length
+  const memberClients = clients.filter((c) => c.membershipType === "MEMBER").length
   const totalValue = clients.reduce((sum, client) => sum + client.totalValue, 0)
   const avgValue = totalClients > 0 ? totalValue / totalClients : 0
 
@@ -170,10 +213,10 @@ export default function ClientsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium" style={{ color: "#898D74" }}>
-                    Active Clients
+                    Member Clients
                   </p>
                   <p className="text-3xl font-bold" style={{ color: "#202F21" }}>
-                    {activeClients}
+                    {memberClients}
                   </p>
                 </div>
                 <div
@@ -229,35 +272,93 @@ export default function ClientsPage() {
           </Card>
         </div>
 
-        {/* Filters */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search
-              className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2"
-              style={{ color: "#898D74" }}
-            />
-            <Input
-              type="text"
-              placeholder="Search clients..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-white border-2"
-              style={{ borderColor: "#BDC4A5" }}
-            />
+        {/* Filters and Sorting */}
+        <div className="space-y-4 mb-6">
+          {/* Search and Primary Filters */}
+          <div className="flex items-center gap-4">
+            <div className="flex-1 relative">
+              <Search
+                className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2"
+                style={{ color: "#898D74" }}
+              />
+              <Input
+                type="text"
+                placeholder="Search clients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-white border-2"
+                style={{ borderColor: "#BDC4A5" }}
+              />
+            </div>
+            <Select value={industryFilter} onValueChange={setIndustryFilter}>
+              <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+                <Building2 className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
+                <SelectValue placeholder="Filter by industry" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Industries</SelectItem>
+                {uniqueIndustries.map((industry) => (
+                  <SelectItem key={industry} value={industry}>
+                    {industry}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={membershipFilter} onValueChange={(value) => setMembershipFilter(value as "all" | "MEMBER" | "NON_MEMBER")}>
+              <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+                <User className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
+                <SelectValue placeholder="Filter by membership" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Members</SelectItem>
+                <SelectItem value="MEMBER">Members</SelectItem>
+                <SelectItem value="NON_MEMBER">Non-Members</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as ClientStatus | "all")}>
-            <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-              <Filter className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="prospect">Prospect</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
-            </SelectContent>
-          </Select>
+
+          {/* Sorting Controls */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium" style={{ color: "#202F21" }}>
+              Sort by:
+            </Label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSort("name")}
+              className={`border-2 ${sortBy === "name" ? "bg-[#BDC4A5] text-[#202F21]" : "bg-white"}`}
+              style={{ borderColor: "#BDC4A5" }}
+            >
+              Name {sortBy === "name" && (sortDirection === "asc" ? <ArrowUp className="w-4 h-4 ml-1" /> : <ArrowDown className="w-4 h-4 ml-1" />)}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSort("yearlyRevenue")}
+              className={`border-2 ${sortBy === "yearlyRevenue" ? "bg-[#BDC4A5] text-[#202F21]" : "bg-white"}`}
+              style={{ borderColor: "#BDC4A5" }}
+            >
+              Revenue {sortBy === "yearlyRevenue" && (sortDirection === "asc" ? <ArrowUp className="w-4 h-4 ml-1" /> : <ArrowDown className="w-4 h-4 ml-1" />)}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSort("totalValue")}
+              className={`border-2 ${sortBy === "totalValue" ? "bg-[#BDC4A5] text-[#202F21]" : "bg-white"}`}
+              style={{ borderColor: "#BDC4A5" }}
+            >
+              Total Purchased {sortBy === "totalValue" && (sortDirection === "asc" ? <ArrowUp className="w-4 h-4 ml-1" /> : <ArrowDown className="w-4 h-4 ml-1" />)}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleSort("created_at")}
+              className={`border-2 ${sortBy === "created_at" ? "bg-[#BDC4A5] text-[#202F21]" : "bg-white"}`}
+              style={{ borderColor: "#BDC4A5" }}
+            >
+              Date Added {sortBy === "created_at" && (sortDirection === "asc" ? <ArrowUp className="w-4 h-4 ml-1" /> : <ArrowDown className="w-4 h-4 ml-1" />)}
+            </Button>
+          </div>
         </div>
 
         {/* Loading State */}
@@ -270,13 +371,13 @@ export default function ClientsPage() {
         {/* Clients Grid */}
         {!loading && (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredClients.map((client) => (
+          {filteredAndSortedClients.map((client) => (
             <Card
               key={client.id}
               className="card bg-white border-2"
               style={{ borderColor: "#BDC4A5" }}
             >
-              <CardHeader className="pb-4">
+              <CardHeader className="">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0">
                     {client.photo ? (
@@ -303,9 +404,20 @@ export default function ClientsPage() {
                         <CardTitle className="text-xl font-semibold mb-2" style={{ color: "#202F21" }}>
                           {client.name}
                         </CardTitle>
-                        <Badge className={getStatusColor(client.status)} variant="outline">
-                          {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"} 
+                            variant="outline"
+                          >
+                            <Crown className="w-3 h-3 mr-1" />
+                            {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
+                          </Badge>
+                          {client.industry && (
+                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                              {client.industry}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <Button variant="ghost" size="sm" style={{ color: "#898D74" }}>
                         <MoreHorizontal className="w-4 h-4" />
@@ -331,6 +443,12 @@ export default function ClientsPage() {
                     <div className="flex items-center gap-2 text-sm">
                       <Building2 className="w-4 h-4" style={{ color: "#898D74" }} />
                       <span style={{ color: "#202F21" }}>{client.company}</span>
+                    </div>
+                  )}
+                  {client.yearlyRevenue && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Building2 className="w-4 h-4" style={{ color: "#898D74" }} />
+                      <span style={{ color: "#202F21" }}>RM {client.yearlyRevenue.toLocaleString()}</span>
                     </div>
                   )}
                   {client.city && (
