@@ -551,7 +551,7 @@ export default function EditQuotationForm({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            {editingQuotation?.status === "draft" && (
+            {editForm.status === "draft" && (
               <Button
                 variant="secondary"
                 onClick={() => handleUpdateQuotation("draft")}
@@ -559,13 +559,13 @@ export default function EditQuotationForm({
                 Save as Draft
               </Button>
             )}
-            {editingQuotation?.status === "draft" && (
+            {editForm.status === "draft" && (
               <Button onClick={() => handleUpdateQuotation("accepted")}>
                 Create Quotation
               </Button>
             )}
-            {editingQuotation?.status !== "draft" && (
-              <Button onClick={() => handleUpdateQuotation(editingQuotation?.status)}>
+            {editForm.status !== "draft" && (
+              <Button onClick={() => handleUpdateQuotation(editForm.status)}>
                 Update Quotation
               </Button>
             )}
