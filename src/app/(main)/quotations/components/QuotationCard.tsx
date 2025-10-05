@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, Briefcase, AlertTriangle, User, Mail, Building2 } from "lucide-react";
 import { QuotationWithServices, statusOptions } from "../types";
-import { calculateMonthlyPrice } from "../utils";
+import { useSession } from "../../contexts/SessionProvider";
 
 interface QuotationCardProps {
   quotation: QuotationWithServices;
@@ -24,6 +24,7 @@ export default function QuotationCard({
   onEdit,
   onDelete,
 }: QuotationCardProps) {
+  const { enhancedUser } = useSession();
   const getStatusBadge = (status: string) => {
     const statusConfig = statusOptions.find((opt) => opt.value === status);
     return (
@@ -48,6 +49,37 @@ export default function QuotationCard({
     }
   };
 
+  const handleCreateProject = async (quotation: QuotationWithServices) => {
+    try {
+      // Import the createProject action
+      const { createProject } = await import('../../projects/action');
+      
+      // Create project data from quotation
+      const projectData = {
+        name: quotation.name,
+        description: quotation.description,
+        clientId: quotation.clientId,
+        quotationId: quotation.id,
+        startDate: quotation.startDate,
+        endDate: quotation.endDate,
+        createdBy: enhancedUser?.id || '',
+      };
+      
+      // Create the project
+      await createProject(projectData);
+      
+      // Show success message
+      alert('Project created successfully!');
+      
+      // Refresh the page to update the UI (briefcase icon will disappear)
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Error creating project:', error);
+      alert('Failed to create project. Please try again.');
+    }
+  };
+
   return (
     <Card className="card">
       <CardHeader>
@@ -68,6 +100,19 @@ export default function QuotationCard({
             </div>
           </div>
           <div className="flex space-x-1">
+            {/* Create Project Button - Show for accepted or paid quotations without existing project */}
+            {(quotation.status === "accepted" || quotation.status === "paid") && !hasProject && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCreateProject(quotation)}
+                className="text-green-600 hover:text-green-700"
+                title="Create Project"
+              >
+                <Briefcase className="w-4 h-4" />
+              </Button>
+            )}
+
             <Button
               variant="ghost"
               size="sm"
@@ -79,8 +124,10 @@ export default function QuotationCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleDelete}
-              className={hasProject ? "text-red-600 hover:text-red-700" : ""}
+              onClick={hasProject ? undefined : handleDelete}
+              disabled={hasProject}
+              className={hasProject ? "text-gray-400 cursor-not-allowed" : ""}
+              title={hasProject ? "This quotation cannot be deleted as it is linked to a project" : "Delete quotation"}
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -140,12 +187,6 @@ export default function QuotationCard({
           </div>
         )}
 
-        {hasProject && (
-          <div className="mt-2 flex items-center gap-1 text-sm text-amber-600">
-            <AlertTriangle className="w-3 h-3" />
-            <span>Deleting this quotation will also delete the associated project</span>
-          </div>
-        )}
         <p className="text-xs text-muted-foreground mt-3">
           Created: {new Date(quotation.created_at).toLocaleDateString()}
         </p>
