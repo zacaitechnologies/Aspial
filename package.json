@@ -11,7 +11,11 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "seed:services": "ts-node prisma/serviceMockData.ts"
+    "seed:services": "ts-node prisma/serviceMockData.ts",
+    "seed:roles": "ts-node prisma/roleMockData.ts",
+    "seed:users": "ts-node prisma/userSyncData.ts",
+    "seed:studios": "ts-node prisma/studioMockData.ts",
+    "seed:equipment": "ts-node prisma/equipmentMockData.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
