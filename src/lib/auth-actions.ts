@@ -65,10 +65,10 @@ export async function forgotPassword(email: string) {
 
   if (error) {
     console.error(error.message);
-    redirect("/error");
+    throw new Error(error.message);
   }
 
-  redirect("/check-email");
+  // Don't redirect here, let the component handle the success state
 }
 
 export async function resetPassword(newPassword: string) {
