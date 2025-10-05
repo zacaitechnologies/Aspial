@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { updateClient } from "../action"
 
 interface Client {
@@ -16,6 +17,9 @@ interface Client {
   company?: string
   address?: string
   notes?: string
+  industry?: string
+  yearlyRevenue?: number
+  membershipType: "MEMBER" | "NON_MEMBER"
   quotationsCount: number
   totalValue: number
   created_at: string
@@ -41,7 +45,10 @@ export default function EditClientDialog({
     phone: "",
     company: "",
     address: "",
-    notes: ""
+    notes: "",
+    industry: "",
+    yearlyRevenue: "",
+    membershipType: "NON_MEMBER"
   })
 
   // Update form data when client changes
@@ -53,7 +60,10 @@ export default function EditClientDialog({
         phone: client.phone || "",
         company: client.company || "",
         address: client.address || "",
-        notes: client.notes || ""
+        notes: client.notes || "",
+        industry: client.industry || "",
+        yearlyRevenue: client.yearlyRevenue?.toString() || "",
+        membershipType: client.membershipType || "NON_MEMBER"
       })
     }
   }, [client])
@@ -69,6 +79,9 @@ export default function EditClientDialog({
         company: formData.company || undefined,
         address: formData.address || undefined,
         notes: formData.notes || undefined,
+        industry: formData.industry || undefined,
+        yearlyRevenue: formData.yearlyRevenue ? parseFloat(formData.yearlyRevenue) : undefined,
+        membershipType: formData.membershipType as "MEMBER" | "NON_MEMBER",
       })
       
       onOpenChange(false)
@@ -137,6 +150,37 @@ export default function EditClientDialog({
               value={formData.address}
               onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-industry">Industry</Label>
+            <Input 
+              id="edit-industry" 
+              placeholder="Technology, Healthcare, etc." 
+              value={formData.industry}
+              onChange={(e) => setFormData(prev => ({ ...prev, industry: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-yearlyRevenue">Yearly Revenue (RM)</Label>
+            <Input 
+              id="edit-yearlyRevenue" 
+              type="number"
+              placeholder="1000000" 
+              value={formData.yearlyRevenue}
+              onChange={(e) => setFormData(prev => ({ ...prev, yearlyRevenue: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-membershipType">Membership Type</Label>
+            <Select value={formData.membershipType} onValueChange={(value) => setFormData(prev => ({ ...prev, membershipType: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select membership type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MEMBER">Member</SelectItem>
+                <SelectItem value="NON_MEMBER">Non-Member</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="col-span-2 space-y-2">
             <Label htmlFor="edit-notes">Notes</Label>

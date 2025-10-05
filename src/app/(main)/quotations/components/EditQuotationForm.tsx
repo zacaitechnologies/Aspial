@@ -71,6 +71,9 @@ export default function EditQuotationForm({
       company: "",
       address: "",
       notes: "",
+      industry: "",
+      yearlyRevenue: "",
+      membershipType: "",
     },
   });
 
@@ -100,6 +103,9 @@ export default function EditQuotationForm({
           company: "",
           address: "",
           notes: "",
+          industry: "",
+          yearlyRevenue: "",
+          membershipType: "",
         },
         newProject: {
           name: "",

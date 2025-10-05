@@ -61,14 +61,13 @@ export async function getAllClients() {
       phone: client.phone || undefined,
       company: client.company || undefined,
       address: client.address || undefined,
-      city: undefined, // Not in schema
-      country: undefined, // Not in schema
-      status: "active" as const, // Default status since not in schema
       notes: client.notes || undefined,
+      industry: client.industry || undefined,
+      yearlyRevenue: client.yearlyRevenue || undefined,
+      membershipType: client.membershipType,
       quotationsCount: client.quotations.length,
       totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
-      created_at: client.created_at.toISOString(),
-      photo: undefined, // Not in schema
+      created_at: client.created_at.toISOString()
     }))
   } catch (error: any) {
     // Handle redirect errors
@@ -126,6 +125,9 @@ export async function createCustomerClient(data: {
   company?: string
   address?: string
   notes?: string
+  industry?: string
+  yearlyRevenue?: number
+  membershipType: "MEMBER" | "NON_MEMBER"
 }) {
   try {
     await getCurrentUser() // Ensure user is authenticated
@@ -138,6 +140,9 @@ export async function createCustomerClient(data: {
         company: data.company,
         address: data.address,
         notes: data.notes,
+        industry: data.industry,
+        yearlyRevenue: data.yearlyRevenue,
+        membershipType: data.membershipType,
       }
     })
     
@@ -158,6 +163,9 @@ export async function updateClient(id: string, data: {
   company?: string
   address?: string
   notes?: string
+  industry?: string
+  yearlyRevenue?: number
+  membershipType?: "MEMBER" | "NON_MEMBER"
 }) {
   try {
     await getCurrentUser() // Ensure user is authenticated
@@ -171,6 +179,9 @@ export async function updateClient(id: string, data: {
         company: data.company,
         address: data.address,
         notes: data.notes,
+        industry: data.industry,
+        yearlyRevenue: data.yearlyRevenue,
+        membershipType: data.membershipType,
         updated_at: new Date(),
       }
     })

@@ -5,6 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { User, Building2, Mail } from "lucide-react";
 import { getClientsForQuotationOptimized } from "../action";
 
@@ -22,6 +29,9 @@ interface NewClientData {
   company?: string;
   address?: string;
   notes?: string;
+  industry?: string;
+  yearlyRevenue?: string;
+  membershipType?: string;
 }
 
 interface ClientSelectionProps {
@@ -237,16 +247,63 @@ export default function ClientSelection({
 
               <div className="space-y-2">
                 <Label htmlFor="new-client-notes">Notes</Label>
-                                  <Textarea
-                    id="new-client-notes"
-                    className="text-black"
-                    value={newClientData?.notes || ""}
+                <Textarea
+                  id="new-client-notes"
+                  className="text-black"
+                  value={newClientData?.notes || ""}
+                  onChange={(e) =>
+                    handleNewClientDataChange("notes", e.target.value)
+                  }
+                  placeholder="Additional notes about the client"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-client-industry">Industry</Label>
+                  <Input
+                    id="new-client-industry"
+                    value={newClientData?.industry || ""}
                     onChange={(e) =>
-                      handleNewClientDataChange("notes", e.target.value)
+                      handleNewClientDataChange("industry", e.target.value)
                     }
-                    placeholder="Additional notes about the client"
-                    rows={2}
+                    placeholder="e.g., Technology, Healthcare, Finance"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-client-yearly-revenue">Yearly Revenue (RM)</Label>
+                  <Input
+                    id="new-client-yearly-revenue"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newClientData?.yearlyRevenue || ""}
+                    onChange={(e) =>
+                      handleNewClientDataChange("yearlyRevenue", e.target.value)
+                    }
+                    placeholder="e.g., 1000000"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-client-membership-type">Membership Type</Label>
+                <Select
+                  value={newClientData?.membershipType || ""}
+                  onValueChange={(value) =>
+                    handleNewClientDataChange("membershipType", value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select membership type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MEMBER">Member</SelectItem>
+                    <SelectItem value="NON_MEMBER">Non-Member</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
