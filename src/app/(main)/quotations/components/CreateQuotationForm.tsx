@@ -75,7 +75,9 @@ export default function CreateQuotationForm({
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
 
   // Project selection state
-  const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
+  const [projectMode, setProjectMode] = useState<"existing" | "new">(
+    "existing"
+  );
 
   useEffect(() => {
     fetchServices();
@@ -180,9 +182,9 @@ export default function CreateQuotationForm({
   };
 
   const handleProjectSelected = (projectId: number, projectName: string) => {
-    setQuotationForm(prev => ({
+    setQuotationForm((prev) => ({
       ...prev,
-      projectId: projectId
+      projectId: projectId,
     }));
   };
 
@@ -229,7 +231,7 @@ export default function CreateQuotationForm({
 
     try {
       // Calculate grand total (monthly price × duration)
-      const grandTotal = quotationForm.duration 
+      const grandTotal = quotationForm.duration
         ? calculateGrandTotal(discountedTotal, parseInt(quotationForm.duration))
         : discountedTotal;
 
@@ -331,21 +333,6 @@ export default function CreateQuotationForm({
               mode={clientMode}
             />
 
-            {/* Project Selection */}
-            <ProjectSelection
-              selectedProjectId={quotationForm.projectId}
-              newProjectData={quotationForm.newProject}
-              onProjectSelect={handleProjectSelected}
-              onNewProjectDataChange={(newProjectData) =>
-                setQuotationForm((prev) => ({
-                  ...prev,
-                  newProject: newProjectData,
-                }))
-              }
-              onModeChange={setProjectMode}
-              mode={projectMode}
-              currentUserId={enhancedUser.id}
-            />
             <div className="grid gap-2">
               <Label htmlFor="quotation-description">Description</Label>
               <Textarea
@@ -403,7 +390,7 @@ export default function CreateQuotationForm({
               </div>
             )}
 
-            <div className="grid gap-4">
+            <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
               <Label>Select Services</Label>
               <div className="grid gap-2">
                 <Input
@@ -454,6 +441,22 @@ export default function CreateQuotationForm({
                   ))}
               </div>
             </div>
+
+            {/* Project Selection */}
+            {/* <ProjectSelection
+              selectedProjectId={quotationForm.projectId}
+              newProjectData={quotationForm.newProject}
+              onProjectSelect={handleProjectSelected}
+              onNewProjectDataChange={(newProjectData) =>
+                setQuotationForm((prev) => ({
+                  ...prev,
+                  newProject: newProjectData,
+                }))
+              }
+              onModeChange={setProjectMode}
+              mode={projectMode}
+              currentUserId={enhancedUser.id}
+            /> */}
 
             <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
               <span className="font-semibold">Discount: </span>
@@ -539,21 +542,28 @@ export default function CreateQuotationForm({
             </div>
 
             {/* Grand Total Section */}
-            {quotationForm.duration && parseFloat(quotationForm.duration) > 0 && (
-              <div className="flex justify-between items-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div>
-                  <span className="font-semibold text-blue-800">Grand Total ({quotationForm.duration} months):</span>
-                  <div className="text-xs text-blue-600 mt-1">
-                    {discountedTotal.toFixed(2)} × {quotationForm.duration} months
+            {quotationForm.duration &&
+              parseFloat(quotationForm.duration) > 0 && (
+                <div className="flex justify-between items-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div>
+                    <span className="font-semibold text-blue-800">
+                      Grand Total ({quotationForm.duration} months):
+                    </span>
+                    <div className="text-xs text-blue-600 mt-1">
+                      {discountedTotal.toFixed(2)} × {quotationForm.duration}{" "}
+                      months
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-3xl font-bold text-blue-800">
+                      RM
+                      {(
+                        discountedTotal * parseFloat(quotationForm.duration)
+                      ).toFixed(2)}
+                    </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-3xl font-bold text-blue-800">
-                    RM{(discountedTotal * parseFloat(quotationForm.duration)).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            )}
+              )}
           </div>
           <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
             <Button
@@ -569,8 +579,6 @@ export default function CreateQuotationForm({
           </div>
         </div>
       </DialogContent>
-
-
     </Dialog>
   );
 }

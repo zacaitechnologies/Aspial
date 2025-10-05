@@ -46,9 +46,13 @@ export default function EditQuotationForm({
 }: EditQuotationFormProps) {
   const { enhancedUser } = useSession();
   const [services, setServices] = useState<Services[]>([]);
-  const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<string[]>([]);
+  const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<
+    string[]
+  >([]);
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
-  const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
+  const [projectMode, setProjectMode] = useState<"existing" | "new">(
+    "existing"
+  );
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -84,7 +88,9 @@ export default function EditQuotationForm({
         discountValue: editingQuotation.discountValue?.toString() || "",
         discountType: editingQuotation.discountType || "percentage",
         duration: editingQuotation.duration?.toString() || "",
-        startDate: editingQuotation.startDate ? new Date(editingQuotation.startDate).toISOString().split('T')[0] : "",
+        startDate: editingQuotation.startDate
+          ? new Date(editingQuotation.startDate).toISOString().split("T")[0]
+          : "",
         clientId: editingQuotation.clientId || "",
         projectId: editingQuotation.project?.id || undefined,
         newClient: {
@@ -106,14 +112,14 @@ export default function EditQuotationForm({
       setEditSelectedServiceIds(
         editingQuotation.services.map((qs) => qs.service.id.toString())
       );
-      
-             // Set project mode based on whether there's an existing project
-       if (editingQuotation.project) {
-         setProjectMode("existing");
-       } else {
-         setProjectMode("existing");
-       }
-      
+
+      // Set project mode based on whether there's an existing project
+      if (editingQuotation.project) {
+        setProjectMode("existing");
+      } else {
+        setProjectMode("existing");
+      }
+
       // Set client mode based on whether there's an existing client
       setClientMode(editingQuotation.clientId ? "existing" : "new");
     }
@@ -130,19 +136,19 @@ export default function EditQuotationForm({
 
   // Calculate edit total price based on selected services
   const calculateEditTotalPrice = () => {
-    const selectedServices = services.filter(service => 
+    const selectedServices = services.filter((service) =>
       editSelectedServiceIds.includes(service.id.toString())
     );
-    return selectedServices.reduce((total, service) => total + service.basePrice, 0);
+    return selectedServices.reduce(
+      (total, service) => total + service.basePrice,
+      0
+    );
   };
 
   // Calculate edit discounted total price
   const calculateEditDiscountedTotal = () => {
     const baseTotal = calculateEditTotalPrice();
-    if (
-      !editForm.discountValue ||
-      parseFloat(editForm.discountValue) === 0
-    ) {
+    if (!editForm.discountValue || parseFloat(editForm.discountValue) === 0) {
       return baseTotal;
     }
 
@@ -162,9 +168,9 @@ export default function EditQuotationForm({
   const editDiscountedTotal = calculateEditDiscountedTotal();
 
   const handleProjectSelected = (projectId: number, projectName: string) => {
-    setEditForm(prev => ({
+    setEditForm((prev) => ({
       ...prev,
-      projectId: projectId
+      projectId: projectId,
     }));
   };
 
@@ -172,17 +178,17 @@ export default function EditQuotationForm({
     if (!editForm.startDate || !editForm.duration) {
       return "Please select start date and duration";
     }
-    
+
     const startDate = new Date(editForm.startDate);
     const duration = parseInt(editForm.duration);
-    
+
     if (isNaN(duration) || duration <= 0) {
       return "Invalid duration";
     }
-    
+
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + duration);
-    
+
     return endDate.toLocaleDateString("en-GB");
   };
 
@@ -202,7 +208,9 @@ export default function EditQuotationForm({
 
     if (clientMode === "new") {
       if (!editForm.newClient?.name || !editForm.newClient?.email) {
-        alert("Please fill in the required client information (name and email).");
+        alert(
+          "Please fill in the required client information (name and email)."
+        );
         return;
       }
     }
@@ -225,7 +233,7 @@ export default function EditQuotationForm({
 
     try {
       // Calculate grand total (monthly price × duration)
-      const grandTotal = editForm.duration 
+      const grandTotal = editForm.duration
         ? calculateGrandTotal(editDiscountedTotal, parseInt(editForm.duration))
         : editDiscountedTotal;
 
@@ -251,9 +259,7 @@ export default function EditQuotationForm({
           ? editForm.discountType
           : undefined,
         serviceIds: editSelectedServiceIds,
-        duration: editForm.duration
-          ? parseInt(editForm.duration)
-          : undefined,
+        duration: editForm.duration ? parseInt(editForm.duration) : undefined,
         startDate: editForm.startDate || undefined,
         projectId: editForm.projectId,
       });
@@ -303,21 +309,6 @@ export default function EditQuotationForm({
               mode={clientMode}
             />
 
-            {/* Project Selection */}
-            <ProjectSelection
-              selectedProjectId={editForm.projectId}
-              newProjectData={editForm.newProject}
-              onProjectSelect={handleProjectSelected}
-              onNewProjectDataChange={(newProjectData) =>
-                setEditForm((prev) => ({
-                  ...prev,
-                  newProject: newProjectData,
-                }))
-              }
-              onModeChange={setProjectMode}
-              mode={projectMode}
-              currentUserId={enhancedUser.id}
-            />
             <div className="grid gap-2">
               <Label htmlFor="edit-description">Description</Label>
               <Textarea
@@ -373,7 +364,7 @@ export default function EditQuotationForm({
               </div>
             )}
 
-            <div className="grid gap-4">
+            <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
               <Label>Edit Services</Label>
               {services.map((service) => (
                 <div
@@ -408,6 +399,22 @@ export default function EditQuotationForm({
                 </div>
               ))}
             </div>
+
+            {/* Project Selection */}
+            {/* <ProjectSelection
+              selectedProjectId={editForm.projectId}
+              newProjectData={editForm.newProject}
+              onProjectSelect={handleProjectSelected}
+              onNewProjectDataChange={(newProjectData) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  newProject: newProjectData,
+                }))
+              }
+              onModeChange={setProjectMode}
+              mode={projectMode}
+              currentUserId={enhancedUser.id}
+            /> */}
 
             <div className="grid gap-2">
               <Label htmlFor="edit-status">Status</Label>
@@ -487,11 +494,12 @@ export default function EditQuotationForm({
                 </Select>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 justify-center gap-2">
               <Label htmlFor="edit-totalPrice">Total Price (Per Month)</Label>
               <div className="p-3 bg-muted rounded-md">
-                {editForm.discountValue && parseFloat(editForm.discountValue) > 0 ? (
+                {editForm.discountValue &&
+                parseFloat(editForm.discountValue) > 0 ? (
                   <div className="text-right">
                     <span className="text-sm text-muted-foreground line-through">
                       RM{editTotalPrice.toFixed(2)}
@@ -501,7 +509,8 @@ export default function EditQuotationForm({
                       RM{editDiscountedTotal.toFixed(2)}
                     </span>
                     <div className="text-xs text-muted-foreground">
-                      Discount: RM{(editTotalPrice - editDiscountedTotal).toFixed(2)}
+                      Discount: RM
+                      {(editTotalPrice - editDiscountedTotal).toFixed(2)}
                     </div>
                   </div>
                 ) : (
@@ -517,14 +526,20 @@ export default function EditQuotationForm({
             {/* Grand Total Section */}
             {editForm.duration && parseFloat(editForm.duration) > 0 && (
               <div className="grid grid-cols-2 justify-center gap-2">
-                <Label htmlFor="edit-grandTotal">Grand Total ({editForm.duration} months)</Label>
+                <Label htmlFor="edit-grandTotal">
+                  Grand Total ({editForm.duration} months)
+                </Label>
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                   <div className="text-right">
                     <div className="text-xs text-blue-600 mb-1">
-                      {editDiscountedTotal.toFixed(2)} × {editForm.duration} months
+                      {editDiscountedTotal.toFixed(2)} × {editForm.duration}{" "}
+                      months
                     </div>
                     <span className="text-xl font-bold text-blue-800">
-                      RM{(editDiscountedTotal * parseFloat(editForm.duration)).toFixed(2)}
+                      RM
+                      {(
+                        editDiscountedTotal * parseFloat(editForm.duration)
+                      ).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -536,14 +551,10 @@ export default function EditQuotationForm({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateQuotation}>
-              Update Quotation
-            </Button>
+            <Button onClick={handleUpdateQuotation}>Update Quotation</Button>
           </div>
         </div>
       </DialogContent>
-
-
     </Dialog>
   );
-} 
+}
