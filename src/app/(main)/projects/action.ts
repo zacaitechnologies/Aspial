@@ -163,6 +163,14 @@ export async function createProject(data: CreateProjectData) {
     },
   })
 
+  // If quotationId is provided, link the quotation to the project
+  if (data.quotationId) {
+    await prisma.quotation.update({
+      where: { id: data.quotationId },
+      data: { projectId: project.id },
+    });
+  }
+
   return project
 }
 

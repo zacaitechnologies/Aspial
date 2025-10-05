@@ -138,7 +138,7 @@ export default function ProjectPage() {
             className={`px-4 py-2 border-b-2 font-medium transition-colors ${
               activeTab === "overview"
                 ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                : "border-transparent text-black hover:text-foreground"
             }`}
           >
             Overview
@@ -149,14 +149,14 @@ export default function ProjectPage() {
             className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
               activeTab === "tasks"
                 ? "border-b-2 border-primary text-primary"
-                : "border-b-2 border-transparent text-muted-foreground hover:text-foreground"
+                : "border-b-2 border-transparent text-black hover:text-foreground"
             }`}
           >
             Tasks
             {taskStats && (
               <Badge
                 variant="secondary"
-                className="bg-muted text-muted-foreground"
+                className="bg-muted text-black"
               >
                 {taskStats.total}
               </Badge>
@@ -187,14 +187,14 @@ export default function ProjectPage() {
                         {project.createdByUser.firstName}{" "}
                         {project.createdByUser.lastName}
                       </div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-sm text-black">
                         Team Lead
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-sm text-muted-foreground mb-2">
+                    <div className="text-sm text-black mb-2">
                       Team Members:
                     </div>
                     {collaborators && collaborators.length > 0 ? (
@@ -223,7 +223,7 @@ export default function ProjectPage() {
                     )}
                   </div>
 
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-black">
                     Last updated:{" "}
                     {new Date(project.updated_at).toLocaleDateString("en-US", {
                       day: "numeric",
@@ -257,8 +257,8 @@ export default function ProjectPage() {
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">
+                      <User className="w-4 h-4 text-black" />
+                      <span className="text-black">
                         Client Name:
                       </span>
                       <span className="font-medium text-foreground">
@@ -266,8 +266,8 @@ export default function ProjectPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Start Date:</span>
+                      <Calendar className="w-4 h-4 text-black" />
+                      <span className="text-black">Start Date:</span>
                       <span className="font-medium text-foreground">
                         {project.startDate
                           ? new Date(project.startDate)
@@ -281,8 +281,8 @@ export default function ProjectPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">End Date:</span>
+                      <Calendar className="w-4 h-4 text-black" />
+                      <span className="text-black">End Date:</span>
                       <span className="font-medium text-foreground">
                         {project.endDate
                           ? new Date(project.endDate)
@@ -296,11 +296,11 @@ export default function ProjectPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <Flag className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Priority:</span>
+                      <Flag className="w-4 h-4 text-black" />
+                      <span className="text-black">Priority:</span>
                       <Badge
                         variant="outline"
-                        className="text-muted-foreground border-muted-foreground/30"
+                        className="text-black border-muted-foreground/30"
                       >
                         {project.priority || "low"}
                       </Badge>
