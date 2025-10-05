@@ -70,6 +70,7 @@ export async function createQuotation(data: {
   totalPrice: number
   serviceIds: string[]
   createdById: string
+  status?: "draft" | "accepted"
   discountValue?: number
   discountType?: "percentage" | "fixed"
   duration?: number
@@ -122,6 +123,7 @@ export async function createQuotation(data: {
         description: data.description,
         totalPrice: data.totalPrice,
         createdById: data.createdById,
+        status: data.status || "accepted", // Use provided status or default to accepted
         clientId: finalClientId,
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
