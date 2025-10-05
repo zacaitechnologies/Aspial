@@ -26,6 +26,7 @@ import { getAllProjects } from "../../projects/action";
 import { useSession } from "../../contexts/SessionProvider";
 import type { Services } from "@prisma/client";
 import { QuotationWithServices, EditFormData, statusOptions } from "../types";
+import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import { Briefcase } from "lucide-react";
@@ -223,10 +224,15 @@ export default function EditQuotationForm({
     }
 
     try {
+      // Calculate grand total (monthly price × duration)
+      const grandTotal = editForm.duration 
+        ? calculateGrandTotal(editDiscountedTotal, parseInt(editForm.duration))
+        : editDiscountedTotal;
+
       await editQuotationById(editingQuotation.id.toString(), {
         name: editForm.name,
         description: editForm.description,
-        totalPrice: editDiscountedTotal,
+        totalPrice: grandTotal, // Store grand total in totalPrice
         status: editForm.status as
           | "draft"
           | "sent"
@@ -483,7 +489,7 @@ export default function EditQuotationForm({
             </div>
             
             <div className="grid grid-cols-2 justify-center gap-2">
-              <Label htmlFor="edit-totalPrice">Total Price (RM)</Label>
+              <Label htmlFor="edit-totalPrice">Total Price (Per Month)</Label>
               <div className="p-3 bg-muted rounded-md">
                 {editForm.discountValue && parseFloat(editForm.discountValue) > 0 ? (
                   <div className="text-right">
@@ -507,6 +513,23 @@ export default function EditQuotationForm({
                 )}
               </div>
             </div>
+
+            {/* Grand Total Section */}
+            {editForm.duration && parseFloat(editForm.duration) > 0 && (
+              <div className="grid grid-cols-2 justify-center gap-2">
+                <Label htmlFor="edit-grandTotal">Grand Total ({editForm.duration} months)</Label>
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="text-right">
+                    <div className="text-xs text-blue-600 mb-1">
+                      {editDiscountedTotal.toFixed(2)} × {editForm.duration} months
+                    </div>
+                    <span className="text-xl font-bold text-blue-800">
+                      RM{(editDiscountedTotal * parseFloat(editForm.duration)).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">

@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, Briefcase, AlertTriangle, User, Mail, Building2 } from "lucide-react";
 import { QuotationWithServices, statusOptions } from "../types";
+import { calculateMonthlyPrice } from "../utils";
 
 interface QuotationCardProps {
   quotation: QuotationWithServices;
@@ -55,8 +56,8 @@ export default function QuotationCard({
             <CardTitle className="text-lg">{quotation.name}</CardTitle>
             <div className="flex items-center gap-2 mt-1">
               {getStatusBadge(quotation.status)}
-              <Badge variant="outline">
-                RM{quotation.totalPrice.toFixed(2)}
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                Grand Total: RM{quotation.totalPrice.toFixed(2)}
               </Badge>
               {hasProject && (
                 <Badge variant="default" className="bg-green-600">
