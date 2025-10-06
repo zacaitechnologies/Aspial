@@ -258,6 +258,7 @@ export default function ProjectPage() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm">
                       <User className="w-4 h-4 text-black" />
+                      <span>hahahaha</span>
                       <span className="text-black">
                         Client Name:
                       </span>
