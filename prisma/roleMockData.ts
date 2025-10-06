@@ -10,7 +10,8 @@ async function roleMain() {
     { slug: 'staff' }
   ];
 
-  // Optional: Clear existing roles
+  // Optional: Clear existing roles (delete user roles first due to foreign key constraint)
+  await prisma.userRole.deleteMany({});
   await prisma.role.deleteMany({});
   console.log('Cleared existing roles');
 
