@@ -10,25 +10,29 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Briefcase, AlertTriangle, User, Mail, Building2 } from "lucide-react";
+import { Edit, Trash2, Briefcase, AlertTriangle, User, Mail, Building2, Plus } from "lucide-react";
 import { QuotationWithServices, statusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
 import { getClientById, updateClientMembershipStatus } from "../action";
 import MembershipStatusDialog from "./MembershipStatusDialog";
+import CustomServiceDialog from "./CustomServiceDialog";
 
 interface QuotationCardProps {
   quotation: QuotationWithServices;
   onEdit: (quotation: QuotationWithServices) => void;
   onDelete: (quotationId: string) => void;
+  onRefresh?: () => void;
 }
 
 export default function QuotationCard({
   quotation,
   onEdit,
   onDelete,
+  onRefresh,
 }: QuotationCardProps) {
   const { enhancedUser } = useSession();
   const [isMembershipDialogOpen, setIsMembershipDialogOpen] = useState(false);
+  const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] = useState(false);
   const [clientData, setClientData] = useState<{
     id: string;
     name: string;
@@ -146,7 +150,7 @@ export default function QuotationCard({
   };
 
   return (
-    <Card className="card">
+    <Card className="card max-w-[450px]">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
@@ -268,6 +272,18 @@ export default function QuotationCard({
           onCancel={handleMembershipCancel}
         />
       )}
+
+      {/* Custom Service Dialog */}
+      <CustomServiceDialog
+        isOpen={isCustomServiceDialogOpen}
+        onOpenChange={setIsCustomServiceDialogOpen}
+        onServiceCreated={(newService) => {
+          // For existing quotations, we would need to add the service to the quotation
+          // This would require a different approach - maybe redirect to edit form
+          alert(`Custom service "${newService.name}" created! Please edit the quotation to add it.`);
+          setIsCustomServiceDialogOpen(false);
+        }}
+      />
     </Card>
   );
 } 
