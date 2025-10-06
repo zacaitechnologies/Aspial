@@ -375,4 +375,20 @@ export async function updateClientMembershipStatus(clientId: string, membershipT
       membershipType: true,
     }
   });
+}
+
+
+// Create a new service
+export async function createService(data: {
+  name: string;
+  description: string;
+  basePrice: number;
+}) {
+  return await prisma.services.create({
+    data: {
+      name: data.name,
+      description: data.description,
+      basePrice: data.basePrice,
+    },
+  });
 } 

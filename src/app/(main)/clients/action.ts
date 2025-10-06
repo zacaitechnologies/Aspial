@@ -53,6 +53,12 @@ export async function getAllClients() {
       }
     })
     
+    // Handle empty database gracefully
+    if (!clients || clients.length === 0) {
+      console.log("No clients found in database - returning empty array");
+      return [];
+    }
+    
     // Transform data to match the expected interface
     return clients.map(client => ({
       id: client.id,
@@ -72,8 +78,13 @@ export async function getAllClients() {
   } catch (error: any) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
-    console.error("Error in getAllClients:", error)
-    throw new Error("Failed to fetch clients")
+    console.error("Error in getAllClients:", error);
+    console.error("Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    throw new Error(`Failed to fetch clients: ${error.message}`)
   }
 }
 

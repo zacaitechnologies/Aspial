@@ -90,6 +90,7 @@ export default function QuotationsPage() {
               quotation={quotation}
               onEdit={handleEditQuotation}
               onDelete={handleDeleteQuotation}
+              onRefresh={fetchData}
             />
           ))}
         </div>
