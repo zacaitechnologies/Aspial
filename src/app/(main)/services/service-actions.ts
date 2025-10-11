@@ -140,6 +140,9 @@ export async function searchServices(query: string): Promise<Service[]> {
         { description: { contains: query, mode: 'insensitive' } },
       ],
     },
+    include: {
+      tags: true
+    },
     orderBy: { name: 'asc' },
-  })
+  }) as any
 }
