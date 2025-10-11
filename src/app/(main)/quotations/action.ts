@@ -20,6 +20,45 @@ export async function getAllQuotations(userId?: string) {
   })
 }
 
+export async function getQuotationById(id: string) {
+  return await prisma.quotation.findUnique({
+    where: { id: parseInt(id) },
+    include: {
+      services: {
+        include: {
+          service: true,
+        },
+      },
+      customServices: {
+        include: {
+          createdBy: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          approvedBy: {
+            select: {
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      },
+      project: true,
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      Client: true,
+    },
+  })
+}
+
 export async function createQuotation(data: {
   name: string
   description: string

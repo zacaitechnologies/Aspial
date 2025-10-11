@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,6 +20,7 @@ import {
   Mail,
   Building2,
   Plus,
+  Info,
 } from "lucide-react";
 import { QuotationWithServices, statusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
@@ -44,6 +46,7 @@ export default function QuotationCard({
   onDelete,
   onRefresh,
 }: QuotationCardProps) {
+  const router = useRouter();
   const { enhancedUser } = useSession();
   const [isMembershipDialogOpen, setIsMembershipDialogOpen] = useState(false);
   const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] =
@@ -180,7 +183,7 @@ export default function QuotationCard({
   };
 
   return (
-    <Card className="card max-w-[450px]">
+    <Card className="card">
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
@@ -199,6 +202,15 @@ export default function QuotationCard({
             </div>
           </div>
           <div className="flex space-x-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push(`/quotations/${quotation.id}`)}
+              className="text-purple-600 hover:text-purple-700"
+              title="View Details"
+            >
+              <Info className="w-4 h-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
