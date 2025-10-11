@@ -8,6 +8,14 @@ export async function getProjectMilestones(projectId: number) {
   return await prisma.milestone.findMany({
     where: { projectId },
     include: {
+      service: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          basePrice: true,
+        },
+      },
       tasks: {
         include: {
           creator: {
@@ -38,6 +46,14 @@ export async function getMilestoneById(milestoneId: number): Promise<Milestone |
   return await prisma.milestone.findUnique({
     where: { id: milestoneId },
     include: {
+      service: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          basePrice: true,
+        },
+      },
       tasks: {
         include: {
           creator: {
@@ -83,6 +99,14 @@ export async function createMilestone(data: CreateMilestoneData): Promise<Milest
   return await prisma.milestone.create({
     data: milestoneData,
     include: {
+      service: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          basePrice: true,
+        },
+      },
       tasks: {
         include: {
           creator: {
@@ -117,6 +141,14 @@ export async function updateMilestone(milestoneId: number, data: UpdateMilestone
     where: { id: milestoneId },
     data: updateData,
     include: {
+      service: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          basePrice: true,
+        },
+      },
       tasks: {
         include: {
           creator: {
@@ -177,6 +209,14 @@ export async function updateMilestoneStatus(milestoneId: number): Promise<Milest
     where: { id: milestoneId },
     data: { status: newStatus },
     include: {
+      service: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          basePrice: true,
+        },
+      },
       tasks: {
         include: {
           creator: {
@@ -213,4 +253,45 @@ export async function getMilestoneProgress(milestoneId: number): Promise<number>
 
   const completedTasks = milestone.tasks.filter(task => task.status === 'done').length
   return Math.round((completedTasks / milestone.tasks.length) * 100)
+}
+
+// Get all services from project quotations
+export async function getProjectServices(projectId: number) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      quotations: {
+        include: {
+          services: {
+            include: {
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  basePrice: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  if (!project) {
+    return []
+  }
+
+  // Extract unique services from all quotations
+  const servicesMap = new Map()
+  project.quotations.forEach(quotation => {
+    quotation.services.forEach(qs => {
+      if (!servicesMap.has(qs.service.id)) {
+        servicesMap.set(qs.service.id, qs.service)
+      }
+    })
+  })
+
+  return Array.from(servicesMap.values())
 }

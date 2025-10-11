@@ -79,7 +79,7 @@ export function TaskCard({
       draggable
       onDragStart={onDragStart}
     >
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-0">
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
@@ -134,8 +134,21 @@ export function TaskCard({
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex items-center gap-2">
+        {/* Milestone Badge */}
+        {task.milestone && (
+          <div>
+            <Badge
+              variant="outline"
+              className="text-xs bg-yellow-50 text-yellow-700 border-yellow-300 flex items-center gap-1 w-fit"
+            >
+              <Target className="w-3 h-3" />
+              {task.milestone.title}
+            </Badge>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <Flag className="w-3 h-3 text-muted-foreground" />
             <Badge
               variant="outline"

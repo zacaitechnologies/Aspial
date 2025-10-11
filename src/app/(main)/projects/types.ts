@@ -166,6 +166,7 @@ export type Milestone = {
   title: string;
   description: string | null;
   projectId: number;
+  serviceId?: number | null;
   dueDate: Date;
   priority: TaskPriority;
   status: MilestoneStatus;
@@ -173,6 +174,12 @@ export type Milestone = {
   createdAt: Date;
   updatedAt: Date;
   tasks?: Task[];
+  service?: {
+    id: number;
+    name: string;
+    description: string;
+    basePrice: number;
+  };
 };
 
 export type MilestoneStatus = "not_started" | "in_progress" | "completed";
@@ -181,6 +188,7 @@ export type CreateMilestoneData = {
   title: string;
   description?: string;
   projectId: number;
+  serviceId?: number | null;
   dueDate?: Date;
   priority?: TaskPriority;
   order?: number;
@@ -189,6 +197,7 @@ export type CreateMilestoneData = {
 export type UpdateMilestoneData = {
   title?: string;
   description?: string;
+  serviceId?: number | null;
   dueDate?: Date | null;
   priority?: TaskPriority;
   status?: MilestoneStatus;
