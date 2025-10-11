@@ -14,13 +14,11 @@ import {
   Phone,
   Building2,
   MapPin,
-  MoreHorizontal,
   Edit,
   Trash2,
   Eye,
   User,
   FileText,
-  ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Crown,
@@ -378,51 +376,74 @@ export default function ClientsPage() {
               style={{ borderColor: "#BDC4A5" }}
             >
               <CardHeader className="">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0">
-                    {client.photo ? (
-                      <Image
-                        src={client.photo || "/placeholder.svg"}
-                        alt={`${client.name} profile`}
-                        width={60}
-                        height={60}
-                        className="rounded-full object-cover border-2"
-                        style={{ borderColor: "#BDC4A5" }}
-                      />
-                    ) : (
-                      <div
-                        className="w-15 h-15 rounded-full flex items-center justify-center border-2"
-                        style={{ backgroundColor: "#BDC4A5", borderColor: "#898D74" }}
-                      >
-                        <User className="w-8 h-8" style={{ color: "#202F21" }} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <CardTitle className="text-xl font-semibold mb-2" style={{ color: "#202F21" }}>
-                          {client.name}
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                          <Badge 
-                            className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"} 
-                            variant="outline"
-                          >
-                            <Crown className="w-3 h-3 mr-1" />
-                            {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
-                          </Badge>
-                          {client.industry && (
-                            <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                              {client.industry}
-                            </Badge>
-                          )}
+                <div className="flex justify-between items-start">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0">
+                      {client.photo ? (
+                        <Image
+                          src={client.photo || "/placeholder.svg"}
+                          alt={`${client.name} profile`}
+                          width={60}
+                          height={60}
+                          className="rounded-full object-cover border-2"
+                          style={{ borderColor: "#BDC4A5" }}
+                        />
+                      ) : (
+                        <div
+                          className="w-15 h-15 rounded-full flex items-center justify-center border-2"
+                          style={{ backgroundColor: "#BDC4A5", borderColor: "#898D74" }}
+                        >
+                          <User className="w-8 h-8" style={{ color: "#202F21" }} />
                         </div>
-                      </div>
-                      <Button variant="ghost" size="sm" style={{ color: "#898D74" }}>
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
+                      )}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-xl font-semibold mb-2" style={{ color: "#202F21" }}>
+                        {client.name}
+                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"} 
+                          variant="outline"
+                        >
+                          <Crown className="w-3 h-3 mr-1" />
+                          {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
+                        </Badge>
+                        {client.industry && (
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                            {client.industry}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex space-x-1">
+                    <Link href={`/clients/${client.id}`}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="View Client"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditClient(client)}
+                      title="Edit Client"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => handleDeleteClient(client)}
+                      title="Delete Client"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -461,41 +482,12 @@ export default function ClientsPage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between pt-4 border-t" style={{ borderColor: "#BDC4A5" }}>
+                <div className="pt-4 border-t" style={{ borderColor: "#BDC4A5" }}>
                   <div className="text-sm">
                     <p style={{ color: "#898D74" }}>Quotations: {client.quotationsCount}</p>
                     <p className="font-semibold" style={{ color: "#202F21" }}>
                       ${client.totalValue.toLocaleString()}
                     </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Link href={`/clients/${client.id}`}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-2 bg-transparent"
-                        style={{ borderColor: "#BDC4A5", color: "#202F21" }}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-2 bg-transparent"
-                      style={{ borderColor: "#BDC4A5", color: "#202F21" }}
-                      onClick={() => handleEditClient(client)}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
-                      onClick={() => handleDeleteClient(client)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
               </CardContent>
