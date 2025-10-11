@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,53 +37,65 @@ export default function ServicesList({
   const [isSearching, setIsSearching] = useState(false);
   const [filteredServices, setFilteredServices] = useState<Service[]>(services);
 
-  // Update filtered services when services prop or tag filter changes
+  // Search as you type with debounce
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!searchQuery.trim()) {
+        // Reset to original services with tag filter applied
+        let filtered = services;
+        if (selectedTagFilter !== "all") {
+          const tagId = parseInt(selectedTagFilter);
+          filtered = filtered.filter((service) =>
+            service.tags?.some((tag) => tag.id === tagId)
+          );
+        }
+        setFilteredServices(filtered);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const searchResults = await searchServices(searchQuery);
+        // Apply tag filter to search results
+        let filtered = searchResults;
+        if (selectedTagFilter !== "all") {
+          const tagId = parseInt(selectedTagFilter);
+          filtered = filtered.filter((service) =>
+            service.tags?.some((tag) => tag.id === tagId)
+          );
+        }
+        setFilteredServices(filtered);
+      } catch (error) {
+        console.error("Error searching services:", error);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const delayDebounce = setTimeout(() => {
+      performSearch();
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery, selectedTagFilter, services]);
+
+  // Update filtered services when services prop or tag filter changes (when not searching)
   React.useEffect(() => {
-    let filtered = services;
-
-    // Apply tag filter
-    if (selectedTagFilter !== "all") {
-      const tagId = parseInt(selectedTagFilter);
-      filtered = filtered.filter((service) =>
-        service.tags?.some((tag) => tag.id === tagId)
-      );
-    }
-
-    setFilteredServices(filtered);
-  }, [services, selectedTagFilter]);
-
-  const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      // Reset to original services with tag filter applied
       let filtered = services;
-      if (selectedTagFilter !== "all") {
-        const tagId = parseInt(selectedTagFilter);
-        filtered = filtered.filter((service) =>
-          service.tags?.some((tag) => tag.id === tagId)
-        );
-      }
-      setFilteredServices(filtered);
-      return;
-    }
 
-    setIsSearching(true);
-    try {
-      const searchResults = await searchServices(searchQuery);
-      // Apply tag filter to search results
-      let filtered = searchResults;
+      // Apply tag filter
       if (selectedTagFilter !== "all") {
         const tagId = parseInt(selectedTagFilter);
         filtered = filtered.filter((service) =>
           service.tags?.some((tag) => tag.id === tagId)
         );
       }
+
       setFilteredServices(filtered);
-    } catch (error) {
-      console.error("Error searching services:", error);
-    } finally {
-      setIsSearching(false);
     }
-  };
+  }, [services, selectedTagFilter, searchQuery]);
 
   const handleDeleteService = async (serviceId: number) => {
     if (!confirm("Are you sure you want to delete this service?")) return;
@@ -92,6 +104,8 @@ export default function ServicesList({
       await deleteService(serviceId);
       invalidateAllCaches();
       await onRefresh();
+      // Clear search after deletion to show updated list
+      setSearchQuery("");
     } catch (error) {
       console.error("Error deleting service:", error);
     }
@@ -105,6 +119,8 @@ export default function ServicesList({
     setEditingService(null);
     invalidateAllCaches();
     onRefresh();
+    // Clear search to show updated list
+    setSearchQuery("");
   };
 
   const clearSearch = () => {
@@ -138,22 +154,12 @@ export default function ServicesList({
                 placeholder="Search services by name or description..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 className="pl-10 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500"
               />
-            </div>
-            <Button
-              onClick={handleSearch}
-              disabled={isSearching}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
-            >
-              {isSearching ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Search className="w-4 h-4 mr-2" />
+              {isSearching && (
+                <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-blue-600" />
               )}
-              Search
-            </Button>
+            </div>
             {(searchQuery || selectedTagFilter !== "all") && (
               <Button
                 variant="outline"
