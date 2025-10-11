@@ -255,16 +255,30 @@ export async function getProjectById(userId: string, projectId: string) {
       quotations: {
         select: {
           id: true,
+          name: true,
           totalPrice: true,
           status: true,
           services: {
             select: {
+              id: true,
               service: {
                 select: {
+                  id: true,
                   name: true,
                   description: true,
+                  basePrice: true,
+                  tags: true,
                 },
               },
+            },
+          },
+          customServices: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              price: true,
+              status: true,
             },
           },
         },

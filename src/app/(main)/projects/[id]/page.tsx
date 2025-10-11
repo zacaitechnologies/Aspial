@@ -18,6 +18,7 @@ import {
   Plus,
   Flag,
   Target,
+  Package,
 } from "lucide-react";
 import Link from "next/link";
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog";
@@ -373,6 +374,148 @@ export default function ProjectPage() {
                       <div className="text-sm text-gray-600">Done</div>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Services Card */}
+            {project.quotations && project.quotations.length > 0 && (
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="w-5 h-5" />
+                    Services Included
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {project.quotations.map((quotation: any) => (
+                    <div key={quotation.id} className="mb-6 last:mb-0">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-semibold text-lg">
+                            {quotation.name}
+                          </h3>
+                          <div className="flex items-center gap-3 mt-1">
+                            <Badge
+                              variant={
+                                quotation.status === "accepted"
+                                  ? "default"
+                                  : quotation.status === "rejected"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                            >
+                              {quotation.status}
+                            </Badge>
+                            <span className="text-sm font-medium text-green-600">
+                              Total: RM {quotation.totalPrice.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Services List */}
+                      {quotation.services && quotation.services.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2">
+                            Standard Services:
+                          </h4>
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {quotation.services.map((qs: any) => (
+                              <div
+                                key={qs.id}
+                                className="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                              >
+                                <div className="flex items-start justify-between mb-2">
+                                  <h5 className="font-semibold text-gray-900">
+                                    {qs.service.name}
+                                  </h5>
+                                  <span className="text-sm font-medium text-green-600 whitespace-nowrap ml-2">
+                                    RM {qs.service.basePrice.toFixed(2)}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-gray-600 mb-2">
+                                  {qs.service.description}
+                                </p>
+                                {qs.service.tags && qs.service.tags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {qs.service.tags.map((tag: any) => (
+                                      <Badge
+                                        key={tag.id}
+                                        style={{
+                                          backgroundColor: tag.color || "#3B82F6",
+                                          color: "white",
+                                        }}
+                                        className="text-xs"
+                                      >
+                                        {tag.name}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Custom Services List */}
+                      {quotation.customServices &&
+                        quotation.customServices.length > 0 && (
+                          <div className="space-y-3 mt-4">
+                            <h4 className="text-sm font-medium text-gray-700 mb-2">
+                              Custom Services:
+                            </h4>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              {quotation.customServices.map((cs: any) => (
+                                <div
+                                  key={cs.id}
+                                  className="border border-purple-200 rounded-lg p-4 bg-purple-50 hover:bg-purple-100 transition-colors"
+                                >
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <h5 className="font-semibold text-gray-900">
+                                        {cs.name}
+                                      </h5>
+                                      <Badge
+                                        variant={
+                                          cs.status === "APPROVED"
+                                            ? "default"
+                                            : cs.status === "REJECTED"
+                                            ? "destructive"
+                                            : "secondary"
+                                        }
+                                        className="text-xs"
+                                      >
+                                        {cs.status}
+                                      </Badge>
+                                    </div>
+                                    <span className="text-sm font-medium text-green-600 whitespace-nowrap ml-2">
+                                      RM {cs.price.toFixed(2)}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600">
+                                    {cs.description}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                      {/* If no services */}
+                      {(!quotation.services || quotation.services.length === 0) &&
+                        (!quotation.customServices ||
+                          quotation.customServices.length === 0) && (
+                          <div className="text-center py-6 bg-gray-50 rounded-lg">
+                            <Package className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                            <p className="text-gray-600 text-sm">
+                              No services in this quotation
+                            </p>
+                          </div>
+                        )}
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             )}

@@ -55,6 +55,7 @@ interface MilestoneFormProps {
   onMilestoneCreated?: (milestone: Milestone) => void;
   onMilestoneUpdated?: (milestone: Milestone) => void;
   trigger?: React.ReactNode;
+  onCancel?: () => void;
 }
 
 // Reusable form field components
@@ -174,6 +175,7 @@ export function MilestoneForm({
   onMilestoneCreated,
   onMilestoneUpdated,
   trigger,
+  onCancel,
 }: MilestoneFormProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -245,7 +247,13 @@ export function MilestoneForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setIsOpen(false)}
+            onClick={() => {
+              if (onCancel) {
+                onCancel();
+              } else {
+                setIsOpen(false);
+              }
+            }}
             disabled={isSubmitting}
           >
             Cancel
