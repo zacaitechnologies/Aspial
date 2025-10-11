@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
-import { editQuotationById } from "../action";
+import { editQuotationById, getCustomServicesByQuotationId } from "../action";
 import { getAllServices } from "../../services/action";
 import { getAllProjects } from "../../projects/action";
 import { useSession } from "../../contexts/SessionProvider";
@@ -29,7 +29,8 @@ import { QuotationWithServices, EditFormData, statusOptions } from "../types";
 import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
-import { Briefcase } from "lucide-react";
+import CustomServiceDialog from "./CustomServiceDialog";
+import { Briefcase, Plus } from "lucide-react";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -46,9 +47,11 @@ export default function EditQuotationForm({
 }: EditQuotationFormProps) {
   const { enhancedUser } = useSession();
   const [services, setServices] = useState<Services[]>([]);
+  const [customServices, setCustomServices] = useState<any[]>([]);
   const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<
     string[]
   >([]);
+  const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] = useState(false);
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
   const [projectMode, setProjectMode] = useState<"existing" | "new">(
     "existing"
@@ -128,8 +131,20 @@ export default function EditQuotationForm({
 
       // Set client mode based on whether there's an existing client
       setClientMode(editingQuotation.clientId ? "existing" : "new");
+
+      // Fetch custom services for this quotation
+      fetchCustomServices(editingQuotation.id);
     }
   }, [editingQuotation]);
+
+  const fetchCustomServices = async (quotationId: number) => {
+    try {
+      const services = await getCustomServicesByQuotationId(quotationId);
+      setCustomServices(services);
+    } catch (error) {
+      console.error("Failed to fetch custom services:", error);
+    }
+  };
 
   const fetchServices = async () => {
     try {
@@ -178,6 +193,15 @@ export default function EditQuotationForm({
       ...prev,
       projectId: projectId,
     }));
+  };
+
+  const handleCustomServiceCreated = (newCustomService: any) => {
+    // Refresh custom services list
+    if (editingQuotation) {
+      fetchCustomServices(editingQuotation.id);
+    }
+    // Close the dialog
+    setIsCustomServiceDialogOpen(false);
   };
 
   const calculateEditEndDate = () => {
@@ -370,8 +394,12 @@ export default function EditQuotationForm({
               </div>
             )}
 
+            {/* Fixed Services Section */}
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
-              <Label>Edit Services</Label>
+              <div>
+                <Label className="text-lg font-semibold">Fixed Services (Editable)</Label>
+                <p className="text-xs text-muted-foreground mt-1">Select or deselect services for this quotation</p>
+              </div>
               {services.map((service) => (
                 <div
                   key={service.id}
@@ -404,6 +432,80 @@ export default function EditQuotationForm({
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Custom Services Section */}
+            <div className="grid border-blue-500 border-2 rounded-2xl p-4 gap-4 mt-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <Label className="text-lg font-semibold">Custom Services Requested</Label>
+                  <p className="text-xs text-muted-foreground mt-1">These services require admin approval</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCustomServiceDialogOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Custom Service
+                </Button>
+              </div>
+              {customServices.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  No custom services requested yet
+                </div>
+              ) : (
+                customServices.map((cs) => (
+                  <div
+                    key={cs.id}
+                    className="flex items-start space-x-3 p-3 border rounded-lg bg-blue-50"
+                  >
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">{cs.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {cs.description}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Requested by: {cs.createdBy.firstName} {cs.createdBy.lastName}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant="outline">
+                            RM{cs.price.toFixed(2)}
+                          </Badge>
+                          <Badge
+                            variant={
+                              cs.status === "APPROVED"
+                                ? "default"
+                                : cs.status === "REJECTED"
+                                ? "destructive"
+                                : "secondary"
+                            }
+                          >
+                            {cs.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      {cs.approvalComment && (
+                        <div className="mt-2 p-2 bg-white rounded text-xs">
+                          <span className="font-semibold">Comment: </span>
+                          {cs.approvalComment}
+                        </div>
+                      )}
+                      {cs.rejectionComment && (
+                        <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-800">
+                          <span className="font-semibold">Rejection Reason: </span>
+                          {cs.rejectionComment}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Project Selection */}
@@ -578,6 +680,15 @@ export default function EditQuotationForm({
           </div>
         </div>
       </DialogContent>
+
+      {/* Custom Service Dialog */}
+      <CustomServiceDialog
+        isOpen={isCustomServiceDialogOpen}
+        onOpenChange={setIsCustomServiceDialogOpen}
+        onServiceCreated={handleCustomServiceCreated}
+        quotationId={editingQuotation?.id}
+        createdById={enhancedUser?.id}
+      />
     </Dialog>
   );
 }

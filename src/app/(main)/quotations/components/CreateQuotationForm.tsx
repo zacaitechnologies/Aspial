@@ -30,7 +30,6 @@ import { QuotationFormData } from "../types";
 import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
-import CustomServiceDialog from "./CustomServiceDialog";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -77,7 +76,6 @@ export default function CreateQuotationForm({
   const [totalPrice, setTotalPrice] = useState(0);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
-  const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] = useState(false);
 
   // Project selection state
   const [projectMode, setProjectMode] = useState<"existing" | "new">(
@@ -97,14 +95,8 @@ export default function CreateQuotationForm({
     }
   };
 
-  const handleCustomServiceCreated = (newService: Services) => {
-    // Add the new service to the services list
-    setServices(prev => [...prev, newService]);
-    // Automatically select the new service
-    setSelectedServiceIds(prev => [...prev, newService.id.toString()]);
-    // Close the dialog
-    setIsCustomServiceDialogOpen(false);
-  };
+  // Custom services are not available during quotation creation
+  // They can be added after the quotation is created through the edit form
 
   const handleServiceToggle = (serviceId: string) => {
     const service = services.find((s) => s.id.toString() === serviceId);
@@ -394,6 +386,7 @@ export default function CreateQuotationForm({
                     duration: e.target.value,
                   }))
                 }
+                onWheel={(e) => e.currentTarget.blur()} 
                 placeholder="e.g., 6"
               />
             </div>
@@ -409,18 +402,11 @@ export default function CreateQuotationForm({
             )}
 
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
-              <div className="flex justify-between items-center">
-                <Label>Select Services</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsCustomServiceDialogOpen(true)}
-                  className="flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Custom Service
-                </Button>
+              <div className="flex flex-col justify-between items-start">
+                <Label className="font-semibold">Select Services</Label>
+                <div className="text-xs text-muted-foreground">
+                  Note: Custom services can be added after creating the quotation
+                </div>
               </div>
               <div className="grid gap-2">
                 <Input
@@ -617,13 +603,6 @@ export default function CreateQuotationForm({
           </div>
         </div>
       </DialogContent>
-
-      {/* Custom Service Dialog */}
-      <CustomServiceDialog
-        isOpen={isCustomServiceDialogOpen}
-        onOpenChange={setIsCustomServiceDialogOpen}
-        onServiceCreated={handleCustomServiceCreated}
-      />
     </Dialog>
   );
 }

@@ -28,22 +28,24 @@ model UserRole {
 }
 
 model User {
-  id                  String              @id @default(cuid())
-  firstName           String
-  lastName            String
-  email               String
-  supabase_id         String              @unique
-  created_at          DateTime            @default(now())
-  updated_at          DateTime            @default(now())
-  sentInvitations     ProjectInvitation[] @relation("ProjectInviter")
-  receivedInvitations ProjectInvitation[] @relation("ProjectInvitee")
-  projectPermissions  ProjectPermission[]
-  projects            Project[]           @relation("ProjectCreator")
-  quotations          Quotation[]         @relation("QuotationCreator")
-  assignedTasks       Task[]              @relation("TaskCreator")
-  tasksAssigned       Task[]              @relation("TaskAssignee")
-  timeEntries         TimeEntry[]
-  userRoles           UserRole[]
+  id                     String              @id @default(cuid())
+  firstName              String
+  lastName               String
+  email                  String
+  supabase_id            String              @unique
+  created_at             DateTime            @default(now())
+  updated_at             DateTime            @default(now())
+  approvedCustomServices CustomService[]     @relation("CustomServiceApprover")
+  createdCustomServices  CustomService[]     @relation("CustomServiceCreator")
+  sentInvitations        ProjectInvitation[] @relation("ProjectInviter")
+  receivedInvitations    ProjectInvitation[] @relation("ProjectInvitee")
+  projectPermissions     ProjectPermission[]
+  projects               Project[]           @relation("ProjectCreator")
+  quotations             Quotation[]         @relation("QuotationCreator")
+  tasksAssigned          Task[]              @relation("TaskAssignee")
+  assignedTasks          Task[]              @relation("TaskCreator")
+  timeEntries            TimeEntry[]
+  userRoles              UserRole[]
 
   @@map("user")
 }
@@ -55,53 +57,78 @@ model Services {
   basePrice   Float
   created_at  DateTime           @default(now())
   updated_at  DateTime           @default(now())
+  ServiceTags ServiceTags[]
   quotations  QuotationService[]
-  tags        ServiceTag[]       @relation("ServiceTags")
 }
 
 model ServiceTag {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  color     String?   @default("#3B82F6") // Default blue color
-  created_at DateTime @default(now())
-  services  Services[] @relation("ServiceTags")
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  color       String?       @default("#3B82F6")
+  created_at  DateTime      @default(now())
+  ServiceTags ServiceTags[]
 
   @@map("service_tags")
 }
 
 model Quotation {
-  id            Int                @id @default(autoincrement())
-  name          String
-  description   String
-  totalPrice    Float
-  created_at    DateTime           @default(now())
-  updated_at    DateTime           @default(now())
-  status        QuotationStatus    @default(draft)
-  createdById   String
-  discountType  DiscountType?
-  discountValue Float?
-  duration      Int
-  endDate       DateTime
-  startDate     DateTime
-  clientId      String
-  projectId     Int?
-  services      QuotationService[]
-  Client        Client             @relation(fields: [clientId], references: [id])
-  createdBy     User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
-  project       Project?           @relation(fields: [projectId], references: [id])
+  id             Int                @id @default(autoincrement())
+  name           String
+  description    String
+  totalPrice     Float
+  created_at     DateTime           @default(now())
+  updated_at     DateTime           @default(now())
+  status         QuotationStatus    @default(draft)
+  createdById    String
+  discountType   DiscountType?
+  discountValue  Float?
+  duration       Int
+  endDate        DateTime
+  startDate      DateTime
+  clientId       String
+  projectId      Int?
+  customServices CustomService[]
+  services       QuotationService[]
+  Client         Client             @relation(fields: [clientId], references: [id])
+  createdBy      User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
+  project        Project?           @relation(fields: [projectId], references: [id])
 
   @@map("quotations")
 }
 
 model QuotationService {
-  id          Int       @id @default(autoincrement())
-  quotationId Int
-  serviceId   Int
-  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  service     Services  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  id              Int            @id @default(autoincrement())
+  quotationId     Int
+  serviceId       Int
+  customServiceId String?
+  customService   CustomService? @relation(fields: [customServiceId], references: [id], onDelete: Cascade)
+  quotation       Quotation      @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  service         Services       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@unique([quotationId, serviceId])
+  @@unique([quotationId, customServiceId])
   @@map("quotation_services")
+}
+
+model CustomService {
+  id                String              @id @default(cuid())
+  name              String
+  description       String
+  price             Float
+  status            CustomServiceStatus @default(PENDING)
+  approvalComment   String?
+  rejectionComment  String?
+  approvedById      String?
+  createdById       String
+  quotationId       Int
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  approvedBy        User?               @relation("CustomServiceApprover", fields: [approvedById], references: [supabase_id])
+  createdBy         User                @relation("CustomServiceCreator", fields: [createdById], references: [supabase_id])
+  quotation         Quotation           @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  quotationServices QuotationService[]
+
+  @@map("custom_services")
 }
 
 model Project {
@@ -142,26 +169,21 @@ model ProjectPermission {
   @@map("project_permissions")
 }
 
-enum MembershipType {
-  MEMBER
-  NON_MEMBER
-}
-
 model Client {
-  id         String      @id @default(cuid())
-  name       String
-  email      String      @unique
-  phone      String?
-  company    String?
-  address    String?
-  notes      String?
-  industry   String?
-  yearlyRevenue Float?
+  id             String         @id @default(cuid())
+  name           String
+  email          String         @unique
+  phone          String?
+  company        String?
+  address        String?
+  notes          String?
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @default(now())
+  industry       String?
   membershipType MembershipType @default(NON_MEMBER)
-  created_at DateTime    @default(now())
-  updated_at DateTime    @default(now())
-  projects   Project[]
-  quotations Quotation[]
+  yearlyRevenue  Float?
+  projects       Project[]
+  quotations     Quotation[]
 
   @@map("clients")
 }
@@ -288,19 +310,35 @@ model Task {
   status      TaskStatus   @default(todo)
   priority    TaskPriority @default(low)
   creatorId   String
-  assigneeId  String?
   dueDate     DateTime
   order       Int          @default(0)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   startDate   DateTime
   milestoneId Int?
-  creator     User         @relation("TaskCreator", fields: [creatorId], references: [supabase_id])
+  assigneeId  String?
   assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [supabase_id])
+  creator     User         @relation("TaskCreator", fields: [creatorId], references: [supabase_id])
   milestone   Milestone?   @relation(fields: [milestoneId], references: [id])
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("tasks")
+}
+
+model ServiceTags {
+  A            Int
+  B            Int
+  service_tags ServiceTag @relation(fields: [A], references: [id], onDelete: Cascade)
+  Services     Services   @relation(fields: [B], references: [id], onDelete: Cascade)
+
+  @@id([A, B], map: "_ServiceTags_AB_pkey")
+  @@index([B], map: "_ServiceTags_B_index")
+  @@map("_ServiceTags")
+}
+
+enum MembershipType {
+  MEMBER
+  NON_MEMBER
 }
 
 enum QuotationStatus {
@@ -341,4 +379,10 @@ enum InvitationStatus {
   accepted
   declined
   expired
+}
+
+enum CustomServiceStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
