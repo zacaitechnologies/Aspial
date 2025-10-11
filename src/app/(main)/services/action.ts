@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma"
 export async function getAllServices() {
   return await prisma.services.findMany({
     orderBy: { created_at: "desc" },
+    include: {
+      tags: true
+    }
   })
 }
 
@@ -17,6 +20,9 @@ export async function searchServices(query: string) {
       ],
     },
     orderBy: { created_at: "desc" },
+    include: {
+      tags: true
+    }
   })
 }
 

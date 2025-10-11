@@ -57,16 +57,16 @@ model Services {
   basePrice   Float
   created_at  DateTime           @default(now())
   updated_at  DateTime           @default(now())
-  ServiceTags ServiceTags[]
+  tags        ServiceTag[]       @relation("ServiceToTag")
   quotations  QuotationService[]
 }
 
 model ServiceTag {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
-  color       String?       @default("#3B82F6")
-  created_at  DateTime      @default(now())
-  ServiceTags ServiceTags[]
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  color      String?    @default("#3B82F6")
+  created_at DateTime   @default(now())
+  services   Services[] @relation("ServiceToTag")
 
   @@map("service_tags")
 }
@@ -325,16 +325,6 @@ model Task {
   @@map("tasks")
 }
 
-model ServiceTags {
-  A            Int
-  B            Int
-  service_tags ServiceTag @relation(fields: [A], references: [id], onDelete: Cascade)
-  Services     Services   @relation(fields: [B], references: [id], onDelete: Cascade)
-
-  @@id([A, B], map: "_ServiceTags_AB_pkey")
-  @@index([B], map: "_ServiceTags_B_index")
-  @@map("_ServiceTags")
-}
 
 enum MembershipType {
   MEMBER

@@ -16,13 +16,19 @@ export async function createServiceTag(data: CreateServiceTagData): Promise<Serv
 export async function getAllServiceTags(): Promise<ServiceTag[]> {
   return await prisma.serviceTag.findMany({
     orderBy: { name: 'asc' },
-  })
+    include: {
+      services: true
+    }
+  }) as any
 }
 
 export async function getServiceTagById(id: number): Promise<ServiceTag | null> {
   return await prisma.serviceTag.findUnique({
     where: { id },
-  })
+    include: {
+      services: true
+    }
+  }) as any
 }
 
 export async function updateServiceTag(id: number, data: UpdateServiceTagData): Promise<ServiceTag> {
@@ -45,53 +51,61 @@ export async function createService(data: CreateServiceData): Promise<Service> {
   return await prisma.services.create({
     data: {
       ...serviceData,
-      ServiceTags: tagIds && tagIds.length > 0 ? {
-        create: tagIds.map(tagId => ({
-          service_tags: {
-            connect: { id: tagId }
-          }
-        }))
+      tags: tagIds && tagIds.length > 0 ? {
+        connect: tagIds.map(tagId => ({ id: tagId }))
       } : undefined,
     },
-  })
+    include: {
+      tags: true
+    }
+  }) as any
 }
 
 export async function getAllServices(): Promise<Service[]> {
   return await prisma.services.findMany({
     orderBy: { name: 'asc' },
-  })
+    include: {
+      tags: true
+    }
+  }) as any
 }
 
 export async function getServiceById(id: number): Promise<Service | null> {
   return await prisma.services.findUnique({
     where: { id },
-  })
+    include: {
+      tags: true
+    }
+  }) as any
 }
 
 export async function updateService(id: number, data: UpdateServiceData): Promise<Service> {
   const { tagIds, ...serviceData } = data
   
-  // First, delete all existing tag relations
-  await prisma.serviceTags.deleteMany({
-    where: {
-      B: id,
-    },
+  // Get current service to find existing tags
+  const currentService = await prisma.services.findUnique({
+    where: { id },
+    include: { tags: true }
   })
   
-  // Then update the service and create new tag relations
+  if (!currentService) {
+    throw new Error('Service not found')
+  }
+  
+  // Update service and handle tag relations
   return await prisma.services.update({
     where: { id },
     data: {
       ...serviceData,
-      ServiceTags: tagIds && tagIds.length > 0 ? {
-        create: tagIds.map(tagId => ({
-          service_tags: {
-            connect: { id: tagId }
-          }
-        }))
-      } : undefined,
+      tags: {
+        disconnect: currentService.tags.map(tag => ({ id: tag.id })),
+        connect: tagIds && tagIds.length > 0 ? tagIds.map(tagId => ({ id: tagId })) : []
+      }
     },
-  })
+    include: {
+      tags: true
+    }
+  }) as any
 }
 
 export async function deleteService(id: number): Promise<void> {
@@ -104,14 +118,17 @@ export async function deleteService(id: number): Promise<void> {
 export async function getServicesByTag(tagId: number): Promise<Service[]> {
   return await prisma.services.findMany({
     where: {
-      ServiceTags: {
+      tags: {
         some: {
-          A: tagId,
+          id: tagId,
         },
       },
     },
+    include: {
+      tags: true
+    },
     orderBy: { name: 'asc' },
-  })
+  }) as any
 }
 
 // Search services by name or description
