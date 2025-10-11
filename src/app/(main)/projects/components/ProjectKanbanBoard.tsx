@@ -68,6 +68,23 @@ export function KanbanBoard({
     fetchData();
   }, [projectId]);
 
+  // Refresh all data function
+  const refreshData = async () => {
+    try {
+      const [projectTasks, collaborators, projectMilestones] =
+        await Promise.all([
+          getProjectTasks(parseInt(projectId)),
+          getProjectCollaborators(parseInt(projectId)),
+          getProjectMilestones(parseInt(projectId)),
+        ]);
+      setTasks(projectTasks);
+      setUsers(collaborators);
+      setMilestones(projectMilestones);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
+  };
+
   const getTasksForColumn = (columnId: string) => {
     const columnTasks = tasks.filter((task) => task.status === columnId);
 
@@ -100,18 +117,24 @@ export function KanbanBoard({
     });
   };
 
-  const handleTaskCreated = (newTask: TaskWithAssignee) => {
+  const handleTaskCreated = async (newTask: TaskWithAssignee) => {
     setTasks((prev) => [...prev, newTask]);
+    // Refresh milestones to update task counts
+    await refreshData();
   };
 
-  const handleTaskUpdated = (updatedTask: TaskWithAssignee) => {
+  const handleTaskUpdated = async (updatedTask: TaskWithAssignee) => {
     setTasks((prev) =>
       prev.map((task) => (task.id === updatedTask.id ? updatedTask : task))
     );
+    // Refresh milestones to update task counts
+    await refreshData();
   };
 
-  const handleTaskDeleted = (taskId: number) => {
+  const handleTaskDeleted = async (taskId: number) => {
     setTasks((prev) => prev.filter((task) => task.id !== taskId));
+    // Refresh milestones to update task counts
+    await refreshData();
   };
 
   const handleMilestoneCreated = (newMilestone: Milestone) => {
@@ -162,6 +185,9 @@ export function KanbanBoard({
           task.id === taskId ? { ...task, status: newStatus as any } : task
         )
       );
+
+      // Refresh milestones to update task progress
+      await refreshData();
     } catch (error) {
       console.error("Error updating task status:", error);
     }

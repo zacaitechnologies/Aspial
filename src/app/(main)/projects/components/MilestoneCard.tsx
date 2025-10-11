@@ -27,6 +27,7 @@ import {
   Trash2,
   CheckCircle,
   Clock,
+  Package,
 } from "lucide-react";
 import { Milestone } from "../types";
 import { MilestoneForm } from "./MilestoneForm";
@@ -181,6 +182,19 @@ export function MilestoneCard({
             {Math.round(progressPercentage)}% complete
           </div>
         </div>
+
+        {/* Service */}
+        {milestone.service && (
+          <div className="flex items-center gap-2 text-xs">
+            <Package className="w-3 h-3 text-blue-600" />
+            <div className="flex-1">
+              <span className="text-blue-600 font-medium">{milestone.service.name}</span>
+              <span className="text-muted-foreground ml-2">
+                RM {milestone.service.basePrice.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Due Date */}
         {milestone.dueDate && (

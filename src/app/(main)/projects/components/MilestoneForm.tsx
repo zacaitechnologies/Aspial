@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -37,11 +37,12 @@ import {
   taskPriorityOptions,
   milestoneStatusOptions,
 } from "../types";
-import { createMilestone, updateMilestone } from "../milestone-actions";
+import { createMilestone, updateMilestone, getProjectServices } from "../milestone-actions";
 
 const milestoneSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
+  serviceId: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]),
   status: z.enum(["not_started", "in_progress", "completed"]),
   dueDate: z.string().optional(),
@@ -169,6 +170,44 @@ const DueDateField = ({ form }: { form: any }) => (
   />
 );
 
+const ServiceField = ({ form, availableServices, isLoadingServices }: { form: any; availableServices: any[]; isLoadingServices: boolean }) => (
+  <FormField
+    control={form.control}
+    name="serviceId"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>Service (Optional)</FormLabel>
+        <Select 
+          onValueChange={field.onChange} 
+          value={field.value || "none"}
+          disabled={isLoadingServices || availableServices.length === 0}
+        >
+          <FormControl>
+            <SelectTrigger>
+              <SelectValue placeholder={
+                isLoadingServices 
+                  ? "Loading services..." 
+                  : availableServices.length === 0 
+                    ? "No services available" 
+                    : "Select a service"
+              } />
+            </SelectTrigger>
+          </FormControl>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            {availableServices.map((service) => (
+              <SelectItem key={service.id} value={service.id.toString()}>
+                {service.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <FormMessage />
+      </FormItem>
+    )}
+  />
+);
+
 export function MilestoneForm({
   projectId,
   milestone,
@@ -179,12 +218,15 @@ export function MilestoneForm({
 }: MilestoneFormProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [availableServices, setAvailableServices] = useState<any[]>([]);
+  const [isLoadingServices, setIsLoadingServices] = useState(true);
 
   const form = useForm<MilestoneFormData>({
     resolver: zodResolver(milestoneSchema),
     defaultValues: {
       title: milestone?.title || "",
       description: milestone?.description || "",
+      serviceId: milestone?.serviceId?.toString() || "none",
       priority: milestone?.priority || "low",
       status: milestone?.status || "not_started",
       dueDate: milestone?.dueDate 
@@ -193,24 +235,42 @@ export function MilestoneForm({
     },
   });
 
+  // Fetch available services when component mounts
+  useEffect(() => {
+    const fetchServices = async () => {
+      setIsLoadingServices(true);
+      try {
+        const services = await getProjectServices(projectId);
+        setAvailableServices(services);
+      } catch (error) {
+        console.error("Error fetching services:", error);
+      } finally {
+        setIsLoadingServices(false);
+      }
+    };
+
+    fetchServices();
+  }, [projectId]);
+
   const onSubmit = async (data: MilestoneFormData) => {
     setIsSubmitting(true);
     try {
       const milestoneData = {
         ...data,
+        serviceId: data.serviceId && data.serviceId !== "none" ? parseInt(data.serviceId) : null,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       };
 
       if (milestone) {
         // Update existing milestone
-        const updatedMilestone = await updateMilestone(milestone.id, milestoneData);
+        const updatedMilestone = await updateMilestone(milestone.id, milestoneData as any);
         onMilestoneUpdated?.(updatedMilestone);
       } else {
         // Create new milestone
         const newMilestone = await createMilestone({
           ...milestoneData,
           projectId,
-        });
+        } as any);
         onMilestoneCreated?.(newMilestone);
       }
 
@@ -235,6 +295,12 @@ export function MilestoneForm({
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <TitleField form={form} />
         <DescriptionField form={form} />
+        
+        <ServiceField 
+          form={form} 
+          availableServices={availableServices}
+          isLoadingServices={isLoadingServices}
+        />
         
         <div className="grid grid-cols-2 gap-4">
           <PriorityField form={form} />

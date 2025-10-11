@@ -28,8 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { X, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -42,6 +41,7 @@ import {
   Milestone,
 } from "../types";
 import { createTask, updateTask } from "../task-actions";
+import { useSession } from "../../contexts/SessionProvider";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -51,7 +51,6 @@ const taskSchema = z.object({
   assigneeId: z.string().optional(),
   startDate: z.string().optional(),
   dueDate: z.string().optional(),
-  tags: z.array(z.string()).optional().default([]),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -223,58 +222,12 @@ const DateFields = ({ form }: { form: any }) => (
   </>
 );
 
-const TagsField = ({ form, newTag, setNewTag, addTag, removeTag, handleKeyPress }: {
-  form: any;
-  newTag: string;
-  setNewTag: (value: string) => void;
-  addTag: () => void;
-  removeTag: (tag: string) => void;
-  handleKeyPress: (e: React.KeyboardEvent) => void;
-}) => (
-  <div className="space-y-2">
-    <Label>Tags</Label>
-    <div className="flex gap-2">
-      <Input
-        placeholder="Add a tag"
-        value={newTag}
-        onChange={(e) => setNewTag(e.target.value)}
-        onKeyPress={handleKeyPress}
-      />
-      <Button type="button" variant="outline" onClick={addTag}>
-        <Plus className="h-4 w-4" />
-      </Button>
-    </div>
-    <div className="flex flex-wrap gap-2">
-      {form.watch("tags").map((tag: string) => (
-        <Badge
-          key={tag}
-          variant="secondary"
-          className="flex items-center gap-1"
-        >
-          {tag}
-          <button
-            type="button"
-            onClick={() => removeTag(tag)}
-            className="ml-1 hover:text-red-600"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </Badge>
-      ))}
-    </div>
-  </div>
-);
 
 // Main form content component
 const TaskFormContent = ({ 
   form, 
   availableUsers, 
   availableMilestones,
-  newTag, 
-  setNewTag, 
-  addTag, 
-  removeTag, 
-  handleKeyPress,
   isSubmitting,
   isEdit = false,
   onCancel,
@@ -283,11 +236,6 @@ const TaskFormContent = ({
   form: any;
   availableUsers: any[];
   availableMilestones?: Milestone[];
-  newTag: string;
-  setNewTag: (value: string) => void;
-  addTag: () => void;
-  removeTag: (tag: string) => void;
-  handleKeyPress: (e: React.KeyboardEvent) => void;
   isSubmitting: boolean;
   isEdit?: boolean;
   onCancel?: () => void;
@@ -310,15 +258,6 @@ const TaskFormContent = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DateFields form={form} />
       </div>
-
-      <TagsField 
-        form={form} 
-        newTag={newTag} 
-        setNewTag={setNewTag} 
-        addTag={addTag} 
-        removeTag={removeTag} 
-        handleKeyPress={handleKeyPress} 
-      />
 
       <div className="flex justify-end gap-2">
         {onCancel && (
@@ -343,8 +282,8 @@ export function TaskForm({
   onTaskUpdated,
   trigger,
 }: TaskFormProps) {
+  const { enhancedUser } = useSession();
   const [open, setOpen] = useState(false);
-  const [newTag, setNewTag] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<TaskFormData>({
@@ -361,11 +300,15 @@ export function TaskForm({
       dueDate: task?.dueDate
         ? new Date(task.dueDate).toISOString().split("T")[0]
         : "",
-      tags: [],
     },
   } as any);
 
   const onSubmit = async (data: TaskFormData) => {
+    if (!enhancedUser?.id) {
+      console.error("User not authenticated");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const taskData = {
@@ -374,7 +317,7 @@ export function TaskForm({
         status: "todo",
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-        creatorId: "current-user-id", // TODO: Get from auth context
+        creatorId: enhancedUser.id,
         assigneeId: data.assigneeId === "unassigned" ? undefined : data.assigneeId,
         milestoneId: data.milestoneId === "none" ? null : data.milestoneId ? parseInt(data.milestoneId) : null,
       };
@@ -396,28 +339,6 @@ export function TaskForm({
     }
   };
 
-  const addTag = () => {
-    if (newTag.trim() && !form.getValues("tags").includes(newTag.trim())) {
-      const currentTags = form.getValues("tags");
-      form.setValue("tags", [...currentTags, newTag.trim()]);
-      setNewTag("");
-    }
-  };
-
-  const removeTag = (tagToRemove: string) => {
-    const currentTags = form.getValues("tags");
-    form.setValue(
-      "tags",
-      currentTags.filter((tag) => tag !== tagToRemove)
-    );
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addTag();
-    }
-  };
 
   // If editing a task, show the form directly without dialog
   if (task) {
@@ -430,11 +351,6 @@ export function TaskForm({
           form={form}
           availableUsers={availableUsers}
           availableMilestones={availableMilestones}
-          newTag={newTag}
-          setNewTag={setNewTag}
-          addTag={addTag}
-          removeTag={removeTag}
-          handleKeyPress={handleKeyPress}
           isSubmitting={isSubmitting}
           isEdit={true}
           onSubmit={onSubmit}
@@ -462,11 +378,6 @@ export function TaskForm({
           form={form}
           availableUsers={availableUsers}
           availableMilestones={availableMilestones}
-          newTag={newTag}
-          setNewTag={setNewTag}
-          addTag={addTag}
-          removeTag={removeTag}
-          handleKeyPress={handleKeyPress}
           isSubmitting={isSubmitting}
           onCancel={() => setOpen(false)}
           onSubmit={onSubmit}
