@@ -478,6 +478,12 @@ export async function getAllPendingCustomServices() {
           email: true,
         },
       },
+      approvedBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
       quotation: {
         select: {
           id: true,

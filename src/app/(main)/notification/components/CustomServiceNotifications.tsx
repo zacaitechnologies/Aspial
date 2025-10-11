@@ -77,8 +77,8 @@ export default function CustomServiceNotifications({
       setLoading(true);
       const pending = await getAllPendingCustomServices();
       const all = await getAllCustomServices();
-      setPendingServices(pending as CustomServiceRequest[]);
-      setAllServices(all as CustomServiceRequest[]);
+      setPendingServices(pending);
+      setAllServices(all);
     } catch (error) {
       console.error("Failed to fetch custom services:", error);
       setPendingServices([]);
