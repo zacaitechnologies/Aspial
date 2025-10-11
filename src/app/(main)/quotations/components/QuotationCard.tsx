@@ -286,46 +286,33 @@ export default function QuotationCard({
           </div>
         )}
 
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Services:</p>
-          <div className="flex flex-wrap gap-1">
-            {quotation.services.map((qs) => (
-              <Badge key={qs.id} variant="secondary" className="text-xs">
-                {qs.service.name}
-              </Badge>
-            ))}
-          </div>
-        </div>
-
-        {/* Custom Services */}
+        {/* Custom Service Status Badges */}
         {customServices.length > 0 && (
-          <div className="space-y-2 mt-3">
-            <p className="text-sm font-medium">Custom Services:</p>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Custom Service Requests:</p>
             <div className="flex flex-wrap gap-2">
-              {customServices.map((cs) => (
-                <div key={cs.id} className="flex items-center gap-1">
-                  <Badge variant="outline" className="text-xs">
-                    {cs.name} - RM{cs.price.toFixed(2)}
-                  </Badge>
-                  <Badge
-                    variant={
-                      cs.status === "REJECTED" ? "destructive" : "default"
-                    }
-                    className={
-                      cs.status === "APPROVED"
-                        ? "text-xs bg-green-600 text-white hover:bg-green-700"
-                        : cs.status === "REJECTED"
-                        ? "text-xs"
-                        : "text-xs bg-yellow-500 text-white hover:bg-yellow-600"
-                    }
-                  >
-                    {cs.status}
-                  </Badge>
-                </div>
-              ))}
+              {customServices.some((cs) => cs.status === "PENDING") && (
+                <Badge className="bg-yellow-500 text-white hover:bg-yellow-600">
+                  {customServices.filter((cs) => cs.status === "PENDING").length}{" "}
+                  Pending
+                </Badge>
+              )}
+              {customServices.some((cs) => cs.status === "APPROVED") && (
+                <Badge className="bg-green-600 text-white hover:bg-green-700">
+                  {customServices.filter((cs) => cs.status === "APPROVED").length}{" "}
+                  Approved
+                </Badge>
+              )}
+              {customServices.some((cs) => cs.status === "REJECTED") && (
+                <Badge variant="destructive">
+                  {customServices.filter((cs) => cs.status === "REJECTED").length}{" "}
+                  Rejected
+                </Badge>
+              )}
             </div>
           </div>
         )}
+
         {quotation.discountValue && (
           <div className="mt-2">
             <p className="text-sm text-muted-foreground">
