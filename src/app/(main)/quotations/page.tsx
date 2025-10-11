@@ -83,7 +83,7 @@ export default function QuotationsPage() {
         </div>
 
         {/* Quotations Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 justify-start gap-6">
           {quotations.map((quotation) => (
             <QuotationCard
               key={quotation.id}

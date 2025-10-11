@@ -114,15 +114,16 @@ export type EditFormData = {
 };
 
 export const statusOptions = [
-  { value: "draft", label: "Draft", color: "secondary" as const },
-  { value: "accepted", label: "Accepted", color: "default" as const },
-  { value: "rejected", label: "Rejected", color: "destructive" as const },
-  { value: "paid", label: "Paid", color: "default" as const },
-  { value: "unpaid", label: "Unpaid", color: "destructive" as const },
+  { value: "draft", label: "Draft", color: "default" as const, className: "" },
+  { value: "accepted", label: "Accepted", color: "default" as const, className: "bg-green-600 text-white hover:bg-green-700" },
+  { value: "rejected", label: "Rejected", color: "destructive" as const, className: "" },
+  { value: "paid", label: "Paid", color: "default" as const, className: "" },
+  { value: "unpaid", label: "Unpaid", color: "destructive" as const, className: "" },
   {
     value: "partially_paid",
     label: "Partially Paid",
     color: "secondary" as const,
+    className: "",
   },
-  { value: "deposit_paid", label: "Deposit Paid", color: "secondary" as const },
+  { value: "deposit_paid", label: "Deposit Paid", color: "secondary" as const, className: "" },
 ] as const; 

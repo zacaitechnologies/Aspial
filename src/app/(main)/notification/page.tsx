@@ -11,6 +11,12 @@ import {
   isUserAdmin,
 } from "../projects/permissions";
 import {
+  getAllPendingCustomServices,
+  getAllCustomServices,
+  approveCustomService,
+  rejectCustomService,
+} from "../quotations/action";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -20,7 +26,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Check, X, Users, Eye, Edit, Crown, Shield, Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Bell, Check, X, Users, Eye, Edit, Crown, Shield, Trash2, Package } from "lucide-react";
+import CustomServiceNotifications from "./components/CustomServiceNotifications";
 
 type ProjectInvitation = {
   id: number;
@@ -58,6 +68,34 @@ type ProjectInvitation = {
     lastName: string;
     email: string;
   };
+};
+
+type CustomServiceRequest = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  status: string;
+  createdAt: Date;
+  createdBy: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  approvedBy: {
+    firstName: string;
+    lastName: string;
+  } | null;
+  quotation: {
+    id: number;
+    name: string;
+    Client: {
+      name: string;
+      company: string | null;
+    } | null;
+  };
+  approvalComment: string | null;
+  rejectionComment: string | null;
 };
 
 export default function NotificationPage() {
@@ -256,110 +294,21 @@ export default function NotificationPage() {
           Notifications
         </h1>
         <p className="text-muted-foreground mt-2">
-          {isAdmin ? "Manage project invitations and collaboration requests" : "View your project invitations"}
+          {isAdmin ? "Manage project invitations and custom service requests" : "View your project invitations"}
         </p>
       </div>
 
       {isAdmin ? (
-        <Tabs defaultValue="my-invitations" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="my-invitations">My Invitations</TabsTrigger>
-            <TabsTrigger value="pending">Pending Invitations</TabsTrigger>
-            <TabsTrigger value="all">All Invitations</TabsTrigger>
+        <Tabs defaultValue="pending" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="pending">Project Invitations</TabsTrigger>
+            <TabsTrigger value="custom-services">Custom Services</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="my-invitations" className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Users className="w-5 h-5" />
-              <h2 className="text-xl font-semibold">My Invitations</h2>
-      </div>
-
-      {invitations.length === 0 ? (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground">You don't have any pending invitations.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              invitations.map((invitation) => (
-                <Card key={invitation.id} className="p-4">
-                  <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                        <CardTitle className="text-lg">{invitation.project.name}</CardTitle>
-                    <CardDescription>
-                          Invited by {invitation.inviter.firstName} {invitation.inviter.lastName}
-                    </CardDescription>
-                  </div>
-                      {getStatusBadge(invitation.status)}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium mb-2">Project Details</h4>
-                    <div className="space-y-1 text-sm">
-                      <p>
-                        <strong>Project:</strong> {invitation.project.name}
-                      </p>
-                      {invitation.project.description && (
-                        <p>
-                          <strong>Description:</strong>{" "}
-                          {invitation.project.description}
-                        </p>
-                      )}
-                      <p>
-                        <strong>Value:</strong> RM
-                        {invitation.project.quotations[0]?.totalPrice.toFixed(2) || '0.00'}
-                      </p>
-                      <p>
-                        <strong>Created by:</strong>{" "}
-                        {invitation.project.createdByUser.firstName}{" "}
-                        {invitation.project.createdByUser.lastName}
-                      </p>
-                    </div>
-                  </div>
-                  <div>
-                        <h4 className="font-medium mb-2">Permissions</h4>
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {getPermissionBadges(invitation)}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          <strong>Invited:</strong> {new Date(invitation.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    {invitation.status === "pending" && (
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleAcceptInvitation(invitation.id)}
-                          className="flex-1"
-                        >
-                          <Check className="w-4 h-4 mr-2" />
-                          Accept
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => handleDeclineInvitation(invitation.id)}
-                          className="flex-1"
-                        >
-                          <X className="w-4 h-4 mr-2" />
-                          Decline
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
 
           <TabsContent value="pending" className="space-y-4">
             <div className="flex items-center gap-2 mb-4">
               <Shield className="w-5 h-5" />
-              <h2 className="text-xl font-semibold">All Pending Invitations</h2>
+              <h2 className="text-xl font-semibold">Project Invitations</h2>
               <Badge variant="secondary">{pendingInvitations.length}</Badge>
             </div>
             
@@ -445,95 +394,8 @@ export default function NotificationPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="all" className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="w-5 h-5" />
-              <h2 className="text-xl font-semibold">All Invitations</h2>
-              <Badge variant="secondary">{allInvitations.length}</Badge>
-            </div>
-            
-            {allInvitations.length === 0 ? (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground">No invitations in the system.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              allInvitations.map((invitation) => (
-                <Card key={invitation.id} className="p-4">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{invitation.project.name}</CardTitle>
-                        <CardDescription>
-                          {invitation.inviter.firstName} {invitation.inviter.lastName} invited {invitation.invitee.firstName} {invitation.invitee.lastName}
-                        </CardDescription>
-                      </div>
-                      {getStatusBadge(invitation.status)}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="font-medium mb-2">Project Details</h4>
-                        <div className="space-y-1 text-sm">
-                          <p>
-                            <strong>Project:</strong> {invitation.project.name}
-                          </p>
-                          <p>
-                            <strong>Value:</strong> RM
-                            {invitation.project.quotations[0]?.totalPrice.toFixed(2) || '0.00'}
-                          </p>
-                          <p>
-                            <strong>Inviter:</strong> {invitation.inviter.firstName} {invitation.inviter.lastName}
-                          </p>
-                          <p>
-                            <strong>Invitee:</strong> {invitation.invitee.firstName} {invitation.invitee.lastName}
-                          </p>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium mb-2">Permissions</h4>
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {getPermissionBadges(invitation)}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          <strong>Invited:</strong> {new Date(invitation.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    {invitation.status === "pending" && (
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleAdminAcceptInvitation(invitation.id)}
-                          className="flex-1"
-                        >
-                          <Check className="w-4 h-4 mr-2" />
-                          Accept as Admin
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => handleAdminDeclineInvitation(invitation.id)}
-                          className="flex-1"
-                        >
-                          <X className="w-4 h-4 mr-2" />
-                          Decline as Admin
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={() => handleAdminDeleteInvitation(invitation.id)}
-                          size="sm"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
-            )}
+          <TabsContent value="custom-services" className="space-y-4">
+            <CustomServiceNotifications userId={enhancedUser?.id || ""} />
           </TabsContent>
         </Tabs>
       ) : (
