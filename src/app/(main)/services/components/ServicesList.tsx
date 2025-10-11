@@ -217,72 +217,72 @@ export default function ServicesList({
 
       {/* Services Grid */}
       {!isLoading && (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
           {filteredServices.map((service) => (
-            <Card
-              key={service.id}
-              className="hover:shadow-lg transition-all duration-200 border-gray-200 hover:border-blue-200 group"
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-3">
-                  <CardTitle className="text-lg font-semibold text-gray-900 leading-tight">
-                    {service.name}
-                  </CardTitle>
-                  <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Card key={service.id} className="card">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg">{service.name}</CardTitle>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge
+                        variant="secondary"
+                        className="bg-blue-100 text-blue-800"
+                      >
+                        RM {service.basePrice.toFixed(2)}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex space-x-1">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => handleEditService(service)}
-                      className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-50"
+                      title="Edit Service"
                     >
-                      <Edit className="w-3 h-3" />
+                      <Edit className="w-4 h-4" />
                     </Button>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteService(service.id)}
-                      className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-50 text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      title="Delete Service"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-3xl font-bold text-green-600">
-                    RM {service.basePrice.toFixed(2)}
-                  </span>
-                </div>
               </CardHeader>
 
-              <CardContent className="space-y-4">
-                <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-3">
                   {service.description}
                 </p>
 
                 {/* Tags */}
-                <div className="flex flex-wrap gap-2">
-                  {service.tags && service.tags.length > 0 ? (
-                    service.tags.map((tag) => (
-                      <Badge
-                        key={tag.id}
-                        style={{
-                          backgroundColor: tag.color || "#3B82F6",
-                          color: "white",
-                        }}
-                        className="px-2 py-1 text-xs font-medium shadow-sm"
-                      >
-                        {tag.name}
-                      </Badge>
-                    ))
-                  ) : (
-                    <Badge
-                      style={{ backgroundColor: "#9CA3AF", color: "white" }}
-                      className="px-2 py-1 text-xs font-medium shadow-sm"
-                    >
-                      No Tags
-                    </Badge>
-                  )}
-                </div>
+                {service.tags && service.tags.length > 0 && (
+                  <div className="mb-3">
+                    <div className="flex flex-wrap gap-2">
+                      {service.tags.map((tag) => (
+                        <Badge
+                          key={tag.id}
+                          style={{
+                            backgroundColor: tag.color || "#3B82F6",
+                            color: "white",
+                          }}
+                          className="px-2 py-1 text-xs font-medium shadow-sm"
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground mt-3">
+                  Created: {new Date(service.created_at).toLocaleDateString()}
+                </p>
               </CardContent>
             </Card>
           ))}

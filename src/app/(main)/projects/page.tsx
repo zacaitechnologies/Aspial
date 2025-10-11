@@ -319,7 +319,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Projects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredProjects.map((project) => (
           <Card key={project.id} className="card">
             <CardHeader>
@@ -330,30 +330,30 @@ export default function ProjectsPage() {
                     {getStatusBadge(project.status)}
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex space-x-1">
                   <Link href={`/projects/${project.id}`}>
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      className="border-2 bg-transparent hover:bg-primary hover:text-primary-foreground border-primary text-primary"
+                      title="View Project"
                     >
                       <Info className="w-4 h-4" />
                     </Button>
                   </Link>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="border-2 bg-transparent"
-                    style={{ borderColor: "#BDC4A5", color: "#202F21" }}
                     onClick={() => handleEditProject(project)}
+                    title="Edit Project"
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="border-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     onClick={() => handleDelete(project.id.toString())}
+                    title="Delete Project"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

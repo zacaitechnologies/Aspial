@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trash2, Edit, Plus, Loader2, Tag, Palette } from "lucide-react"
 
 // Predefined color palette for service tags
@@ -190,48 +191,53 @@ export default function ServiceTagManager() {
 
       {/* Tags Grid */}
       {!isLoading && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
           {tags.map((tag) => (
-            <div key={tag.id} className="group relative bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Badge 
-                      style={{ backgroundColor: tag.color || "#3B82F6", color: 'white' }}
-                      className="px-3 py-1 text-sm font-medium shadow-sm"
+            <Card key={tag.id} className="card">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg">
+                      <Badge 
+                        style={{ backgroundColor: tag.color || "#3B82F6", color: 'white' }}
+                        className="px-3 py-1 text-sm font-medium shadow-sm"
+                      >
+                        {tag.name}
+                      </Badge>
+                    </CardTitle>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                        {tag.services?.length || 0} services
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditDialog(tag)}
+                      title="Edit Tag"
                     >
-                      {tag.name}
-                    </Badge>
-                    <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded-full border">
-                      {tag.services?.length || 0} services
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Created: {new Date(tag.created_at).toLocaleDateString()}
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteTag(tag.id)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      title="Delete Tag"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
-                
-                {/* Action Buttons */}
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(tag)}
-                    className="h-8 w-8 p-0 border-gray-300 hover:border-blue-500 hover:bg-blue-50"
-                  >
-                    <Edit className="w-3 h-3" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDeleteTag(tag.id)}
-                    className="h-8 w-8 p-0 border-gray-300 hover:border-red-500 hover:bg-red-50 text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">
+                  Created: {new Date(tag.created_at).toLocaleDateString()}
+                </p>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
