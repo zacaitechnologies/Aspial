@@ -397,7 +397,7 @@ export default function EditQuotationForm({
             {/* Fixed Services Section */}
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
               <div>
-                <Label className="text-lg font-semibold">Fixed Services (Editable)</Label>
+                <Label className="text-lg font-semibold">Services</Label>
                 <p className="text-xs text-muted-foreground mt-1">Select or deselect services for this quotation</p>
               </div>
               {services.map((service) => (
@@ -438,8 +438,7 @@ export default function EditQuotationForm({
             <div className="grid border-blue-500 border-2 rounded-2xl p-4 gap-4 mt-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <Label className="text-lg font-semibold">Custom Services Requested</Label>
-                  <p className="text-xs text-muted-foreground mt-1">These services require admin approval</p>
+                  <Label className="text-lg font-semibold">Custom Services</Label>
                 </div>
                 <Button
                   type="button"
@@ -449,7 +448,7 @@ export default function EditQuotationForm({
                   className="flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Custom Service
+                  New Request
                 </Button>
               </div>
               {customServices.length === 0 ? (
@@ -478,12 +477,13 @@ export default function EditQuotationForm({
                             RM{cs.price.toFixed(2)}
                           </Badge>
                           <Badge
-                            variant={
+                            variant={cs.status === "REJECTED" ? "destructive" : "default"}
+                            className={
                               cs.status === "APPROVED"
-                                ? "default"
+                                ? "bg-green-600 text-white hover:bg-green-700"
                                 : cs.status === "REJECTED"
-                                ? "destructive"
-                                : "secondary"
+                                ? ""
+                                : "bg-yellow-500 text-white hover:bg-yellow-600"
                             }
                           >
                             {cs.status}

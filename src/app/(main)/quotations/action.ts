@@ -423,4 +423,109 @@ export async function getCustomServicesByQuotationId(quotationId: number) {
       createdAt: "desc",
     },
   });
+}
+
+// Get all pending custom services (for admin)
+export async function getAllPendingCustomServices() {
+  return await prisma.customService.findMany({
+    where: {
+      status: "PENDING",
+    },
+    include: {
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      quotation: {
+        select: {
+          id: true,
+          name: true,
+          Client: {
+            select: {
+              name: true,
+              company: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+// Get all custom services (for admin)
+export async function getAllCustomServices() {
+  return await prisma.customService.findMany({
+    include: {
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      approvedBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      quotation: {
+        select: {
+          id: true,
+          name: true,
+          Client: {
+            select: {
+              name: true,
+              company: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+// Approve custom service
+export async function approveCustomService(
+  customServiceId: string,
+  approvedById: string,
+  approvalComment?: string
+) {
+  return await prisma.customService.update({
+    where: { id: customServiceId },
+    data: {
+      status: "APPROVED",
+      approvedById: approvedById,
+      approvalComment: approvalComment || null,
+    },
+  });
+}
+
+// Reject custom service
+export async function rejectCustomService(
+  customServiceId: string,
+  approvedById: string,
+  rejectionComment: string
+) {
+  if (!rejectionComment.trim()) {
+    throw new Error("Rejection comment is required");
+  }
+  
+  return await prisma.customService.update({
+    where: { id: customServiceId },
+    data: {
+      status: "REJECTED",
+      approvedById: approvedById,
+      rejectionComment: rejectionComment,
+    },
+  });
 } 

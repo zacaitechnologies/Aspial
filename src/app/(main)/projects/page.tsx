@@ -1,5 +1,5 @@
 "use client";
-import { Calendar, Eye, Edit, Trash2 } from "lucide-react";
+import { Calendar, Info , Edit, Trash2 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -337,7 +337,7 @@ export default function ProjectsPage() {
                       size="sm"
                       className="border-2 bg-transparent hover:bg-primary hover:text-primary-foreground border-primary text-primary"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Info className="w-4 h-4" />
                     </Button>
                   </Link>
                   <Button

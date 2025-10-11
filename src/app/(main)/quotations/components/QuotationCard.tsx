@@ -72,7 +72,10 @@ export default function QuotationCard({
   const getStatusBadge = (status: string) => {
     const statusConfig = statusOptions.find((opt) => opt.value === status);
     return (
-      <Badge variant={statusConfig?.color || "secondary"}>
+      <Badge
+        variant={statusConfig?.color || "secondary"}
+        className={statusConfig?.className}
+      >
         {statusConfig?.label || status}
       </Badge>
     );
@@ -184,15 +187,15 @@ export default function QuotationCard({
             <CardTitle className="text-lg">{quotation.name}</CardTitle>
             <div className="flex items-center gap-2 mt-1">
               {getStatusBadge(quotation.status)}
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                Grand Total: RM{quotation.totalPrice.toFixed(2)}
-              </Badge>
               {hasProject && (
                 <Badge variant="default" className="bg-green-600">
                   <Briefcase className="w-3 h-3 mr-1" />
                   Project Created
                 </Badge>
               )}
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                Grand Total: RM{quotation.totalPrice.toFixed(2)}
+              </Badge>
             </div>
           </div>
           <div className="flex space-x-1">
@@ -289,27 +292,20 @@ export default function QuotationCard({
             <div className="flex flex-wrap gap-2">
               {customServices.map((cs) => (
                 <div key={cs.id} className="flex items-center gap-1">
-                  <Badge
-                    variant={
-                      cs.status === "APPROVED"
-                        ? "default"
-                        : cs.status === "REJECTED"
-                        ? "destructive"
-                        : "outline"
-                    }
-                    className="text-xs"
-                  >
+                  <Badge variant="outline" className="text-xs">
                     {cs.name} - RM{cs.price.toFixed(2)}
                   </Badge>
                   <Badge
                     variant={
-                      cs.status === "APPROVED"
-                        ? "default"
-                        : cs.status === "REJECTED"
-                        ? "destructive"
-                        : "secondary"
+                      cs.status === "REJECTED" ? "destructive" : "default"
                     }
-                    className="text-xs"
+                    className={
+                      cs.status === "APPROVED"
+                        ? "text-xs bg-green-600 text-white hover:bg-green-700"
+                        : cs.status === "REJECTED"
+                        ? "text-xs"
+                        : "text-xs bg-yellow-500 text-white hover:bg-yellow-600"
+                    }
                   >
                     {cs.status}
                   </Badge>
