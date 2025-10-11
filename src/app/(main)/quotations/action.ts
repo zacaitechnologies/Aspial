@@ -378,17 +378,49 @@ export async function updateClientMembershipStatus(clientId: string, membershipT
 }
 
 
-// Create a new service
-export async function createService(data: {
+// Create a new custom service
+export async function createCustomService(data: {
   name: string;
   description: string;
-  basePrice: number;
+  price: number;
+  createdById: string;
+  quotationId: number;
 }) {
-  return await prisma.services.create({
+  return await prisma.customService.create({
     data: {
       name: data.name,
       description: data.description,
-      basePrice: data.basePrice,
+      price: data.price,
+      createdById: data.createdById,
+      quotationId: data.quotationId,
+      status: "PENDING",
+    },
+  });
+}
+
+// Get custom services for a quotation
+export async function getCustomServicesByQuotationId(quotationId: number) {
+  return await prisma.customService.findMany({
+    where: {
+      quotationId: quotationId,
+    },
+    include: {
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      approvedBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
     },
   });
 } 

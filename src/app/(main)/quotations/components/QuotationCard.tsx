@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,12 +10,26 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Briefcase, AlertTriangle, User, Mail, Building2, Plus } from "lucide-react";
+import {
+  Edit,
+  Trash2,
+  Briefcase,
+  AlertTriangle,
+  User,
+  Mail,
+  Building2,
+  Plus,
+} from "lucide-react";
 import { QuotationWithServices, statusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
-import { getClientById, updateClientMembershipStatus } from "../action";
+import {
+  getClientById,
+  updateClientMembershipStatus,
+  getCustomServicesByQuotationId,
+} from "../action";
 import MembershipStatusDialog from "./MembershipStatusDialog";
 import CustomServiceDialog from "./CustomServiceDialog";
+import type { CustomService } from "@prisma/client";
 
 interface QuotationCardProps {
   quotation: QuotationWithServices;
@@ -32,13 +46,29 @@ export default function QuotationCard({
 }: QuotationCardProps) {
   const { enhancedUser } = useSession();
   const [isMembershipDialogOpen, setIsMembershipDialogOpen] = useState(false);
-  const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] = useState(false);
+  const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] =
+    useState(false);
+  const [customServices, setCustomServices] = useState<any[]>([]);
   const [clientData, setClientData] = useState<{
     id: string;
     name: string;
     company?: string;
     membershipType: string;
   } | null>(null);
+
+  // Fetch custom services when component mounts
+  useEffect(() => {
+    fetchCustomServices();
+  }, [quotation.id]);
+
+  const fetchCustomServices = async () => {
+    try {
+      const services = await getCustomServicesByQuotationId(quotation.id);
+      setCustomServices(services);
+    } catch (error) {
+      console.error("Failed to fetch custom services:", error);
+    }
+  };
   const getStatusBadge = (status: string) => {
     const statusConfig = statusOptions.find((opt) => opt.value === status);
     return (
@@ -68,7 +98,7 @@ export default function QuotationCard({
       // First, get client details to check membership status
       if (quotation.clientId) {
         const client = await getClientById(quotation.clientId);
-        
+
         if (client && client.membershipType === "NON_MEMBER") {
           // Store client data and show membership dialog
           setClientData({
@@ -84,18 +114,17 @@ export default function QuotationCard({
 
       // If client is already a member or no client, proceed with project creation
       await createProjectAndRefresh(quotation);
-      
     } catch (error) {
-      console.error('Error creating project:', error);
-      alert('Failed to create project. Please try again.');
+      console.error("Error creating project:", error);
+      alert("Failed to create project. Please try again.");
     }
   };
 
   const createProjectAndRefresh = async (quotation: QuotationWithServices) => {
     try {
       // Import the createProject action
-      const { createProject } = await import('../../projects/action');
-      
+      const { createProject } = await import("../../projects/action");
+
       // Create project data from quotation
       const projectData = {
         name: quotation.name,
@@ -104,21 +133,20 @@ export default function QuotationCard({
         quotationId: quotation.id,
         startDate: quotation.startDate,
         endDate: quotation.endDate,
-        createdBy: enhancedUser?.id || '',
+        createdBy: enhancedUser?.id || "",
       };
-      
+
       // Create the project
       await createProject(projectData);
-      
+
       // Show success message
-      alert('Project created successfully!');
-      
+      alert("Project created successfully!");
+
       // Refresh the page to update the UI (briefcase icon will disappear)
       window.location.reload();
-      
     } catch (error) {
-      console.error('Error creating project:', error);
-      alert('Failed to create project. Please try again.');
+      console.error("Error creating project:", error);
+      alert("Failed to create project. Please try again.");
     }
   };
 
@@ -128,17 +156,16 @@ export default function QuotationCard({
     try {
       // Update client membership status to MEMBER
       await updateClientMembershipStatus(clientData.id, "MEMBER");
-      
+
       // Now create the project
       await createProjectAndRefresh(quotation);
-      
+
       // Close dialog
       setIsMembershipDialogOpen(false);
       setClientData(null);
-      
     } catch (error) {
-      console.error('Error upgrading membership:', error);
-      alert('Failed to upgrade membership status. Please try again.');
+      console.error("Error upgrading membership:", error);
+      alert("Failed to upgrade membership status. Please try again.");
     }
   };
 
@@ -169,23 +196,34 @@ export default function QuotationCard({
             </div>
           </div>
           <div className="flex space-x-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCustomServiceDialogOpen(true)}
+              className="text-blue-600 hover:text-blue-700"
+              title="Add Custom Service"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
             {/* Create Project Button - Show for accepted or paid quotations without existing project */}
-            {(quotation.status === "accepted" || quotation.status === "paid") && !hasProject && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleCreateProject(quotation)}
-                className="text-green-600 hover:text-green-700"
-                title="Create Project"
-              >
-                <Briefcase className="w-4 h-4" />
-              </Button>
-            )}
+            {(quotation.status === "accepted" || quotation.status === "paid") &&
+              !hasProject && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleCreateProject(quotation)}
+                  className="text-green-600 hover:text-green-700"
+                  title="Create Project"
+                >
+                  <Briefcase className="w-4 h-4" />
+                </Button>
+              )}
 
             <Button
               variant="ghost"
               size="sm"
               onClick={() => onEdit(quotation)}
+              title="Edit Quotation"
             >
               <Edit className="w-4 h-4" />
             </Button>
@@ -196,7 +234,11 @@ export default function QuotationCard({
               onClick={hasProject ? undefined : handleDelete}
               disabled={hasProject}
               className={hasProject ? "text-gray-400 cursor-not-allowed" : ""}
-              title={hasProject ? "This quotation cannot be deleted as it is linked to a project" : "Delete quotation"}
+              title={
+                hasProject
+                  ? "This quotation cannot be deleted as it is linked to a project"
+                  : "Delete quotation"
+              }
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -204,10 +246,6 @@ export default function QuotationCard({
         </div>
       </CardHeader>
       <CardContent>
-        <CardDescription className="mb-3">
-          {quotation.description}
-        </CardDescription>
-        
         {/* Client Information */}
         {quotation.Client && (
           <div className="mb-3 p-3 bg-muted/50 rounded-lg">
@@ -232,21 +270,54 @@ export default function QuotationCard({
             </div>
           </div>
         )}
-        
+
         <div className="space-y-2">
-          <p className="text-sm font-medium">Services included:</p>
+          <p className="text-sm font-medium">Services:</p>
           <div className="flex flex-wrap gap-1">
             {quotation.services.map((qs) => (
-              <Badge
-                key={qs.id}
-                variant="secondary"
-                className="text-xs"
-              >
+              <Badge key={qs.id} variant="secondary" className="text-xs">
                 {qs.service.name}
               </Badge>
             ))}
           </div>
         </div>
+
+        {/* Custom Services */}
+        {customServices.length > 0 && (
+          <div className="space-y-2 mt-3">
+            <p className="text-sm font-medium">Custom Services:</p>
+            <div className="flex flex-wrap gap-2">
+              {customServices.map((cs) => (
+                <div key={cs.id} className="flex items-center gap-1">
+                  <Badge
+                    variant={
+                      cs.status === "APPROVED"
+                        ? "default"
+                        : cs.status === "REJECTED"
+                        ? "destructive"
+                        : "outline"
+                    }
+                    className="text-xs"
+                  >
+                    {cs.name} - RM{cs.price.toFixed(2)}
+                  </Badge>
+                  <Badge
+                    variant={
+                      cs.status === "APPROVED"
+                        ? "default"
+                        : cs.status === "REJECTED"
+                        ? "destructive"
+                        : "secondary"
+                    }
+                    className="text-xs"
+                  >
+                    {cs.status}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {quotation.discountValue && (
           <div className="mt-2">
             <p className="text-sm text-muted-foreground">
@@ -278,12 +349,17 @@ export default function QuotationCard({
         isOpen={isCustomServiceDialogOpen}
         onOpenChange={setIsCustomServiceDialogOpen}
         onServiceCreated={(newService) => {
-          // For existing quotations, we would need to add the service to the quotation
-          // This would require a different approach - maybe redirect to edit form
-          alert(`Custom service "${newService.name}" created! Please edit the quotation to add it.`);
+          // Refresh custom services list
+          fetchCustomServices();
+          // Refresh the quotation data if callback is provided
+          if (onRefresh) {
+            onRefresh();
+          }
           setIsCustomServiceDialogOpen(false);
         }}
+        quotationId={quotation.id}
+        createdById={enhancedUser?.id}
       />
     </Card>
   );
-} 
+}

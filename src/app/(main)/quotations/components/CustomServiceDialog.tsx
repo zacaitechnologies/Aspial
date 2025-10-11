@@ -14,59 +14,72 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
-import { createService } from "../action";
-import type { Services } from "@prisma/client";
+import { createCustomService } from "../action";
+import type { CustomService } from "@prisma/client";
 
 interface CustomServiceDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onServiceCreated: (service: Services) => void;
+  onServiceCreated: (service: CustomService) => void;
+  quotationId?: number;
+  createdById?: string;
 }
 
 export default function CustomServiceDialog({
   isOpen,
   onOpenChange,
   onServiceCreated,
+  quotationId,
+  createdById,
 }: CustomServiceDialogProps) {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    basePrice: "",
+    price: "",
   });
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!formData.name.trim() || !formData.description.trim() || !formData.basePrice) {
+    // Validation
+    if (!formData.name.trim() || !formData.description.trim() || !formData.price) {
       alert("Please fill in all fields");
       return;
     }
 
-    const basePrice = parseFloat(formData.basePrice);
-    if (isNaN(basePrice) || basePrice < 0) {
+    const price = parseFloat(formData.price);
+    if (isNaN(price) || price < 0) {
       alert("Please enter a valid price");
+      return;
+    }
+
+    // Check if we have required data
+    if (!quotationId || !createdById) {
+      alert("Cannot create custom service: Missing quotation or user information");
       return;
     }
 
     setIsLoading(true);
     try {
-      const newService = await createService({
+      const newCustomService = await createCustomService({
         name: formData.name.trim(),
         description: formData.description.trim(),
-        basePrice: basePrice,
+        price: price,
+        quotationId: quotationId,
+        createdById: createdById,
       });
 
-      onServiceCreated(newService);
+      onServiceCreated(newCustomService);
       onOpenChange(false);
       
       // Reset form
       setFormData({
         name: "",
         description: "",
-        basePrice: "",
+        price: "",
       });
     } catch (error) {
-      console.error("Error creating service:", error);
-      alert("Failed to create service. Please try again.");
+      console.error("Error creating custom service:", error);
+      alert("Failed to create custom service. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +90,7 @@ export default function CustomServiceDialog({
     setFormData({
       name: "",
       description: "",
-      basePrice: "",
+      price: "",
     });
   };
 
@@ -117,15 +130,15 @@ export default function CustomServiceDialog({
           </div>
 
           <div>
-            <Label htmlFor="service-price">Base Price (RM)</Label>
+            <Label htmlFor="service-price">Price (RM)</Label>
             <Input
               id="service-price"
               type="number"
               placeholder="0.00"
               step="0.01"
               min="0"
-              value={formData.basePrice}
-              onChange={(e) => setFormData(prev => ({ ...prev, basePrice: e.target.value }))}
+              value={formData.price}
+              onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
             />
           </div>
         </div>
@@ -140,9 +153,9 @@ export default function CustomServiceDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={isLoading || !formData.name.trim() || !formData.description.trim() || !formData.basePrice}
+            disabled={isLoading || !formData.name.trim() || !formData.description.trim() || !formData.price}
           >
-            {isLoading ? "Creating..." : "Create Service"}
+            {isLoading ? "Submitting..." : "Submit Request"}
           </Button>
         </DialogFooter>
       </DialogContent>
