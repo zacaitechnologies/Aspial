@@ -44,6 +44,7 @@ export function MilestoneCard({
   onMilestoneDeleted,
 }: MilestoneCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this milestone?")) return;
@@ -111,7 +112,7 @@ export function MilestoneCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <Dialog>
+              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogTrigger asChild>
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                     <Edit className="h-4 w-4 mr-2" />
@@ -125,7 +126,11 @@ export function MilestoneCard({
                   <MilestoneForm
                     projectId={milestone.projectId}
                     milestone={milestone}
-                    onMilestoneUpdated={onMilestoneUpdated}
+                    onMilestoneUpdated={(updatedMilestone) => {
+                      onMilestoneUpdated?.(updatedMilestone);
+                      setIsEditDialogOpen(false);
+                    }}
+                    onCancel={() => setIsEditDialogOpen(false)}
                   />
                 </DialogContent>
               </Dialog>
