@@ -27,7 +27,7 @@ import {
   XCircle,
   Clock,
 } from "lucide-react";
-import { statusOptions } from "../types";
+import { workflowStatusOptions, paymentStatusOptions } from "../types";
 
 export default function QuotationDetailPage() {
   const params = useParams();
@@ -51,8 +51,17 @@ export default function QuotationDetailPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = statusOptions.find((opt) => opt.value === status);
+  const getWorkflowStatusBadge = (status: string) => {
+    const statusConfig = workflowStatusOptions.find((opt) => opt.value === status);
+    return (
+      <Badge variant={statusConfig?.color || "secondary"} className={statusConfig?.className}>
+        {statusConfig?.label || status}
+      </Badge>
+    );
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    const statusConfig = paymentStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge variant={statusConfig?.color || "secondary"} className={statusConfig?.className}>
         {statusConfig?.label || status}
@@ -88,22 +97,30 @@ export default function QuotationDetailPage() {
     }
   };
 
-  const calculateDiscountedTotal = () => {
-    if (!quotation) return 0;
-    const total = quotation.totalPrice;
-    if (!quotation.discountValue) return total;
-
-    if (quotation.discountType === "percentage") {
-      return total - (total * quotation.discountValue) / 100;
-    } else {
-      return total - quotation.discountValue;
-    }
+  const calculateApprovedCustomServicesMonthly = () => {
+    if (!quotation?.customServices) return 0;
+    return quotation.customServices
+      .filter((cs: any) => cs.status === "APPROVED")
+      .reduce((sum: number, cs: any) => sum + cs.price, 0);
   };
 
-  // Total price already includes duration multiplication from creation
-  // So we just return the discounted total
+  const calculateApprovedCustomServicesTotal = () => {
+    const monthly = calculateApprovedCustomServicesMonthly();
+    const duration = quotation?.duration || 1;
+    return monthly * duration;
+  };
+
   const calculateGrandTotal = () => {
-    return calculateDiscountedTotal();
+    // quotation.totalPrice is already the grand total for entire duration (fixed services)
+    const fixedServicesTotal = quotation?.totalPrice || 0;
+    const customServicesTotal = calculateApprovedCustomServicesTotal();
+    return fixedServicesTotal + customServicesTotal;
+  };
+
+  const calculateMonthlyFixedTotal = () => {
+    if (!quotation) return 0;
+    const duration = quotation.duration || 1;
+    return quotation.totalPrice / duration;
   };
 
   if (loading) {
@@ -149,7 +166,10 @@ export default function QuotationDetailPage() {
             <h1 className="text-3xl font-bold">{quotation.name}</h1>
             <p className="text-muted-foreground mt-2">{quotation.description}</p>
           </div>
-          {getStatusBadge(quotation.status)}
+          <div className="flex gap-2">
+            {getWorkflowStatusBadge(quotation.workflowStatus)}
+            {getPaymentStatusBadge(quotation.paymentStatus)}
+          </div>
         </div>
       </div>
 
@@ -268,9 +288,16 @@ export default function QuotationDetailPage() {
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-2 ml-4">
-                          <Badge variant="outline" className="text-base">
-                            RM{cs.price.toFixed(2)}
-                          </Badge>
+                          <div className="text-right">
+                            <Badge variant="outline" className="text-base">
+                              RM{cs.price.toFixed(2)}/month
+                            </Badge>
+                            {quotation.duration && quotation.duration > 1 && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Total: RM{(cs.price * quotation.duration).toFixed(2)} ({quotation.duration} months)
+                              </p>
+                            )}
+                          </div>
                           {getCustomServiceStatusBadge(cs.status)}
                         </div>
                       </div>
@@ -284,10 +311,10 @@ export default function QuotationDetailPage() {
                             Approval Comment:
                           </p>
                           <p className="text-sm">{cs.approvalComment}</p>
-                          {cs.approvedBy && (
+                          {cs.reviewedBy && (
                             <p className="text-xs text-muted-foreground mt-2">
-                              Approved by: {cs.approvedBy.firstName}{" "}
-                              {cs.approvedBy.lastName}
+                              Approved by: {cs.reviewedBy.firstName}{" "}
+                              {cs.reviewedBy.lastName}
                             </p>
                           )}
                         </div>
@@ -301,10 +328,10 @@ export default function QuotationDetailPage() {
                             Rejection Reason:
                           </p>
                           <p className="text-sm text-red-900">{cs.rejectionComment}</p>
-                          {cs.approvedBy && (
+                          {cs.reviewedBy && (
                             <p className="text-xs text-red-700 mt-2">
-                              Rejected by: {cs.approvedBy.firstName}{" "}
-                              {cs.approvedBy.lastName}
+                              Rejected by: {cs.reviewedBy.firstName}{" "}
+                              {cs.reviewedBy.lastName}
                             </p>
                           )}
                         </div>
@@ -329,41 +356,62 @@ export default function QuotationDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal:</span>
+                <span className="text-muted-foreground">Fixed Services (per month):</span>
                 <span className="font-semibold">
-                  RM{quotation.totalPrice.toFixed(2)}
-                </span>
-              </div>
-
-              {quotation.discountValue && (
-                <div className="flex justify-between text-green-600">
-                  <span>
-                    Discount ({quotation.discountValue}
-                    {quotation.discountType === "percentage" ? "%" : " RM"}):
-                  </span>
-                  <span className="font-semibold">
-                    -RM
-                    {quotation.discountType === "percentage"
-                      ? ((quotation.totalPrice * quotation.discountValue) / 100).toFixed(2)
-                      : quotation.discountValue.toFixed(2)}
-                  </span>
-                </div>
-              )}
-
-              <Separator />
-
-              <div className="flex justify-between text-lg">
-                <span className="font-semibold">Grand Total:</span>
-                <span className="font-bold text-blue-600">
-                  RM{calculateGrandTotal().toFixed(2)}
+                  RM{calculateMonthlyFixedTotal().toFixed(2)}
                 </span>
               </div>
 
               {quotation.duration && quotation.duration > 1 && (
-                <div className="text-xs text-muted-foreground text-center">
-                  (Includes {quotation.duration} months duration)
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Fixed Services ({quotation.duration} months):
+                  </span>
+                  <span className="font-semibold">
+                    RM{quotation.totalPrice.toFixed(2)}
+                  </span>
                 </div>
               )}
+
+              {calculateApprovedCustomServicesMonthly() > 0 && (
+                <>
+                  <Separator />
+                  <div className="flex justify-between text-green-600">
+                    <span className="font-semibold">Custom Services (per month):</span>
+                    <span className="font-bold">
+                      RM{calculateApprovedCustomServicesMonthly().toFixed(2)}
+                    </span>
+                  </div>
+                  {quotation.duration && quotation.duration > 1 && (
+                    <div className="flex justify-between text-green-600">
+                      <span className="font-semibold">
+                        Custom Services ({quotation.duration} months):
+                      </span>
+                      <span className="font-bold">
+                        RM{calculateApprovedCustomServicesTotal().toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <Separator />
+
+              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">
+                    Grand Total{quotation.duration && quotation.duration > 1 ? ` (${quotation.duration} months)` : ''}:
+                  </p>
+                  {quotation.duration && quotation.duration > 1 && (
+                    <p className="text-xs text-blue-600">
+                      {quotation.totalPrice.toFixed(2)} + {calculateApprovedCustomServicesTotal().toFixed(2)}
+                    </p>
+                  )}
+                </div>
+                <span className="text-2xl font-bold text-blue-800">
+                  RM{calculateGrandTotal().toFixed(2)}
+                </span>
+              </div>
             </CardContent>
           </Card>
 
@@ -415,7 +463,7 @@ export default function QuotationDetailPage() {
           </Card>
 
           {/* Project Link */}
-          {quotation.project && (
+          {quotation.project && quotation.project.status !== "cancelled" && (
             <Card className="border-green-200 bg-green-50">
               <CardHeader>
                 <CardTitle className="text-sm">Linked Project</CardTitle>
@@ -429,6 +477,32 @@ export default function QuotationDetailPage() {
                   onClick={() => router.push(`/projects/${quotation.project.id}`)}
                 >
                   View Project
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Cancelled Project Warning */}
+          {quotation.project && quotation.project.status === "cancelled" && (
+            <Card className="border-red-200 bg-red-50">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2 text-red-800">
+                  <AlertCircle className="w-4 h-4" />
+                  Project Cancelled
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-medium text-red-800">{quotation.project.name}</p>
+                <p className="text-sm text-red-600 mt-2">
+                  The project linked to this quotation has been cancelled.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full border-red-300 text-red-700 hover:bg-red-100"
+                  onClick={() => router.push(`/projects/${quotation.project.id}`)}
+                >
+                  View Project Details
                 </Button>
               </CardContent>
             </Card>

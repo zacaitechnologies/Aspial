@@ -3,6 +3,11 @@
 import { prisma } from "@/lib/prisma"
 
 export async function isUserAdmin(userSupabaseId: string) {
+  // Check if userSupabaseId is valid
+  if (!userSupabaseId || userSupabaseId.trim() === '') {
+    return false
+  }
+
   const userWithRoles = await prisma.user.findUnique({
     where: { supabase_id: userSupabaseId },
     include: { userRoles: { include: { role: true } } },

@@ -22,7 +22,7 @@ import {
   Plus,
   Info,
 } from "lucide-react";
-import { QuotationWithServices, statusOptions, paymentStatusOptions } from "../types";
+import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
 import {
   getClientById,
@@ -72,8 +72,8 @@ export default function QuotationCard({
       console.error("Failed to fetch custom services:", error);
     }
   };
-  const getStatusBadge = (status: string) => {
-    const statusConfig = statusOptions.find((opt) => opt.value === status);
+  const getWorkflowStatusBadge = (status: string) => {
+    const statusConfig = workflowStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge
         variant={statusConfig?.color || "secondary"}
@@ -84,19 +84,36 @@ export default function QuotationCard({
     );
   };
 
-  const getPaymentStatusBadge = (paymentStatus: string) => {
-    const statusConfig = paymentStatusOptions.find((opt) => opt.value === paymentStatus);
+  const getPaymentStatusBadge = (status: string) => {
+    const statusConfig = paymentStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge
         variant={statusConfig?.color || "secondary"}
         className={statusConfig?.className}
       >
-        {statusConfig?.label || paymentStatus}
+        {statusConfig?.label || status}
       </Badge>
     );
   };
 
+  // Calculate grand total including approved custom services
+  const calculateGrandTotal = () => {
+    // quotation.totalPrice is already the grand total for entire duration (fixed services)
+    const fixedServicesTotal = quotation.totalPrice;
+    
+    // Custom services prices are per month, so multiply by duration
+    const customServicesMonthly = customServices
+      .filter((cs) => cs.status === "APPROVED")
+      .reduce((sum, cs) => sum + cs.price, 0);
+    
+    const duration = quotation.duration || 1;
+    const customServicesTotal = customServicesMonthly * duration;
+    
+    return fixedServicesTotal + customServicesTotal;
+  };
+
   const hasProject = quotation.project !== null;
+  const isProjectCancelled = quotation.project?.status === "cancelled";
 
   const handleDelete = () => {
     if (hasProject) {
@@ -200,17 +217,23 @@ export default function QuotationCard({
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="text-lg">{quotation.name}</CardTitle>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {getStatusBadge(quotation.status)}
+            <div className="flex items-center gap-2 mt-1">
+              {getWorkflowStatusBadge(quotation.workflowStatus)}
               {getPaymentStatusBadge(quotation.paymentStatus)}
-              {hasProject && (
+              {hasProject && !isProjectCancelled && (
                 <Badge variant="default" className="bg-green-600">
                   <Briefcase className="w-3 h-3 mr-1" />
                   Project Created
                 </Badge>
               )}
+              {isProjectCancelled && (
+                <Badge variant="destructive" className="bg-red-600">
+                  <AlertTriangle className="w-3 h-3 mr-1" />
+                  Project Cancelled
+                </Badge>
+              )}
               <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                Grand Total: RM{quotation.totalPrice.toFixed(2)}
+                Grand Total: RM{calculateGrandTotal().toFixed(2)}
               </Badge>
             </div>
           </div>
@@ -233,8 +256,8 @@ export default function QuotationCard({
             >
               <Plus className="w-4 h-4" />
             </Button>
-            {/* Create Project Button - Show for accepted or paid quotations without existing project */}
-            {(quotation.status === "accepted" || quotation.status === "paid") &&
+            {/* Create Project Button - Show for accepted or final quotations without existing project */}
+            {(quotation.workflowStatus === "accepted" || quotation.workflowStatus === "final") &&
               !hasProject && (
                 <Button
                   variant="ghost"

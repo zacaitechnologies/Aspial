@@ -5,7 +5,7 @@ export type QuotationWithServices = {
   name: string;
   description: string;
   totalPrice: number;
-  status: string;
+  workflowStatus: string;
   paymentStatus: string;
   discountValue?: number;
   discountType?: "percentage" | "fixed";
@@ -87,8 +87,8 @@ export type EditFormData = {
   name: string;
   description: string;
   totalPrice: string;
-  status: string;
-  paymentStatus: string;
+  workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected";
+  paymentStatus: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid";
   discountValue: string;
   discountType: "percentage" | "fixed";
   duration: string;
@@ -115,16 +115,20 @@ export type EditFormData = {
   };
 };
 
-export const statusOptions = [
-  { value: "draft", label: "Draft", color: "default" as const, className: "bg-gray-100 text-gray-800" },
-  { value: "in_review", label: "In Review", color: "default" as const, className: "bg-blue-100 text-blue-800" },
+export const workflowStatusOptions = [
+  { value: "draft", label: "Draft", color: "default" as const, className: "bg-gray-200 text-gray-800" },
+  { value: "in_review", label: "In Review", color: "default" as const, className: "bg-blue-500 text-white" },
+  { value: "final", label: "Final", color: "default" as const, className: "bg-purple-600 text-white" },
   { value: "accepted", label: "Accepted", color: "default" as const, className: "bg-green-600 text-white hover:bg-green-700" },
-  { value: "rejected", label: "Rejected", color: "destructive" as const, className: "bg-red-600 text-white" },
+  { value: "rejected", label: "Rejected", color: "destructive" as const, className: "" },
 ] as const;
 
 export const paymentStatusOptions = [
-  { value: "unpaid", label: "Unpaid", color: "destructive" as const, className: "bg-red-100 text-red-800" },
-  { value: "partially_paid", label: "Partially Paid", color: "secondary" as const, className: "bg-yellow-100 text-yellow-800" },
-  { value: "deposit_paid", label: "Deposit Paid", color: "secondary" as const, className: "bg-orange-100 text-orange-800" },
-  { value: "fully_paid", label: "Fully Paid", color: "default" as const, className: "bg-green-100 text-green-800" },
-] as const; 
+  { value: "unpaid", label: "Unpaid", color: "destructive" as const, className: "" },
+  { value: "partially_paid", label: "Partially Paid", color: "secondary" as const, className: "bg-yellow-500 text-white" },
+  { value: "deposit_paid", label: "Deposit Paid", color: "default" as const, className: "bg-orange-500 text-white" },
+  { value: "fully_paid", label: "Fully Paid", color: "default" as const, className: "bg-green-600 text-white" },
+] as const;
+
+// Backwards compatibility - use workflow status
+export const statusOptions = workflowStatusOptions; 

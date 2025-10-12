@@ -21,7 +21,7 @@ export async function getAllQuotations(userId?: string) {
 }
 
 export async function getQuotationById(id: string) {
-  return await prisma.quotation.findUnique({
+  const quotation = await prisma.quotation.findUnique({
     where: { id: parseInt(id) },
     include: {
       services: {
@@ -38,7 +38,7 @@ export async function getQuotationById(id: string) {
               email: true,
             },
           },
-          approvedBy: {
+          reviewedBy: {
             select: {
               firstName: true,
               lastName: true,
@@ -56,7 +56,24 @@ export async function getQuotationById(id: string) {
       },
       Client: true,
     },
-  })
+  });
+
+  // If quotation is in_review and no pending custom services, change to final
+  if (quotation && quotation.workflowStatus === "in_review") {
+    const hasPendingCustomServices = quotation.customServices.some(
+      (cs) => cs.status === "PENDING"
+    );
+
+    if (!hasPendingCustomServices) {
+      await prisma.quotation.update({
+        where: { id: parseInt(id) },
+        data: { workflowStatus: "final" },
+      });
+      quotation.workflowStatus = "final";
+    }
+  }
+
+  return quotation;
 }
 
 export async function createQuotation(data: {
@@ -65,7 +82,7 @@ export async function createQuotation(data: {
   totalPrice: number
   serviceIds: string[]
   createdById: string
-  status?: "draft" | "in_review" | "accepted" | "rejected"
+  workflowStatus?: "draft" | "in_review" | "final" | "accepted" | "rejected"
   paymentStatus?: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"
   discountValue?: number
   discountType?: "percentage" | "fixed"
@@ -125,8 +142,8 @@ export async function createQuotation(data: {
         description: data.description,
         totalPrice: data.totalPrice,
         createdById: data.createdById,
-        status: data.status || "draft",
-        paymentStatus: data.paymentStatus || "unpaid",
+        workflowStatus: data.workflowStatus || "draft", // Default to draft, user sets to final when ready
+        paymentStatus: data.paymentStatus || "unpaid", // Default to unpaid
         clientId: finalClientId,
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
@@ -161,8 +178,8 @@ export async function editQuotationById(
     name: string
     description: string
     totalPrice: number
-    status: any
-    paymentStatus?: string
+    workflowStatus?: "draft" | "in_review" | "final" | "accepted" | "rejected"
+    paymentStatus?: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"
     discountValue?: number
     discountType?: "percentage" | "fixed"
     serviceIds?: string[]
@@ -235,8 +252,8 @@ export async function editQuotationById(
         name: data.name,
         description: data.description,
         totalPrice: data.totalPrice,
-        status: data.status,
-        paymentStatus: data.paymentStatus as any,
+        workflowStatus: data.workflowStatus,
+        paymentStatus: data.paymentStatus,
         clientId: finalClientId,
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
@@ -429,15 +446,26 @@ export async function createCustomService(data: {
   createdById: string;
   quotationId: number;
 }) {
-  return await prisma.customService.create({
-    data: {
-      name: data.name,
-      description: data.description,
-      price: data.price,
-      createdById: data.createdById,
-      quotationId: data.quotationId,
-      status: "PENDING",
-    },
+  return await prisma.$transaction(async (tx) => {
+    // Create the custom service
+    const customService = await tx.customService.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        createdById: data.createdById,
+        quotationId: data.quotationId,
+        status: "PENDING",
+      },
+    });
+
+    // Update quotation workflow status to in_review
+    await tx.quotation.update({
+      where: { id: data.quotationId },
+      data: { workflowStatus: "in_review" },
+    });
+
+    return customService;
   });
 }
 
@@ -455,7 +483,7 @@ export async function getCustomServicesByQuotationId(quotationId: number) {
           email: true,
         },
       },
-      approvedBy: {
+      reviewedBy: {
         select: {
           firstName: true,
           lastName: true,
@@ -482,7 +510,7 @@ export async function getAllPendingCustomServices() {
           email: true,
         },
       },
-      approvedBy: {
+      reviewedBy: {
         select: {
           firstName: true,
           lastName: true,
@@ -518,7 +546,7 @@ export async function getAllCustomServices() {
           email: true,
         },
       },
-      approvedBy: {
+      reviewedBy: {
         select: {
           firstName: true,
           lastName: true,
@@ -546,35 +574,91 @@ export async function getAllCustomServices() {
 // Approve custom service
 export async function approveCustomService(
   customServiceId: string,
-  approvedById: string,
+  reviewedById: string,
   approvalComment?: string
 ) {
-  return await prisma.customService.update({
-    where: { id: customServiceId },
-    data: {
-      status: "APPROVED",
-      approvedById: approvedById,
-      approvalComment: approvalComment || null,
-    },
+  return await prisma.$transaction(async (tx) => {
+    // Update custom service
+    const customService = await tx.customService.update({
+      where: { id: customServiceId },
+      data: {
+        status: "APPROVED",
+        reviewedById: reviewedById,
+        approvalComment: approvalComment || null,
+      },
+    });
+
+    // Check if there are any remaining pending custom services for this quotation
+    const pendingCount = await tx.customService.count({
+      where: {
+        quotationId: customService.quotationId,
+        status: "PENDING",
+      },
+    });
+
+    // If no pending custom services and quotation is in_review, change to final
+    if (pendingCount === 0) {
+      const quotation = await tx.quotation.findUnique({
+        where: { id: customService.quotationId },
+        select: { workflowStatus: true },
+      });
+
+      if (quotation?.workflowStatus === "in_review") {
+        await tx.quotation.update({
+          where: { id: customService.quotationId },
+          data: { workflowStatus: "final" },
+        });
+      }
+    }
+
+    return customService;
   });
 }
 
 // Reject custom service
 export async function rejectCustomService(
   customServiceId: string,
-  approvedById: string,
+  reviewedById: string,
   rejectionComment: string
 ) {
   if (!rejectionComment.trim()) {
     throw new Error("Rejection comment is required");
   }
   
-  return await prisma.customService.update({
-    where: { id: customServiceId },
-    data: {
-      status: "REJECTED",
-      approvedById: approvedById,
-      rejectionComment: rejectionComment,
-    },
+  return await prisma.$transaction(async (tx) => {
+    // Update custom service
+    const customService = await tx.customService.update({
+      where: { id: customServiceId },
+      data: {
+        status: "REJECTED",
+        reviewedById: reviewedById,
+        rejectionComment: rejectionComment,
+      },
+    });
+
+    // Check if there are any remaining pending custom services for this quotation
+    const pendingCount = await tx.customService.count({
+      where: {
+        quotationId: customService.quotationId,
+        status: "PENDING",
+      },
+    });
+
+    // If no pending custom services and quotation is in_review, change to final
+    if (pendingCount === 0) {
+      const quotation = await tx.quotation.findUnique({
+        where: { id: customService.quotationId },
+        select: { workflowStatus: true },
+      });
+
+      if (quotation?.workflowStatus === "in_review") {
+        await tx.quotation.update({
+          where: { id: customService.quotationId },
+          data: { workflowStatus: "final" },
+        });
+      }
+    }
+
+    return customService;
   });
 } 

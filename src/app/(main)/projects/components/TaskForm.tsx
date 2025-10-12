@@ -19,7 +19,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -94,7 +93,7 @@ const MilestoneField = ({ form, availableMilestones }: { form: any; availableMil
     name="milestoneId"
     render={({ field }) => (
       <FormItem>
-        <FormLabel>Milestone (Optional)</FormLabel>
+        <FormLabel>Milestone</FormLabel>
         <Select onValueChange={field.onChange} defaultValue={field.value || "none"}>
           <FormControl>
             <SelectTrigger>
@@ -222,7 +221,6 @@ const DateFields = ({ form }: { form: any }) => (
   </>
 );
 
-
 // Main form content component
 const TaskFormContent = ({ 
   form, 
@@ -310,6 +308,14 @@ export function TaskForm({
     }
 
     setIsSubmitting(true);
+    
+    if (!enhancedUser?.id) {
+      console.error("User not authenticated");
+      alert("You must be logged in to create tasks");
+      setIsSubmitting(false);
+      return;
+    }
+    
     try {
       const taskData = {
         ...data,
@@ -338,7 +344,6 @@ export function TaskForm({
       setIsSubmitting(false);
     }
   };
-
 
   // If editing a task, show the form directly without dialog
   if (task) {

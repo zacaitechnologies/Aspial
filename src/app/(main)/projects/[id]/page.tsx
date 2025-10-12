@@ -38,6 +38,9 @@ export default function ProjectPage() {
     "createDate"
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  
+  // Check if project is cancelled
+  const isProjectCancelled = project?.status === "cancelled";
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -132,6 +135,22 @@ export default function ProjectPage() {
   return (
     <div className="min-h-screen">
       <div className="p-6">
+        {/* Cancelled Project Warning */}
+        {isProjectCancelled && (
+          <Card className="mb-6 border-red-500 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Badge variant="destructive" className="text-lg px-4 py-2">
+                  Project Cancelled
+                </Badge>
+                <p className="text-red-800 font-medium">
+                  This project has been cancelled. All actions are disabled and no modifications can be made.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
         {/* Tab Navigation */}
         <div className="flex gap-4 border-b border-border mb-6">
           <button
@@ -233,7 +252,7 @@ export default function ProjectPage() {
                     })}
                   </div>
 
-                  {isProjectOwner && (
+                  {isProjectOwner && !isProjectCancelled && (
                     <Button
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                       onClick={handleManageCollaborators}
@@ -241,6 +260,13 @@ export default function ProjectPage() {
                       <Plus className="w-4 h-4 mr-2" />
                       Add people
                     </Button>
+                  )}
+                  {isProjectCancelled && (
+                    <div className="w-full p-3 bg-red-100 border border-red-300 rounded-md text-center">
+                      <p className="text-sm text-red-800 font-medium">
+                        Project is cancelled - Actions disabled
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -529,6 +555,7 @@ export default function ProjectPage() {
             sortOrder={sortOrder}
             onSortByChange={setSortBy}
             onSortOrderChange={setSortOrder}
+            isProjectCancelled={isProjectCancelled}
           />
         )}
       </div>
