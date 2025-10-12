@@ -83,7 +83,7 @@ export async function getEmployeeSalesData(userId: string): Promise<EmployeeSale
     const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59)
 
     // Fetch all quotations created by this user in the current year
-    // Only count accepted quotations with payment status (partially_paid, deposit_paid, fully_paid)
+    // Only count final/accepted quotations with payment status (partially_paid, deposit_paid, fully_paid)
     const quotations = await prisma.quotation.findMany({
       where: {
         createdById: user.supabase_id,
@@ -91,7 +91,9 @@ export async function getEmployeeSalesData(userId: string): Promise<EmployeeSale
           gte: startOfYear,
           lte: endOfYear,
         },
-        status: "accepted",
+        workflowStatus: {
+          in: ["final", "accepted"],
+        },
         paymentStatus: {
           in: ["partially_paid", "deposit_paid", "fully_paid"],
         },
@@ -100,7 +102,7 @@ export async function getEmployeeSalesData(userId: string): Promise<EmployeeSale
         id: true,
         totalPrice: true,
         created_at: true,
-        status: true,
+        workflowStatus: true,
       },
       orderBy: {
         created_at: "asc",

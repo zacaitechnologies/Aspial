@@ -181,7 +181,7 @@ export type Milestone = {
     name: string;
     description: string;
     basePrice: number;
-  };
+  } | null;
 };
 
 export type MilestoneStatus = "not_started" | "in_progress" | "completed";

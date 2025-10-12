@@ -2,17 +2,31 @@
 
 import { prisma } from "@/lib/prisma"
 
+// Helper function to transform Prisma service data to include tags
+function transformService(service: any) {
+  return {
+    ...service,
+    tags: service.ServiceToTag?.map((st: any) => st.service_tags) || []
+  }
+}
+
 export async function getAllServices() {
-  return await prisma.services.findMany({
+  const services = await prisma.services.findMany({
     orderBy: { created_at: "desc" },
     include: {
-      tags: true
+      ServiceToTag: {
+        include: {
+          service_tags: true
+        }
+      }
     }
   })
+  
+  return services.map(transformService)
 }
 
 export async function searchServices(query: string) {
-  return await prisma.services.findMany({
+  const services = await prisma.services.findMany({
     where: {
       OR: [
         { name: { contains: query, mode: "insensitive" } },
@@ -21,9 +35,15 @@ export async function searchServices(query: string) {
     },
     orderBy: { created_at: "desc" },
     include: {
-      tags: true
+      ServiceToTag: {
+        include: {
+          service_tags: true
+        }
+      }
     }
   })
+  
+  return services.map(transformService)
 }
 
 export async function addService(data: {

@@ -73,7 +73,7 @@ async function userMain() {
   await prisma.quotation.deleteMany({});
   await prisma.project.deleteMany({});
   await prisma.client.deleteMany({});
-  await prisma.complaints.deleteMany({});
+  await prisma.complaint.deleteMany({});
   await prisma.booking.deleteMany({});
   await prisma.studioBooking.deleteMany({});
   
