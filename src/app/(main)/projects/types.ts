@@ -88,7 +88,7 @@ export type CreateProjectData = {
 export type UpdateProjectData = {
   name: string;
   description?: string;
-  status: string;
+  status: "planning" | "in_progress" | "on_hold" | "completed" | "cancelled";
   startDate?: Date;
   endDate?: Date;
 };

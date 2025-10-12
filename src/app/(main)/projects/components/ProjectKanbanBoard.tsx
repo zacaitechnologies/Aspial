@@ -32,6 +32,7 @@ interface KanbanBoardProps {
   sortOrder?: "asc" | "desc";
   onSortByChange?: (sortBy: "dueDate" | "createDate" | "priority") => void;
   onSortOrderChange?: (sortOrder: "asc" | "desc") => void;
+  isProjectCancelled?: boolean;
 }
 
 export function KanbanBoard({
@@ -40,6 +41,7 @@ export function KanbanBoard({
   sortOrder = "desc",
   onSortByChange,
   onSortOrderChange,
+  isProjectCancelled = false,
 }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TaskWithAssignee[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -185,29 +187,38 @@ export function KanbanBoard({
       {/* Tasks Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <TaskForm
-            projectId={parseInt(projectId)}
-            availableUsers={users}
-            availableMilestones={milestones}
-            onTaskCreated={handleTaskCreated}
-            trigger={
-              <Button className="bg-secondary hover:bg-secondary/90 text-secondary-foreground">
-                <Plus className="w-4 h-4 mr-2" />
-                Create New Task
-              </Button>
-            }
-          />
+          {!isProjectCancelled && (
+            <>
+              <TaskForm
+                projectId={parseInt(projectId)}
+                availableUsers={users}
+                availableMilestones={milestones}
+                onTaskCreated={handleTaskCreated}
+                trigger={
+                  <Button className="bg-secondary hover:bg-secondary/90 text-secondary-foreground">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create New Task
+                  </Button>
+                }
+              />
 
-          <MilestoneForm
-            projectId={parseInt(projectId)}
-            onMilestoneCreated={handleMilestoneCreated}
-            trigger={
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                <Target className="w-4 h-4 mr-2" />
-                Add Milestone
-              </Button>
-            }
-          />
+              <MilestoneForm
+                projectId={parseInt(projectId)}
+                onMilestoneCreated={handleMilestoneCreated}
+                trigger={
+                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    <Target className="w-4 h-4 mr-2" />
+                    Add Milestone
+                  </Button>
+                }
+              />
+            </>
+          )}
+          {isProjectCancelled && (
+            <Badge variant="destructive" className="text-base px-4 py-2">
+              Project Cancelled - Task creation disabled
+            </Badge>
+          )}
         </div>
       </div>
 

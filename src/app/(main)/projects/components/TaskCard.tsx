@@ -43,6 +43,7 @@ interface TaskCardProps {
   onTaskUpdated?: (task: TaskWithAssignee) => void;
   onTaskDeleted?: (taskId: number) => void;
   onDragStart?: (e: React.DragEvent) => void;
+  isProjectCancelled?: boolean;
 }
 
 export function TaskCard({
@@ -52,6 +53,7 @@ export function TaskCard({
   onTaskUpdated,
   onTaskDeleted,
   onDragStart,
+  isProjectCancelled = false,
 }: TaskCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -94,43 +96,49 @@ export function TaskCard({
               </p>
             )}
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Task
-                  </DropdownMenuItem>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Edit Task</DialogTitle>
-                  </DialogHeader>
-                  <TaskForm
-                    projectId={task.projectId}
-                    task={task}
-                    availableUsers={availableUsers}
-                    availableMilestones={availableMilestones}
-                    onTaskUpdated={onTaskUpdated}
-                  />
-                </DialogContent>
-              </Dialog>
-              <DropdownMenuItem
-                onSelect={handleDelete}
-                disabled={isDeleting}
-                className="text-red-600"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                {isDeleting ? "Deleting..." : "Delete"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!isProjectCancelled ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Task
+                    </DropdownMenuItem>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Edit Task</DialogTitle>
+                    </DialogHeader>
+                    <TaskForm
+                      projectId={task.projectId}
+                      task={task}
+                      availableUsers={availableUsers}
+                      availableMilestones={availableMilestones}
+                      onTaskUpdated={onTaskUpdated}
+                    />
+                  </DialogContent>
+                </Dialog>
+                <DropdownMenuItem
+                  onSelect={handleDelete}
+                  disabled={isDeleting}
+                  className="text-red-600"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Badge variant="outline" className="text-red-600 border-red-300">
+              Read-only
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent className="pt-0 space-y-3">
