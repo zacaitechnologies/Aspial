@@ -22,7 +22,7 @@ import {
   Plus,
   Info,
 } from "lucide-react";
-import { QuotationWithServices, statusOptions } from "../types";
+import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
 import {
   getClientById,
@@ -72,8 +72,20 @@ export default function QuotationCard({
       console.error("Failed to fetch custom services:", error);
     }
   };
-  const getStatusBadge = (status: string) => {
-    const statusConfig = statusOptions.find((opt) => opt.value === status);
+  const getWorkflowStatusBadge = (status: string) => {
+    const statusConfig = workflowStatusOptions.find((opt) => opt.value === status);
+    return (
+      <Badge
+        variant={statusConfig?.color || "secondary"}
+        className={statusConfig?.className}
+      >
+        {statusConfig?.label || status}
+      </Badge>
+    );
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    const statusConfig = paymentStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge
         variant={statusConfig?.color || "secondary"}
@@ -85,6 +97,7 @@ export default function QuotationCard({
   };
 
   const hasProject = quotation.project !== null;
+  const isProjectCancelled = quotation.project?.status === "cancelled";
 
   const handleDelete = () => {
     if (hasProject) {
@@ -189,11 +202,18 @@ export default function QuotationCard({
           <div>
             <CardTitle className="text-lg">{quotation.name}</CardTitle>
             <div className="flex items-center gap-2 mt-1">
-              {getStatusBadge(quotation.status)}
-              {hasProject && (
+              {getWorkflowStatusBadge(quotation.workflowStatus)}
+              {getPaymentStatusBadge(quotation.paymentStatus)}
+              {hasProject && !isProjectCancelled && (
                 <Badge variant="default" className="bg-green-600">
                   <Briefcase className="w-3 h-3 mr-1" />
                   Project Created
+                </Badge>
+              )}
+              {isProjectCancelled && (
+                <Badge variant="destructive" className="bg-red-600">
+                  <AlertTriangle className="w-3 h-3 mr-1" />
+                  Project Cancelled
                 </Badge>
               )}
               <Badge variant="secondary" className="bg-blue-100 text-blue-800">
@@ -220,8 +240,8 @@ export default function QuotationCard({
             >
               <Plus className="w-4 h-4" />
             </Button>
-            {/* Create Project Button - Show for accepted or paid quotations without existing project */}
-            {(quotation.status === "accepted" || quotation.status === "paid") &&
+            {/* Create Project Button - Show for accepted or final quotations without existing project */}
+            {(quotation.workflowStatus === "accepted" || quotation.workflowStatus === "final") &&
               !hasProject && (
                 <Button
                   variant="ghost"

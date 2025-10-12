@@ -194,7 +194,7 @@ export default function CreateQuotationForm({
     }));
   };
 
-  const handleCreateQuotation = async (status: "draft" | "accepted" = "accepted") => {
+  const handleCreateQuotation = async (workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" = "accepted") => {
     // Debug logging to help identify the issue
     console.log("Form validation check:", {
       name: quotationForm.name,
@@ -247,7 +247,8 @@ export default function CreateQuotationForm({
         totalPrice: grandTotal, // Store grand total in totalPrice
         serviceIds: selectedServiceIds,
         createdById: enhancedUser.id,
-        status: status, // Add status parameter
+        workflowStatus: workflowStatus, // Add workflow status parameter
+        paymentStatus: "unpaid", // Default to unpaid for new quotations
         clientId:
           clientMode === "existing" ? quotationForm.clientId : undefined,
         newClient: clientMode === "new" ? quotationForm.newClient : undefined,

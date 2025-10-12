@@ -25,7 +25,7 @@ import { getAllServices } from "../../services/action";
 import { getAllProjects } from "../../projects/action";
 import { useSession } from "../../contexts/SessionProvider";
 import type { Services } from "@prisma/client";
-import { QuotationWithServices, EditFormData, statusOptions } from "../types";
+import { QuotationWithServices, EditFormData, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
@@ -60,7 +60,8 @@ export default function EditQuotationForm({
     name: "",
     description: "",
     totalPrice: "",
-    status: "",
+    workflowStatus: "",
+    paymentStatus: "",
     discountValue: "",
     discountType: "percentage",
     duration: "",
@@ -90,7 +91,8 @@ export default function EditQuotationForm({
         name: editingQuotation.name,
         description: editingQuotation.description,
         totalPrice: editingQuotation.totalPrice.toString(),
-        status: editingQuotation.status,
+        workflowStatus: editingQuotation.workflowStatus,
+        paymentStatus: editingQuotation.paymentStatus,
         discountValue: editingQuotation.discountValue?.toString() || "",
         discountType: editingQuotation.discountType || "percentage",
         duration: editingQuotation.duration?.toString() || "",
@@ -222,7 +224,7 @@ export default function EditQuotationForm({
     return endDate.toLocaleDateString("en-GB");
   };
 
-  const handleUpdateQuotation = async (status?: string) => {
+  const handleUpdateQuotation = async (workflowStatus?: string) => {
     if (!editingQuotation) return;
 
     if (!editForm.name || !editForm.description) {
@@ -245,22 +247,6 @@ export default function EditQuotationForm({
       }
     }
 
-    const validStatuses = [
-      "draft",
-      "sent",
-      "accepted",
-      "rejected",
-      "paid",
-      "unpaid",
-      "partially_paid",
-      "deposit_paid",
-    ] as const;
-
-    if (!validStatuses.includes(editForm.status as any)) {
-      alert("Please select a valid status.");
-      return;
-    }
-
     try {
       // Calculate grand total (monthly price × duration)
       const grandTotal = editForm.duration
@@ -271,15 +257,8 @@ export default function EditQuotationForm({
         name: editForm.name,
         description: editForm.description,
         totalPrice: grandTotal, // Store grand total in totalPrice
-        status: (status || editForm.status) as
-          | "draft"
-          | "sent"
-          | "accepted"
-          | "rejected"
-          | "paid"
-          | "unpaid"
-          | "partially_paid"
-          | "deposit_paid",
+        workflowStatus: workflowStatus || editForm.workflowStatus,
+        paymentStatus: editForm.paymentStatus,
         clientId: clientMode === "existing" ? editForm.clientId : undefined,
         newClient: clientMode === "new" ? editForm.newClient : undefined,
         discountValue: editForm.discountValue
@@ -525,18 +504,38 @@ export default function EditQuotationForm({
             /> */}
 
             <div className="grid gap-2">
-              <Label htmlFor="edit-status">Status</Label>
+              <Label htmlFor="edit-workflowStatus">Workflow Status</Label>
               <Select
-                value={editForm.status}
+                value={editForm.workflowStatus}
                 onValueChange={(value) =>
-                  setEditForm((prev) => ({ ...prev, status: value }))
+                  setEditForm((prev) => ({ ...prev, workflowStatus: value }))
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
+                  <SelectValue placeholder="Select workflow status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {statusOptions.map((option) => (
+                  {workflowStatusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-paymentStatus">Payment Status</Label>
+              <Select
+                value={editForm.paymentStatus}
+                onValueChange={(value) =>
+                  setEditForm((prev) => ({ ...prev, paymentStatus: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentStatusOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -659,7 +658,7 @@ export default function EditQuotationForm({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            {editForm.status === "draft" && (
+            {editForm.workflowStatus === "draft" && (
               <Button
                 variant="secondary"
                 onClick={() => handleUpdateQuotation("draft")}
@@ -667,13 +666,13 @@ export default function EditQuotationForm({
                 Save as Draft
               </Button>
             )}
-            {editForm.status === "draft" && (
+            {editForm.workflowStatus === "draft" && (
               <Button onClick={() => handleUpdateQuotation("accepted")}>
                 Create Quotation
               </Button>
             )}
-            {editForm.status !== "draft" && (
-              <Button onClick={() => handleUpdateQuotation(editForm.status)}>
+            {editForm.workflowStatus !== "draft" && (
+              <Button onClick={() => handleUpdateQuotation(editForm.workflowStatus)}>
                 Update Quotation
               </Button>
             )}

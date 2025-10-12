@@ -27,7 +27,7 @@ import {
   XCircle,
   Clock,
 } from "lucide-react";
-import { statusOptions } from "../types";
+import { workflowStatusOptions, paymentStatusOptions } from "../types";
 
 export default function QuotationDetailPage() {
   const params = useParams();
@@ -51,8 +51,17 @@ export default function QuotationDetailPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = statusOptions.find((opt) => opt.value === status);
+  const getWorkflowStatusBadge = (status: string) => {
+    const statusConfig = workflowStatusOptions.find((opt) => opt.value === status);
+    return (
+      <Badge variant={statusConfig?.color || "secondary"} className={statusConfig?.className}>
+        {statusConfig?.label || status}
+      </Badge>
+    );
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    const statusConfig = paymentStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge variant={statusConfig?.color || "secondary"} className={statusConfig?.className}>
         {statusConfig?.label || status}
@@ -149,7 +158,10 @@ export default function QuotationDetailPage() {
             <h1 className="text-3xl font-bold">{quotation.name}</h1>
             <p className="text-muted-foreground mt-2">{quotation.description}</p>
           </div>
-          {getStatusBadge(quotation.status)}
+          <div className="flex gap-2">
+            {getWorkflowStatusBadge(quotation.workflowStatus)}
+            {getPaymentStatusBadge(quotation.paymentStatus)}
+          </div>
         </div>
       </div>
 
@@ -284,10 +296,10 @@ export default function QuotationDetailPage() {
                             Approval Comment:
                           </p>
                           <p className="text-sm">{cs.approvalComment}</p>
-                          {cs.approvedBy && (
+                          {cs.reviewedBy && (
                             <p className="text-xs text-muted-foreground mt-2">
-                              Approved by: {cs.approvedBy.firstName}{" "}
-                              {cs.approvedBy.lastName}
+                              Approved by: {cs.reviewedBy.firstName}{" "}
+                              {cs.reviewedBy.lastName}
                             </p>
                           )}
                         </div>
@@ -301,10 +313,10 @@ export default function QuotationDetailPage() {
                             Rejection Reason:
                           </p>
                           <p className="text-sm text-red-900">{cs.rejectionComment}</p>
-                          {cs.approvedBy && (
+                          {cs.reviewedBy && (
                             <p className="text-xs text-red-700 mt-2">
-                              Rejected by: {cs.approvedBy.firstName}{" "}
-                              {cs.approvedBy.lastName}
+                              Rejected by: {cs.reviewedBy.firstName}{" "}
+                              {cs.reviewedBy.lastName}
                             </p>
                           )}
                         </div>
@@ -428,7 +440,7 @@ export default function QuotationDetailPage() {
           </Card>
 
           {/* Project Link */}
-          {quotation.project && (
+          {quotation.project && quotation.project.status !== "cancelled" && (
             <Card className="border-green-200 bg-green-50">
               <CardHeader>
                 <CardTitle className="text-sm">Linked Project</CardTitle>
@@ -442,6 +454,32 @@ export default function QuotationDetailPage() {
                   onClick={() => router.push(`/projects/${quotation.project.id}`)}
                 >
                   View Project
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Cancelled Project Warning */}
+          {quotation.project && quotation.project.status === "cancelled" && (
+            <Card className="border-red-200 bg-red-50">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2 text-red-800">
+                  <AlertCircle className="w-4 h-4" />
+                  Project Cancelled
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-medium text-red-800">{quotation.project.name}</p>
+                <p className="text-sm text-red-600 mt-2">
+                  The project linked to this quotation has been cancelled.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full border-red-300 text-red-700 hover:bg-red-100"
+                  onClick={() => router.push(`/projects/${quotation.project.id}`)}
+                >
+                  View Project Details
                 </Button>
               </CardContent>
             </Card>

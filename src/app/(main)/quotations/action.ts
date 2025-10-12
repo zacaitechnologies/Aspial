@@ -38,7 +38,7 @@ export async function getQuotationById(id: string) {
               email: true,
             },
           },
-          approvedBy: {
+          reviewedBy: {
             select: {
               firstName: true,
               lastName: true,
@@ -65,7 +65,8 @@ export async function createQuotation(data: {
   totalPrice: number
   serviceIds: string[]
   createdById: string
-  status?: "draft" | "accepted"
+  workflowStatus?: "draft" | "in_review" | "final" | "accepted" | "rejected"
+  paymentStatus?: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"
   discountValue?: number
   discountType?: "percentage" | "fixed"
   duration?: number
@@ -124,7 +125,8 @@ export async function createQuotation(data: {
         description: data.description,
         totalPrice: data.totalPrice,
         createdById: data.createdById,
-        status: data.status || "accepted", // Use provided status or default to accepted
+        workflowStatus: data.workflowStatus || "accepted", // Use provided status or default to accepted
+        paymentStatus: data.paymentStatus || "unpaid", // Default to unpaid
         clientId: finalClientId,
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
@@ -159,7 +161,8 @@ export async function editQuotationById(
     name: string
     description: string
     totalPrice: number
-    status: any
+    workflowStatus?: string
+    paymentStatus?: string
     discountValue?: number
     discountType?: "percentage" | "fixed"
     serviceIds?: string[]
@@ -232,7 +235,8 @@ export async function editQuotationById(
         name: data.name,
         description: data.description,
         totalPrice: data.totalPrice,
-        status: data.status,
+        workflowStatus: data.workflowStatus,
+        paymentStatus: data.paymentStatus,
         clientId: finalClientId,
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
@@ -542,14 +546,14 @@ export async function getAllCustomServices() {
 // Approve custom service
 export async function approveCustomService(
   customServiceId: string,
-  approvedById: string,
+  reviewedById: string,
   approvalComment?: string
 ) {
   return await prisma.customService.update({
     where: { id: customServiceId },
     data: {
       status: "APPROVED",
-      approvedById: approvedById,
+      reviewedById: reviewedById,
       approvalComment: approvalComment || null,
     },
   });
@@ -558,7 +562,7 @@ export async function approveCustomService(
 // Reject custom service
 export async function rejectCustomService(
   customServiceId: string,
-  approvedById: string,
+  reviewedById: string,
   rejectionComment: string
 ) {
   if (!rejectionComment.trim()) {
@@ -569,7 +573,7 @@ export async function rejectCustomService(
     where: { id: customServiceId },
     data: {
       status: "REJECTED",
-      approvedById: approvedById,
+      reviewedById: reviewedById,
       rejectionComment: rejectionComment,
     },
   });

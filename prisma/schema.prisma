@@ -35,7 +35,8 @@ model User {
   supabase_id            String              @unique
   created_at             DateTime            @default(now())
   updated_at             DateTime            @default(now())
-  approvedCustomServices CustomService[]     @relation("CustomServiceApprover")
+  complaints             complaints[]
+  reviewedCustomServices CustomService[]     @relation("CustomServiceReviewer")
   createdCustomServices  CustomService[]     @relation("CustomServiceCreator")
   sentInvitations        ProjectInvitation[] @relation("ProjectInviter")
   receivedInvitations    ProjectInvitation[] @relation("ProjectInvitee")
@@ -51,22 +52,23 @@ model User {
 }
 
 model Services {
-  id          Int                @id @default(autoincrement())
-  name        String
-  description String
-  basePrice   Float
-  created_at  DateTime           @default(now())
-  updated_at  DateTime           @default(now())
-  ServiceTags ServiceTags[]
-  quotations  QuotationService[]
+  id           Int                @id @default(autoincrement())
+  name         String
+  description  String
+  basePrice    Float
+  created_at   DateTime           @default(now())
+  updated_at   DateTime           @default(now())
+  ServiceToTag ServiceToTag[]
+  milestones   Milestone[]
+  quotations   QuotationService[]
 }
 
 model ServiceTag {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
-  color       String?       @default("#3B82F6")
-  created_at  DateTime      @default(now())
-  ServiceTags ServiceTags[]
+  id           Int            @id @default(autoincrement())
+  name         String         @unique
+  color        String?        @default("#3B82F6")
+  created_at   DateTime       @default(now())
+  ServiceToTag ServiceToTag[]
 
   @@map("service_tags")
 }
@@ -78,7 +80,7 @@ model Quotation {
   totalPrice     Float
   created_at     DateTime           @default(now())
   updated_at     DateTime           @default(now())
-  status         QuotationStatus    @default(draft)
+  workflowStatus QuotationStatus    @default(draft)
   createdById    String
   discountType   DiscountType?
   discountValue  Float?
@@ -87,6 +89,7 @@ model Quotation {
   startDate      DateTime
   clientId       String
   projectId      Int?
+  paymentStatus  PaymentStatus      @default(unpaid)
   customServices CustomService[]
   services       QuotationService[]
   Client         Client             @relation(fields: [clientId], references: [id])
@@ -94,6 +97,13 @@ model Quotation {
   project        Project?           @relation(fields: [projectId], references: [id])
 
   @@map("quotations")
+}
+
+enum PaymentStatus {
+  unpaid
+  partially_paid
+  deposit_paid
+  fully_paid
 }
 
 model QuotationService {
@@ -118,12 +128,12 @@ model CustomService {
   status            CustomServiceStatus @default(PENDING)
   approvalComment   String?
   rejectionComment  String?
-  approvedById      String?
+  reviewedById      String?
   createdById       String
   quotationId       Int
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  approvedBy        User?               @relation("CustomServiceApprover", fields: [approvedById], references: [supabase_id])
+  reviewedBy        User?               @relation("CustomServiceReviewer", fields: [reviewedById], references: [supabase_id], map: "custom_services_approvedById_fkey")
   createdBy         User                @relation("CustomServiceCreator", fields: [createdById], references: [supabase_id])
   quotation         Quotation           @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   quotationServices QuotationService[]
@@ -135,7 +145,7 @@ model Project {
   id            Int                 @id @default(autoincrement())
   name          String
   description   String?
-  status        String              @default("planning")
+  status        ProjectStatus       @default(planning)
   startDate     DateTime
   endDate       DateTime
   created_at    DateTime            @default(now())
@@ -153,6 +163,14 @@ model Project {
   timeEntries   TimeEntry[]
 
   @@map("projects")
+}
+
+enum ProjectStatus {
+  planning
+  in_progress
+  on_hold
+  completed
+  cancelled
 }
 
 model ProjectPermission {
@@ -296,7 +314,9 @@ model Milestone {
   order       Int             @default(0)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  serviceId   Int?
   project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  Services    Services?       @relation(fields: [serviceId], references: [id])
   tasks       Task[]
 
   @@map("milestones")
@@ -325,15 +345,27 @@ model Task {
   @@map("tasks")
 }
 
-model ServiceTags {
+model ServiceToTag {
   A            Int
   B            Int
   service_tags ServiceTag @relation(fields: [A], references: [id], onDelete: Cascade)
   Services     Services   @relation(fields: [B], references: [id], onDelete: Cascade)
 
-  @@id([A, B], map: "_ServiceTags_AB_pkey")
-  @@index([B], map: "_ServiceTags_B_index")
-  @@map("_ServiceTags")
+  @@id([A, B], map: "_ServiceToTag_AB_pkey")
+  @@index([B], map: "_ServiceToTag_B_index")
+  @@map("_ServiceToTag")
+}
+
+model complaints {
+  id         Int             @id @default(autoincrement())
+  date       DateTime        @default(now())
+  customer   String
+  reason     String
+  status     ComplaintStatus @default(pending)
+  userId     String
+  created_at DateTime        @default(now())
+  updated_at DateTime
+  user       User            @relation(fields: [userId], references: [id])
 }
 
 enum MembershipType {
@@ -343,12 +375,10 @@ enum MembershipType {
 
 enum QuotationStatus {
   draft
+  in_review
+  final
   accepted
   rejected
-  paid
-  unpaid
-  partially_paid
-  deposit_paid
 }
 
 enum DiscountType {
@@ -386,3 +416,12 @@ enum CustomServiceStatus {
   APPROVED
   REJECTED
 }
+
+enum ComplaintStatus {
+  pending
+  resolved
+}
+
+
+
+
