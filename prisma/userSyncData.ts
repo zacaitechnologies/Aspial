@@ -59,10 +59,29 @@ async function userMain() {
     }
   ];
 
-  // Optional: Clear existing users and user roles
+  // Optional: Clear existing data in the correct order (respecting foreign key constraints)
+  console.log('Clearing existing data...');
+  
+  // Delete data that depends on other tables first
+  await prisma.timeEntry.deleteMany({});
+  await prisma.task.deleteMany({});
+  await prisma.milestone.deleteMany({});
+  await prisma.projectInvitation.deleteMany({});
+  await prisma.projectPermission.deleteMany({});
+  await prisma.customService.deleteMany({});
+  await prisma.quotationService.deleteMany({});
+  await prisma.quotation.deleteMany({});
+  await prisma.project.deleteMany({});
+  await prisma.client.deleteMany({});
+  await prisma.complaints.deleteMany({});
+  await prisma.booking.deleteMany({});
+  await prisma.studioBooking.deleteMany({});
+  
+  // Now delete users and user roles
   await prisma.userRole.deleteMany({});
   await prisma.user.deleteMany({});
-  console.log('Cleared existing users and user roles');
+  
+  console.log('Cleared existing users and related data');
 
   for (const user of users) {
     try {

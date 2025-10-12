@@ -103,7 +103,7 @@ export default function CustomServiceDialog({
             Add Custom Service
           </DialogTitle>
           <DialogDescription>
-            Create a new service that isn't in the existing list.
+            Request a custom service that isn't in the existing list. The price should be the monthly rate.
           </DialogDescription>
         </DialogHeader>
 
@@ -130,7 +130,7 @@ export default function CustomServiceDialog({
           </div>
 
           <div>
-            <Label htmlFor="service-price">Price (RM)</Label>
+            <Label htmlFor="service-price">Price per Month (RM)</Label>
             <Input
               id="service-price"
               type="number"
@@ -140,6 +140,9 @@ export default function CustomServiceDialog({
               value={formData.price}
               onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              This price will be multiplied by the quotation duration
+            </p>
           </div>
         </div>
 

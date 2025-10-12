@@ -50,7 +50,8 @@ export type ProjectStatusOption = {
 export const projectStatusOptions: ProjectStatusOption[] = [
   { value: "planning", label: "Planning", color: "secondary" },
   { value: "in_progress", label: "In Progress", color: "default" },
-  { value: "completed", label: "Completed", color: "outline" },
+  { value: "on_hold", label: "On Hold", color: "outline" },
+  { value: "completed", label: "Completed", color: "default" },
   { value: "cancelled", label: "Cancelled", color: "destructive" },
 ];
 
@@ -58,6 +59,7 @@ export const projectStatusFilterOptions: ProjectStatusOption[] = [
   { value: "all", label: "All Statuses" },
   { value: "planning", label: "Planning" },
   { value: "in_progress", label: "In Progress" },
+  { value: "on_hold", label: "On Hold" },
   { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
 ];
@@ -86,7 +88,7 @@ export type CreateProjectData = {
 export type UpdateProjectData = {
   name: string;
   description?: string;
-  status: string;
+  status: "planning" | "in_progress" | "on_hold" | "completed" | "cancelled";
   startDate?: Date;
   endDate?: Date;
 };

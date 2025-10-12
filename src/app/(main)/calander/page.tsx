@@ -129,7 +129,7 @@ async function fetchAllBookings(userId?: string): Promise<CalendarBooking[]> {
     })
 
     // Fetch and transform tasks if user is provided
-    if (userId) {
+    if (userId && userId.trim() !== '') {
       try {
         console.log('Fetching tasks for user:', userId)
         const tasks = await getAllUserTasks(userId)
