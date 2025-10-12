@@ -40,7 +40,7 @@ type CustomServiceRequest = {
     lastName: string;
     email: string;
   };
-  approvedBy: {
+  reviewedBy: {
     firstName: string;
     lastName: string;
   } | null;
