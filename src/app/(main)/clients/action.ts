@@ -100,7 +100,8 @@ export async function getClientById(id: string) {
             id: true,
             name: true,
             totalPrice: true,
-            status: true,
+            workflowStatus: true,
+            paymentStatus: true,
             created_at: true,
           }
         },
