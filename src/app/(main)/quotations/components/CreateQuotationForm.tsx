@@ -194,7 +194,7 @@ export default function CreateQuotationForm({
     }));
   };
 
-  const handleCreateQuotation = async (workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" = "accepted") => {
+  const handleCreateQuotation = async (workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" = "draft") => {
     // Debug logging to help identify the issue
     console.log("Form validation check:", {
       name: quotationForm.name,
@@ -598,7 +598,7 @@ export default function CreateQuotationForm({
             >
               Save as Draft
             </Button>
-            <Button onClick={() => handleCreateQuotation("accepted")}>
+            <Button onClick={() => handleCreateQuotation("final")}>
               Create Quotation
             </Button>
           </div>
