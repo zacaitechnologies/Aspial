@@ -19,7 +19,11 @@ interface Client {
   company: string | null
   address: string | null
   notes: string | null
+  industry: string | null
+  yearlyRevenue: number | null
+  membershipType: "MEMBER" | "NON_MEMBER"
   created_at: Date
+  updated_at: Date
   quotations: Quotation[]
   projects: Project[]
 }
@@ -28,7 +32,8 @@ interface Quotation {
   id: number
   name: string
   totalPrice: number
-  status: string
+  workflowStatus: string
+  paymentStatus: string
   created_at: Date
 }
 
@@ -284,13 +289,23 @@ export default function ClientDetailPage() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium" style={{ color: "#898D74" }}>Status:</span>
+                        <span className="text-sm font-medium" style={{ color: "#898D74" }}>Workflow:</span>
                         <Badge 
                           variant="outline" 
                           className="capitalize"
                           style={{ borderColor: "#BDC4A5", color: "#202F21" }}
                         >
-                          {quotation.status.replace('_', ' ')}
+                          {quotation.workflowStatus.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium" style={{ color: "#898D74" }}>Payment:</span>
+                        <Badge 
+                          variant="outline" 
+                          className="capitalize"
+                          style={{ borderColor: "#BDC4A5", color: "#202F21" }}
+                        >
+                          {quotation.paymentStatus.replace('_', ' ')}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between">
