@@ -463,18 +463,18 @@ export default function ProjectPage() {
                                 <p className="text-sm text-gray-600 mb-2">
                                   {qs.service.description}
                                 </p>
-                                {qs.service.tags && qs.service.tags.length > 0 && (
+                                {qs.service.ServiceToTag && qs.service.ServiceToTag.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-2">
-                                    {qs.service.tags.map((tag: any) => (
+                                    {qs.service.ServiceToTag.map((st: any) => (
                                       <Badge
-                                        key={tag.id}
+                                        key={st.service_tags.id}
                                         style={{
-                                          backgroundColor: tag.color || "#3B82F6",
+                                          backgroundColor: st.service_tags.color || "#3B82F6",
                                           color: "white",
                                         }}
                                         className="text-xs"
                                       >
-                                        {tag.name}
+                                        {st.service_tags.name}
                                       </Badge>
                                     ))}
                                   </div>

@@ -353,7 +353,11 @@ export async function getProjectById(userId: string, projectId: string) {
                   name: true,
                   description: true,
                   basePrice: true,
-                  tags: true,
+                  ServiceToTag: {
+                    include: {
+                      service_tags: true
+                    }
+                  },
                 },
               },
             },

@@ -35,7 +35,6 @@ model User {
   supabase_id            String              @unique
   created_at             DateTime            @default(now())
   updated_at             DateTime            @default(now())
-  complaints             complaints[]
   reviewedCustomServices CustomService[]     @relation("CustomServiceReviewer")
   createdCustomServices  CustomService[]     @relation("CustomServiceCreator")
   sentInvitations        ProjectInvitation[] @relation("ProjectInviter")
@@ -330,10 +329,8 @@ model Milestone {
   order       Int             @default(0)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-  serviceId   Int?
   project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   service     Services?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  Services    Services?       @relation(fields: [serviceId], references: [id])
   tasks       Task[]
 
   @@map("milestones")
@@ -371,18 +368,6 @@ model ServiceToTag {
   @@id([A, B], map: "_ServiceToTag_AB_pkey")
   @@index([B], map: "_ServiceToTag_B_index")
   @@map("_ServiceToTag")
-}
-
-model complaints {
-  id         Int             @id @default(autoincrement())
-  date       DateTime        @default(now())
-  customer   String
-  reason     String
-  status     ComplaintStatus @default(pending)
-  userId     String
-  created_at DateTime        @default(now())
-  updated_at DateTime
-  user       User            @relation(fields: [userId], references: [id])
 }
 
 enum MembershipType {
@@ -439,10 +424,6 @@ enum ComplaintStatus {
   resolved
 }
 
-enum ComplaintStatus {
-  pending
-  resolved
-}
 
 
 
