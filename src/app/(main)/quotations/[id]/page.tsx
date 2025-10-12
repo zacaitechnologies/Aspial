@@ -100,10 +100,10 @@ export default function QuotationDetailPage() {
     }
   };
 
+  // Total price already includes duration multiplication from creation
+  // So we just return the discounted total
   const calculateGrandTotal = () => {
-    const discountedTotal = calculateDiscountedTotal();
-    const duration = quotation?.duration || 1;
-    return discountedTotal * duration;
+    return calculateDiscountedTotal();
   };
 
   if (loading) {
@@ -353,29 +353,16 @@ export default function QuotationDetailPage() {
               <Separator />
 
               <div className="flex justify-between text-lg">
-                <span className="font-semibold">Total:</span>
-                <span className="font-bold">
-                  RM{calculateDiscountedTotal().toFixed(2)}
+                <span className="font-semibold">Grand Total:</span>
+                <span className="font-bold text-blue-600">
+                  RM{calculateGrandTotal().toFixed(2)}
                 </span>
               </div>
 
               {quotation.duration && quotation.duration > 1 && (
-                <>
-                  <Separator />
-                  <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                    <div>
-                      <p className="text-sm font-semibold text-blue-800">
-                        Grand Total ({quotation.duration} months):
-                      </p>
-                      <p className="text-xs text-blue-600">
-                        {calculateDiscountedTotal().toFixed(2)} × {quotation.duration}
-                      </p>
-                    </div>
-                    <span className="text-2xl font-bold text-blue-800">
-                      RM{calculateGrandTotal().toFixed(2)}
-                    </span>
-                  </div>
-                </>
+                <div className="text-xs text-muted-foreground text-center">
+                  (Includes {quotation.duration} months duration)
+                </div>
               )}
             </CardContent>
           </Card>

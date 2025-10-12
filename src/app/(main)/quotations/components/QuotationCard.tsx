@@ -22,7 +22,7 @@ import {
   Plus,
   Info,
 } from "lucide-react";
-import { QuotationWithServices, statusOptions } from "../types";
+import { QuotationWithServices, statusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
 import {
   getClientById,
@@ -80,6 +80,18 @@ export default function QuotationCard({
         className={statusConfig?.className}
       >
         {statusConfig?.label || status}
+      </Badge>
+    );
+  };
+
+  const getPaymentStatusBadge = (paymentStatus: string) => {
+    const statusConfig = paymentStatusOptions.find((opt) => opt.value === paymentStatus);
+    return (
+      <Badge
+        variant={statusConfig?.color || "secondary"}
+        className={statusConfig?.className}
+      >
+        {statusConfig?.label || paymentStatus}
       </Badge>
     );
   };
@@ -188,8 +200,9 @@ export default function QuotationCard({
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="text-lg">{quotation.name}</CardTitle>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               {getStatusBadge(quotation.status)}
+              {getPaymentStatusBadge(quotation.paymentStatus)}
               {hasProject && (
                 <Badge variant="default" className="bg-green-600">
                   <Briefcase className="w-3 h-3 mr-1" />
@@ -322,9 +335,17 @@ export default function QuotationCard({
           </div>
         )}
 
-        <p className="text-xs text-muted-foreground mt-3">
-          Created: {new Date(quotation.created_at).toLocaleDateString()}
-        </p>
+        <div className="mt-3 space-y-1">
+          <p className="text-xs text-muted-foreground">
+            Created: {new Date(quotation.created_at).toLocaleDateString()}
+          </p>
+          {quotation.createdBy && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <User className="w-3 h-3" />
+              Created by: {quotation.createdBy.firstName} {quotation.createdBy.lastName}
+            </p>
+          )}
+        </div>
       </CardContent>
 
       {/* Membership Status Dialog */}

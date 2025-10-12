@@ -6,6 +6,7 @@ export type QuotationWithServices = {
   description: string;
   totalPrice: number;
   status: string;
+  paymentStatus: string;
   discountValue?: number;
   discountType?: "percentage" | "fixed";
   duration?: number;
@@ -87,6 +88,7 @@ export type EditFormData = {
   description: string;
   totalPrice: string;
   status: string;
+  paymentStatus: string;
   discountValue: string;
   discountType: "percentage" | "fixed";
   duration: string;
@@ -114,16 +116,15 @@ export type EditFormData = {
 };
 
 export const statusOptions = [
-  { value: "draft", label: "Draft", color: "default" as const, className: "" },
+  { value: "draft", label: "Draft", color: "default" as const, className: "bg-gray-100 text-gray-800" },
+  { value: "in_review", label: "In Review", color: "default" as const, className: "bg-blue-100 text-blue-800" },
   { value: "accepted", label: "Accepted", color: "default" as const, className: "bg-green-600 text-white hover:bg-green-700" },
-  { value: "rejected", label: "Rejected", color: "destructive" as const, className: "" },
-  { value: "paid", label: "Paid", color: "default" as const, className: "" },
-  { value: "unpaid", label: "Unpaid", color: "destructive" as const, className: "" },
-  {
-    value: "partially_paid",
-    label: "Partially Paid",
-    color: "secondary" as const,
-    className: "",
-  },
-  { value: "deposit_paid", label: "Deposit Paid", color: "secondary" as const, className: "" },
+  { value: "rejected", label: "Rejected", color: "destructive" as const, className: "bg-red-600 text-white" },
+] as const;
+
+export const paymentStatusOptions = [
+  { value: "unpaid", label: "Unpaid", color: "destructive" as const, className: "bg-red-100 text-red-800" },
+  { value: "partially_paid", label: "Partially Paid", color: "secondary" as const, className: "bg-yellow-100 text-yellow-800" },
+  { value: "deposit_paid", label: "Deposit Paid", color: "secondary" as const, className: "bg-orange-100 text-orange-800" },
+  { value: "fully_paid", label: "Fully Paid", color: "default" as const, className: "bg-green-100 text-green-800" },
 ] as const; 
