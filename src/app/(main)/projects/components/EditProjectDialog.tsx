@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
+import { useSession } from "../../contexts/SessionProvider";
 import { updateProject } from "../action";
 import { projectStatusOptions, ProjectFormData } from "../types";
 
@@ -41,6 +42,8 @@ export default function EditProjectDialog({
   onSuccess,
   project,
 }: EditProjectDialogProps) {
+  const { enhancedUser } = useSession();
+  
   const [form, setForm] = useState<ProjectFormData>({
     name: "",
     description: "",
@@ -67,14 +70,23 @@ export default function EditProjectDialog({
       return;
     }
 
+    if (!enhancedUser?.id) {
+      alert("You must be logged in to update a project.");
+      return;
+    }
+
     try {
-      await updateProject(project.id.toString(), {
-        name: form.name,
-        description: form.description || undefined,
-        status: form.status,
-        startDate: form.startDate ? new Date(form.startDate) : undefined,
-        endDate: form.endDate ? new Date(form.endDate) : undefined,
-      });
+      await updateProject(
+        project.id.toString(),
+        {
+          name: form.name,
+          description: form.description || undefined,
+          status: form.status as "planning" | "in_progress" | "on_hold" | "completed" | "cancelled",
+          startDate: form.startDate ? new Date(form.startDate) : undefined,
+          endDate: form.endDate ? new Date(form.endDate) : undefined,
+        },
+        enhancedUser.id
+      );
 
       onSuccess();
       onOpenChange(false);
