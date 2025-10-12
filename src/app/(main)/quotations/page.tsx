@@ -1,14 +1,21 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Plus, FileText } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { Plus, FileText, Filter } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { getAllQuotations, deleteQuotationById } from "./action";
 import CreateQuotationForm from "./components/CreateQuotationForm";
 import EditQuotationForm from "./components/EditQuotationForm";
 import QuotationCard from "./components/QuotationCard";
-import { QuotationWithServices } from "./types";
+import { QuotationWithServices, statusOptions } from "./types";
 import { useSession } from "../contexts/SessionProvider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function QuotationsPage() {
   const { enhancedUser } = useSession();
@@ -18,6 +25,7 @@ export default function QuotationsPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingQuotation, setEditingQuotation] =
     useState<QuotationWithServices | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const fetchData = useCallback(async () => {
     try {
@@ -55,7 +63,13 @@ export default function QuotationsPage() {
     }
   };
 
-
+  // Filter quotations by status
+  const filteredQuotations = useMemo(() => {
+    if (statusFilter === "all") {
+      return quotations;
+    }
+    return quotations.filter((quotation) => quotation.status === statusFilter);
+  }, [quotations, statusFilter]);
 
   if (loading) {
     return (
@@ -82,9 +96,40 @@ export default function QuotationsPage() {
           </Button>
         </div>
 
+        {/* Filter Section */}
+        <div className="mb-6 flex items-center gap-3">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Filter by status:</span>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {statusOptions.map((status) => (
+                <SelectItem key={status.value} value={status.value}>
+                  {status.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {statusFilter !== "all" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setStatusFilter("all")}
+            >
+              Clear Filter
+            </Button>
+          )}
+          <span className="text-sm text-muted-foreground ml-auto">
+            Showing {filteredQuotations.length} of {quotations.length} quotations
+          </span>
+        </div>
+
         {/* Quotations Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 justify-start gap-6">
-          {quotations.map((quotation) => (
+          {filteredQuotations.map((quotation) => (
             <QuotationCard
               key={quotation.id}
               quotation={quotation}
@@ -94,6 +139,20 @@ export default function QuotationsPage() {
             />
           ))}
         </div>
+
+        {filteredQuotations.length === 0 && quotations.length > 0 && (
+          <div className="text-center py-12">
+            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No quotations match the selected filter.</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => setStatusFilter("all")}
+            >
+              Clear Filter
+            </Button>
+          </div>
+        )}
 
         {quotations.length === 0 && (
           <div className="text-center py-12">

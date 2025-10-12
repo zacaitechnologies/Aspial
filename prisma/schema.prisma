@@ -95,6 +95,7 @@ model Quotation {
   created_at     DateTime           @default(now())
   updated_at     DateTime           @default(now())
   status         QuotationStatus    @default(draft)
+  paymentStatus  PaymentStatus      @default(unpaid)
   createdById    String
   discountType   DiscountType?
   discountValue  Float?
@@ -351,12 +352,16 @@ enum MembershipType {
 
 enum QuotationStatus {
   draft
+  in_review
   accepted
   rejected
-  paid
+}
+
+enum PaymentStatus {
   unpaid
   partially_paid
   deposit_paid
+  fully_paid
 }
 
 enum DiscountType {

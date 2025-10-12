@@ -26,7 +26,7 @@ import { createQuotation } from "../action";
 import { getAllServices } from "../../services/action";
 import type { Services } from "@prisma/client";
 import { useSession } from "../../contexts/SessionProvider";
-import { QuotationFormData } from "../types";
+import { QuotationFormData, statusOptions, paymentStatusOptions } from "../types";
 import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
@@ -76,6 +76,8 @@ export default function CreateQuotationForm({
   const [totalPrice, setTotalPrice] = useState(0);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
+  const [quotationStatus, setQuotationStatus] = useState<string>("draft");
+  const [paymentStatus, setPaymentStatus] = useState<string>("unpaid");
 
   // Project selection state
   const [projectMode, setProjectMode] = useState<"existing" | "new">(
@@ -194,7 +196,7 @@ export default function CreateQuotationForm({
     }));
   };
 
-  const handleCreateQuotation = async (status: "draft" | "accepted" = "accepted") => {
+  const handleCreateQuotation = async () => {
     // Debug logging to help identify the issue
     console.log("Form validation check:", {
       name: quotationForm.name,
@@ -247,7 +249,8 @@ export default function CreateQuotationForm({
         totalPrice: grandTotal, // Store grand total in totalPrice
         serviceIds: selectedServiceIds,
         createdById: enhancedUser.id,
-        status: status, // Add status parameter
+        status: quotationStatus as any,
+        paymentStatus: paymentStatus as any,
         clientId:
           clientMode === "existing" ? quotationForm.clientId : undefined,
         newClient: clientMode === "new" ? quotationForm.newClient : undefined,
@@ -298,6 +301,8 @@ export default function CreateQuotationForm({
     setServiceSearchQuery("");
     setClientMode("existing");
     setProjectMode("existing");
+    setQuotationStatus("draft");
+    setPaymentStatus("unpaid");
   };
 
   return (
@@ -359,6 +364,42 @@ export default function CreateQuotationForm({
                 rows={3}
               />
             </div>
+
+            {/* Status and Payment Status */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="quotation-status">Quotation Status</Label>
+                <Select value={quotationStatus} onValueChange={setQuotationStatus}>
+                  <SelectTrigger id="quotation-status">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="payment-status">Payment Status</Label>
+                <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                  <SelectTrigger id="payment-status">
+                    <SelectValue placeholder="Select payment status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="startDate">Start Date</Label>
               <Input
@@ -593,11 +634,8 @@ export default function CreateQuotationForm({
             </Button>
             <Button
               variant="secondary"
-              onClick={() => handleCreateQuotation("draft")}
+              onClick={handleCreateQuotation}
             >
-              Save as Draft
-            </Button>
-            <Button onClick={() => handleCreateQuotation("accepted")}>
               Create Quotation
             </Button>
           </div>

@@ -25,7 +25,7 @@ import { getAllServices } from "../../services/action";
 import { getAllProjects } from "../../projects/action";
 import { useSession } from "../../contexts/SessionProvider";
 import type { Services } from "@prisma/client";
-import { QuotationWithServices, EditFormData, statusOptions } from "../types";
+import { QuotationWithServices, EditFormData, statusOptions, paymentStatusOptions } from "../types";
 import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
@@ -61,6 +61,7 @@ export default function EditQuotationForm({
     description: "",
     totalPrice: "",
     status: "",
+    paymentStatus: "",
     discountValue: "",
     discountType: "percentage",
     duration: "",
@@ -91,6 +92,7 @@ export default function EditQuotationForm({
         description: editingQuotation.description,
         totalPrice: editingQuotation.totalPrice.toString(),
         status: editingQuotation.status,
+        paymentStatus: editingQuotation.paymentStatus || "unpaid",
         discountValue: editingQuotation.discountValue?.toString() || "",
         discountType: editingQuotation.discountType || "percentage",
         duration: editingQuotation.duration?.toString() || "",
@@ -271,15 +273,8 @@ export default function EditQuotationForm({
         name: editForm.name,
         description: editForm.description,
         totalPrice: grandTotal, // Store grand total in totalPrice
-        status: (status || editForm.status) as
-          | "draft"
-          | "sent"
-          | "accepted"
-          | "rejected"
-          | "paid"
-          | "unpaid"
-          | "partially_paid"
-          | "deposit_paid",
+        status: editForm.status as "draft" | "in_review" | "accepted" | "rejected",
+        paymentStatus: editForm.paymentStatus as "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid",
         clientId: clientMode === "existing" ? editForm.clientId : undefined,
         newClient: clientMode === "new" ? editForm.newClient : undefined,
         discountValue: editForm.discountValue
@@ -524,26 +519,51 @@ export default function EditQuotationForm({
               currentUserId={enhancedUser.id}
             /> */}
 
-            <div className="grid gap-2">
-              <Label htmlFor="edit-status">Status</Label>
-              <Select
-                value={editForm.status}
-                onValueChange={(value) =>
-                  setEditForm((prev) => ({ ...prev, status: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Status and Payment Status */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-status">Quotation Status</Label>
+                <Select
+                  value={editForm.status}
+                  onValueChange={(value) =>
+                    setEditForm((prev) => ({ ...prev, status: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-payment-status">Payment Status</Label>
+                <Select
+                  value={editForm.paymentStatus}
+                  onValueChange={(value) =>
+                    setEditForm((prev) => ({ ...prev, paymentStatus: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
             <div className="grid gap-2">
               <Label htmlFor="edit-discount">Discount</Label>
               <div className="flex items-center gap-2">

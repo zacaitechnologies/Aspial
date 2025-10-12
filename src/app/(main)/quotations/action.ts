@@ -65,7 +65,8 @@ export async function createQuotation(data: {
   totalPrice: number
   serviceIds: string[]
   createdById: string
-  status?: "draft" | "accepted"
+  status?: "draft" | "in_review" | "accepted" | "rejected"
+  paymentStatus?: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"
   discountValue?: number
   discountType?: "percentage" | "fixed"
   duration?: number
@@ -124,7 +125,8 @@ export async function createQuotation(data: {
         description: data.description,
         totalPrice: data.totalPrice,
         createdById: data.createdById,
-        status: data.status || "accepted", // Use provided status or default to accepted
+        status: data.status || "draft",
+        paymentStatus: data.paymentStatus || "unpaid",
         clientId: finalClientId,
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
@@ -160,6 +162,7 @@ export async function editQuotationById(
     description: string
     totalPrice: number
     status: any
+    paymentStatus?: string
     discountValue?: number
     discountType?: "percentage" | "fixed"
     serviceIds?: string[]
@@ -233,6 +236,7 @@ export async function editQuotationById(
         description: data.description,
         totalPrice: data.totalPrice,
         status: data.status,
+        paymentStatus: data.paymentStatus as any,
         clientId: finalClientId,
         projectId: data.projectId || null,
         discountValue: data.discountValue || null,
