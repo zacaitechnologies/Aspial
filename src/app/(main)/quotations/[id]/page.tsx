@@ -97,17 +97,12 @@ export default function QuotationDetailPage() {
     }
   };
 
-  const calculateApprovedCustomServicesMonthly = () => {
+  const calculateApprovedCustomServicesTotal = () => {
     if (!quotation?.customServices) return 0;
+    // Custom service prices are already total (not per month)
     return quotation.customServices
       .filter((cs: any) => cs.status === "APPROVED")
       .reduce((sum: number, cs: any) => sum + cs.price, 0);
-  };
-
-  const calculateApprovedCustomServicesTotal = () => {
-    const monthly = calculateApprovedCustomServicesMonthly();
-    const duration = quotation?.duration || 1;
-    return monthly * duration;
   };
 
   const calculateGrandTotal = () => {
@@ -290,11 +285,11 @@ export default function QuotationDetailPage() {
                         <div className="flex flex-col items-end gap-2 ml-4">
                           <div className="text-right">
                             <Badge variant="outline" className="text-base">
-                              RM{cs.price.toFixed(2)}/month
+                              RM{cs.price.toFixed(2)}
                             </Badge>
                             {quotation.duration && quotation.duration > 1 && (
                               <p className="text-xs text-muted-foreground mt-1">
-                                Total: RM{(cs.price * quotation.duration).toFixed(2)} ({quotation.duration} months)
+                                ({quotation.duration} months total)
                               </p>
                             )}
                           </div>
@@ -373,25 +368,17 @@ export default function QuotationDetailPage() {
                 </div>
               )}
 
-              {calculateApprovedCustomServicesMonthly() > 0 && (
+              {calculateApprovedCustomServicesTotal() > 0 && (
                 <>
                   <Separator />
                   <div className="flex justify-between text-green-600">
-                    <span className="font-semibold">Custom Services (per month):</span>
+                    <span className="font-semibold">
+                      Custom Services Total{quotation.duration && quotation.duration > 1 ? ` (${quotation.duration} months)` : ''}:
+                    </span>
                     <span className="font-bold">
-                      RM{calculateApprovedCustomServicesMonthly().toFixed(2)}
+                      RM{calculateApprovedCustomServicesTotal().toFixed(2)}
                     </span>
                   </div>
-                  {quotation.duration && quotation.duration > 1 && (
-                    <div className="flex justify-between text-green-600">
-                      <span className="font-semibold">
-                        Custom Services ({quotation.duration} months):
-                      </span>
-                      <span className="font-bold">
-                        RM{calculateApprovedCustomServicesTotal().toFixed(2)}
-                      </span>
-                    </div>
-                  )}
                 </>
               )}
 
