@@ -96,6 +96,22 @@ export default function QuotationCard({
     );
   };
 
+  // Calculate grand total including approved custom services
+  const calculateGrandTotal = () => {
+    // quotation.totalPrice is already the grand total for entire duration (fixed services)
+    const fixedServicesTotal = quotation.totalPrice;
+    
+    // Custom services prices are per month, so multiply by duration
+    const customServicesMonthly = customServices
+      .filter((cs) => cs.status === "APPROVED")
+      .reduce((sum, cs) => sum + cs.price, 0);
+    
+    const duration = quotation.duration || 1;
+    const customServicesTotal = customServicesMonthly * duration;
+    
+    return fixedServicesTotal + customServicesTotal;
+  };
+
   const hasProject = quotation.project !== null;
   const isProjectCancelled = quotation.project?.status === "cancelled";
 
@@ -217,7 +233,7 @@ export default function QuotationCard({
                 </Badge>
               )}
               <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                Grand Total: RM{quotation.totalPrice.toFixed(2)}
+                Grand Total: RM{calculateGrandTotal().toFixed(2)}
               </Badge>
             </div>
           </div>

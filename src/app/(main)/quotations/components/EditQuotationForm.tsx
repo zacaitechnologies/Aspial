@@ -189,6 +189,13 @@ export default function EditQuotationForm({
 
   const editTotalPrice = calculateEditTotalPrice();
   const editDiscountedTotal = calculateEditDiscountedTotal();
+  
+  // Calculate approved custom services total
+  const calculateApprovedCustomServicesTotal = () => {
+    return customServices
+      .filter((cs) => cs.status === "APPROVED")
+      .reduce((sum, cs) => sum + cs.price, 0);
+  };
 
   const handleProjectSelected = (projectId: number, projectName: string) => {
     setEditForm((prev) => ({
@@ -248,15 +255,17 @@ export default function EditQuotationForm({
     }
 
     try {
-      // Calculate grand total (monthly price × duration)
+      // Calculate grand total including approved custom services (monthly price × duration)
+      const approvedCustomServicesTotal = calculateApprovedCustomServicesTotal();
+      const monthlyTotal = editDiscountedTotal + approvedCustomServicesTotal;
       const grandTotal = editForm.duration
-        ? calculateGrandTotal(editDiscountedTotal, parseInt(editForm.duration))
-        : editDiscountedTotal;
+        ? calculateGrandTotal(monthlyTotal, parseInt(editForm.duration))
+        : monthlyTotal;
 
       await editQuotationById(editingQuotation.id.toString(), {
         name: editForm.name,
         description: editForm.description,
-        totalPrice: grandTotal, // Store grand total in totalPrice
+        totalPrice: grandTotal, // Store grand total in totalPrice (includes custom services)
         workflowStatus: workflowStatus || editForm.workflowStatus,
         paymentStatus: editForm.paymentStatus,
         clientId: clientMode === "existing" ? editForm.clientId : undefined,
@@ -639,13 +648,13 @@ export default function EditQuotationForm({
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                   <div className="text-right">
                     <div className="text-xs text-blue-600 mb-1">
-                      {editDiscountedTotal.toFixed(2)} × {editForm.duration}{" "}
+                      ({editDiscountedTotal.toFixed(2)} + {calculateApprovedCustomServicesTotal().toFixed(2)}) × {editForm.duration}{" "}
                       months
                     </div>
                     <span className="text-xl font-bold text-blue-800">
                       RM
                       {(
-                        editDiscountedTotal * parseFloat(editForm.duration)
+                        (editDiscountedTotal + calculateApprovedCustomServicesTotal()) * parseFloat(editForm.duration)
                       ).toFixed(2)}
                     </span>
                   </div>
@@ -667,8 +676,8 @@ export default function EditQuotationForm({
               </Button>
             )}
             {editForm.workflowStatus === "draft" && (
-              <Button onClick={() => handleUpdateQuotation("accepted")}>
-                Create Quotation
+              <Button onClick={() => handleUpdateQuotation("final")}>
+                Finalize Quotation
               </Button>
             )}
             {editForm.workflowStatus !== "draft" && (
