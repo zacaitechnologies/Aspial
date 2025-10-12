@@ -251,6 +251,12 @@ export async function getAllUserTasks(userId: string): Promise<TaskWithAssignee[
   try {
     console.log('getAllUserTasks called with userId:', userId)
     
+    // Check if userId is valid
+    if (!userId || userId.trim() === '') {
+      console.log('Invalid userId, returning empty array')
+      return []
+    }
+    
     // First get all projects the user has access to
     const userWithRoles = await prisma.user.findUnique({
       where: { supabase_id: userId },

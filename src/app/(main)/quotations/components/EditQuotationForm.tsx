@@ -60,8 +60,8 @@ export default function EditQuotationForm({
     name: "",
     description: "",
     totalPrice: "",
-    workflowStatus: "",
-    paymentStatus: "",
+    workflowStatus: "draft",
+    paymentStatus: "unpaid",
     discountValue: "",
     discountType: "percentage",
     duration: "",
@@ -91,8 +91,8 @@ export default function EditQuotationForm({
         name: editingQuotation.name,
         description: editingQuotation.description,
         totalPrice: editingQuotation.totalPrice.toString(),
-        workflowStatus: editingQuotation.workflowStatus,
-        paymentStatus: editingQuotation.paymentStatus,
+        workflowStatus: editingQuotation.workflowStatus as "draft" | "in_review" | "final" | "accepted" | "rejected",
+        paymentStatus: editingQuotation.paymentStatus as "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid",
         discountValue: editingQuotation.discountValue?.toString() || "",
         discountType: editingQuotation.discountType || "percentage",
         duration: editingQuotation.duration?.toString() || "",
@@ -266,7 +266,7 @@ export default function EditQuotationForm({
         name: editForm.name,
         description: editForm.description,
         totalPrice: grandTotal, // Store grand total in totalPrice (includes custom services)
-        workflowStatus: workflowStatus || editForm.workflowStatus,
+        workflowStatus: (workflowStatus || editForm.workflowStatus) as "draft" | "in_review" | "final" | "accepted" | "rejected",
         paymentStatus: editForm.paymentStatus,
         clientId: clientMode === "existing" ? editForm.clientId : undefined,
         newClient: clientMode === "new" ? editForm.newClient : undefined,
@@ -517,7 +517,7 @@ export default function EditQuotationForm({
               <Select
                 value={editForm.workflowStatus}
                 onValueChange={(value) =>
-                  setEditForm((prev) => ({ ...prev, workflowStatus: value }))
+                  setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "in_review" | "final" | "accepted" | "rejected" }))
                 }
               >
                 <SelectTrigger>
@@ -537,7 +537,7 @@ export default function EditQuotationForm({
               <Select
                 value={editForm.paymentStatus}
                 onValueChange={(value) =>
-                  setEditForm((prev) => ({ ...prev, paymentStatus: value }))
+                  setEditForm((prev) => ({ ...prev, paymentStatus: value as "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid" }))
                 }
               >
                 <SelectTrigger>

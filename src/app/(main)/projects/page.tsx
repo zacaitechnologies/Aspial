@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, DollarSign, Clock } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { getAllProjectsOptimized, deleteProject } from "./action";
+import { getAllProjectsOptimized, cancelProject } from "./action";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
 import ProjectCollaboratorsDialog from "./components/ProjectCollaboratorsDialog";
@@ -108,16 +108,16 @@ export default function ProjectsPage() {
   };
 
   const confirmDelete = async () => {
-    if (!projectToDelete) return;
+    if (!projectToDelete || !enhancedUser?.id) return;
 
     try {
-      await deleteProject(projectToDelete);
+      await cancelProject(projectToDelete, enhancedUser.id);
       await fetchProjects();
       setShowDeleteDialog(false);
       setProjectToDelete(null);
     } catch (error) {
-      console.error("Error deleting project:", error);
-      alert("Failed to delete project. Please try again.");
+      console.error("Error cancelling project:", error);
+      alert("Failed to cancel project. Please try again.");
     }
   };
 
@@ -339,24 +339,28 @@ export default function ProjectsPage() {
                     >
                       <Info className="w-4 h-4" />
                     </Button>
-                  </Link>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-2 bg-transparent"
-                    style={{ borderColor: "#BDC4A5", color: "#202F21" }}
-                    onClick={() => handleEditProject(project)}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
-                    onClick={() => handleDelete(project.id.toString())}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                    </Link>
+                    {project.status !== "cancelled" && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-2 bg-transparent"
+                          style={{ borderColor: "#BDC4A5", color: "#202F21" }}
+                          onClick={() => handleEditProject(project)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
+                          onClick={() => handleDelete(project.id.toString())}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
                 </div>
               </div>
             </CardHeader>
@@ -444,10 +448,10 @@ export default function ProjectsPage() {
           setProjectToDelete(null);
         }}
         onConfirm={confirmDelete}
-        title="Delete Project"
-        description="Are you sure you want to delete this project? This action cannot be undone."
-        confirmText="Delete Project"
-        cancelText="Cancel"
+        title="Cancel Project"
+        description="Are you sure you want to cancel this project? This will change the project status to 'cancelled' and prevent further modifications."
+        confirmText="Cancel Project"
+        cancelText="Keep Project"
         variant="danger"
       />
     </div>

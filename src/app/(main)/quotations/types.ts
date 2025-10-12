@@ -87,8 +87,8 @@ export type EditFormData = {
   name: string;
   description: string;
   totalPrice: string;
-  workflowStatus: string;
-  paymentStatus: string;
+  workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected";
+  paymentStatus: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid";
   discountValue: string;
   discountType: "percentage" | "fixed";
   duration: string;

@@ -210,7 +210,11 @@ export async function createProject(data: CreateProjectData) {
 
 
 
-export async function updateProjectStatus(id: string, status: string, userId: string) {
+export async function updateProjectStatus(
+  id: string, 
+  status: "planning" | "in_progress" | "on_hold" | "completed" | "cancelled", 
+  userId: string
+) {
   // Check if user can modify project (includes cancelled check)
   const canModify = await canModifyProject(userId, Number.parseInt(id));
   if (!canModify) {
@@ -337,7 +341,8 @@ export async function getProjectById(userId: string, projectId: string) {
         select: {
           id: true,
           totalPrice: true,
-          status: true,
+          workflowStatus: true,
+          paymentStatus: true,
           services: {
             select: {
               service: {
