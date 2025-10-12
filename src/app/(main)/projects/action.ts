@@ -139,6 +139,40 @@ export async function getAllProjectsOptimized(userId?: string) {
   }));
 }
 
+// Helper function to check if project is cancelled
+export async function isProjectCancelled(projectId: number): Promise<boolean> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { status: true },
+  });
+  
+  return project?.status === "cancelled";
+}
+
+// Helper function to check if user can modify project
+export async function canModifyProject(userId: string, projectId: number): Promise<boolean> {
+  // Cancelled projects cannot be modified
+  if (await isProjectCancelled(projectId)) {
+    return false;
+  }
+  
+  const isAdmin = await isUserAdmin(userId);
+  if (isAdmin) {
+    return true;
+  }
+  
+  const permission = await prisma.projectPermission.findUnique({
+    where: {
+      userId_projectId: {
+        userId,
+        projectId,
+      },
+    },
+  });
+  
+  return permission?.canEdit || permission?.isOwner || false;
+}
+
 export async function createProject(data: CreateProjectData) {
   const project = await prisma.project.create({
     data: {
@@ -176,27 +210,74 @@ export async function createProject(data: CreateProjectData) {
 
 
 
-export async function updateProjectStatus(id: string, status: string) {
+export async function updateProjectStatus(id: string, status: string, userId: string) {
+  // Check if user can modify project (includes cancelled check)
+  const canModify = await canModifyProject(userId, Number.parseInt(id));
+  if (!canModify) {
+    throw new Error("Cannot update cancelled projects or insufficient permissions");
+  }
+  
   return await prisma.project.update({
     where: { id: Number.parseInt(id) },
     data: { status },
-  })
+  });
 }
 
 export async function updateProject(
   id: string,
-  data: UpdateProjectData
+  data: UpdateProjectData,
+  userId: string
 ) {
+  // Check if user can modify project (includes cancelled check)
+  const canModify = await canModifyProject(userId, Number.parseInt(id));
+  if (!canModify) {
+    throw new Error("Cannot update cancelled projects or insufficient permissions");
+  }
+  
   return await prisma.project.update({
     where: { id: Number.parseInt(id) },
     data,
-  })
+  });
 }
 
-export async function deleteProject(id: string) {
+// Soft delete: Cancel project (changes status to cancelled)
+export async function cancelProject(id: string, userId: string) {
+  // Check if user is admin or project owner
+  const isAdmin = await isUserAdmin(userId);
+  
+  if (!isAdmin) {
+    const permission = await prisma.projectPermission.findUnique({
+      where: {
+        userId_projectId: {
+          userId,
+          projectId: Number.parseInt(id),
+        },
+      },
+    });
+    
+    if (!permission?.isOwner) {
+      throw new Error("Only project owners and admins can cancel projects");
+    }
+  }
+  
+  return await prisma.project.update({
+    where: { id: Number.parseInt(id) },
+    data: { status: "cancelled" },
+  });
+}
+
+// Hard delete: Permanently delete project (only for admins)
+export async function deleteProject(id: string, userId: string) {
+  // Only admins can hard delete projects
+  const isAdmin = await isUserAdmin(userId);
+  
+  if (!isAdmin) {
+    throw new Error("Only administrators can permanently delete projects");
+  }
+  
   return await prisma.project.delete({
     where: { id: Number.parseInt(id) },
-  })
+  });
 }
 
 export async function getProjectById(userId: string, projectId: string) {

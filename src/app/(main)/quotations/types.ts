@@ -5,7 +5,8 @@ export type QuotationWithServices = {
   name: string;
   description: string;
   totalPrice: number;
-  status: string;
+  workflowStatus: string;
+  paymentStatus: string;
   discountValue?: number;
   discountType?: "percentage" | "fixed";
   duration?: number;
@@ -86,7 +87,8 @@ export type EditFormData = {
   name: string;
   description: string;
   totalPrice: string;
-  status: string;
+  workflowStatus: string;
+  paymentStatus: string;
   discountValue: string;
   discountType: "percentage" | "fixed";
   duration: string;
@@ -113,17 +115,20 @@ export type EditFormData = {
   };
 };
 
-export const statusOptions = [
-  { value: "draft", label: "Draft", color: "default" as const, className: "" },
+export const workflowStatusOptions = [
+  { value: "draft", label: "Draft", color: "default" as const, className: "bg-gray-200 text-gray-800" },
+  { value: "in_review", label: "In Review", color: "default" as const, className: "bg-blue-500 text-white" },
+  { value: "final", label: "Final", color: "default" as const, className: "bg-purple-600 text-white" },
   { value: "accepted", label: "Accepted", color: "default" as const, className: "bg-green-600 text-white hover:bg-green-700" },
   { value: "rejected", label: "Rejected", color: "destructive" as const, className: "" },
-  { value: "paid", label: "Paid", color: "default" as const, className: "" },
+] as const;
+
+export const paymentStatusOptions = [
   { value: "unpaid", label: "Unpaid", color: "destructive" as const, className: "" },
-  {
-    value: "partially_paid",
-    label: "Partially Paid",
-    color: "secondary" as const,
-    className: "",
-  },
-  { value: "deposit_paid", label: "Deposit Paid", color: "secondary" as const, className: "" },
-] as const; 
+  { value: "partially_paid", label: "Partially Paid", color: "secondary" as const, className: "bg-yellow-500 text-white" },
+  { value: "deposit_paid", label: "Deposit Paid", color: "default" as const, className: "bg-orange-500 text-white" },
+  { value: "fully_paid", label: "Fully Paid", color: "default" as const, className: "bg-green-600 text-white" },
+] as const;
+
+// Backwards compatibility - use workflow status
+export const statusOptions = workflowStatusOptions; 
