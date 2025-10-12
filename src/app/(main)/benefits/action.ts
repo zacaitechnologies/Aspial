@@ -1,0 +1,236 @@
+"use server"
+
+import { prisma } from "@/lib/prisma"
+
+export interface MonthlyPerformance {
+  month: string
+  sales: number
+  level: number
+  stars: number
+  year: number
+}
+
+export interface EmployeeSalesData {
+  userId: string
+  userName: string
+  currentYearlySales: number
+  currentMonthlySales: number
+  monthlyData: MonthlyPerformance[]
+  currentLevel: number
+  commissionRate: string
+}
+
+// Sales targets based on company policy
+const salesTargets = {
+  level1: 720000, // 720K yearly / 60K monthly
+  level2: 1200000, // 1.20M yearly / 100K monthly
+  level3: 2100000, // 2.10M yearly / 175K monthly
+  level4: 3360000, // 3.36M yearly / 280K monthly
+}
+
+const monthlySalesTargets = {
+  level1: 60000,
+  level2: 100000,
+  level3: 175000,
+  level4: 280000,
+}
+
+// Determine level based on sales
+function calculateLevel(sales: number, isMonthly: boolean = false): number {
+  const targets = isMonthly ? monthlySalesTargets : salesTargets
+  
+  if (sales >= targets.level4) return 4
+  if (sales >= targets.level3) return 3
+  if (sales >= targets.level2) return 2
+  if (sales >= targets.level1) return 1
+  return 0
+}
+
+// Get commission rate based on level
+function getCommissionRate(level: number): string {
+  if (level >= 4) return "12%"
+  if (level >= 3) return "10%"
+  if (level >= 2) return "8%"
+  if (level >= 1) return "5%"
+  return "0%"
+}
+
+// Calculate stars: 1 star if monthly sales >= 100K
+function calculateStars(monthlySales: number): number {
+  return monthlySales >= 100000 ? 1 : 0
+}
+
+export async function getEmployeeSalesData(userId: string): Promise<EmployeeSalesData> {
+  try {
+    // Fetch user details
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        supabase_id: true,
+        firstName: true,
+        lastName: true,
+      },
+    })
+
+    if (!user) {
+      throw new Error("User not found")
+    }
+
+    // Get current year
+    const currentYear = new Date().getFullYear()
+    const startOfYear = new Date(currentYear, 0, 1)
+    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59)
+
+    // Fetch all quotations created by this user in the current year
+    // Only count accepted, paid, partially_paid, and deposit_paid as completed sales
+    const quotations = await prisma.quotation.findMany({
+      where: {
+        createdById: user.supabase_id,
+        created_at: {
+          gte: startOfYear,
+          lte: endOfYear,
+        },
+        status: {
+          in: ["accepted", "paid", "partially_paid", "deposit_paid"],
+        },
+      },
+      select: {
+        id: true,
+        totalPrice: true,
+        created_at: true,
+        status: true,
+      },
+      orderBy: {
+        created_at: "asc",
+      },
+    })
+
+    // Group quotations by month
+    const monthlyDataMap: Map<string, { sales: number; month: string; monthIndex: number; year: number }> = new Map()
+    
+    // Initialize all 12 months
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    for (let i = 0; i < 12; i++) {
+      const key = `${currentYear}-${i}`
+      monthlyDataMap.set(key, {
+        month: monthNames[i],
+        sales: 0,
+        monthIndex: i,
+        year: currentYear,
+      })
+    }
+
+    // Aggregate sales by month
+    quotations.forEach((quotation) => {
+      const date = new Date(quotation.created_at)
+      const monthIndex = date.getMonth()
+      const year = date.getFullYear()
+      const key = `${year}-${monthIndex}`
+
+      if (monthlyDataMap.has(key)) {
+        const monthData = monthlyDataMap.get(key)!
+        monthData.sales += quotation.totalPrice
+      }
+    })
+
+    // Convert map to array with calculated levels and stars
+    const monthlyData: MonthlyPerformance[] = Array.from(monthlyDataMap.values())
+      .sort((a, b) => a.monthIndex - b.monthIndex)
+      .map((data) => ({
+        month: data.month,
+        sales: data.sales,
+        level: calculateLevel(data.sales, true),
+        stars: calculateStars(data.sales),
+        year: data.year,
+      }))
+
+    // Calculate total yearly sales
+    const currentYearlySales = quotations.reduce((sum, q) => sum + q.totalPrice, 0)
+
+    // Calculate current month sales
+    const currentMonth = new Date().getMonth()
+    const currentMonthData = monthlyData[currentMonth]
+    const currentMonthlySales = currentMonthData ? currentMonthData.sales : 0
+
+    // Determine current level based on yearly sales
+    const currentLevel = calculateLevel(currentYearlySales, false)
+    const commissionRate = getCommissionRate(currentLevel)
+
+    return {
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      currentYearlySales,
+      currentMonthlySales,
+      monthlyData,
+      currentLevel,
+      commissionRate,
+    }
+  } catch (error) {
+    console.error("Error fetching employee sales data:", error)
+    throw error
+  }
+}
+
+// Get complaints data from database
+export async function getEmployeeComplaints(userId: string) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    })
+
+    if (!user) {
+      return []
+    }
+
+    // Get current year complaints
+    const currentYear = new Date().getFullYear()
+    const startOfYear = new Date(currentYear, 0, 1)
+    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59)
+
+    const complaints = await prisma.complaint.findMany({
+      where: {
+        userId: user.id,
+        date: {
+          gte: startOfYear,
+          lte: endOfYear,
+        },
+      },
+      select: {
+        date: true,
+        customer: true,
+        reason: true,
+        status: true,
+      },
+      orderBy: {
+        date: "desc",
+      },
+    })
+
+    return complaints.map((complaint) => ({
+      date: complaint.date.toISOString().split("T")[0],
+      customer: complaint.customer,
+      reason: complaint.reason,
+      status: complaint.status,
+    }))
+  } catch (error) {
+    console.error("Error fetching complaints:", error)
+    return []
+  }
+}
+
+// Calculate stars after complaints deduction
+export async function calculateFinalStars(userId: string): Promise<{ totalStars: number; starsAfterComplaints: number }> {
+  const salesData = await getEmployeeSalesData(userId)
+  const complaints = await getEmployeeComplaints(userId)
+  
+  const totalStars = salesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
+  const starsAfterComplaints = totalStars - complaints.length
+
+  return {
+    totalStars,
+    starsAfterComplaints,
+  }
+}
+

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import {
   Search,
-  Filter,
+  DollarSign,
   Mail,
   Phone,
   Building2,
@@ -398,8 +398,8 @@ export default function ClientsPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-xl font-semibold mb-2" style={{ color: "#202F21" }}>
-                        {client.name}
+                      <CardTitle className="text-xl font-semibold mb-1" style={{ color: "#202F21" }}>
+                        {client.company || client.name}
                       </CardTitle>
                       <div className="flex items-center gap-2">
                         <Badge 
@@ -460,15 +460,15 @@ export default function ClientsPage() {
                       <span style={{ color: "#202F21" }}>{client.phone}</span>
                     </div>
                   )}
-                  {client.company && (
+                  {client.name && (
                     <div className="flex items-center gap-2 text-sm">
-                      <Building2 className="w-4 h-4" style={{ color: "#898D74" }} />
-                      <span style={{ color: "#202F21" }}>{client.company}</span>
+                      <User className="w-4 h-4" style={{ color: "#898D74" }} />
+                      <span style={{ color: "#202F21" }}>{client.name}</span>
                     </div>
                   )}
                   {client.yearlyRevenue && (
                     <div className="flex items-center gap-2 text-sm">
-                      <Building2 className="w-4 h-4" style={{ color: "#898D74" }} />
+                      <DollarSign className="w-4 h-4" style={{ color: "#898D74" }} />
                       <span style={{ color: "#202F21" }}>RM {client.yearlyRevenue.toLocaleString()}</span>
                     </div>
                   )}

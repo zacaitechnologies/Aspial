@@ -1,0 +1,102 @@
+"use client"
+
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import type { LucideIcon } from "lucide-react"
+
+interface RewardCardProps {
+  level: number
+  title: string
+  target: number
+  monthlySales: number
+  commissionRate: string
+  prizes: string[]
+  icon: LucideIcon
+  color: string
+  unlocked: boolean
+}
+
+export function RewardCard({
+  level,
+  title,
+  target,
+  monthlySales,
+  commissionRate,
+  prizes,
+  icon: Icon,
+  color,
+  unlocked,
+}: RewardCardProps) {
+  return (
+    <Card
+      className={`relative overflow-hidden transition-all duration-300 border-4 ${
+        unlocked
+          ? "border-green-500 shadow-2xl scale-105 animate-[pulse-glow_2s_ease-in-out_infinite]"
+          : "border-foreground/20 shadow-lg hover:scale-105 hover:shadow-xl"
+      }`}
+    >
+      {/* Background gradient */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-${unlocked ? "20" : "10"}`} />
+
+      {/* Unlocked badge */}
+      {unlocked && (
+        <div className="absolute top-3 right-3 z-10">
+          <Badge className="bg-green-600 text-white font-black text-xs px-3 py-1 shadow-lg animate-[bounce_1s_ease-in-out_infinite]">
+            ✓ UNLOCKED!
+          </Badge>
+        </div>
+      )}
+
+      <div className="relative p-6">
+        {/* Level badge */}
+        <div className="flex items-center justify-between mb-4">
+          <Badge className={`text-lg font-black px-4 py-2 ${unlocked ? "bg-green-600" : "bg-muted"} text-white`}>
+            Level {level}
+          </Badge>
+          <div
+            className={`p-3 rounded-full bg-gradient-to-br ${color} ${unlocked ? "animate-[grow-transform_2s_ease-in-out_infinite]" : ""}`}
+          >
+            <Icon className="w-6 h-6 text-white" />
+          </div>
+        </div>
+
+        {/* Title */}
+        <h3 className="text-2xl font-black mb-3 text-foreground">{title}</h3>
+
+        {/* Target */}
+        <div className="mb-3 p-3 bg-white/50 rounded-lg">
+          <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">Yearly Target</div>
+          <div className="text-2xl font-black text-primary">RM {(target / 1000).toFixed(0)}K</div>
+          <div className="text-xs font-bold text-muted-foreground mt-1">
+            RM {(monthlySales / 1000).toFixed(0)}K / month
+          </div>
+          <div className="text-xs font-bold text-green-600 mt-1">{commissionRate} Commission</div>
+        </div>
+
+        {/* Prizes */}
+        <div>
+          <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-2">Benefits</div>
+          <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+            {prizes.map((prize, index) => (
+              <li key={index} className="flex items-start gap-2">
+                <span className="text-accent text-sm mt-0.5">🎁</span>
+                <span
+                  className={`text-xs font-bold leading-tight ${unlocked ? "text-foreground" : "text-muted-foreground"}`}
+                >
+                  {prize}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Lock overlay for locked rewards */}
+        {!unlocked && (
+          <div className="absolute inset-0 bg-foreground/5 backdrop-blur-[1px] flex items-center justify-center">
+            <div className="text-6xl opacity-20">🔒</div>
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+}

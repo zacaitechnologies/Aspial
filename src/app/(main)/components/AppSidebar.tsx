@@ -16,6 +16,7 @@ import {
   Briefcase,
   Clock,
   Users,
+  Gift,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getAllPendingInvitations, isUserAdmin } from "../projects/permissions";
@@ -68,6 +69,11 @@ const mainNavItems = [
     title: "Clients",
     url: "/clients",
     icon: Users,
+  },
+  {
+    title: "Benefits",
+    url: "/benefits",
+    icon: Gift,
   },
 ];
 
