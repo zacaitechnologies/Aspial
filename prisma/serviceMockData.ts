@@ -39,6 +39,7 @@ async function main() {
   console.log(`✅ Seeded ${count} services successfully`);
 }
 
+//test
 main()
   .catch((e) => {
     console.error('Error seeding services:', e);
