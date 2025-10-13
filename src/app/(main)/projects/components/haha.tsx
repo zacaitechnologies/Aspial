@@ -1,3 +1,3 @@
 export default function Haha() {
-  return <div>Haha</div>;
+  return <div>Hahahahahah</div>;
 }
