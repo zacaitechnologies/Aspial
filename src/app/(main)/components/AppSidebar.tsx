@@ -17,6 +17,7 @@ import {
   Clock,
   Users,
   Gift,
+  Shield,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getAllPendingInvitations, isUserAdmin } from "../projects/permissions";
@@ -199,6 +200,16 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
+                <Link href="/user-management" className="flex items-center gap-3">
+                  <Shield className="w-5 h-5" />
+                  <span>User Management</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
               <Link href="#" className="flex items-center gap-3">
