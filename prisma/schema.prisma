@@ -27,6 +27,14 @@ model UserRole {
   @@map("user_role")
 }
 
+model staffRole {
+  id       String @id @default(cuid())
+  roleName String
+  users    User[]
+
+  @@map("staff_role")
+}
+
 model User {
   id                     String              @id @default(cuid())
   firstName              String
@@ -35,6 +43,8 @@ model User {
   supabase_id            String              @unique
   created_at             DateTime            @default(now())
   updated_at             DateTime            @default(now())
+  staffRoleId            String?
+  staffRole              staffRole?          @relation(fields: [staffRoleId], references: [id])
   reviewedCustomServices CustomService[]     @relation("CustomServiceReviewer")
   createdCustomServices  CustomService[]     @relation("CustomServiceCreator")
   sentInvitations        ProjectInvitation[] @relation("ProjectInviter")
@@ -52,15 +62,15 @@ model User {
 }
 
 model Complaint {
-  id         Int              @id @default(autoincrement())
-  date       DateTime         @default(now())
+  id         Int             @id @default(autoincrement())
+  date       DateTime        @default(now())
   customer   String
   reason     String
-  status     ComplaintStatus  @default(pending)
+  status     ComplaintStatus @default(pending)
   userId     String
-  user       User             @relation(fields: [userId], references: [id])
-  created_at DateTime         @default(now())
-  updated_at DateTime         @updatedAt
+  user       User            @relation(fields: [userId], references: [id])
+  created_at DateTime        @default(now())
+  updated_at DateTime        @updatedAt
 
   @@map("complaints")
 }
@@ -423,8 +433,3 @@ enum ComplaintStatus {
   pending
   resolved
 }
-
-
-
-
-

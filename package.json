@@ -16,7 +16,8 @@
     "seed:users": "ts-node prisma/userSyncData.ts",
     "seed:studios": "ts-node prisma/studioMockData.ts",
     "seed:equipment": "ts-node prisma/equipmentMockData.ts",
-    "seed": "npm run seed:roles && npm run seed:users && npm run seed:studios && npm run seed:equipment && npm run seed:services"
+    "seed:staffRoles": "ts-node prisma/staffRoleMockData.ts",
+    "seed": "npm run seed:roles && npm run seed:users && npm run seed:studios && npm run seed:equipment && npm run seed:services && npm run seed:staffRoles"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
