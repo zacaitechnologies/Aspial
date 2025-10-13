@@ -32,6 +32,7 @@ async function roleMain() {
   console.log(`✅ Seeded ${count} roles successfully`);
 }
 
+// add role mock data
 roleMain()
   .catch((e) => {
     console.error('Error seeding roles:', e);
