@@ -68,7 +68,7 @@ export default function QuotationsPage() {
     if (statusFilter === "all") {
       return quotations;
     }
-    return quotations.filter((quotation) => quotation.status === statusFilter);
+    return quotations.filter((quotation) => quotation.workflowStatus === statusFilter);
   }, [quotations, statusFilter]);
 
   if (loading) {
