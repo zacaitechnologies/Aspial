@@ -26,20 +26,29 @@ function ServicesPageContent() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Tabs Section */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
-          <TabsList className="grid w-full max-w-md grid-cols-2 bg-white shadow-sm border">
-            <TabsTrigger 
-              value="services" 
-              className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
-            >
-              Services
-            </TabsTrigger>
-            <TabsTrigger 
-              value="tags" 
-              className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
-            >
-              Service Tags
-            </TabsTrigger>
-          </TabsList>
+          <div className="relative">
+            <TabsList className="grid w-full grid-cols-2 bg-transparent border-primary border-1 transition-all duration-300 ease-in-out">
+              <TabsTrigger 
+                value="services" 
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              >
+                Services
+              </TabsTrigger>
+              <TabsTrigger 
+                value="tags" 
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              >
+                Service Tags
+              </TabsTrigger>
+            </TabsList>
+            {/* Sliding indicator */}
+            <div 
+              className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
+                activeTab === "services" ? "left-1 w-[calc(50%-4px)]" : 
+                "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+              }`}
+            />
+          </div>
 
           <TabsContent value="services" className="space-y-0">
             <ServicesList 

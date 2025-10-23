@@ -130,7 +130,7 @@ export default function ServicesList({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -144,64 +144,64 @@ export default function ServicesList({
       </div>
 
       {/* Search and Filter Section */}
-      <div className="bg-gray-50 rounded-lg p-4">
-        <div className="space-y-4">
-          {/* Search Row */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search services by name or description..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-              />
-              {isSearching && (
-                <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-blue-600" />
-              )}
-            </div>
-            {(searchQuery || selectedTagFilter !== "all") && (
-              <Button
-                variant="outline"
-                onClick={clearSearch}
-                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                Clear
-              </Button>
+      <div className="space-y-4">
+        {/* Search Row */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              placeholder="Search services by name or description..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 bg-white border-2"
+              style={{ borderColor: "#BDC4A5" }}
+            />
+            {isSearching && (
+              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-blue-600" />
             )}
           </div>
-
-          {/* Tag Filter Row */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">
-                Filter by tag:
-              </span>
-            </div>
-            <Select
-              value={selectedTagFilter}
-              onValueChange={setSelectedTagFilter}
+          {(searchQuery || selectedTagFilter !== "all") && (
+            <Button
+              variant="outline"
+              onClick={clearSearch}
+              className="border-2 bg-white"
+              style={{ borderColor: "#BDC4A5" }}
             >
-              <SelectTrigger className="w-48 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500">
-                <SelectValue placeholder="All tags" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All tags</SelectItem>
-                {serviceTags.tags.map((tag) => (
-                  <SelectItem key={tag.id} value={tag.id.toString()}>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full border border-white shadow-sm"
-                        style={{ backgroundColor: tag.color || "#3B82F6" }}
-                      />
-                      <span>{tag.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              Clear
+            </Button>
+          )}
+        </div>
+
+        {/* Tag Filter Row */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">
+              Filter by tag:
+            </span>
           </div>
+          <Select
+            value={selectedTagFilter}
+            onValueChange={setSelectedTagFilter}
+          >
+            <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+              <SelectValue placeholder="All tags" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All tags</SelectItem>
+              {serviceTags.tags.map((tag) => (
+                <SelectItem key={tag.id} value={tag.id.toString()}>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full border border-white shadow-sm"
+                      style={{ backgroundColor: tag.color || "#3B82F6" }}
+                    />
+                    <span>{tag.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

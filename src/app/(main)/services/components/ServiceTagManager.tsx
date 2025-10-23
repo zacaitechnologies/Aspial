@@ -104,7 +104,7 @@ export default function ServiceTagManager() {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -115,8 +115,8 @@ export default function ServiceTagManager() {
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => resetForm()} className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4 mr-2" />
+            <Button onClick={() => resetForm()} className="text-white" style={{ backgroundColor: "#202F21" }}>
+              <Plus className="w-5 h-5 mr-2" />
               Create Tag
             </Button>
           </DialogTrigger>
@@ -169,7 +169,8 @@ export default function ServiceTagManager() {
               </div>
               <Button 
                 onClick={handleCreateTag} 
-                className="w-full bg-blue-600 hover:bg-blue-700"
+                className="w-full text-white"
+                style={{ backgroundColor: "#202F21" }}
                 disabled={!formData.name.trim()}
               >
                 Create Tag
@@ -252,8 +253,8 @@ export default function ServiceTagManager() {
           <p className="text-gray-600 mb-6">
             Create your first service tag to start organizing your services
           </p>
-          <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={() => setIsCreateDialogOpen(true)} className="text-white" style={{ backgroundColor: "#202F21" }}>
+            <Plus className="w-5 h-5 mr-2" />
             Create First Tag
           </Button>
         </div>
@@ -310,7 +311,8 @@ export default function ServiceTagManager() {
             </div>
             <Button 
               onClick={handleEditTag} 
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full text-white"
+              style={{ backgroundColor: "#202F21" }}
               disabled={!formData.name.trim()}
             >
               Update Tag

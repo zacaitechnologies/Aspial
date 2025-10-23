@@ -116,8 +116,8 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
       {!isEditing && (
         <DialogTrigger asChild>
           {trigger || (
-            <Button onClick={() => setIsOpen(true)} className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="w-4 h-4" />
+            <Button onClick={() => setIsOpen(true)} className="text-white" style={{ backgroundColor: "#202F21" }}>
+              <Plus className="w-5 h-5 mr-2" />
               Create Service
             </Button>
           )}
@@ -261,13 +261,13 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
               type="button"
               variant="outline"
               onClick={() => setIsOpen(false)}
-              className="border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </Button>
             <Button 
               type="submit" 
-              className="bg-blue-600 hover:bg-blue-700 px-6"
+              className="text-white px-6"
+              style={{ backgroundColor: "#202F21" }}
               disabled={!formData.name.trim() || formData.basePrice <= 0}
             >
               {isEditing ? "Update Service" : "Create Service"}
