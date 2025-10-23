@@ -48,7 +48,8 @@ export function DatePicker({ selectedDate, onDateChange, minDate, maxDate }: Dat
         onChange={handleDateChange}
         min={getMinDate()}
         max={getMaxDate()}
-        className="w-full"
+        className="w-full bg-white border-2"
+        style={{ borderColor: "#BDC4A5" }}
         placeholder="Select a date"
       />
     </div>

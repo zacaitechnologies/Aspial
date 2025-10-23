@@ -116,7 +116,7 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
       {!isEditing && (
         <DialogTrigger asChild>
           {trigger || (
-            <Button onClick={() => setIsOpen(true)} className="text-white" style={{ backgroundColor: "#202F21" }}>
+            <Button onClick={() => setIsOpen(true)} className="text-white">
               <Plus className="w-5 h-5 mr-2" />
               Create Service
             </Button>

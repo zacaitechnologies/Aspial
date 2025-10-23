@@ -191,14 +191,20 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
   }
 
   return (
-    <Tabs defaultValue="booking" className="w-full" onValueChange={setActiveTab}>
+    <Tabs defaultValue="equipment-booking" className="w-full" onValueChange={setActiveTab}>
       <div className="relative">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-2'} bg-transparent border-primary border-1 transition-all duration-300 ease-in-out`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-5' : 'grid-cols-3'} bg-transparent border-primary border-1 transition-all duration-300 ease-in-out`}>
           <TabsTrigger 
-            value="booking" 
+            value="equipment-booking" 
             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
           >
-            Bookings
+            Equipment Bookings
+          </TabsTrigger>
+          <TabsTrigger 
+            value="studio-booking" 
+            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+          >
+            Studio Bookings
           </TabsTrigger>
           <TabsTrigger 
             value="my-bookings" 
@@ -227,22 +233,24 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
         <div 
           className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
             isAdmin ? (
-              activeTab === "booking" ? "left-1 w-[calc(25%-4px)]" : 
-              activeTab === "my-bookings" ? "left-[calc(25%+2px)] w-[calc(25%-4px)]" : 
-              activeTab === "studios" ? "left-[calc(50%+2px)] w-[calc(25%-4px)]" : 
-              "left-[calc(75%+2px)] w-[calc(25%-4px)]"
+              activeTab === "equipment-booking" ? "left-1 w-[calc(20%-4px)]" : 
+              activeTab === "studio-booking" ? "left-[calc(20%+2px)] w-[calc(20%-4px)]" : 
+              activeTab === "my-bookings" ? "left-[calc(40%+2px)] w-[calc(20%-4px)]" : 
+              activeTab === "studios" ? "left-[calc(60%+2px)] w-[calc(20%-4px)]" : 
+              "left-[calc(80%+2px)] w-[calc(20%-4px)]"
             ) : (
-              activeTab === "booking" ? "left-1 w-[calc(50%-4px)]" : 
-              "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+              activeTab === "equipment-booking" ? "left-1 w-[calc(33.33%-4px)]" : 
+              activeTab === "studio-booking" ? "left-[calc(33.33%+2px)] w-[calc(33.33%-4px)]" : 
+              "left-[calc(66.66%+2px)] w-[calc(33.33%-4px)]"
             )
           }`}
         />
       </div>
 
-      <TabsContent value="booking" className="space-y-6">
+      <TabsContent value="equipment-booking" className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-semibold">Book Equipment & Studios</h2>
-          <Button onClick={handleRefresh} variant="outline">
+          <h2 className="text-2xl font-semibold">Book Equipment</h2>
+          <Button onClick={handleRefresh} className="text-white" style={{ backgroundColor: "#202F21" }}>
             <Clock className="w-4 h-4 mr-2" />
             Refresh
           </Button>
@@ -259,6 +267,33 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
           <BookingList
             selectedDate={selectedDate}
             equipment={equipment}
+            studios={[]}
+            onBookEquipment={handleBookEquipment}
+            onBookStudio={handleBookStudio}
+          />
+        </div>
+      </TabsContent>
+
+      <TabsContent value="studio-booking" className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-semibold">Book Studios</h2>
+          <Button onClick={handleRefresh} className="text-white" style={{ backgroundColor: "#202F21" }}>
+            <Clock className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="max-w-xs">
+            <DatePicker
+              selectedDate={selectedDate}
+              onDateChange={setSelectedDate}
+            />
+          </div>
+
+          <BookingList
+            selectedDate={selectedDate}
+            equipment={[]}
             studios={studios}
             onBookEquipment={handleBookEquipment}
             onBookStudio={handleBookStudio}
@@ -272,70 +307,105 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
             <User className="w-5 h-5" />
             My Bookings
           </h2>
-          <Button onClick={handleRefresh} variant="outline">
+          <Button onClick={handleRefresh} className="text-white" style={{ backgroundColor: "#202F21" }}>
             <Clock className="w-4 h-4 mr-2" />
             Refresh
           </Button>
         </div>
 
         <div className="space-y-6">
-          {/* Bookings List */}
-          <div className="space-y-3">
-            {currentBookings.map((booking) => (
-              <Card key={booking.id} className="p-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      {booking.type === 'equipment' ? (
-                        <Package className="w-4 h-4" />
-                      ) : (
-                        <MapPin className="w-4 h-4" />
+          {/* Bookings Grid */}
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+            {currentBookings.map((booking) => {
+              const now = new Date()
+              const bookingEndDate = new Date(booking.endDate)
+              const hasPassed = bookingEndDate < now
+              
+              return (
+                <Card key={booking.id} className="card">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          {booking.type === 'equipment' ? (
+                            <Package className="w-5 h-5" />
+                          ) : (
+                            <MapPin className="w-5 h-5" />
+                          )}
+                          {booking.itemName}
+                        </CardTitle>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge 
+                            variant="secondary"
+                            className={booking.type === 'equipment' ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}
+                          >
+                            {booking.type === 'equipment' ? 'Equipment' : 'Studio'}
+                          </Badge>
+                          <Badge 
+                            variant="secondary"
+                            className={hasPassed ? "bg-gray-100 text-gray-800" : "bg-green-100 text-green-800"}
+                          >
+                            {hasPassed ? 'Expired' : 'Active'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={hasPassed}
+                          onClick={() => booking.type === 'equipment' ? handleCancelBooking(booking.id) : handleCancelStudioBooking(booking.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          title={hasPassed ? "Cannot cancel past bookings" : "Cancel booking"}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent>
+                    {booking.type === 'equipment' && booking.itemType && (
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Type: {booking.itemType}
+                      </p>
+                    )}
+                    {booking.type === 'studio' && booking.itemLocation && (
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Location: {booking.itemLocation}
+                      </p>
+                    )}
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center text-sm">
+                        <Clock className="w-4 h-4 mr-2" />
+                        <span className="font-medium">Start:</span>
+                        <span className="ml-2">{new Date(booking.startDate).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center text-sm">
+                        <Clock className="w-4 h-4 mr-2" />
+                        <span className="font-medium">End:</span>
+                        <span className="ml-2">{new Date(booking.endDate).toLocaleString()}</span>
+                      </div>
+                      {booking.type === 'studio' && booking.attendees && (
+                        <div className="flex items-center text-sm">
+                          <Users className="w-4 h-4 mr-2" />
+                          <span className="font-medium">Attendees:</span>
+                          <span className="ml-2">{booking.attendees}</span>
+                        </div>
                       )}
-                      <h4 className="font-semibold">{booking.itemName}</h4>
-                      <Badge variant="outline" className="text-xs">
-                        {booking.type === 'equipment' ? 'Equipment' : 'Studio'}
-                      </Badge>
                     </div>
-                    {booking.type === 'equipment' && (
-                      <p className="text-sm text-muted-foreground">{booking.itemType}</p>
-                    )}
-                    {booking.type === 'studio' && (
-                      <p className="text-sm text-muted-foreground">{booking.itemLocation}</p>
-                    )}
-                    <div className="flex items-center text-sm mt-2">
-                      <Clock className="w-4 h-4 mr-2" />
-                      {new Date(booking.startDate).toLocaleDateString()} {new Date(booking.startDate).toLocaleTimeString()} - {new Date(booking.endDate).toLocaleTimeString()}
-                    </div>
-                    {booking.type === 'studio' && (
-                      <div className="flex items-center text-sm mt-1">
-                        <Users className="w-4 h-4 mr-2" />
-                        {booking.attendees} attendees
+
+                    {booking.purpose && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                        <p className="text-sm font-medium mb-1">Purpose:</p>
+                        <p className="text-sm text-muted-foreground">{booking.purpose}</p>
                       </div>
                     )}
-                    {booking.purpose && (
-                      <p className="text-sm mt-1">{booking.purpose}</p>
-                    )}
-                  </div>
-                  {(() => {
-                    const now = new Date()
-                    const bookingEndDate = new Date(booking.endDate)
-                    const hasPassed = bookingEndDate < now
-                    
-                    return (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={hasPassed}
-                        onClick={() => booking.type === 'equipment' ? handleCancelBooking(booking.id) : handleCancelStudioBooking(booking.id)}
-                        title={hasPassed ? "Cannot cancel past bookings" : "Cancel booking"}
-                      >
-                        {hasPassed ? "Expired" : "Cancel"}
-                      </Button>
-                    )
-                  })()}
-                </div>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
 
           {/* Pagination Controls */}
@@ -398,8 +468,8 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
           <h2 className="text-2xl font-semibold">Studios ({studios.length})</h2>
           <Dialog open={showStudioForm} onOpenChange={setShowStudioForm}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
+              <Button className="text-white" style={{ backgroundColor: "#202F21" }}>
+                <Plus className="w-5 h-5 mr-2" />
                 Add Studio
               </Button>
             </DialogTrigger>
@@ -423,10 +493,43 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
             <Card key={studio.id} className="card gap-0">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg">{studio.name}</CardTitle>
-                  <Badge variant={studio.isActive ? "default" : "secondary"}>
-                    {studio.isActive ? "Active" : "Inactive"}
-                  </Badge>
+                  <div>
+                    <CardTitle className="text-lg">{studio.name}</CardTitle>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge 
+                        variant="secondary"
+                        className={studio.isActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
+                      >
+                        {studio.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                        <Users className="w-3 h-3 mr-1" />
+                        {studio.capacity}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedStudio(studio)
+                        setShowStudioForm(true)
+                      }}
+                      title="Edit Studio"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost"
+                      size="sm" 
+                      onClick={() => handleDeleteStudio(studio.id, studio.name)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      title="Delete Studio"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -435,45 +538,11 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
                     <MapPin className="w-4 h-4 mr-2" />
                     {studio.location}
                   </div>
-                  <div className="flex items-center text-sm ">
-                    <Users className="w-4 h-4 mr-2" />
-                    Capacity: {studio.capacity}
-                  </div>
-                  <div className="flex items-center text-sm ">
-                    <Package className="w-4 h-4 mr-2" />
-                    Location: {studio.location}
-                  </div>
                 </div>
 
                 {studio.description && (
-                  <p className="text-sm  line-clamp-2">{studio.description}</p>
+                  <p className="text-sm text-muted-foreground line-clamp-2">{studio.description}</p>
                 )}
-
-
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedStudio(studio)
-                      setShowStudioForm(true)
-                    }}
-                    className="flex-1 min-w-0 text-black"
-                  >
-                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Edit</span>
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="destructive" 
-                    onClick={() => handleDeleteStudio(studio.id, studio.name)}
-                    className="flex-1 min-w-0"
-                  >
-                    <Trash2 className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Delete</span>
-                  </Button>
-                </div>
               </CardContent>
             </Card>
           ))}
@@ -485,8 +554,8 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
           <h2 className="text-2xl font-semibold">Equipment ({equipment.length})</h2>
           <Dialog open={showEquipmentForm} onOpenChange={setShowEquipmentForm}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
+              <Button className="text-white" style={{ backgroundColor: "#202F21" }}>
+                <Plus className="w-5 h-5 mr-2" />
                 Add Equipment
               </Button>
             </DialogTrigger>
@@ -511,71 +580,73 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
             <Card key={item.id} className="card gap-0">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg">{item.name}</CardTitle>
-                  <div className="flex gap-1">
-                    <Badge variant={item.isAvailable ? "default" : "secondary"}>
-                      {item.isAvailable ? "Available" : "In Use"}
-                    </Badge>
-                    <Badge
-                      variant={
-                        item.condition === "Excellent"
-                          ? "default"
-                          : item.condition === "Good"
-                            ? "secondary"
-                            : item.condition === "Fair"
-                              ? "outline"
-                              : "destructive"
-                      }
+                  <div>
+                    <CardTitle className="text-lg">{item.name}</CardTitle>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge
+                        variant="secondary"
+                        className={item.isAvailable ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
+                      >
+                        {item.isAvailable ? "Available" : "Maintenance"}
+                      </Badge>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          item.condition === "Excellent"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : item.condition === "Good"
+                              ? "bg-blue-100 text-blue-800"
+                              : item.condition === "Fair"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-red-100 text-red-800"
+                        }
+                      >
+                        {item.condition}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedEquipment(item)
+                        setShowEquipmentForm(true)
+                      }}
+                      title="Edit Equipment"
                     >
-                      {item.condition}
-                    </Badge>
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost"
+                      size="sm" 
+                      onClick={() => handleDeleteEquipment(item.id, item.name)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      title="Delete Equipment"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
-                             <CardContent className="space-y-4">
-                 <div className="space-y-2">
-                   <div className="flex items-center text-sm ">
-                     <Package className="w-4 h-4 mr-2" />
-                     Type: {item.type}
-                   </div>
-                   {(item.brand || item.model) && (
-                     <div className="flex items-center text-sm ">
-                       <Package className="w-4 h-4 mr-2" />
-                       Brand/Model: {item.brand && item.model ? `${item.brand} ${item.model}` : item.brand || item.model}
-                     </div>
-                   )}
-                   {item.serialNumber && (
-                     <div className="flex items-center text-sm ">
-                       <Package className="w-4 h-4 mr-2" />
-                       Serial: {item.serialNumber}
-                     </div>
-                   )}
-                 </div>
-
-
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedEquipment(item)
-                      setShowEquipmentForm(true)
-                    }}
-                    className="flex-1 min-w-0 text-black"
-                  >
-                    <Edit className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Edit</span>
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="destructive" 
-                    onClick={() => handleDeleteEquipment(item.id, item.name)}
-                    className="flex-1 min-w-0"
-                  >
-                    <Trash2 className="w-4 h-4 mr-1 flex-shrink-0" />
-                    <span className="truncate">Delete</span>
-                  </Button>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center text-sm">
+                    <Package className="w-4 h-4 mr-2" />
+                    Type: {item.type}
+                  </div>
+                  {(item.brand || item.model) && (
+                    <div className="flex items-center text-sm">
+                      <Package className="w-4 h-4 mr-2" />
+                      Brand/Model: {item.brand && item.model ? `${item.brand} ${item.model}` : item.brand || item.model}
+                    </div>
+                  )}
+                  {item.serialNumber && (
+                    <div className="flex items-center text-sm">
+                      <Package className="w-4 h-4 mr-2" />
+                      Serial: {item.serialNumber}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

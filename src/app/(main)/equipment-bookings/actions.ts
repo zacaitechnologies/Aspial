@@ -155,12 +155,6 @@ export async function createBooking(formData: FormData) {
       },
     })
 
-    // Update equipment availability
-    await prisma.equipment.update({
-      where: { id: equipmentId },
-      data: { isAvailable: false },
-    })
-
     revalidatePath("/equipment-bookings")
     return { success: true }
   } catch (error) {
@@ -199,27 +193,10 @@ export async function createStudioBooking(formData: FormData) {
   
   export async function cancelBooking(id: number) {
   try {
-    const booking = await prisma.booking.update({
+    await prisma.booking.update({
       where: { id },
       data: { status: "Cancelled" },
-      include: { equipment: true },
     })
-
-    // Check if there are other active bookings for this equipment
-    const activeBookings = await prisma.booking.count({
-      where: {
-        equipmentId: booking.equipmentId,
-        status: "Active",
-      },
-    })
-
-    // If no active bookings, make equipment available
-    if (activeBookings === 0) {
-      await prisma.equipment.update({
-        where: { id: booking.equipmentId },
-        data: { isAvailable: true },
-      })
-    }
 
     revalidatePath("/equipment-bookings")
     return { success: true }
