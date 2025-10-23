@@ -90,18 +90,18 @@ export default function QuotationsPage() {
             </p>
           </div>
 
-          <Button onClick={() => setIsCreateOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
+          <Button onClick={() => setIsCreateOpen(true)} className="text-white" style={{ backgroundColor: "#202F21" }}>
+            <Plus className="w-5 h-5 mr-2" />
             Create Quotation
           </Button>
         </div>
 
         {/* Filter Section */}
         <div className="mb-6 flex items-center gap-3">
-          <Filter className="w-4 h-4 text-muted-foreground" />
+          <Filter className="w-4 h-4 text-gray-500" />
           <span className="text-sm font-medium">Filter by status:</span>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -118,6 +118,8 @@ export default function QuotationsPage() {
               variant="outline"
               size="sm"
               onClick={() => setStatusFilter("all")}
+              className="bg-white border-2"
+              style={{ borderColor: "#BDC4A5" }}
             >
               Clear Filter
             </Button>
@@ -146,7 +148,8 @@ export default function QuotationsPage() {
             <p className="text-muted-foreground">No quotations match the selected filter.</p>
             <Button
               variant="outline"
-              className="mt-4"
+              className="mt-4 bg-white border-2"
+              style={{ borderColor: "#BDC4A5" }}
               onClick={() => setStatusFilter("all")}
             >
               Clear Filter
