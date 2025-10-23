@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { createBooking, createStudioBooking } from "@/app/(main)/equipment-bookings/actions"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { createBooking, createStudioBooking, getUserProjects } from "@/app/(main)/equipment-bookings/actions"
 import { format } from "date-fns"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 
@@ -29,19 +30,44 @@ interface Studio {
   isActive: boolean
 }
 
+interface Project {
+	id: number
+	name: string
+	clientName: string
+	status: string
+}
+
 interface MultipleBookingFormProps {
-  item: Equipment | Studio
-  slots: { start: Date; end: Date }[]
-  isStudio: boolean
-  onClose: () => void
-  onSuccess?: () => void
+	item: Equipment | Studio
+	slots: { start: Date; end: Date }[]
+	isStudio: boolean
+	onClose: () => void
+	onSuccess?: () => void
 }
 
 export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess }: MultipleBookingFormProps) {
-  const { enhancedUser } = useSession()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [purpose, setPurpose] = useState("")
-  const [attendees, setAttendees] = useState("")
+	const { enhancedUser } = useSession()
+	const [isSubmitting, setIsSubmitting] = useState(false)
+	const [purpose, setPurpose] = useState("")
+	const [attendees, setAttendees] = useState("")
+	const [projects, setProjects] = useState<Project[]>([])
+	const [selectedProject, setSelectedProject] = useState<string>("")
+	const [isLoadingProjects, setIsLoadingProjects] = useState(true)
+
+	// Fetch user's accessible projects (only for equipment bookings)
+	useEffect(() => {
+		const fetchProjects = async () => {
+			if (enhancedUser?.id && !isStudio) {
+				setIsLoadingProjects(true)
+				const userProjects = await getUserProjects(enhancedUser.id)
+				setProjects(userProjects as Project[])
+				setIsLoadingProjects(false)
+			} else {
+				setIsLoadingProjects(false)
+			}
+		}
+		fetchProjects()
+	}, [enhancedUser?.id, isStudio])
 
   // Get user name from session
   const userName = enhancedUser.profile 
@@ -88,43 +114,47 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
     ? `${totalHours}h ${remainingMinutes > 0 ? `${remainingMinutes}m` : ''}`.trim()
     : `${remainingMinutes}m`
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault()
+		setIsSubmitting(true)
 
-    try {
-      // Create bookings for each group of consecutive slots
-      for (const group of slotGroups) {
-        const formData = new FormData()
-        
-        if (isStudio) {
-          formData.append("studioId", item.id.toString())
-          formData.append("attendees", attendees)
-        } else {
-          formData.append("equipmentId", item.id.toString())
-        }
-        
-        formData.append("bookedBy", userName)
-        // Use the start time of the first slot and end time of the last slot
-        formData.append("startDate", group[0].start.toISOString())
-        formData.append("endDate", group[group.length - 1].end.toISOString())
-        formData.append("purpose", purpose)
+		try {
+			// Create bookings for each group of consecutive slots
+			for (const group of slotGroups) {
+				const formData = new FormData()
 
-        if (isStudio) {
-          await createStudioBooking(formData)
-        } else {
-          await createBooking(formData)
-        }
-      }
+				if (isStudio) {
+					formData.append("studioId", item.id.toString())
+					formData.append("attendees", attendees)
+				} else {
+					formData.append("equipmentId", item.id.toString())
+					// Add project ID for equipment bookings
+					if (selectedProject) {
+						formData.append("projectId", selectedProject)
+					}
+				}
 
-      onSuccess?.()
-      onClose()
-    } catch (error) {
-      console.error("Failed to create bookings:", error)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+				formData.append("bookedBy", userName)
+				// Use the start time of the first slot and end time of the last slot
+				formData.append("startDate", group[0].start.toISOString())
+				formData.append("endDate", group[group.length - 1].end.toISOString())
+				formData.append("purpose", purpose)
+
+				if (isStudio) {
+					await createStudioBooking(formData)
+				} else {
+					await createBooking(formData)
+				}
+			}
+
+			onSuccess?.()
+			onClose()
+		} catch (error) {
+			console.error("Failed to create bookings:", error)
+		} finally {
+			setIsSubmitting(false)
+		}
+	}
 
   return (
     <div className="w-full max-w-md border rounded-lg p-6">
@@ -137,73 +167,98 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="bookedBy">Booked By</Label>
-          <Input
-            id="bookedBy"
-            value={userName}
-            disabled
-            className="bg-gray-50"
-          />
-        </div>
+			<form onSubmit={handleSubmit} className="space-y-4">
+				<div className="space-y-2">
+					<Label htmlFor="bookedBy">Booked By</Label>
+					<Input
+						id="bookedBy"
+						value={userName}
+						disabled
+						className="bg-gray-50"
+					/>
+				</div>
 
-        <div className="space-y-2">
-          <Label htmlFor="purpose">Purpose</Label>
-          <Textarea
-            id="purpose"
-            value={purpose}
-            onChange={(e) => setPurpose(e.target.value)}
-            placeholder="What will this be used for?"
-            rows={3}
-          />
-        </div>
+				{/* Project dropdown - only for equipment bookings */}
+				{!isStudio && (
+					<div className="space-y-2">
+						<Label htmlFor="project">Project (Optional)</Label>
+						{isLoadingProjects ? (
+							<div className="text-sm text-muted-foreground">Loading projects...</div>
+						) : projects.length > 0 ? (
+							<Select value={selectedProject} onValueChange={setSelectedProject}>
+								<SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+									<SelectValue placeholder="Select a project (optional)" />
+								</SelectTrigger>
+								<SelectContent>
+									{projects.map((project) => (
+										<SelectItem key={project.id} value={project.id.toString()}>
+											{project.name}{project.clientName ? ` (${project.clientName})` : ''}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						) : (
+							<div className="text-sm text-muted-foreground">No projects available</div>
+						)}
+					</div>
+				)}
 
-                 {isStudio && (
-           <div className="space-y-2">
-             <Label htmlFor="attendees">Number of Attendees</Label>
-             <Input
-               id="attendees"
-               type="number"
-               value={attendees}
-               onChange={(e) => setAttendees(e.target.value)}
-               required
-               min="1"
-               max={(item as Studio).capacity}
-               placeholder={`Max: ${(item as Studio).capacity}`}
-             />
-           </div>
-         )}
+				<div className="space-y-2">
+					<Label htmlFor="purpose">Purpose</Label>
+					<Textarea
+						id="purpose"
+						value={purpose}
+						onChange={(e) => setPurpose(e.target.value)}
+						placeholder="What will this be used for?"
+						rows={3}
+					/>
+				</div>
 
-        <div className="space-y-2">
-          <Label>Selected Time Slots</Label>
-          <div className="max-h-32 overflow-y-auto space-y-1">
-            {slotGroups.map((group, groupIndex) => (
-              <div key={groupIndex} className="space-y-1">
-                {group.length > 1 && (
-                  <div className="text-xs text-blue-600 font-medium">
-                    Group {groupIndex + 1} (Combined)
-                  </div>
-                )}
-                {group.map((slot, slotIndex) => (
-                  <div key={`${groupIndex}-${slotIndex}`} className="text-sm bg-muted p-2 rounded">
-                    {format(slot.start, "HH:mm")} - {format(slot.end, "HH:mm")}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
+				{isStudio && (
+					<div className="space-y-2">
+						<Label htmlFor="attendees">Number of Attendees</Label>
+						<Input
+							id="attendees"
+							type="number"
+							value={attendees}
+							onChange={(e) => setAttendees(e.target.value)}
+							required
+							min="1"
+							max={(item as Studio).capacity}
+							placeholder={`Max: ${(item as Studio).capacity}`}
+						/>
+					</div>
+				)}
 
-        <div className="flex gap-2 pt-4">
-          <Button type="submit" disabled={isSubmitting} className="flex-1">
-            {isSubmitting ? "Creating..." : `Create ${slotGroups.length} Booking${slotGroups.length > 1 ? 's' : ''}`}
-          </Button>
-          <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
-      </form>
+				<div className="space-y-2">
+					<Label>Selected Time Slots</Label>
+					<div className="max-h-32 overflow-y-auto space-y-1">
+						{slotGroups.map((group, groupIndex) => (
+							<div key={groupIndex} className="space-y-1">
+								{group.length > 1 && (
+									<div className="text-xs text-blue-600 font-medium">
+										Group {groupIndex + 1} (Combined)
+									</div>
+								)}
+								{group.map((slot, slotIndex) => (
+									<div key={`${groupIndex}-${slotIndex}`} className="text-sm bg-muted p-2 rounded">
+										{format(slot.start, "HH:mm")} - {format(slot.end, "HH:mm")}
+									</div>
+								))}
+							</div>
+						))}
+					</div>
+				</div>
+
+				<div className="flex gap-2 pt-4">
+					<Button type="submit" disabled={isSubmitting} className="flex-1">
+						{isSubmitting ? "Creating..." : `Create ${slotGroups.length} Booking${slotGroups.length > 1 ? 's' : ''}`}
+					</Button>
+					<Button type="button" variant="outline" onClick={onClose}>
+						Cancel
+					</Button>
+				</div>
+			</form>
     </div>
   )
 }

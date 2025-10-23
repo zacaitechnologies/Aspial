@@ -277,40 +277,56 @@ export async function getAvailableUsersForProject(projectId: number) {
 }
 
 export async function createProjectInvitation(
-  projectId: number,
-  invitedBy: string,
-  invitedUser: string,
-  canView: boolean = true,
-  canEdit: boolean = true,
-  isOwner: boolean = false
+	projectId: number,
+	invitedBy: string,
+	invitedUser: string,
+	canView: boolean = true,
+	canEdit: boolean = true,
+	isOwner: boolean = false
 ) {
-  return await prisma.projectInvitation.create({
-    data: {
-      projectId,
-      invitedBy,
-      invitedUser,
-      canView,
-      canEdit,
-      isOwner,
-    },
-    include: {
-      project: true,
-      inviter: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      invitee: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-    },
-  })
+	// Use upsert to update existing invitation or create new one
+	return await prisma.projectInvitation.upsert({
+		where: {
+			projectId_invitedUser: {
+				projectId,
+				invitedUser,
+			},
+		},
+		update: {
+			// Reset to pending status and update permissions
+			status: 'pending',
+			invitedBy,
+			canView,
+			canEdit,
+			isOwner,
+			updatedAt: new Date(),
+		},
+		create: {
+			projectId,
+			invitedBy,
+			invitedUser,
+			canView,
+			canEdit,
+			isOwner,
+		},
+		include: {
+			project: true,
+			inviter: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
+			invitee: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
+		},
+	})
 }
 
 export async function getUserInvitations(userId: string) {

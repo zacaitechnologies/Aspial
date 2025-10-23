@@ -79,6 +79,46 @@ async function checkIsAdmin(userId: string): Promise<boolean> {
 	}
 }
 
+// Get user's project IDs
+async function getUserProjectIds(userId: string): Promise<number[]> {
+	try {
+		// Get projects where user is the creator
+		const createdProjects = await prisma.project.findMany({
+			where: {
+				createdBy: userId,
+			},
+			select: {
+				id: true,
+			},
+		})
+
+		// Get projects where user has permissions
+		const permittedProjects = await prisma.project.findMany({
+			where: {
+				permissions: {
+					some: {
+						userId: userId,
+					},
+				},
+			},
+			select: {
+				id: true,
+			},
+		})
+
+		// Combine and deduplicate
+		const allProjects = [...createdProjects, ...permittedProjects]
+		const uniqueProjectIds = Array.from(
+			new Set(allProjects.map(p => p.id))
+		)
+
+		return uniqueProjectIds
+	} catch (error) {
+		console.error('Error fetching user project IDs:', error)
+		return []
+	}
+}
+
 // Fetch all bookings with permission filtering
 export async function fetchAllBookings(
 	userId: string,
@@ -94,7 +134,11 @@ export async function fetchAllBookings(
 		const isAdmin = await checkIsAdmin(userId)
 		console.log('User is admin:', isAdmin)
 
-		// Fetch equipment bookings
+		// Get user's project IDs
+		const userProjectIds = await getUserProjectIds(userId)
+		console.log('User project IDs:', userProjectIds)
+
+		// Fetch equipment bookings with project info
 		const equipmentBookings = await prisma.booking.findMany({
 			where: {
 				status: 'active'
@@ -105,11 +149,17 @@ export async function fetchAllBookings(
 						name: true,
 						type: true
 					}
+				},
+				project: {
+					select: {
+						id: true,
+						name: true
+					}
 				}
 			}
-		}) as unknown as EquipmentBooking[]
+		}) as unknown as (EquipmentBooking & { project?: { id: number; name: string } })[]
 
-		// Fetch studio bookings
+		// Fetch studio bookings with project info
 		const studioBookings = await prisma.studioBooking.findMany({
 			where: {
 				status: 'active'
@@ -120,17 +170,32 @@ export async function fetchAllBookings(
 						name: true,
 						location: true
 					}
+				},
+				project: {
+					select: {
+						id: true,
+						name: true
+					}
 				}
 			}
-		}) as unknown as StudioBooking[]
+		}) as unknown as (StudioBooking & { project?: { id: number; name: string } })[]
 
 		const calendarBookings: CalendarBooking[] = []
 
 		// Transform equipment bookings - Filter for staff users
 		equipmentBookings.forEach((booking) => {
-			// If user is staff (not admin), only show their own bookings
-			if (!isAdmin && booking.bookedBy !== userName) {
-				return
+			const bookingWithProject = booking as any
+			// If user is staff (not admin), only show:
+			// 1. Their own bookings, OR
+			// 2. Bookings for projects they're part of
+			if (!isAdmin) {
+				const isUserBooking = booking.bookedBy === userName
+				const isProjectBooking = bookingWithProject.project && 
+					userProjectIds.includes(bookingWithProject.project.id)
+				
+				if (!isUserBooking && !isProjectBooking) {
+					return
+				}
 			}
 
 			const startDate = new Date(booking.startDate)
@@ -157,9 +222,18 @@ export async function fetchAllBookings(
 
 		// Transform studio bookings - Filter for staff users
 		studioBookings.forEach((booking) => {
-			// If user is staff (not admin), only show their own bookings
-			if (!isAdmin && booking.bookedBy !== userName) {
-				return
+			const bookingWithProject = booking as any
+			// If user is staff (not admin), only show:
+			// 1. Their own bookings, OR
+			// 2. Bookings for projects they're part of
+			if (!isAdmin) {
+				const isUserBooking = booking.bookedBy === userName
+				const isProjectBooking = bookingWithProject.project && 
+					userProjectIds.includes(bookingWithProject.project.id)
+				
+				if (!isUserBooking && !isProjectBooking) {
+					return
+				}
 			}
 
 			const startDate = new Date(booking.startDate)

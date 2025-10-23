@@ -58,12 +58,13 @@ interface Equipment {
 }
 
 interface AdminDashboardProps {
-  studios: Studio[]
-  equipment: Equipment[]
-  isAdmin: boolean
+	studios: Studio[]
+	equipment: Equipment[]
+	isAdmin: boolean
+	userProjectIds: number[]
 }
 
-export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboardProps) {
+export function BookingDashboard({ studios, equipment, isAdmin, userProjectIds }: AdminDashboardProps) {
   const { enhancedUser } = useSession()
   const [selectedStudio, setSelectedStudio] = useState<Studio | null>(null)
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null)
@@ -73,7 +74,7 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
   const [showStudioForm, setShowStudioForm] = useState(false)
   const [showEquipmentForm, setShowEquipmentForm] = useState(false)
   const [showBookingForm, setShowBookingForm] = useState(false)
-  const [activeTab, setActiveTab] = useState("booking")
+  const [activeTab, setActiveTab] = useState("equipment-booking")
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
@@ -98,20 +99,45 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
   // Get all user bookings for pagination
   const getAllUserBookings = () => {
     const equipmentBookings = equipment.flatMap(item => 
-      item.bookings?.filter(booking => booking.bookedBy === userName).map(booking => ({
-        ...booking,
-        type: 'equipment' as const,
-        itemName: item.name,
-        itemType: item.type
-      })) || []
+      item.bookings?.filter(booking => {
+        // Show booking if:
+        // 1. User is the one who booked it, OR
+        // 2. Booking is associated with a project the user is part of
+        const bookingWithProject = booking as any
+        const isUserBooking = booking.bookedBy === userName
+        const isUserProjectBooking = bookingWithProject.project && 
+          userProjectIds.includes(bookingWithProject.project.id)
+        
+        return isUserBooking || isUserProjectBooking
+      }).map(booking => {
+        const bookingWithProject = booking as any
+        return {
+          ...booking,
+          type: 'equipment' as const,
+          itemName: item.name,
+          itemType: item.type,
+          project: bookingWithProject.project
+        }
+      }) || []
     )
     
     const studioBookings = studios.flatMap(studio => 
-      studio.bookings?.filter(booking => booking.bookedBy === userName).map(booking => ({
+      studio.bookings?.filter(booking => {
+        // Show booking if:
+        // 1. User is the one who booked it, OR
+        // 2. Booking is associated with a project the user is part of
+        const bookingWithProject = booking as any
+        const isUserBooking = booking.bookedBy === userName
+        const isUserProjectBooking = bookingWithProject.project && 
+          userProjectIds.includes(bookingWithProject.project.id)
+        
+        return isUserBooking || isUserProjectBooking
+      }).map(booking => ({
         ...booking,
         type: 'studio' as const,
         itemName: studio.name,
-        itemLocation: studio.location
+        itemLocation: studio.location,
+        project: (booking as any).project
       })) || []
     )
     
@@ -392,6 +418,13 @@ export function BookingDashboard({ studios, equipment, isAdmin }: AdminDashboard
                           <Users className="w-4 h-4 mr-2" />
                           <span className="font-medium">Attendees:</span>
                           <span className="ml-2">{booking.attendees}</span>
+                        </div>
+                      )}
+                      {booking.type === 'equipment' && (booking as any).project && (
+                        <div className="flex items-center text-sm">
+                          <Package className="w-4 h-4 mr-2" />
+                          <span className="font-medium">Project:</span>
+                          <span className="ml-2">{(booking as any).project.name} ({(booking as any).project.clientName})</span>
                         </div>
                       )}
                     </div>

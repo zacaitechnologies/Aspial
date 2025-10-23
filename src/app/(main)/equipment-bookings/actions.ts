@@ -1,7 +1,60 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma"
+
+// Project Actions
+export async function getUserProjects(userId: string) {
+	try {
+		// Get projects where user is the creator
+		const createdProjects = await prisma.project.findMany({
+			where: {
+				createdBy: userId,
+			},
+			select: {
+				id: true,
+				name: true,
+				clientName: true,
+				status: true,
+			},
+			orderBy: {
+				created_at: 'desc',
+			},
+		})
+
+		// Get projects where user has permissions
+		const permittedProjects = await prisma.project.findMany({
+			where: {
+				permissions: {
+					some: {
+						userId: userId,
+					},
+				},
+			},
+			select: {
+				id: true,
+				name: true,
+				clientName: true,
+				status: true,
+			},
+			orderBy: {
+				created_at: 'desc',
+			},
+		})
+
+		// Combine and deduplicate
+		const allProjects = [...createdProjects, ...permittedProjects]
+		const uniqueProjects = Array.from(
+			new Map(allProjects.map(p => [p.id, p])).values()
+		)
+
+		// Filter out cancelled projects
+		return uniqueProjects.filter(p => p.status !== 'cancelled')
+	} catch (error) {
+		console.error('Error fetching user projects:', error)
+		return []
+	}
+}
 // Studio Actions
 export async function createStudio(formData: FormData) {
   const name = formData.get("name") as string
@@ -138,57 +191,63 @@ export async function deleteEquipment(id: number) {
 
 // Booking Actions
 export async function createBooking(formData: FormData) {
-  const equipmentId = Number.parseInt(formData.get("equipmentId") as string)
-  const bookedBy = formData.get("bookedBy") as string
-  const startDate = new Date(formData.get("startDate") as string)
-  const endDate = new Date(formData.get("endDate") as string)
-  const purpose = formData.get("purpose") as string
+	const equipmentId = Number.parseInt(formData.get("equipmentId") as string)
+	const bookedBy = formData.get("bookedBy") as string
+	const startDate = new Date(formData.get("startDate") as string)
+	const endDate = new Date(formData.get("endDate") as string)
+	const purpose = formData.get("purpose") as string
+	const projectIdStr = formData.get("projectId") as string
+	const projectId = projectIdStr && projectIdStr !== '' ? Number.parseInt(projectIdStr) : null
 
-  try {
-    await prisma.booking.create({
-      data: {
-        equipmentId,
-        bookedBy,
-        startDate,
-        endDate,
-        purpose: purpose || null,
-      },
-    })
+	try {
+		await prisma.booking.create({
+			data: {
+				equipmentId,
+				bookedBy,
+				startDate,
+				endDate,
+				purpose: purpose || null,
+				projectId,
+			},
+		})
 
-    revalidatePath("/equipment-bookings")
-    return { success: true }
-  } catch (error) {
-    console.error(error)
-    return { success: false, error: "Failed to create booking" }
-  }
+		revalidatePath("/equipment-bookings")
+		return { success: true }
+	} catch (error) {
+		console.error(error)
+		return { success: false, error: "Failed to create booking" }
+	}
 }
 
 export async function createStudioBooking(formData: FormData) {
-  const studioId = Number.parseInt(formData.get("studioId") as string)
-  const bookedBy = formData.get("bookedBy") as string
-  const startDate = new Date(formData.get("startDate") as string)
-  const endDate = new Date(formData.get("endDate") as string)
-  const purpose = formData.get("purpose") as string
-  const attendees = Number.parseInt(formData.get("attendees") as string)
+	const studioId = Number.parseInt(formData.get("studioId") as string)
+	const bookedBy = formData.get("bookedBy") as string
+	const startDate = new Date(formData.get("startDate") as string)
+	const endDate = new Date(formData.get("endDate") as string)
+	const purpose = formData.get("purpose") as string
+	const attendees = Number.parseInt(formData.get("attendees") as string)
+	const projectIdStr = formData.get("projectId") as string
+	const projectId = projectIdStr && projectIdStr !== '' ? Number.parseInt(projectIdStr) : null
 
-  try {
-    await prisma.studioBooking.create({
-      data: {
-        studioId,
-        bookedBy,
-        startDate,
-        endDate,
-        purpose: purpose || null,
-        attendees,
-      },
-    })
+	try {
+		await prisma.studioBooking.create({
+			data: {
+				studioId,
+				bookedBy,
+				startDate,
+				endDate,
+				purpose: purpose || null,
+				attendees,
+				projectId,
+			},
+		})
 
-    revalidatePath("/equipment-bookings")
-    return { success: true }
-  } catch (error) {
-    console.error(error)
-    return { success: false, error: "Failed to create studio booking" }
-  }
+		revalidatePath("/equipment-bookings")
+		return { success: true }
+	} catch (error) {
+		console.error(error)
+		return { success: false, error: "Failed to create studio booking" }
+	}
 }
   
   export async function cancelBooking(id: number) {
