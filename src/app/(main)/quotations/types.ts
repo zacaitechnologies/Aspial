@@ -62,6 +62,7 @@ export type QuotationFormData = {
   duration: string;
   startDate: string;
   clientId?: string;
+  selectedClientName?: string;
   projectId?: number;
   newClient?: {
     name: string;

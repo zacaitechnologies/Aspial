@@ -37,7 +37,7 @@ interface NewClientData {
 interface ClientSelectionProps {
   selectedClientId?: string;
   newClientData?: NewClientData;
-  onClientSelect: (clientId: string) => void;
+  onClientSelect: (clientId: string, clientName: string) => void;
   onNewClientDataChange: (data: NewClientData) => void;
   onModeChange: (mode: "existing" | "new") => void;
   mode: "existing" | "new";
@@ -144,7 +144,7 @@ export default function ClientSelection({
                             ? "border-primary bg-primary/5"
                             : "border-border hover:border-primary/50"
                         }`}
-                        onClick={() => onClientSelect(client.id)}
+                        onClick={() => onClientSelect(client.id, client.name)}
                       >
                         <div className="flex items-start justify-between">
                           <div className="space-y-1">

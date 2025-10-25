@@ -35,6 +35,8 @@ interface ProjectSelectionProps {
   onModeChange: (mode: "existing" | "new") => void;
   mode: "existing" | "new";
   currentUserId: string;
+  clientId?: string;
+  clientName?: string;
 }
 
 export default function ProjectSelection({
@@ -45,6 +47,8 @@ export default function ProjectSelection({
   onModeChange,
   mode,
   currentUserId,
+  clientId,
+  clientName,
 }: ProjectSelectionProps) {
   const [projects, setProjects] = useState<ProjectForQuotation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,6 +104,9 @@ export default function ProjectSelection({
     }
 
     try {
+      // Use the provided clientName, or fallback to empty string
+      const finalClientName = clientName || "";
+
       const newProject = await createProject({
         name: newProjectData.name,
         description: newProjectData.description,
@@ -111,6 +118,8 @@ export default function ProjectSelection({
           ? new Date(newProjectData.endDate)
           : undefined,
         priority: newProjectData.priority,
+        clientId: clientId || "",
+        clientName: finalClientName,
       });
 
       onProjectSelect(newProject.id, newProject.name);

@@ -54,6 +54,7 @@ export default function CreateQuotationForm({
     duration: "",
     startDate: "",
     clientId: "",
+    selectedClientName: "",
     newClient: {
       name: "",
       email: "",
@@ -65,13 +66,6 @@ export default function CreateQuotationForm({
       yearlyRevenue: "",
       membershipType: "",
     },
-    newProject: {
-      name: "",
-      description: "",
-      startDate: "",
-      endDate: "",
-      priority: "low",
-    },
   });
 
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -79,11 +73,10 @@ export default function CreateQuotationForm({
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [showProjectSelectionDialog, setShowProjectSelectionDialog] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>();
+  const [selectedProjectName, setSelectedProjectName] = useState<string>("");
 
-  // Project selection state
-  const [projectMode, setProjectMode] = useState<"existing" | "new">(
-    "existing"
-  );
 
   useEffect(() => {
     fetchServices();
@@ -190,12 +183,6 @@ export default function CreateQuotationForm({
     return endDate.toLocaleDateString("en-GB");
   };
 
-  const handleProjectSelected = (projectId: number, projectName: string) => {
-    setQuotationForm((prev) => ({
-      ...prev,
-      projectId: projectId,
-    }));
-  };
 
   const validateForm = () => {
     // Debug logging to help identify the issue
@@ -247,7 +234,7 @@ export default function CreateQuotationForm({
     }
 
     // For final quotations, project selection is required
-    if (workflowStatus === "final" && !quotationForm.projectId) {
+    if (workflowStatus === "final" && !selectedProjectId) {
       alert("Project selection is required for final quotations. Please select or create a project.");
       return;
     }
@@ -279,7 +266,7 @@ export default function CreateQuotationForm({
           ? parseInt(quotationForm.duration)
           : undefined,
         startDate: quotationForm.startDate || undefined,
-        projectId: quotationForm.projectId, // Add project ID if selected
+        projectId: workflowStatus === "final" ? selectedProjectId : undefined, // Add project ID for final quotations
       });
 
       resetForm();
@@ -306,6 +293,7 @@ export default function CreateQuotationForm({
       duration: "",
       startDate: "",
       clientId: "",
+      selectedClientName: "",
       newClient: {
         name: "",
         email: "",
@@ -322,7 +310,8 @@ export default function CreateQuotationForm({
     setTotalPrice(0);
     setServiceSearchQuery("");
     setClientMode("existing");
-    setProjectMode("existing");
+    setSelectedProjectId(undefined);
+    setSelectedProjectName("");
   };
 
   return (
@@ -356,8 +345,12 @@ export default function CreateQuotationForm({
             <ClientSelection
               selectedClientId={quotationForm.clientId}
               newClientData={quotationForm.newClient}
-              onClientSelect={(clientId) =>
-                setQuotationForm((prev) => ({ ...prev, clientId }))
+              onClientSelect={(clientId, clientName) =>
+                setQuotationForm((prev) => ({ 
+                  ...prev, 
+                  clientId,
+                  selectedClientName: clientName 
+                }))
               }
               onNewClientDataChange={(newClientData) =>
                 setQuotationForm((prev) => ({
@@ -484,21 +477,6 @@ export default function CreateQuotationForm({
               </div>
             </div>
 
-            {/* Project Selection */}
-            <ProjectSelection
-              selectedProjectId={quotationForm.projectId}
-              newProjectData={quotationForm.newProject}
-              onProjectSelect={handleProjectSelected}
-              onNewProjectDataChange={(newProjectData) =>
-                setQuotationForm((prev) => ({
-                  ...prev,
-                  newProject: newProjectData,
-                }))
-              }
-              onModeChange={setProjectMode}
-              mode={projectMode}
-              currentUserId={enhancedUser.id}
-            />
 
             <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
               <span className="font-semibold">Discount: </span>
@@ -644,13 +622,8 @@ export default function CreateQuotationForm({
           <div className="p-4 border rounded-lg">
             <h4 className="font-semibold text-green-600 mb-2">Final Quotation</h4>
             <p className="text-sm text-muted-foreground">
-              Save as final quotation. This will be sent to the client and cannot be edited further.
+              Save as final quotation. This will be sent to the client and cannot be edited further. You will be prompted to select a project next.
             </p>
-            {!quotationForm.projectId && (
-              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
-                ⚠️ Note: A project must be linked to create a final quotation.
-              </div>
-            )}
           </div>
           <div className="p-4 border rounded-lg">
             <h4 className="font-semibold text-blue-600 mb-2">Draft Quotation</h4>
@@ -681,12 +654,65 @@ export default function CreateQuotationForm({
           <Button
             onClick={() => {
               setShowConfirmationDialog(false);
-              handleCreateQuotation("final");
+              setShowProjectSelectionDialog(true);
             }}
-            disabled={!quotationForm.projectId}
-            title={!quotationForm.projectId ? "Project selection is required for final quotations" : ""}
           >
             Save as Final
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Project Selection Dialog for Final Quotations */}
+    <Dialog open={showProjectSelectionDialog} onOpenChange={setShowProjectSelectionDialog}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Select Project for Final Quotation</DialogTitle>
+          <DialogDescription>
+            A project must be linked to create a final quotation. Please select an existing project or create a new one.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <ProjectSelection
+            selectedProjectId={selectedProjectId}
+            newProjectData={{
+              name: "",
+              description: "",
+              startDate: "",
+              endDate: "",
+              priority: "low",
+            }}
+            onProjectSelect={(projectId, projectName) => {
+              setSelectedProjectId(projectId);
+              setSelectedProjectName(projectName);
+            }}
+            onNewProjectDataChange={() => {}}
+            onModeChange={() => {}}
+            mode="existing"
+            currentUserId={enhancedUser?.id || ""}
+            clientId={quotationForm.clientId}
+            clientName={quotationForm.selectedClientName || quotationForm.newClient?.name || ""}
+          />
+        </div>
+        <DialogFooter className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowProjectSelectionDialog(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (selectedProjectId) {
+                setShowProjectSelectionDialog(false);
+                handleCreateQuotation("final");
+              } else {
+                alert("Please select a project to continue.");
+              }
+            }}
+            disabled={!selectedProjectId}
+          >
+            Create Final Quotation
           </Button>
         </DialogFooter>
       </DialogContent>
