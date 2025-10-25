@@ -112,6 +112,7 @@ export default function QuotationCard({
 
   const hasProject = quotation.project !== null;
   const isProjectCancelled = quotation.project?.status === "cancelled";
+  const isFinalQuotation = quotation.workflowStatus === "final" || quotation.workflowStatus === "accepted";
 
   const handleDelete = () => {
     if (hasProject) {
@@ -158,6 +159,12 @@ export default function QuotationCard({
       // Import the createProject action
       const { createProject } = await import("../../projects/action");
 
+      // Validate that we have a valid clientId
+      if (!quotation.clientId || quotation.clientId.trim() === "") {
+        alert("Cannot create project: Quotation does not have a valid client assigned.");
+        return;
+      }
+
       // Create project data from quotation
       const projectData = {
         name: quotation.name,
@@ -179,7 +186,8 @@ export default function QuotationCard({
       window.location.reload();
     } catch (error) {
       console.error("Error creating project:", error);
-      alert("Failed to create project. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to create project. Please try again.";
+      alert(errorMessage);
     }
   };
 
@@ -214,7 +222,9 @@ export default function QuotationCard({
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="text-lg">{quotation.name}</CardTitle>
+            <CardTitle className={`text-lg flex items-center gap-2 ${isFinalQuotation ? 'text-gray-700' : ''}`}>
+              {quotation.name}
+            </CardTitle>
             <div className="flex items-center gap-2 mt-1">
               {getWorkflowStatusBadge(quotation.workflowStatus)}
               {getPaymentStatusBadge(quotation.paymentStatus)}
@@ -248,9 +258,10 @@ export default function QuotationCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsCustomServiceDialogOpen(true)}
-              className="text-blue-600 hover:text-blue-700"
-              title="Add Custom Service"
+              onClick={isFinalQuotation ? undefined : () => setIsCustomServiceDialogOpen(true)}
+              disabled={isFinalQuotation}
+              className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : "text-blue-600 hover:text-blue-700"}
+              title={isFinalQuotation ? "Cannot add custom services to final quotations" : "Add Custom Service"}
             >
               <Plus className="w-4 h-4" />
             </Button>
@@ -272,7 +283,11 @@ export default function QuotationCard({
               variant="ghost"
               size="sm"
               onClick={() => onEdit(quotation)}
-              title="Edit Quotation"
+              title={
+                isFinalQuotation
+                  ? "Edit final quotation (limited to payment status only)"
+                  : "Edit Quotation"
+              }
             >
               <Edit className="w-4 h-4" />
             </Button>
@@ -280,12 +295,14 @@ export default function QuotationCard({
             <Button
               variant="ghost"
               size="sm"
-              onClick={hasProject ? undefined : handleDelete}
-              disabled={hasProject}
-              className={hasProject ? "text-gray-400 cursor-not-allowed" : ""}
+              onClick={hasProject || isFinalQuotation ? undefined : handleDelete}
+              disabled={hasProject || isFinalQuotation}
+              className={hasProject || isFinalQuotation ? "text-gray-400 cursor-not-allowed" : ""}
               title={
                 hasProject
                   ? "This quotation cannot be deleted as it is linked to a project"
+                  : isFinalQuotation
+                  ? "Cannot delete final quotations"
                   : "Delete quotation"
               }
             >
@@ -349,7 +366,7 @@ export default function QuotationCard({
 
         {quotation.discountValue && (
           <div className="mt-2">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-black">
               Discount: {quotation.discountValue}
               {quotation.discountType === "percentage" ? "%" : "RM"}
             </p>
@@ -357,13 +374,12 @@ export default function QuotationCard({
         )}
 
         <div className="mt-3 space-y-1">
-          <p className="text-xs text-muted-foreground">
-            Created: {new Date(quotation.created_at).toLocaleDateString()}
+          <p className="text-xs text-black">
+            Created on {new Date(quotation.created_at).toLocaleDateString()}
           </p>
           {quotation.createdBy && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <User className="w-3 h-3" />
-              Created by: {quotation.createdBy.firstName} {quotation.createdBy.lastName}
+            <p className="text-xs text-black flex items-center gap-1">
+              Created by {quotation.createdBy.firstName} {quotation.createdBy.lastName}
             </p>
           )}
         </div>

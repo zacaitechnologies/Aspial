@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +47,9 @@ export default function EditQuotationForm({
   editingQuotation,
 }: EditQuotationFormProps) {
   const { enhancedUser } = useSession();
+  
+  // Check if quotation is final and cannot be edited
+  const isFinalQuotation = editingQuotation?.workflowStatus === "final" || editingQuotation?.workflowStatus === "accepted";
   const [services, setServices] = useState<Services[]>([]);
   const [customServices, setCustomServices] = useState<any[]>([]);
   const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<
@@ -291,6 +295,67 @@ export default function EditQuotationForm({
 
   if (!editingQuotation) return null;
 
+  // For final quotations, show limited editing form
+  if (isFinalQuotation) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Final Quotation</DialogTitle>
+            <DialogDescription>
+              This is a final quotation. You can only edit the payment status.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-4">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-700">
+                  ⚠️ Final quotations have limited editing. Only payment status can be modified.
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="paymentStatus">Payment Status</Label>
+                <Select
+                  value={editForm.paymentStatus}
+                  onValueChange={(value) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      paymentStatus: value as any,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                    <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                    <SelectItem value="deposit_paid">Deposit Paid</SelectItem>
+                    <SelectItem value="fully_paid">Fully Paid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                handleUpdateQuotation();
+                onOpenChange(false);
+              }}
+            >
+              Update Payment Status
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
@@ -497,7 +562,7 @@ export default function EditQuotationForm({
             </div>
 
             {/* Project Selection */}
-            {/* <ProjectSelection
+            <ProjectSelection
               selectedProjectId={editForm.projectId}
               newProjectData={editForm.newProject}
               onProjectSelect={handleProjectSelected}
@@ -510,28 +575,7 @@ export default function EditQuotationForm({
               onModeChange={setProjectMode}
               mode={projectMode}
               currentUserId={enhancedUser.id}
-            /> */}
-
-            <div className="grid gap-2">
-              <Label htmlFor="edit-workflowStatus">Workflow Status</Label>
-              <Select
-                value={editForm.workflowStatus}
-                onValueChange={(value) =>
-                  setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "in_review" | "final" | "accepted" | "rejected" }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select workflow status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workflowStatusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            />
             <div className="grid gap-2">
               <Label htmlFor="edit-paymentStatus">Payment Status</Label>
               <Select

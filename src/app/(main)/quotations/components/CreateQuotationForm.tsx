@@ -8,6 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,6 +78,7 @@ export default function CreateQuotationForm({
   const [totalPrice, setTotalPrice] = useState(0);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
 
   // Project selection state
   const [projectMode, setProjectMode] = useState<"existing" | "new">(
@@ -194,7 +197,7 @@ export default function CreateQuotationForm({
     }));
   };
 
-  const handleCreateQuotation = async (workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" = "draft") => {
+  const validateForm = () => {
     // Debug logging to help identify the issue
     console.log("Form validation check:", {
       name: quotationForm.name,
@@ -212,13 +215,13 @@ export default function CreateQuotationForm({
       selectedServiceIds.length === 0
     ) {
       alert("Please fill all fields and select at least one service.");
-      return;
+      return false;
     }
 
     // Validate client information
     if (clientMode === "existing" && !quotationForm.clientId) {
       alert("Please select a client.");
-      return;
+      return false;
     }
 
     if (clientMode === "new") {
@@ -226,12 +229,26 @@ export default function CreateQuotationForm({
         alert(
           "Please fill in the required client information (name and email)."
         );
-        return;
+        return false;
       }
     }
 
     if (!enhancedUser.id) {
       alert("User not authenticated. Please try logging in again.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleCreateQuotation = async (workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" = "draft") => {
+    if (!validateForm()) {
+      return;
+    }
+
+    // For final quotations, project selection is required
+    if (workflowStatus === "final" && !quotationForm.projectId) {
+      alert("Project selection is required for final quotations. Please select or create a project.");
       return;
     }
 
@@ -273,6 +290,13 @@ export default function CreateQuotationForm({
     }
   };
 
+  const handleCreateQuotationClick = () => {
+    if (!validateForm()) {
+      return;
+    }
+    setShowConfirmationDialog(true);
+  };
+
   const resetForm = () => {
     setQuotationForm({
       name: "",
@@ -302,6 +326,7 @@ export default function CreateQuotationForm({
   };
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
         className="w-[70vw] max-w-[70vw] max-h-[90vh] rounded-lg"
@@ -460,7 +485,7 @@ export default function CreateQuotationForm({
             </div>
 
             {/* Project Selection */}
-            {/* <ProjectSelection
+            <ProjectSelection
               selectedProjectId={quotationForm.projectId}
               newProjectData={quotationForm.newProject}
               onProjectSelect={handleProjectSelected}
@@ -473,7 +498,7 @@ export default function CreateQuotationForm({
               onModeChange={setProjectMode}
               mode={projectMode}
               currentUserId={enhancedUser.id}
-            /> */}
+            />
 
             <div className="flex justify-between items-center p-4 bg-muted rounded-lg">
               <span className="font-semibold">Discount: </span>
@@ -598,12 +623,74 @@ export default function CreateQuotationForm({
             >
               Save as Draft
             </Button>
-            <Button onClick={() => handleCreateQuotation("final")}>
+            <Button onClick={handleCreateQuotationClick}>
               Create Quotation
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Confirmation Dialog */}
+    <Dialog open={showConfirmationDialog} onOpenChange={setShowConfirmationDialog}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Quotation Status</DialogTitle>
+          <DialogDescription>
+            How would you like to save this quotation?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-semibold text-green-600 mb-2">Final Quotation</h4>
+            <p className="text-sm text-muted-foreground">
+              Save as final quotation. This will be sent to the client and cannot be edited further.
+            </p>
+            {!quotationForm.projectId && (
+              <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
+                ⚠️ Note: A project must be linked to create a final quotation.
+              </div>
+            )}
+          </div>
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-semibold text-blue-600 mb-2">Draft Quotation</h4>
+            <p className="text-sm text-muted-foreground">
+              Save as draft. You can continue editing this quotation later.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Project linking is optional for draft quotations.
+            </p>
+          </div>
+        </div>
+        <DialogFooter className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowConfirmationDialog(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowConfirmationDialog(false);
+              handleCreateQuotation("draft");
+            }}
+          >
+            Save as Draft
+          </Button>
+          <Button
+            onClick={() => {
+              setShowConfirmationDialog(false);
+              handleCreateQuotation("final");
+            }}
+            disabled={!quotationForm.projectId}
+            title={!quotationForm.projectId ? "Project selection is required for final quotations" : ""}
+          >
+            Save as Final
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
