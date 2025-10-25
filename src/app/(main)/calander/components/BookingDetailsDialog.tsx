@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CalendarBooking } from "@/app/(main)/calander/page"
+import { CalendarBooking } from "@/app/(main)/calander/actions"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
