@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon } from "lucide-react"
-import { CalendarBooking } from "../page"
+import { CalendarBooking } from "../actions"
 
 interface DateEventsDialogProps {
   isOpen: boolean

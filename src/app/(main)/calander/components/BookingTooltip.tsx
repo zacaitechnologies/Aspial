@@ -1,7 +1,7 @@
 "use client"
 
 import { createPortal } from "react-dom"
-import { CalendarBooking } from "@/app/(main)/calander/page"
+import { CalendarBooking } from "@/app/(main)/calander/actions"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
 
 interface BookingTooltipProps {

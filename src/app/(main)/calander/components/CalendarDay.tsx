@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { CalendarBooking } from "@/app/(main)/calander/page"
+import { CalendarBooking } from "@/app/(main)/calander/actions"
 import { BookingTooltip } from "./BookingTooltip"
 
 interface CalendarDayProps {
