@@ -58,18 +58,26 @@ export async function getQuotationById(id: string) {
     },
   });
 
-  // If quotation is in_review and no pending custom services, change to final
+  // If quotation is in_review and no pending custom services, determine status based on custom service outcomes
   if (quotation && quotation.workflowStatus === "in_review") {
     const hasPendingCustomServices = quotation.customServices.some(
       (cs) => cs.status === "PENDING"
     );
 
     if (!hasPendingCustomServices) {
+      // Check if any custom services were approved
+      const hasApprovedServices = quotation.customServices.some(
+        (cs) => cs.status === "APPROVED"
+      );
+      
+      // If any services were approved, set to accepted, otherwise rejected
+      const newStatus = hasApprovedServices ? "accepted" : "rejected";
+      
       await prisma.quotation.update({
         where: { id: parseInt(id) },
-        data: { workflowStatus: "final" },
+        data: { workflowStatus: newStatus },
       });
-      quotation.workflowStatus = "final";
+      quotation.workflowStatus = newStatus;
     }
   }
 
@@ -469,6 +477,13 @@ export async function createCustomService(data: {
   });
 }
 
+export async function updateQuotationProjectId(quotationId: number, projectId: number) {
+  return await prisma.quotation.update({
+    where: { id: quotationId },
+    data: { projectId: projectId },
+  });
+}
+
 // Get custom services for a quotation
 export async function getCustomServicesByQuotationId(quotationId: number) {
   return await prisma.customService.findMany({
@@ -596,7 +611,7 @@ export async function approveCustomService(
       },
     });
 
-    // If no pending custom services and quotation is in_review, change to final
+    // If no pending custom services and quotation is in_review, change to accepted
     if (pendingCount === 0) {
       const quotation = await tx.quotation.findUnique({
         where: { id: customService.quotationId },
@@ -606,7 +621,7 @@ export async function approveCustomService(
       if (quotation?.workflowStatus === "in_review") {
         await tx.quotation.update({
           where: { id: customService.quotationId },
-          data: { workflowStatus: "final" },
+          data: { workflowStatus: "accepted" },
         });
       }
     }
@@ -614,6 +629,7 @@ export async function approveCustomService(
     return customService;
   });
 }
+
 
 // Reject custom service
 export async function rejectCustomService(
@@ -644,7 +660,7 @@ export async function rejectCustomService(
       },
     });
 
-    // If no pending custom services and quotation is in_review, change to final
+    // If no pending custom services and quotation is in_review, change to rejected
     if (pendingCount === 0) {
       const quotation = await tx.quotation.findUnique({
         where: { id: customService.quotationId },
@@ -654,11 +670,11 @@ export async function rejectCustomService(
       if (quotation?.workflowStatus === "in_review") {
         await tx.quotation.update({
           where: { id: customService.quotationId },
-          data: { workflowStatus: "final" },
+          data: { workflowStatus: "rejected" },
         });
       }
     }
 
     return customService;
   });
-} 
+}

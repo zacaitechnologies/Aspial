@@ -49,7 +49,7 @@ export default function EditQuotationForm({
   const { enhancedUser } = useSession();
   
   // Check if quotation is final and cannot be edited
-  const isFinalQuotation = editingQuotation?.workflowStatus === "final" || editingQuotation?.workflowStatus === "accepted";
+  const isFinalQuotation = editingQuotation?.workflowStatus === "final";
   const [services, setServices] = useState<Services[]>([]);
   const [customServices, setCustomServices] = useState<any[]>([]);
   const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<

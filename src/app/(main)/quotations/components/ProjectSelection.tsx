@@ -122,6 +122,7 @@ export default function ProjectSelection({
         clientName: finalClientName,
       });
 
+      // For new projects, select it but don't link yet
       onProjectSelect(newProject.id, newProject.name);
       onModeChange("existing");
 

@@ -13,13 +13,13 @@ import { Badge } from "@/components/ui/badge";
 import {
   Edit,
   Trash2,
-  Briefcase,
   AlertTriangle,
   User,
   Mail,
   Building2,
   Plus,
   Info,
+  Briefcase,
 } from "lucide-react";
 import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
@@ -30,6 +30,15 @@ import {
 } from "../action";
 import MembershipStatusDialog from "./MembershipStatusDialog";
 import CustomServiceDialog from "./CustomServiceDialog";
+import ProjectSelection from "./ProjectSelection";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface QuotationCardProps {
   quotation: QuotationWithServices;
@@ -49,6 +58,7 @@ export default function QuotationCard({
   const [isMembershipDialogOpen, setIsMembershipDialogOpen] = useState(false);
   const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] =
     useState(false);
+  const [isProjectSelectionDialogOpen, setIsProjectSelectionDialogOpen] = useState(false);
   const [customServices, setCustomServices] = useState<any[]>([]);
   const [clientData, setClientData] = useState<{
     id: string;
@@ -56,6 +66,8 @@ export default function QuotationCard({
     company?: string;
     membershipType: string;
   } | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [selectedProjectName, setSelectedProjectName] = useState<string>("");
 
   // Fetch custom services when component mounts
   useEffect(() => {
@@ -112,9 +124,16 @@ export default function QuotationCard({
 
   const hasProject = quotation.project !== null;
   const isProjectCancelled = quotation.project?.status === "cancelled";
-  const isFinalQuotation = quotation.workflowStatus === "final" || quotation.workflowStatus === "accepted";
-
+  const isFinalQuotation = quotation.workflowStatus === "final";
+  const isEditableQuotation = quotation.workflowStatus === "draft" || quotation.workflowStatus === "accepted" || quotation.workflowStatus === "rejected";
   const handleDelete = () => {
+    // For final quotations, prevent deletion
+    if (isFinalQuotation) {
+      alert("Cannot delete final quotations.");
+      return;
+    }
+    
+    // For quotations with project, show confirmation
     if (hasProject) {
       const confirmed = confirm(
         "This quotation has an associated project. Deleting the quotation will also delete the project and all its time entries. Are you sure you want to continue?"
@@ -127,31 +146,8 @@ export default function QuotationCard({
     }
   };
 
-  const handleCreateProject = async (quotation: QuotationWithServices) => {
-    try {
-      // First, get client details to check membership status
-      if (quotation.clientId) {
-        const client = await getClientById(quotation.clientId);
-
-        if (client && client.membershipType === "NON_MEMBER") {
-          // Store client data and show membership dialog
-          setClientData({
-            id: client.id,
-            name: client.name,
-            company: client.company || undefined,
-            membershipType: client.membershipType,
-          });
-          setIsMembershipDialogOpen(true);
-          return; // Don't create project yet, wait for user decision
-        }
-      }
-
-      // If client is already a member or no client, proceed with project creation
-      await createProjectAndRefresh(quotation);
-    } catch (error) {
-      console.error("Error creating project:", error);
-      alert("Failed to create project. Please try again.");
-    }
+  const handleCreateProject = () => {
+    setIsProjectSelectionDialogOpen(true);
   };
 
   const createProjectAndRefresh = async (quotation: QuotationWithServices) => {
@@ -182,7 +178,6 @@ export default function QuotationCard({
       // Show success message
       alert("Project created successfully!");
 
-      // Refresh the page to update the UI (briefcase icon will disappear)
       window.location.reload();
     } catch (error) {
       console.error("Error creating project:", error);
@@ -217,6 +212,36 @@ export default function QuotationCard({
     setClientData(null);
   };
 
+  const handleProjectSelection = (projectId: number, projectName: string) => {
+    setSelectedProjectId(projectId.toString());
+    setSelectedProjectName(projectName);
+  };
+
+  const handleLinkProject = async () => {
+    if (!selectedProjectId) {
+      alert("Please select a project first.");
+      return;
+    }
+
+    try {
+      const { updateQuotationProjectId } = await import("../action");
+      await updateQuotationProjectId(quotation.id, parseInt(selectedProjectId));
+      
+      alert("Project linked successfully!");
+      setIsProjectSelectionDialogOpen(false);
+      
+      // Refresh the page to show updated project status
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error("Error linking project:", error);
+      alert("Failed to link project. Please try again.");
+    }
+  };
+
   return (
     <Card className="card">
       <CardHeader>
@@ -228,12 +253,6 @@ export default function QuotationCard({
             <div className="flex items-center gap-2 mt-1">
               {getWorkflowStatusBadge(quotation.workflowStatus)}
               {getPaymentStatusBadge(quotation.paymentStatus)}
-              {hasProject && !isProjectCancelled && (
-                <Badge variant="default" className="bg-green-600">
-                  <Briefcase className="w-3 h-3 mr-1" />
-                  Project Created
-                </Badge>
-              )}
               {isProjectCancelled && (
                 <Badge variant="destructive" className="bg-red-600">
                   <AlertTriangle className="w-3 h-3 mr-1" />
@@ -265,20 +284,6 @@ export default function QuotationCard({
             >
               <Plus className="w-4 h-4" />
             </Button>
-            {/* Create Project Button - Show for accepted or final quotations without existing project */}
-            {(quotation.workflowStatus === "accepted" || quotation.workflowStatus === "final") &&
-              !hasProject && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleCreateProject(quotation)}
-                  className="text-green-600 hover:text-green-700"
-                  title="Create Project"
-                >
-                  <Briefcase className="w-4 h-4" />
-                </Button>
-              )}
-
             <Button
               variant="ghost"
               size="sm"
@@ -292,17 +297,30 @@ export default function QuotationCard({
               <Edit className="w-4 h-4" />
             </Button>
 
+            {/* Create Project Button - Show for accepted/rejected quotations without project */}
+            {isEditableQuotation && !hasProject && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCreateProject}
+                className="text-green-600 hover:text-green-700"
+                title="Create Project"
+              >
+                <Briefcase className="w-4 h-4" />
+              </Button>
+            )}
+
             <Button
               variant="ghost"
               size="sm"
-              onClick={hasProject || isFinalQuotation ? undefined : handleDelete}
-              disabled={hasProject || isFinalQuotation}
-              className={hasProject || isFinalQuotation ? "text-gray-400 cursor-not-allowed" : ""}
+              onClick={isFinalQuotation ? undefined : handleDelete}
+              disabled={isFinalQuotation}
+              className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : ""}
               title={
-                hasProject
-                  ? "This quotation cannot be deleted as it is linked to a project"
-                  : isFinalQuotation
+                isFinalQuotation
                   ? "Cannot delete final quotations"
+                  : hasProject
+                  ? "Delete quotation (will also delete associated project)"
                   : "Delete quotation"
               }
             >
@@ -340,7 +358,7 @@ export default function QuotationCard({
         {/* Custom Service Status Badges */}
         {customServices.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm font-medium">Custom Service Requests:</p>
+            <p className="text-sm font-medium">Custom Service:</p>
             <div className="flex flex-wrap gap-2">
               {customServices.some((cs) => cs.status === "PENDING") && (
                 <Badge className="bg-yellow-500 text-white hover:bg-yellow-600">
@@ -413,6 +431,42 @@ export default function QuotationCard({
         quotationId={quotation.id}
         createdById={enhancedUser?.id}
       />
+
+      {/* Project Selection Dialog */}
+      <Dialog open={isProjectSelectionDialogOpen} onOpenChange={setIsProjectSelectionDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Select Project for Quotation</DialogTitle>
+            <DialogDescription>
+              Please select an existing project or create a new one to link to this quotation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <ProjectSelection
+              selectedProjectId={selectedProjectId ? parseInt(selectedProjectId) : undefined}
+              newProjectData={{ name: "", description: "", startDate: "", endDate: "", priority: "low" }}
+              onProjectSelect={handleProjectSelection}
+              onNewProjectDataChange={() => {}}
+              onModeChange={() => {}}
+              mode="existing"
+              currentUserId={enhancedUser?.id || ""}
+              clientId={quotation.clientId || ""}
+              clientName={quotation.Client?.name || ""}
+            />
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsProjectSelectionDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleLinkProject}
+              disabled={!selectedProjectId}
+            >
+              Link Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
