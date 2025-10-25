@@ -68,6 +68,20 @@ export default function QuotationCard({
   } | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedProjectName, setSelectedProjectName] = useState<string>("");
+  const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
+  const [newProjectData, setNewProjectData] = useState<{
+    name: string;
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    priority: "low" | "medium" | "high";
+  }>({
+    name: quotation.name,
+    description: quotation.description,
+    startDate: quotation.startDate ? new Date(quotation.startDate).toISOString().split('T')[0] : "",
+    endDate: quotation.endDate ? new Date(quotation.endDate).toISOString().split('T')[0] : "",
+    priority: "low"
+  });
 
   // Fetch custom services when component mounts
   useEffect(() => {
@@ -147,6 +161,17 @@ export default function QuotationCard({
   };
 
   const handleCreateProject = () => {
+    // Reset form data with quotation info
+    setNewProjectData({
+      name: quotation.name,
+      description: quotation.description,
+      startDate: quotation.startDate ? new Date(quotation.startDate).toISOString().split('T')[0] : "",
+      endDate: quotation.endDate ? new Date(quotation.endDate).toISOString().split('T')[0] : "",
+      priority: "low"
+    });
+    setSelectedProjectId("");
+    setSelectedProjectName("");
+    setProjectMode("existing");
     setIsProjectSelectionDialogOpen(true);
   };
 
@@ -218,16 +243,50 @@ export default function QuotationCard({
   };
 
   const handleLinkProject = async () => {
-    if (!selectedProjectId) {
-      alert("Please select a project first.");
-      return;
-    }
-
     try {
-      const { updateQuotationProjectId } = await import("../action");
-      await updateQuotationProjectId(quotation.id, parseInt(selectedProjectId));
+      let projectId: number;
+
+      if (projectMode === "new") {
+        // Create new project first
+        if (!newProjectData.name) {
+          alert("Please enter a project name.");
+          return;
+        }
+
+        // Get client ID from quotation.clientId or quotation.Client.id
+        const clientId = quotation.clientId || quotation.Client?.id;
+        
+        if (!clientId) {
+          alert("Cannot create project: Quotation does not have a client assigned. Please assign a client to the quotation first.");
+          return;
+        }
+
+        const { createProject } = await import("../../projects/action");
+        const newProject = await createProject({
+          name: newProjectData.name,
+          description: newProjectData.description,
+          createdBy: enhancedUser?.id || "",
+          startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
+          endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
+          priority: newProjectData.priority,
+          clientId: clientId,
+          clientName: quotation.Client?.name || "",
+        });
+        projectId = newProject.id;
+      } else {
+        // Use selected existing project
+        if (!selectedProjectId) {
+          alert("Please select a project first.");
+          return;
+        }
+        projectId = parseInt(selectedProjectId);
+      }
+
+      // Use a single transaction to link project and update quotation status
+      const { linkProjectAndUpdateQuotationStatus } = await import("../action");
+      await linkProjectAndUpdateQuotationStatus(quotation.id, projectId);
       
-      alert("Project linked successfully!");
+      alert("Project linked successfully! Quotation status changed to final.");
       setIsProjectSelectionDialogOpen(false);
       
       // Refresh the page to show updated project status
@@ -444,11 +503,11 @@ export default function QuotationCard({
           <div className="py-4">
             <ProjectSelection
               selectedProjectId={selectedProjectId ? parseInt(selectedProjectId) : undefined}
-              newProjectData={{ name: "", description: "", startDate: "", endDate: "", priority: "low" }}
+              newProjectData={newProjectData}
               onProjectSelect={handleProjectSelection}
-              onNewProjectDataChange={() => {}}
-              onModeChange={() => {}}
-              mode="existing"
+              onNewProjectDataChange={setNewProjectData}
+              onModeChange={setProjectMode}
+              mode={projectMode}
               currentUserId={enhancedUser?.id || ""}
               clientId={quotation.clientId || ""}
               clientName={quotation.Client?.name || ""}
@@ -459,8 +518,18 @@ export default function QuotationCard({
               Cancel
             </Button>
             <Button
-              onClick={handleLinkProject}
-              disabled={!selectedProjectId}
+              onClick={() => {
+                if (projectMode === "new" && !newProjectData.name) {
+                  alert("Please enter a project name.");
+                  return;
+                }
+                if (projectMode === "existing" && !selectedProjectId) {
+                  alert("Please select a project.");
+                  return;
+                }
+                handleLinkProject();
+              }}
+              disabled={projectMode === "existing" ? !selectedProjectId : !newProjectData.name}
             >
               Link Project
             </Button>

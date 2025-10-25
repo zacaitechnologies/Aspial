@@ -484,6 +484,20 @@ export async function updateQuotationProjectId(quotationId: number, projectId: n
   });
 }
 
+export async function linkProjectAndUpdateQuotationStatus(quotationId: number, projectId: number) {
+  return await prisma.$transaction(async (tx) => {
+    // Link the project to quotation and update status to final
+    const updatedQuotation = await tx.quotation.update({
+      where: { id: quotationId },
+      data: { 
+        projectId: projectId,
+        workflowStatus: "final"
+      }
+    });
+    return updatedQuotation;
+  });
+}
+
 // Get custom services for a quotation
 export async function getCustomServicesByQuotationId(quotationId: number) {
   return await prisma.customService.findMany({

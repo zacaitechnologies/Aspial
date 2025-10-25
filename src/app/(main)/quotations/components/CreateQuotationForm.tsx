@@ -76,11 +76,38 @@ export default function CreateQuotationForm({
   const [showProjectSelectionDialog, setShowProjectSelectionDialog] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>();
   const [selectedProjectName, setSelectedProjectName] = useState<string>("");
+  const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
+  const [newProjectData, setNewProjectData] = useState<{
+    name: string;
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    priority: "low" | "medium" | "high";
+  }>({
+    name: quotationForm.name,
+    description: quotationForm.description,
+    startDate: quotationForm.startDate ? new Date(quotationForm.startDate).toISOString().split('T')[0] : "",
+    endDate: quotationForm.startDate && quotationForm.duration ? 
+      new Date(new Date(quotationForm.startDate).setMonth(new Date(quotationForm.startDate).getMonth() + parseInt(quotationForm.duration))).toISOString().split('T')[0] : "",
+    priority: "low"
+  });
 
 
   useEffect(() => {
     fetchServices();
   }, []);
+
+  // Update newProjectData when quotationForm changes
+  useEffect(() => {
+    setNewProjectData({
+      name: quotationForm.name,
+      description: quotationForm.description,
+      startDate: quotationForm.startDate ? new Date(quotationForm.startDate).toISOString().split('T')[0] : "",
+      endDate: quotationForm.startDate && quotationForm.duration ? 
+        new Date(new Date(quotationForm.startDate).setMonth(new Date(quotationForm.startDate).getMonth() + parseInt(quotationForm.duration))).toISOString().split('T')[0] : "",
+      priority: "low"
+    });
+  }, [quotationForm.name, quotationForm.description, quotationForm.startDate, quotationForm.duration]);
 
   const fetchServices = async () => {
     try {
@@ -233,13 +260,48 @@ export default function CreateQuotationForm({
       return;
     }
 
-    // For final quotations, project selection is required
-    if (workflowStatus === "final" && !selectedProjectId) {
-      alert("Project selection is required for final quotations. Please select or create a project.");
-      return;
-    }
-
     try {
+      let projectId: number | undefined;
+
+      // For final quotations, handle project creation/linking
+      if (workflowStatus === "final") {
+        if (projectMode === "new") {
+          // Create new project first
+          if (!newProjectData.name) {
+            alert("Please enter a project name.");
+            return;
+          }
+
+          const clientId = clientMode === "existing" ? quotationForm.clientId : undefined;
+          const clientName = clientMode === "existing" ? quotationForm.selectedClientName : quotationForm.newClient?.name || "";
+
+          if (!clientId) {
+            alert("Cannot create project: No client assigned. Please assign a client first.");
+            return;
+          }
+
+          const { createProject } = await import("../../projects/action");
+          const newProject = await createProject({
+            name: newProjectData.name,
+            description: newProjectData.description,
+            createdBy: enhancedUser.id,
+            startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
+            endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
+            priority: newProjectData.priority,
+            clientId: clientId,
+            clientName: clientName,
+          });
+          projectId = newProject.id;
+        } else {
+          // Use selected existing project
+          if (!selectedProjectId) {
+            alert("Please select a project.");
+            return;
+          }
+          projectId = selectedProjectId;
+        }
+      }
+
       // Calculate grand total (monthly price × duration)
       const grandTotal = quotationForm.duration
         ? calculateGrandTotal(discountedTotal, parseInt(quotationForm.duration))
@@ -266,7 +328,7 @@ export default function CreateQuotationForm({
           ? parseInt(quotationForm.duration)
           : undefined,
         startDate: quotationForm.startDate || undefined,
-        projectId: workflowStatus === "final" ? selectedProjectId : undefined, // Add project ID for final quotations
+        projectId: projectId, // Add project ID for final quotations
       });
 
       resetForm();
@@ -312,6 +374,14 @@ export default function CreateQuotationForm({
     setClientMode("existing");
     setSelectedProjectId(undefined);
     setSelectedProjectName("");
+    setProjectMode("existing");
+    setNewProjectData({
+      name: "",
+      description: "",
+      startDate: "",
+      endDate: "",
+      priority: "low"
+    });
   };
 
   return (
@@ -675,20 +745,14 @@ export default function CreateQuotationForm({
         <div className="py-4">
           <ProjectSelection
             selectedProjectId={selectedProjectId}
-            newProjectData={{
-              name: "",
-              description: "",
-              startDate: "",
-              endDate: "",
-              priority: "low",
-            }}
+            newProjectData={newProjectData}
             onProjectSelect={(projectId, projectName) => {
               setSelectedProjectId(projectId);
               setSelectedProjectName(projectName);
             }}
-            onNewProjectDataChange={() => {}}
-            onModeChange={() => {}}
-            mode="existing"
+            onNewProjectDataChange={setNewProjectData}
+            onModeChange={setProjectMode}
+            mode={projectMode}
             currentUserId={enhancedUser?.id || ""}
             clientId={quotationForm.clientId}
             clientName={quotationForm.selectedClientName || quotationForm.newClient?.name || ""}
@@ -703,14 +767,18 @@ export default function CreateQuotationForm({
           </Button>
           <Button
             onClick={() => {
-              if (selectedProjectId) {
-                setShowProjectSelectionDialog(false);
-                handleCreateQuotation("final");
-              } else {
-                alert("Please select a project to continue.");
+              if (projectMode === "new" && !newProjectData.name) {
+                alert("Please enter a project name.");
+                return;
               }
+              if (projectMode === "existing" && !selectedProjectId) {
+                alert("Please select a project.");
+                return;
+              }
+              setShowProjectSelectionDialog(false);
+              handleCreateQuotation("final");
             }}
-            disabled={!selectedProjectId}
+            disabled={projectMode === "existing" ? !selectedProjectId : !newProjectData.name}
           >
             Create Final Quotation
           </Button>

@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getProjectsForQuotationOptimized } from "../action";
-import { createProject } from "../../projects/action";
 import { Button } from "@/components/ui/button";
 
 interface ProjectForQuotation {
@@ -72,6 +71,23 @@ export default function ProjectSelection({
     fetchProjects();
   }, [currentUserId]);
 
+  // Validate client information on mount
+  useEffect(() => {
+    if (!clientId || !clientName) {
+      console.warn("ProjectSelection: Missing client information", { 
+        clientId, 
+        clientName,
+        hasClientId: !!clientId,
+        hasClientName: !!clientName 
+      });
+    } else {
+      console.log("ProjectSelection: Client information available", { 
+        clientId, 
+        clientName 
+      });
+    }
+  }, [clientId, clientName]);
+
   // Use useMemo to optimize filtering - only recalculates when projects or searchQuery changes
   const filteredProjects = useMemo(() => {
     if (!searchQuery.trim()) {
@@ -91,48 +107,21 @@ export default function ProjectSelection({
     field: keyof NewProjectData,
     value: string
   ) => {
-    onNewProjectDataChange({
+    const updatedData = {
       ...newProjectData,
       [field]: value,
-    } as NewProjectData);
+    } as NewProjectData;
+    
+    // Ensure client information is preserved when creating new project
+    if (clientId && clientName) {
+      console.log("ProjectSelection: Client info available", { clientId, clientName });
+    } else {
+      console.warn("ProjectSelection: Missing client information", { clientId, clientName });
+    }
+    
+    onNewProjectDataChange(updatedData);
   };
 
-  const handleCreateProject = async () => {
-    if (!newProjectData?.name) {
-      alert("Please enter a project name");
-      return;
-    }
-
-    try {
-      // Use the provided clientName, or fallback to empty string
-      const finalClientName = clientName || "";
-
-      const newProject = await createProject({
-        name: newProjectData.name,
-        description: newProjectData.description,
-        createdBy: currentUserId,
-        startDate: newProjectData.startDate
-          ? new Date(newProjectData.startDate)
-          : undefined,
-        endDate: newProjectData.endDate
-          ? new Date(newProjectData.endDate)
-          : undefined,
-        priority: newProjectData.priority,
-        clientId: clientId || "",
-        clientName: finalClientName,
-      });
-
-      // For new projects, select it but don't link yet
-      onProjectSelect(newProject.id, newProject.name);
-      onModeChange("existing");
-
-      // Refresh the projects list to include the new project
-      await fetchProjects();
-    } catch (error) {
-      console.error("Failed to create project:", error);
-      alert("Failed to create project. Please try again.");
-    }
-  };
 
   return (
     <div>
@@ -150,13 +139,6 @@ export default function ProjectSelection({
             Create New Project
           </TabsTrigger>
         </TabsList>
-
-        {!selectedProjectId && (
-          <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 rounded-lg">
-            💡 Optional: You can leave this quotation unlinked to any project,
-            or select/create a project to link it.
-          </div>
-        )}
 
         <TabsContent value="existing" className="space-y-4">
           <div className="border rounded-lg p-6">
@@ -230,7 +212,6 @@ export default function ProjectSelection({
 
         <TabsContent value="new" className="space-y-4">
           <div className="border rounded-lg p-6">
-
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -301,15 +282,6 @@ export default function ProjectSelection({
                   placeholder="Enter project description"
                   rows={3}
                 />
-              </div>
-
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleCreateProject}
-                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-                >
-                  Create Project & Link
-                </Button>
               </div>
             </div>
           </div>
