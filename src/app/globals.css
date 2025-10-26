@@ -447,28 +447,28 @@
 
 /* Dropdown Menu Item Hover Styles */
 [data-slot="dropdown-menu-item"]:hover {
-  background-color: #f0e8d8 !important;
+  background-color: var(--muted) !important;
   cursor: pointer !important;
   transition: background-color 200ms ease-in-out !important;
 }
 
 /* Select Trigger Hover Styles */
 [data-slot="select-trigger"]:hover {
-  background-color: #f0e8d8 !important;
-  border-color: #BDC4A5 !important;
+  background-color: var(--muted) !important;
+  border-color: var(--accent) !important;
   cursor: pointer !important;
   transition: all 200ms ease-in-out !important;
 }
 
 /* Select Item Hover Styles */
 [data-slot="select-item"]:hover {
-  background-color: #f0e8d8 !important;
+  background-color: var(--muted) !important;
   cursor: pointer !important;
   transition: background-color 200ms ease-in-out !important;
 }
 
 /* Select Item Focus Styles */
 [data-slot="select-item"]:focus-visible {
-  background-color: #BDC4A5 !important;
+  background-color: var(--accent) !important;
   outline: none !important;
 }

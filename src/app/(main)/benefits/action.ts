@@ -204,7 +204,6 @@ export async function getEmployeeComplaints(userId: string) {
         date: true,
         customer: true,
         reason: true,
-        status: true,
       },
       orderBy: {
         date: "desc",
@@ -215,7 +214,6 @@ export async function getEmployeeComplaints(userId: string) {
       date: complaint.date.toISOString().split("T")[0],
       customer: complaint.customer,
       reason: complaint.reason,
-      status: complaint.status,
     }))
   } catch (error) {
     console.error("Error fetching complaints:", error)

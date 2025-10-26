@@ -7,7 +7,6 @@ interface Complaint {
   date: string
   customer: string
   reason: string
-  status: "pending" | "resolved"
 }
 
 interface ComplaintsTrackerProps {
@@ -131,20 +130,10 @@ export function ComplaintsTracker({ complaints, starsDeducted }: ComplaintsTrack
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-lg font-black text-foreground">{complaint.customer}</span>
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-black ${
-                        complaint.status === "resolved"
-                          ? "bg-green-200 text-green-800"
-                          : "bg-orange-200 text-orange-800"
-                      }`}
-                    >
-                      {complaint.status.toUpperCase()}
-                    </span>
                   </div>
                   <p className="text-sm font-bold text-muted-foreground mb-1">{complaint.reason}</p>
                   <p className="text-xs font-bold text-muted-foreground">Date: {complaint.date}</p>
                 </div>
-                <div className="text-3xl">{complaint.status === "resolved" ? "✅" : "⏳"}</div>
               </div>
             </div>
           ))}
@@ -166,7 +155,6 @@ export function ComplaintsTracker({ complaints, starsDeducted }: ComplaintsTrack
           <li>• Each customer complaint deducts 1 star from your total</li>
           <li>• 3 or more complaints cancel the Super Performance Award</li>
           <li>• Management review required for award cancellation</li>
-          <li>• Resolved complaints still count toward the penalty</li>
         </ul>
       </div>
     </Card>
