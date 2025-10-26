@@ -247,3 +247,43 @@ export async function calculateFinalStars(userId: string): Promise<{ totalStars:
   }
 }
 
+// Check if user has super performance award (based on previous year)
+export async function checkSuperPerformanceAward(userId: string): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number }> {
+  try {
+    const previousYear = new Date().getFullYear() - 1
+    
+    // Get previous year sales data
+    const previousYearSalesData = await getEmployeeSalesData(userId, previousYear)
+    const previousYearComplaints = await getEmployeeComplaints(userId)
+    
+    // Calculate total stars from previous year
+    const totalStars = previousYearSalesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
+    
+    // Filter complaints for previous year only
+    const currentYear = new Date().getFullYear()
+    const previousYearStart = new Date(previousYear, 0, 1)
+    const previousYearEnd = new Date(previousYear, 11, 31, 23, 59, 59)
+    
+    const previousYearComplaintsCount = previousYearComplaints.filter(complaint => {
+      const complaintDate = new Date(complaint.date)
+      return complaintDate >= previousYearStart && complaintDate <= previousYearEnd
+    }).length
+    
+    const previousYearStars = totalStars - previousYearComplaintsCount
+    
+    // Super performance award requires 3 or more stars
+    const hasSuperPerformanceAward = previousYearStars >= 3
+
+    return {
+      hasSuperPerformanceAward,
+      previousYearStars,
+    }
+  } catch (error) {
+    console.error("Error checking super performance award:", error)
+    return {
+      hasSuperPerformanceAward: false,
+      previousYearStars: 0,
+    }
+  }
+}
+

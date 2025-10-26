@@ -29,7 +29,7 @@ export function RewardCard({
 }: RewardCardProps) {
   return (
     <Card
-      className={`relative overflow-hidden transition-all duration-300 border-4 ${
+      className={`relative overflow-hidden transition-all duration-300 border-4 min-h-96 flex flex-col ${
         unlocked
           ? "border-green-500 shadow-2xl scale-105 animate-[pulse-glow_2s_ease-in-out_infinite]"
           : "border-foreground/20 shadow-lg hover:scale-105 hover:shadow-xl"
@@ -47,7 +47,7 @@ export function RewardCard({
         </div>
       )}
 
-      <div className="relative p-6">
+      <div className="relative p-6 flex flex-col flex-1">
         {/* Level badge */}
         <div className="flex items-center justify-between mb-4">
           <Badge className={`text-lg font-black px-4 py-2 ${unlocked ? "bg-green-600" : "bg-muted"} text-white`}>
@@ -64,7 +64,7 @@ export function RewardCard({
         <h3 className="text-2xl font-black mb-3 text-foreground">{title}</h3>
 
         {/* Target */}
-        <div className="mb-3 p-3 bg-white/50 rounded-lg">
+        <div className="mb-4 p-3 bg-white/50 rounded-lg">
           <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-1">Yearly Target</div>
           <div className="text-2xl font-black text-primary">RM {(target / 1000).toFixed(0)}K</div>
           <div className="text-xs font-bold text-muted-foreground mt-1">
@@ -74,12 +74,12 @@ export function RewardCard({
         </div>
 
         {/* Prizes */}
-        <div>
+        <div className="flex-1 flex flex-col">
           <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-2">Benefits</div>
-          <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+          <ul className="space-y-1.5 flex-1 overflow-y-auto">
             {prizes.map((prize, index) => (
               <li key={index} className="flex items-start gap-2">
-                <span className="text-accent text-sm mt-0.5">🎁</span>
+                <span className="text-accent text-sm mt-0.5 flex-shrink-0">🎁</span>
                 <span
                   className={`text-xs font-bold leading-tight ${unlocked ? "text-foreground" : "text-muted-foreground"}`}
                 >
@@ -92,8 +92,8 @@ export function RewardCard({
 
         {/* Lock overlay for locked rewards */}
         {!unlocked && (
-          <div className="absolute inset-0 bg-foreground/5 backdrop-blur-[1px] flex items-center justify-center">
-            <div className="text-6xl opacity-20">🔒</div>
+          <div className="absolute inset-0 bg-foreground/5 flex items-center justify-center rounded-lg">
+            <div className="text-7xl opacity-30">🔒</div>
           </div>
         )}
       </div>

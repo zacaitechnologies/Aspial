@@ -6,6 +6,7 @@ import { MarioProgressBar } from "./components/mario-progress-bar"
 import { RewardCard } from "./components/reward-card"
 import { MonthlyPerformance } from "./components/monthly-performance"
 import { ComplaintsTracker } from "./components/complaints-tracker"
+import { SuperPerformanceBenefits } from "./components/super-performance-benefits"
 import { Plane, Award, Trophy, Car, Loader2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getEmployeeSalesData, getEmployeeComplaints, type EmployeeSalesData } from "./action"
+import { getEmployeeSalesData, getEmployeeComplaints, checkSuperPerformanceAward, type EmployeeSalesData } from "./action"
 import { useSession } from "../contexts/SessionProvider"
 
 export default function EmployeeBenefitsPage() {
@@ -27,6 +28,8 @@ export default function EmployeeBenefitsPage() {
   const [salesData, setSalesData] = useState<EmployeeSalesData | null>(null)
   const [complaints, setComplaints] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasSuperPerformanceAward, setHasSuperPerformanceAward] = useState(false)
+  const [previousYearStars, setPreviousYearStars] = useState(0)
 
   useEffect(() => {
     async function fetchData() {
@@ -41,12 +44,15 @@ export default function EmployeeBenefitsPage() {
         const year = parseInt(selectedYear)
         const month = viewMode === "monthly" ? parseInt(selectedMonth) : undefined
 
-        const [salesResult, complaintsResult] = await Promise.all([
+        const [salesResult, complaintsResult, awardResult] = await Promise.all([
           getEmployeeSalesData(enhancedUser.profile.id, year, month),
           getEmployeeComplaints(enhancedUser.profile.id),
+          checkSuperPerformanceAward(enhancedUser.profile.id),
         ])
         setSalesData(salesResult)
         setComplaints(complaintsResult)
+        setHasSuperPerformanceAward(awardResult.hasSuperPerformanceAward)
+        setPreviousYearStars(awardResult.previousYearStars)
       } catch (error) {
         console.error("Error fetching benefits data:", error)
       } finally {
@@ -164,7 +170,7 @@ export default function EmployeeBenefitsPage() {
       target: salesTargets.level1,
       monthlySales: 60000,
       commissionRate: "5%",
-      prizes: ["Badge Award", "Year-End Banquet Award"],
+      prizes: ["🧧 RED PACKET", "Badge Award", "Year-End Banquet Award"],
       icon: Award,
       color: "from-amber-600 to-amber-800",
       unlocked: currentProgress >= 25,
@@ -176,6 +182,7 @@ export default function EmployeeBenefitsPage() {
       monthlySales: 100000,
       commissionRate: "8%",
       prizes: [
+        "🧧 1 MONTH CNY BONUS",
         "RM 2,000 Travel Allowance",
         "RM 2,000 Course Allowance",
         "Badge Award",
@@ -195,6 +202,7 @@ export default function EmployeeBenefitsPage() {
       monthlySales: 175000,
       commissionRate: "10%",
       prizes: [
+        "🧧 2 MONTHS CNY BONUS",
         "RM 4,000 Travel Allowance",
         "RM 4,000 Course Allowance",
         "Badge Award",
@@ -215,6 +223,7 @@ export default function EmployeeBenefitsPage() {
       monthlySales: 280000,
       commissionRate: "12%",
       prizes: [
+        "🧧 3 MONTHS CNY BONUS",
         "RM 6,000 Travel Allowance",
         "RM 6,000 Course Allowance",
         "Badge Award",
@@ -261,6 +270,33 @@ export default function EmployeeBenefitsPage() {
             Welcome back, <span className="text-primary">{employeeData.name}</span>!
           </p>
         </div>
+
+        {/* Super Performance Award Status */}
+        <Card className={`mb-8 p-6 border-4 shadow-xl text-center ${
+          hasSuperPerformanceAward
+            ? "bg-yellow-50 border-yellow-500"
+            : "bg-gray-50 border-gray-300"
+        }`}>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="text-5xl">
+              {hasSuperPerformanceAward ? "🏆" : "⭐"}
+            </div>
+            <div>
+              <h3 className="text-2xl font-black text-foreground mb-1">
+                {hasSuperPerformanceAward ? "SUPER PERFORMANCE AWARD ACTIVE" : "No Super Performance Award"}
+              </h3>
+              <p className={`text-sm font-bold ${
+                hasSuperPerformanceAward
+                  ? "text-yellow-800"
+                  : "text-gray-600"
+              }`}>
+                {hasSuperPerformanceAward 
+                  ? `You earned ${previousYearStars} ⭐ last year! Your award is active this year!`
+                  : "Earn 3+ ⭐ next year to unlock the Super Performance Award!"}
+              </p>
+            </div>
+          </div>
+        </Card>
 
         <Card className="mb-8 p-4 bg-white/95 border-4 border-foreground/20 shadow-xl">
           <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -369,11 +405,18 @@ export default function EmployeeBenefitsPage() {
             monthlyData={monthlyData}
             totalStars={totalStars}
             starsAfterComplaints={starsAfterComplaints}
+            hasSuperPerformanceAward={hasSuperPerformanceAward}
+            previousYearStars={previousYearStars}
           />
         </div>
 
         <div className="mb-12">
           <ComplaintsTracker complaints={complaints} starsDeducted={complaints.length} />
+        </div>
+
+        {/* Super Performance Award Benefits */}
+        <div className="mb-8">
+          <SuperPerformanceBenefits />
         </div>
 
         {/* Rewards Grid */}
