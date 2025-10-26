@@ -54,7 +54,7 @@ export function AppHeader() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-slate-100">
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-muted hover:cursor-pointer transition-colors">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src="/placeholder.svg?height=40&width=40" alt="User" />
                   <AvatarFallback className="bg-blue-600 text-white">JD</AvatarFallback>
