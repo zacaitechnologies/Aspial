@@ -9,12 +9,21 @@ import { ComplaintsTracker } from "./components/complaints-tracker"
 import { Plane, Award, Trophy, Car, Loader2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { getEmployeeSalesData, getEmployeeComplaints, type EmployeeSalesData } from "./action"
 import { useSession } from "../contexts/SessionProvider"
 
 export default function EmployeeBenefitsPage() {
   const { enhancedUser } = useSession()
   const [viewMode, setViewMode] = useState<"monthly" | "yearly">("yearly")
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().getMonth().toString())
   const [salesData, setSalesData] = useState<EmployeeSalesData | null>(null)
   const [complaints, setComplaints] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,8 +38,11 @@ export default function EmployeeBenefitsPage() {
 
       try {
         setLoading(true)
+        const year = parseInt(selectedYear)
+        const month = viewMode === "monthly" ? parseInt(selectedMonth) : undefined
+
         const [salesResult, complaintsResult] = await Promise.all([
-          getEmployeeSalesData(enhancedUser.profile.id),
+          getEmployeeSalesData(enhancedUser.profile.id, year, month),
           getEmployeeComplaints(enhancedUser.profile.id),
         ])
         setSalesData(salesResult)
@@ -43,7 +55,7 @@ export default function EmployeeBenefitsPage() {
     }
 
     fetchData()
-  }, [enhancedUser?.profile?.id])
+  }, [enhancedUser?.profile?.id, selectedYear, selectedMonth, viewMode])
 
   if (loading) {
     return (
@@ -250,6 +262,75 @@ export default function EmployeeBenefitsPage() {
           </p>
         </div>
 
+        <Card className="mb-8 p-4 bg-white/95 border-4 border-foreground/20 shadow-xl">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Label htmlFor="view-mode" className="font-bold text-sm whitespace-nowrap">
+                Yearly
+              </Label>
+              <Switch
+                id="view-mode"
+                checked={viewMode === "monthly"}
+                onCheckedChange={(checked) => setViewMode(checked ? "monthly" : "yearly")}
+                className="data-[state=checked]:bg-primary"
+              />
+              <Label htmlFor="view-mode" className="font-bold text-sm whitespace-nowrap">
+                Monthly
+              </Label>
+            </div>
+
+            {viewMode === "yearly" && (
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[...Array(5)].map((_, i) => {
+                    const year = new Date().getFullYear() - i
+                    return (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+
+            {viewMode === "monthly" && (
+              <div className="flex gap-2">
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((month, index) => (
+                      <SelectItem key={index} value={index.toString()}>
+                        {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...Array(5)].map((_, i) => {
+                      const year = new Date().getFullYear() - i
+                      return (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        </Card>
+
         {/* Stats Card */}
         <Card className="mb-8 p-6 bg-white/95 border-4 border-foreground/20 shadow-2xl">
           <div className="flex flex-wrap gap-6 justify-around items-center">
@@ -272,26 +353,6 @@ export default function EmployeeBenefitsPage() {
               <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Commission Rate</div>
             </div>
           </div>
-        </Card>
-
-        <Card className="mb-8 p-6 bg-white/95 border-4 border-foreground/20 shadow-xl">
-          <div className="flex items-center justify-center gap-4">
-            <Label htmlFor="view-mode" className="text-lg font-bold">
-              Yearly Progress
-            </Label>
-            <Switch
-              id="view-mode"
-              checked={viewMode === "monthly"}
-              onCheckedChange={(checked) => setViewMode(checked ? "monthly" : "yearly")}
-              className="data-[state=checked]:bg-primary"
-            />
-            <Label htmlFor="view-mode" className="text-lg font-bold">
-              Monthly Progress
-            </Label>
-          </div>
-          <p className="text-center text-sm text-muted-foreground mt-2">
-            {viewMode === "yearly" ? "Viewing your annual sales progress" : "Viewing your current month sales progress"}
-          </p>
         </Card>
 
         {/* Mario Progress Bar */}

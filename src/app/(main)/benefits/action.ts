@@ -60,7 +60,11 @@ function calculateStars(monthlySales: number): number {
   return monthlySales >= 100000 ? 1 : 0
 }
 
-export async function getEmployeeSalesData(userId: string): Promise<EmployeeSalesData> {
+export async function getEmployeeSalesData(
+  userId: string,
+  year: number = new Date().getFullYear(),
+  month?: number
+): Promise<EmployeeSalesData> {
   try {
     // Fetch user details
     const user = await prisma.user.findUnique({
@@ -77,19 +81,27 @@ export async function getEmployeeSalesData(userId: string): Promise<EmployeeSale
       throw new Error("User not found")
     }
 
-    // Get current year
-    const currentYear = new Date().getFullYear()
-    const startOfYear = new Date(currentYear, 0, 1)
-    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59)
+    // Determine date range based on parameters
+    let startDate: Date
+    let endDate: Date
 
-    // Fetch all quotations created by this user in the current year
-    // Only count final/accepted quotations with payment status (partially_paid, deposit_paid, fully_paid)
+    if (month !== undefined) {
+      // Specific month
+      startDate = new Date(year, month, 1)
+      endDate = new Date(year, month + 1, 0, 23, 59, 59)
+    } else {
+      // Full year
+      startDate = new Date(year, 0, 1)
+      endDate = new Date(year, 11, 31, 23, 59, 59)
+    }
+
+    // Fetch quotations for the selected period
     const quotations = await prisma.quotation.findMany({
       where: {
         createdById: user.supabase_id,
         created_at: {
-          gte: startOfYear,
-          lte: endOfYear,
+          gte: startDate,
+          lte: endDate,
         },
         workflowStatus: {
           in: ["final", "accepted"],
@@ -115,12 +127,12 @@ export async function getEmployeeSalesData(userId: string): Promise<EmployeeSale
     // Initialize all 12 months
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     for (let i = 0; i < 12; i++) {
-      const key = `${currentYear}-${i}`
+      const key = `${year}-${i}`
       monthlyDataMap.set(key, {
         month: monthNames[i],
         sales: 0,
         monthIndex: i,
-        year: currentYear,
+        year: year,
       })
     }
 
