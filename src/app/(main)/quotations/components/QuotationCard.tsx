@@ -20,6 +20,7 @@ import {
   Plus,
   Info,
   Briefcase,
+  Download,
 } from "lucide-react";
 import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
@@ -31,6 +32,7 @@ import {
 import MembershipStatusDialog from "./MembershipStatusDialog";
 import CustomServiceDialog from "./CustomServiceDialog";
 import ProjectSelection from "./ProjectSelection";
+import { generateQuotationPDF } from "../utils/pdfExport";
 import {
   Dialog,
   DialogContent,
@@ -366,6 +368,19 @@ export default function QuotationCard({
                 title="Create Project"
               >
                 <Briefcase className="w-4 h-4" />
+              </Button>
+            )}
+
+            {/* Export PDF Button - Show only for final quotations */}
+            {quotation.workflowStatus === "final" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => await generateQuotationPDF(quotation)}
+                className="text-blue-600 hover:text-blue-700"
+                title="Export as PDF"
+              >
+                <Download className="w-4 h-4" />
               </Button>
             )}
 

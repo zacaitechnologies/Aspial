@@ -40,7 +40,11 @@ export type QuotationWithServices = {
   updated_at: Date;
   services: {
     id: number;
+    quotationId: number;
+    serviceId: number;
+    customServiceId?: string;
     service: Services;
+    customService?: any;
   }[];
   project: {
     id: number;

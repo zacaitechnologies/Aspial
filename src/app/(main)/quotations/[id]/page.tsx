@@ -26,8 +26,10 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Download,
 } from "lucide-react";
 import { workflowStatusOptions, paymentStatusOptions } from "../types";
+import { generateQuotationPDF } from "../utils/pdfExport";
 
 export default function QuotationDetailPage() {
   const params = useParams();
@@ -162,6 +164,16 @@ export default function QuotationDetailPage() {
             <p className="text-muted-foreground mt-2">{quotation.description}</p>
           </div>
           <div className="flex gap-2">
+            {quotation.workflowStatus === "final" && (
+              <Button
+                variant="outline"
+                onClick={async () => await generateQuotationPDF(quotation)}
+                className="flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export PDF
+              </Button>
+            )}
             {getWorkflowStatusBadge(quotation.workflowStatus)}
             {getPaymentStatusBadge(quotation.paymentStatus)}
           </div>
