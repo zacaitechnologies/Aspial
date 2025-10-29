@@ -60,7 +60,11 @@ function calculateStars(monthlySales: number): number {
   return monthlySales >= 100000 ? 1 : 0
 }
 
-export async function getEmployeeSalesData(userId: string): Promise<EmployeeSalesData> {
+export async function getEmployeeSalesData(
+  userId: string,
+  year: number = new Date().getFullYear(),
+  month?: number
+): Promise<EmployeeSalesData> {
   try {
     // Fetch user details
     const user = await prisma.user.findUnique({
@@ -77,19 +81,27 @@ export async function getEmployeeSalesData(userId: string): Promise<EmployeeSale
       throw new Error("User not found")
     }
 
-    // Get current year
-    const currentYear = new Date().getFullYear()
-    const startOfYear = new Date(currentYear, 0, 1)
-    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59)
+    // Determine date range based on parameters
+    let startDate: Date
+    let endDate: Date
 
-    // Fetch all quotations created by this user in the current year
-    // Only count final/accepted quotations with payment status (partially_paid, deposit_paid, fully_paid)
+    if (month !== undefined) {
+      // Specific month
+      startDate = new Date(year, month, 1)
+      endDate = new Date(year, month + 1, 0, 23, 59, 59)
+    } else {
+      // Full year
+      startDate = new Date(year, 0, 1)
+      endDate = new Date(year, 11, 31, 23, 59, 59)
+    }
+
+    // Fetch quotations for the selected period
     const quotations = await prisma.quotation.findMany({
       where: {
         createdById: user.supabase_id,
         created_at: {
-          gte: startOfYear,
-          lte: endOfYear,
+          gte: startDate,
+          lte: endDate,
         },
         workflowStatus: {
           in: ["final", "accepted"],
@@ -115,12 +127,12 @@ export async function getEmployeeSalesData(userId: string): Promise<EmployeeSale
     // Initialize all 12 months
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     for (let i = 0; i < 12; i++) {
-      const key = `${currentYear}-${i}`
+      const key = `${year}-${i}`
       monthlyDataMap.set(key, {
         month: monthNames[i],
         sales: 0,
         monthIndex: i,
-        year: currentYear,
+        year: year,
       })
     }
 
@@ -204,7 +216,6 @@ export async function getEmployeeComplaints(userId: string) {
         date: true,
         customer: true,
         reason: true,
-        status: true,
       },
       orderBy: {
         date: "desc",
@@ -215,7 +226,6 @@ export async function getEmployeeComplaints(userId: string) {
       date: complaint.date.toISOString().split("T")[0],
       customer: complaint.customer,
       reason: complaint.reason,
-      status: complaint.status,
     }))
   } catch (error) {
     console.error("Error fetching complaints:", error)
@@ -234,6 +244,46 @@ export async function calculateFinalStars(userId: string): Promise<{ totalStars:
   return {
     totalStars,
     starsAfterComplaints,
+  }
+}
+
+// Check if user has super performance award (based on previous year)
+export async function checkSuperPerformanceAward(userId: string): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number }> {
+  try {
+    const previousYear = new Date().getFullYear() - 1
+    
+    // Get previous year sales data
+    const previousYearSalesData = await getEmployeeSalesData(userId, previousYear)
+    const previousYearComplaints = await getEmployeeComplaints(userId)
+    
+    // Calculate total stars from previous year
+    const totalStars = previousYearSalesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
+    
+    // Filter complaints for previous year only
+    const currentYear = new Date().getFullYear()
+    const previousYearStart = new Date(previousYear, 0, 1)
+    const previousYearEnd = new Date(previousYear, 11, 31, 23, 59, 59)
+    
+    const previousYearComplaintsCount = previousYearComplaints.filter(complaint => {
+      const complaintDate = new Date(complaint.date)
+      return complaintDate >= previousYearStart && complaintDate <= previousYearEnd
+    }).length
+    
+    const previousYearStars = totalStars - previousYearComplaintsCount
+    
+    // Super performance award requires 3 or more stars
+    const hasSuperPerformanceAward = previousYearStars >= 3
+
+    return {
+      hasSuperPerformanceAward,
+      previousYearStars,
+    }
+  } catch (error) {
+    console.error("Error checking super performance award:", error)
+    return {
+      hasSuperPerformanceAward: false,
+      previousYearStars: 0,
+    }
   }
 }
 

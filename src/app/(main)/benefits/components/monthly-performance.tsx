@@ -13,9 +13,11 @@ interface MonthlyPerformanceProps {
   monthlyData: MonthlyData[]
   totalStars: number
   starsAfterComplaints: number
+  hasSuperPerformanceAward?: boolean
+  previousYearStars?: number
 }
 
-export function MonthlyPerformance({ monthlyData, totalStars, starsAfterComplaints }: MonthlyPerformanceProps) {
+export function MonthlyPerformance({ monthlyData, totalStars, starsAfterComplaints, hasSuperPerformanceAward = false, previousYearStars = 0 }: MonthlyPerformanceProps) {
   const getLevelColor = (level: number) => {
     switch (level) {
       case 4:
@@ -62,15 +64,28 @@ export function MonthlyPerformance({ monthlyData, totalStars, starsAfterComplain
         </div>
       </div>
 
-      <div className="mb-4 p-4 bg-yellow-50 border-2 border-yellow-400 rounded-lg">
-        <p className="text-sm font-bold text-yellow-900">
-          🌟 Super Performance Award: Need 12 stars (RM 100K/month = 1 star)
-        </p>
-        <p className="text-sm font-bold text-yellow-900 mt-1">
-          {starsAfterComplaints >= 12
-            ? "✅ Congratulations! You've earned the Super Performance Award!"
-            : `📊 ${12 - starsAfterComplaints} more stars needed for the award`}
-        </p>
+      {/* Super Performance Award Status Banner */}
+      <div className={`mb-4 p-4 rounded-lg border-2 ${
+        hasSuperPerformanceAward
+          ? "bg-yellow-50 border-yellow-400"
+          : "bg-gray-50 border-gray-300"
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className="text-3xl">
+            {hasSuperPerformanceAward ? "🏆" : "⭐"}
+          </div>
+          <div>
+            <p className={`text-sm font-bold ${
+              hasSuperPerformanceAward
+                ? "text-yellow-900"
+                : "text-gray-700"
+            }`}>
+              {hasSuperPerformanceAward 
+                ? `✅ SUPER PERFORMANCE AWARD ACTIVE - You earned ${previousYearStars} ⭐ last year!`
+                : "📊 Work towards earning 3+ ⭐ to unlock the Super Performance Award next year"}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProjectWithQuotation } from "../types";
 import { getProjectById } from "../action";
+import { getProjectComplaints } from "../action";
 
 import { useSession } from "../../contexts/SessionProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,13 +17,19 @@ import {
   User,
   CheckSquare,
   Plus,
-  Flag,
+  Edit,
   Target,
   Package,
+  AlertCircle,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog";
 import { KanbanBoard } from "../components/ProjectKanbanBoard";
+import CreateComplaintDialog from "../components/CreateComplaintDialog";
+import EditComplaintDialog from "../components/EditComplaintDialog";
+import { deleteComplaint } from "../action";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -33,11 +40,16 @@ export default function ProjectPage() {
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [isProjectOwner, setIsProjectOwner] = useState(false);
   const [taskStats, setTaskStats] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "tasks">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "complaints">("overview");
   const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">(
     "createDate"
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [complaints, setComplaints] = useState<any[]>([]);
+  const [editingComplaint, setEditingComplaint] = useState<any | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [deleteComplaintId, setDeleteComplaintId] = useState<number | null>(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   
   // Check if project is cancelled
   const isProjectCancelled = project?.status === "cancelled";
@@ -57,6 +69,10 @@ export default function ProjectPage() {
           setCollaborators(projectData.collaborators);
           setTaskStats(projectData.taskStats);
           setIsProjectOwner(projectData.userPermission.isOwner);
+          
+          // Fetch complaints for the project
+          const projectComplaints = await getProjectComplaints(projectData.project.id);
+          setComplaints(projectComplaints);
         }
       } catch (error) {
         console.error("Failed to fetch project:", error);
@@ -70,6 +86,34 @@ export default function ProjectPage() {
 
   const handleManageCollaborators = () => {
     setIsCollaboratorsOpen(true);
+  };
+
+  const handleEditComplaint = (complaint: any) => {
+    setEditingComplaint(complaint);
+    setIsEditOpen(true);
+  };
+
+  const handleDeleteComplaint = async () => {
+    if (!deleteComplaintId) return;
+    
+    try {
+      const result = await deleteComplaint(deleteComplaintId);
+      if (result.success) {
+        setComplaints((prev) => prev.filter((c) => c.id !== deleteComplaintId));
+        setIsDeleteConfirmOpen(false);
+        setDeleteComplaintId(null);
+      }
+    } catch (error) {
+      console.error("Error deleting complaint:", error);
+    }
+  };
+
+  const handleComplaintUpdated = async () => {
+    // Refresh complaints
+    if (project) {
+      const updated = await getProjectComplaints(project.id);
+      setComplaints(updated);
+    }
   };
 
   // Sorting function
@@ -182,6 +226,25 @@ export default function ProjectPage() {
               </Badge>
             )}
           </button>
+
+          <button
+            onClick={() => setActiveTab("complaints")}
+            className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+              activeTab === "complaints"
+                ? "border-b-2 border-primary text-primary"
+                : "border-b-2 border-transparent text-black hover:text-foreground"
+            }`}
+          >
+            Complaints
+            {complaints.length > 0 && (
+              <Badge
+                variant="secondary"
+                className="bg-muted text-black"
+              >
+                {complaints.length}
+              </Badge>
+            )}
+          </button>
         </div>
 
         {activeTab === "overview" && (
@@ -261,6 +324,19 @@ export default function ProjectPage() {
                       Add people
                     </Button>
                   )}
+                  {isProjectOwner && !isProjectCancelled && (
+                    <CreateComplaintDialog
+                      projectId={project.id}
+                      projectName={project.name}
+                      clientName={project.clientName}
+                      staffMembers={collaborators.map((c) => ({
+                        id: c.user.id,
+                        firstName: c.user.firstName,
+                        lastName: c.user.lastName,
+                        email: c.user.email,
+                      }))}
+                    />
+                  )}
                   {isProjectCancelled && (
                     <div className="w-full p-3 bg-red-100 border border-red-300 rounded-md text-center">
                       <p className="text-sm text-red-800 font-medium">
@@ -324,7 +400,7 @@ export default function ProjectPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
-                      <Flag className="w-4 h-4 text-black" />
+                      <Edit className="w-4 h-4 text-black" />
                       <span className="text-black">Priority:</span>
                       <Badge
                         variant="outline"
@@ -558,6 +634,69 @@ export default function ProjectPage() {
             isProjectCancelled={isProjectCancelled}
           />
         )}
+
+        {activeTab === "complaints" && (
+          <div className="space-y-4">
+            {complaints.length === 0 ? (
+              <Card className="bg-card border-border">
+                <CardContent className="p-8 text-center">
+                  <AlertCircle className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No complaints recorded for this project</p>
+                </CardContent>
+              </Card>
+            ) : (
+              complaints.map((complaint) => (
+                <Card key={complaint.id} className="bg-card border-border">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CardTitle className="text-lg text-card-foreground">
+                            {complaint.user.firstName} {complaint.user.lastName}
+                          </CardTitle>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Customer: {complaint.customer}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(complaint.created_at).toLocaleDateString()}
+                        </p>
+                        {isProjectOwner && !isProjectCancelled && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditComplaint(complaint)}
+                              className="hover:text-primary"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setDeleteComplaintId(complaint.id);
+                                setIsDeleteConfirmOpen(true);
+                              }}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-card-foreground">{complaint.reason}</p>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Collaborators Dialog */}
@@ -566,6 +705,27 @@ export default function ProjectPage() {
         onOpenChange={setIsCollaboratorsOpen}
         projectId={project?.id || 0}
         projectName={project?.name || ""}
+      />
+
+      {/* Edit Complaint Dialog */}
+      {editingComplaint && (
+        <EditComplaintDialog
+          open={isEditOpen}
+          onOpenChange={setIsEditOpen}
+          complaint={editingComplaint}
+          onComplaintUpdated={handleComplaintUpdated}
+        />
+      )}
+
+      {/* Delete Complaint Confirmation */}
+      <ConfirmationDialog
+        open={isDeleteConfirmOpen}
+        onOpenChange={setIsDeleteConfirmOpen}
+        title="Delete Complaint"
+        description="Are you sure you want to delete this complaint? This action cannot be undone."
+        onConfirm={handleDeleteComplaint}
+        confirmText="Delete"
+        cancelText="Cancel"
       />
     </div>
   );

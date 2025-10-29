@@ -447,3 +447,146 @@ export async function getProjectById(userId: string, projectId: string) {
     userPermission: userPermission || { isOwner: false, canEdit: false, canView: false },
   };
 } 
+
+export async function createProjectComplaint(
+	projectId: number,
+	userId: string,
+	reason: string,
+	customer: string
+) {
+	try {
+		const complaint = await prisma.complaint.create({
+			data: {
+				projectId,
+				userId,
+				reason,
+				customer,
+			},
+			include: {
+				user: {
+					select: {
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
+				project: {
+					select: {
+						id: true,
+						name: true,
+					},
+				},
+			},
+		})
+
+		return {
+			success: true,
+			data: complaint,
+		}
+	} catch (error) {
+		console.error("Error creating complaint:", error)
+		return {
+			success: false,
+			error: "Failed to create complaint",
+		}
+	}
+}
+
+export async function getProjectComplaints(projectId: number) {
+	try {
+		const complaints = await prisma.complaint.findMany({
+			where: {
+				projectId,
+			},
+			include: {
+				user: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
+			},
+			orderBy: {
+				created_at: "desc",
+			},
+		})
+
+		return complaints
+	} catch (error) {
+		console.error("Error fetching complaints:", error)
+		return []
+	}
+}
+
+export async function getUserComplaintCount(userId: string): Promise<number> {
+	try {
+		const count = await prisma.complaint.findMany({
+			where: {
+				userId,
+				status: "pending",
+			},
+		})
+
+		return count.length
+	} catch (error) {
+		console.error("Error fetching complaint count:", error)
+		return 0
+	}
+}
+
+export async function updateComplaint(
+	complaintId: number,
+	reason: string,
+	customer: string
+) {
+	try {
+		const complaint = await prisma.complaint.update({
+			where: { id: complaintId },
+			data: {
+				reason,
+				customer,
+				updated_at: new Date(),
+			},
+			include: {
+				user: {
+					select: {
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
+			},
+		})
+
+		return {
+			success: true,
+			data: complaint,
+		}
+	} catch (error) {
+		console.error("Error updating complaint:", error)
+		return {
+			success: false,
+			error: "Failed to update complaint",
+		}
+	}
+}
+
+export async function deleteComplaint(complaintId: number) {
+	try {
+		await prisma.complaint.delete({
+			where: { id: complaintId },
+		})
+
+		return {
+			success: true,
+		}
+	} catch (error) {
+		console.error("Error deleting complaint:", error)
+		return {
+			success: false,
+			error: "Failed to delete complaint",
+		}
+	}
+} 

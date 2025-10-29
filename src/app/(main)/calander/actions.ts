@@ -44,6 +44,9 @@ export interface CalendarBooking {
 	attendees: number
 	color: string
 	originalData: any
+	projectId?: number | null
+	isUserBooking?: boolean
+	isTeamBooking?: boolean
 }
 
 const bookingTypes = {
@@ -53,7 +56,7 @@ const bookingTypes = {
 }
 
 // Check if user is admin
-async function checkIsAdmin(userId: string): Promise<boolean> {
+export async function checkIsAdmin(userId: string): Promise<boolean> {
 	try {
 		const userWithRoles = await prisma.user.findUnique({
 			where: { supabase_id: userId },
@@ -115,6 +118,47 @@ async function getUserProjectIds(userId: string): Promise<number[]> {
 		return uniqueProjectIds
 	} catch (error) {
 		console.error('Error fetching user project IDs:', error)
+		return []
+	}
+}
+
+// Get user's projects with details
+export async function getUserProjects(userId: string): Promise<{ id: number; name: string }[]> {
+	try {
+		// Get projects where user is the creator
+		const createdProjects = await prisma.project.findMany({
+			where: {
+				createdBy: userId,
+			},
+			select: {
+				id: true,
+				name: true,
+			},
+		})
+
+		// Get projects where user has permissions
+		const permittedProjects = await prisma.project.findMany({
+			where: {
+				permissions: {
+					some: {
+						userId: userId,
+					},
+				},
+			},
+			select: {
+				id: true,
+				name: true,
+			},
+		})
+
+		// Combine and deduplicate by ID
+		const projectMap = new Map<number, string>()
+		createdProjects.forEach(p => projectMap.set(p.id, p.name))
+		permittedProjects.forEach(p => projectMap.set(p.id, p.name))
+
+		return Array.from(projectMap, ([id, name]) => ({ id, name }))
+	} catch (error) {
+		console.error('Error fetching user projects:', error)
 		return []
 	}
 }
@@ -200,6 +244,9 @@ export async function fetchAllBookings(
 
 			const startDate = new Date(booking.startDate)
 			const endDate = new Date(booking.endDate)
+			const isUserBooking = booking.bookedBy === userName
+			const isProjectBooking = bookingWithProject.project && 
+				userProjectIds.includes(bookingWithProject.project.id)
 
 			calendarBookings.push({
 				id: `equipment-${booking.id}`,
@@ -212,6 +259,9 @@ export async function fetchAllBookings(
 				location: `${booking.equipment.type} Equipment`,
 				attendees: 1,
 				color: bookingTypes.equipment.color,
+				projectId: bookingWithProject.project?.id,
+				isUserBooking: isUserBooking,
+				isTeamBooking: isProjectBooking && !isUserBooking,
 				originalData: {
 					...booking,
 					startDate: startDate.toISOString(),
@@ -238,6 +288,9 @@ export async function fetchAllBookings(
 
 			const startDate = new Date(booking.startDate)
 			const endDate = new Date(booking.endDate)
+			const isUserBooking = booking.bookedBy === userName
+			const isProjectBooking = bookingWithProject.project && 
+				userProjectIds.includes(bookingWithProject.project.id)
 
 			calendarBookings.push({
 				id: `studio-${booking.id}`,
@@ -250,6 +303,9 @@ export async function fetchAllBookings(
 				location: booking.studio.location,
 				attendees: booking.attendees,
 				color: bookingTypes.studio.color,
+				projectId: bookingWithProject.project?.id,
+				isUserBooking: isUserBooking,
+				isTeamBooking: isProjectBooking && !isUserBooking,
 				originalData: {
 					...booking,
 					startDate: startDate.toISOString(),

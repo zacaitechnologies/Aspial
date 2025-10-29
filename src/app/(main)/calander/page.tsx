@@ -10,7 +10,7 @@ import { BookingDetailsDialog } from "./components/BookingDetailsDialog"
 import { DateEventsDialog } from "./components/DateEventsDialog"
 import { DatePicker } from "./components/DatePicker"
 import { useSession } from "../contexts/SessionProvider"
-import { fetchAllBookings, CalendarBooking } from "./actions"
+import { fetchAllBookings, CalendarBooking, getUserProjects, checkIsAdmin } from "./actions"
 
 
 const bookingTypes = {
@@ -24,12 +24,16 @@ export default function OrganizationCalendar() {
 	const [currentDate, setCurrentDate] = useState(new Date())
 	const [bookings, setBookings] = useState<CalendarBooking[]>([])
 	const [filterType, setFilterType] = useState<string>("all")
+	const [bookmarkScope, setBookmarkScope] = useState<string>("all")
+	const [selectedProject, setSelectedProject] = useState<string>("all")
+	const [projects, setProjects] = useState<{ id: number; name: string }[]>([])
 	const [hoveredDate, setHoveredDate] = useState<string>("")
 	const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null)
 	const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
 	const [selectedDate, setSelectedDate] = useState<string>("")
 	const [isDateEventsDialogOpen, setIsDateEventsDialogOpen] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
+	const [isAdmin, setIsAdmin] = useState(false)
 
 	// Get user name for filtering bookings
 	const userName = enhancedUser?.profile 
@@ -44,6 +48,16 @@ export default function OrganizationCalendar() {
 				if (enhancedUser?.id && userName) {
 					const fetchedBookings = await fetchAllBookings(enhancedUser.id, userName)
 					setBookings(fetchedBookings)
+					
+					// Check if admin and fetch projects if not
+					const hasAdminRole = await checkIsAdmin(enhancedUser.id)
+					setIsAdmin(hasAdminRole)
+					
+					// Only fetch projects if not admin
+					if (!hasAdminRole) {
+						const userProjects = await getUserProjects(enhancedUser.id)
+						setProjects(userProjects)
+					}
 				}
 			} catch (error) {
 				console.error('Error loading bookings:', error)
@@ -85,7 +99,27 @@ export default function OrganizationCalendar() {
   }
 
   const getBookingsForDate = (date: string) => {
-    return bookings.filter((booking) => booking.date === date && (filterType === "all" || booking.type === filterType))
+    return bookings.filter((booking) => {
+      // Filter by date
+      if (booking.date !== date) return false
+      
+      // Filter by type
+      if (filterType !== "all" && booking.type !== filterType) return false
+      
+      // Filter by bookmark scope (only for non-admin users)
+      if (!isAdmin) {
+        if (bookmarkScope === "own" && !booking.isUserBooking) return false
+        if (bookmarkScope === "team" && !booking.isTeamBooking) return false
+      }
+      
+      // Filter by project (only if a specific project is selected)
+      if (selectedProject !== "all") {
+        const projectId = parseInt(selectedProject)
+        if (booking.projectId !== projectId) return false
+      }
+      
+      return true
+    })
   }
 
   const handleDateChange = (newDate: Date) => {
@@ -174,13 +208,54 @@ export default function OrganizationCalendar() {
                 </SelectContent>
               </Select>
               
+              {!isAdmin && (
+                <>
+                  <Select value={bookmarkScope} onValueChange={setBookmarkScope}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Bookings</SelectItem>
+                      <SelectItem value="own">My Bookings</SelectItem>
+                      <SelectItem value="team">Team Bookings</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {projects.length > 0 && (
+                    <Select value={selectedProject} onValueChange={setSelectedProject}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Filter by project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Projects</SelectItem>
+                        {projects.map((project) => (
+                          <SelectItem key={project.id} value={String(project.id)}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {Object.entries(bookingTypes).map(([type, config]) => {
-              const count = bookings.filter((b) => b.type === type).length
+              const count = bookings.filter((b) => {
+                if (b.type !== type) return false
+                if (!isAdmin) {
+                  if (bookmarkScope === "own" && !b.isUserBooking) return false
+                  if (bookmarkScope === "team" && !b.isTeamBooking) return false
+                }
+                if (selectedProject && selectedProject !== "all") {
+                  const projectId = parseInt(selectedProject)
+                  if (b.projectId !== projectId) return false
+                }
+                return true
+              }).length
               return (
                 <Card
                   key={type}
@@ -240,7 +315,19 @@ export default function OrganizationCalendar() {
           <CardContent>
             <div className="space-y-3">
               {bookings
-                .filter((booking) => new Date(booking.date) >= new Date())
+                .filter((booking) => {
+                  if (new Date(booking.date) < new Date()) return false
+                  if (filterType !== "all" && booking.type !== filterType) return false
+                  if (!isAdmin) {
+                    if (bookmarkScope === "own" && !booking.isUserBooking) return false
+                    if (bookmarkScope === "team" && !booking.isTeamBooking) return false
+                  }
+                  if (selectedProject && selectedProject !== "all") {
+                    const projectId = parseInt(selectedProject)
+                    if (booking.projectId !== projectId) return false
+                  }
+                  return true
+                })
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                 .slice(0, 5)
                 .map((booking) => (

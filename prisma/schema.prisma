@@ -66,9 +66,10 @@ model Complaint {
   date       DateTime        @default(now())
   customer   String
   reason     String
-  status     ComplaintStatus @default(pending)
   userId     String
+  projectId  Int?
   user       User            @relation(fields: [userId], references: [id])
+  project    Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   created_at DateTime        @default(now())
   updated_at DateTime        @updatedAt
 
@@ -187,6 +188,7 @@ model Project {
   quotations    Quotation[]
   tasks         Task[]
   timeEntries   TimeEntry[]
+  complaints    Complaint[]
 
   @@map("projects")
 }
@@ -433,9 +435,4 @@ enum CustomServiceStatus {
   PENDING
   APPROVED
   REJECTED
-}
-
-enum ComplaintStatus {
-  pending
-  resolved
 }
