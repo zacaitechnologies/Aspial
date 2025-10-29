@@ -32,6 +32,7 @@ import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import CustomServiceDialog from "./CustomServiceDialog";
 import { Briefcase, Plus } from "lucide-react";
+import { DialogFooter } from "@/components/ui/dialog";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -60,6 +61,23 @@ export default function EditQuotationForm({
   const [projectMode, setProjectMode] = useState<"existing" | "new">(
     "existing"
   );
+  const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
+  const [showProjectSelectionDialog, setShowProjectSelectionDialog] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | undefined>();
+  const [selectedProjectName, setSelectedProjectName] = useState<string>("");
+  const [newProjectData, setNewProjectData] = useState<{
+    name: string;
+    description?: string;
+    startDate?: string;
+    endDate?: string;
+    priority: "low" | "medium" | "high";
+  }>({
+    name: "",
+    description: "",
+    startDate: "",
+    endDate: "",
+    priority: "low"
+  });
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -235,7 +253,7 @@ export default function EditQuotationForm({
     return endDate.toLocaleDateString("en-GB");
   };
 
-  const handleUpdateQuotation = async (workflowStatus?: string) => {
+  const handleUpdateQuotationClick = (workflowStatus: string) => {
     if (!editingQuotation) return;
 
     if (!editForm.name || !editForm.description) {
@@ -258,7 +276,66 @@ export default function EditQuotationForm({
       }
     }
 
+    // If finalizing, show confirmation dialog first
+    if (workflowStatus === "final") {
+      setShowConfirmationDialog(true);
+    } else {
+      // For draft updates, proceed directly
+      handleUpdateQuotation(workflowStatus);
+    }
+  };
+
+  const handleUpdateQuotation = async (workflowStatus?: string) => {
+    if (!editingQuotation) return;
+
     try {
+      let projectId: number | undefined = editForm.projectId;
+
+      // For final quotations, handle project creation/linking
+      if (workflowStatus === "final") {
+        if (projectMode === "new") {
+          // Create new project first
+          if (!newProjectData.name) {
+            alert("Please enter a project name.");
+            return;
+          }
+
+          const clientId = clientMode === "existing" ? editForm.clientId : undefined;
+          const clientName = clientMode === "existing" ? editingQuotation?.Client?.name : editForm.newClient?.name || "";
+
+          if (!clientId) {
+            alert("Cannot create project: No client assigned. Please ensure quotation has a client.");
+            return;
+          }
+
+          const { createProject } = await import("../../projects/action");
+          const newProject = await createProject({
+            name: newProjectData.name,
+            description: newProjectData.description || "",
+            createdBy: enhancedUser.id,
+            startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
+            endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
+            priority: newProjectData.priority,
+            clientId: clientId,
+            clientName: clientName,
+          });
+          projectId = newProject.id;
+        } else {
+          // Use selected existing project
+          if (!selectedProjectId && !editForm.projectId) {
+            alert("Please select a project for final quotation.");
+            return;
+          }
+          projectId = selectedProjectId || editForm.projectId;
+        }
+
+        // Validate that we have a project for final quotation
+        if (!projectId) {
+          alert("A project is required for final quotations.");
+          return;
+        }
+      }
+
       // Calculate grand total including approved custom services (monthly price × duration)
       const approvedCustomServicesTotal = calculateApprovedCustomServicesTotal();
       const monthlyTotal = editDiscountedTotal + approvedCustomServicesTotal;
@@ -283,13 +360,16 @@ export default function EditQuotationForm({
         serviceIds: editSelectedServiceIds,
         duration: editForm.duration ? parseInt(editForm.duration) : undefined,
         startDate: editForm.startDate || undefined,
-        projectId: editForm.projectId,
+        projectId: projectId,
       });
 
       onSuccess();
       onOpenChange(false);
+      setShowProjectSelectionDialog(false);
+      setShowConfirmationDialog(false);
     } catch (error) {
       console.error("Error updating quotation:", error);
+      alert("Failed to update quotation. " + (error as Error).message);
     }
   };
 
@@ -357,6 +437,7 @@ export default function EditQuotationForm({
   }
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
         className="w-[70vw] max-w-[70vw] max-h-[90vh] rounded-lg"
@@ -714,18 +795,18 @@ export default function EditQuotationForm({
             {editForm.workflowStatus === "draft" && (
               <Button
                 variant="secondary"
-                onClick={() => handleUpdateQuotation("draft")}
+                onClick={() => handleUpdateQuotationClick("draft")}
               >
                 Save as Draft
               </Button>
             )}
             {editForm.workflowStatus === "draft" && (
-              <Button onClick={() => handleUpdateQuotation("final")}>
+              <Button onClick={() => handleUpdateQuotationClick("final")}>
                 Finalize Quotation
               </Button>
             )}
             {editForm.workflowStatus !== "draft" && (
-              <Button onClick={() => handleUpdateQuotation(editForm.workflowStatus)}>
+              <Button onClick={() => handleUpdateQuotationClick(editForm.workflowStatus)}>
                 Update Quotation
               </Button>
             )}
@@ -742,5 +823,87 @@ export default function EditQuotationForm({
         createdById={enhancedUser?.id}
       />
     </Dialog>
+
+    {/* Confirmation Dialog */}
+    <Dialog open={showConfirmationDialog} onOpenChange={setShowConfirmationDialog}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Finalize Quotation</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to finalize this quotation?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="p-4 border rounded-lg bg-amber-50 border-amber-200">
+            <h4 className="font-semibold text-amber-800 mb-2">⚠️ Important</h4>
+            <p className="text-sm text-amber-700">
+              Once finalized, this quotation will be marked as final and sent to the client. 
+              You will be prompted to select a project next. All final quotations must be linked to a project.
+            </p>
+          </div>
+        </div>
+        <DialogFooter className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowConfirmationDialog(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              setShowConfirmationDialog(false);
+              setShowProjectSelectionDialog(true);
+            }}
+          >
+            Continue to Project Selection
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    {/* Project Selection Dialog for Final Quotations */}
+    <Dialog open={showProjectSelectionDialog} onOpenChange={setShowProjectSelectionDialog}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Select Project for Final Quotation</DialogTitle>
+          <DialogDescription>
+            A project must be linked to finalize this quotation. Please select an existing project or create a new one.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-4">
+          <ProjectSelection
+            selectedProjectId={selectedProjectId}
+            newProjectData={newProjectData}
+            onProjectSelect={(projectId, projectName) => {
+              setSelectedProjectId(projectId);
+              setSelectedProjectName(projectName);
+            }}
+            onNewProjectDataChange={setNewProjectData}
+            onModeChange={setProjectMode}
+            mode={projectMode}
+            currentUserId={enhancedUser?.id || ""}
+            clientId={editForm.clientId}
+            clientName={editingQuotation?.Client?.name || editForm.newClient?.name || ""}
+          />
+        </div>
+        <DialogFooter className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowProjectSelectionDialog(false);
+              setShowConfirmationDialog(true); // Go back to confirmation
+            }}
+          >
+            Back
+          </Button>
+          <Button
+            onClick={() => handleUpdateQuotation("final")}
+          >
+            {projectMode === "new" ? "Create Project & Finalize" : "Finalize Quotation"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

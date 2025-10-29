@@ -334,8 +334,14 @@ export default function CreateQuotationForm({
       resetForm();
       onSuccess();
       onOpenChange(false);
+      setShowProjectSelectionDialog(false);
     } catch (error) {
       console.error("Error creating quotation:", error);
+      alert("Failed to create quotation: " + (error as Error).message);
+      // If it was a final quotation that failed, user can try again or save as draft
+      if (workflowStatus === "final") {
+        alert("You can try again or save as draft instead.");
+      }
     }
   };
 

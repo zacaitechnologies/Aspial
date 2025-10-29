@@ -110,6 +110,11 @@ export async function createQuotation(data: {
     membershipType?: string
   }
 }) {
+  // Validate that final quotations have a project
+  if (data.workflowStatus === "final" && !data.projectId) {
+    throw new Error("Final quotations must be linked to a project. Please select or create a project before finalizing.");
+  }
+
   // Calculate end date if start date and duration are provided
   let endDate: Date | undefined = undefined;
   if (data.startDate && data.duration) {
@@ -208,6 +213,11 @@ export async function editQuotationById(
     }
   },
 ) {
+  // Validate that final quotations have a project
+  if (data.workflowStatus === "final" && !data.projectId) {
+    throw new Error("Final quotations must be linked to a project. Please select or create a project before finalizing.");
+  }
+
   return await prisma.$transaction(async (tx) => {
     // First, get the current quotation to check if it has a project
     const currentQuotation = await tx.quotation.findUnique({
