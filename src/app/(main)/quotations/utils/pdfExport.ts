@@ -94,7 +94,7 @@ export async function generateQuotationPDF(quotation: QuotationWithServices) {
   // Quotation title
   doc.setFontSize(24);
   doc.setFont("helvetica", "bold");
-  doc.text("QUOTATION", pageWidth - margin, currentY, { align: "right" });
+  doc.text("INVOICE", pageWidth - margin, currentY, { align: "right" });
   currentY += 15;
   
   // Quotation details box - positioned more to the left

@@ -719,13 +719,14 @@ export default function ProjectPage() {
 
       {/* Delete Complaint Confirmation */}
       <ConfirmationDialog
-        open={isDeleteConfirmOpen}
-        onOpenChange={setIsDeleteConfirmOpen}
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
         title="Delete Complaint"
         description="Are you sure you want to delete this complaint? This action cannot be undone."
         onConfirm={handleDeleteComplaint}
         confirmText="Delete"
         cancelText="Cancel"
+        variant="danger"
       />
     </div>
   );
