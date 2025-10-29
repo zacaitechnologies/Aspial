@@ -270,6 +270,38 @@ export async function cancelProject(id: string, userId: string) {
   });
 }
 
+// Reactivate: Change cancelled project back to active (admin only)
+export async function reactivateProject(
+  id: string, 
+  userId: string,
+  newStatus: "planning" | "in_progress" | "on_hold" = "in_progress"
+) {
+  // Only admins can reactivate cancelled projects
+  const isAdmin = await isUserAdmin(userId);
+  
+  if (!isAdmin) {
+    throw new Error("Only administrators can reactivate cancelled projects");
+  }
+  
+  // Verify the project is actually cancelled
+  const project = await prisma.project.findUnique({
+    where: { id: Number.parseInt(id) },
+  });
+  
+  if (!project) {
+    throw new Error("Project not found");
+  }
+  
+  if (project.status !== "cancelled") {
+    throw new Error("Only cancelled projects can be reactivated");
+  }
+  
+  return await prisma.project.update({
+    where: { id: Number.parseInt(id) },
+    data: { status: newStatus },
+  });
+}
+
 // Hard delete: Permanently delete project (only for admins)
 export async function deleteProject(id: string, userId: string) {
   // Only admins can hard delete projects
@@ -444,7 +476,13 @@ export async function getProjectById(userId: string, projectId: string) {
       },
     collaborators,
     taskStats: stats,
-    userPermission: userPermission || { isOwner: false, canEdit: false, canView: false },
+    userPermission: {
+      ...userPermission,
+      isAdmin,
+      isOwner: userPermission?.isOwner || false,
+      canEdit: userPermission?.canEdit || false,
+      canView: userPermission?.canView || false,
+    },
   };
 } 
 

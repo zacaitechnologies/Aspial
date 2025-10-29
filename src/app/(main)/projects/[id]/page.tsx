@@ -3,13 +3,29 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ProjectWithQuotation } from "../types";
 import { getProjectById } from "../action";
-import { getProjectComplaints } from "../action";
+import { getProjectComplaints, reactivateProject } from "../action";
 
 import { useSession } from "../../contexts/SessionProvider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 import {
   ArrowLeft,
@@ -22,6 +38,7 @@ import {
   Package,
   AlertCircle,
   Trash2,
+  PlayCircle,
 } from "lucide-react";
 import Link from "next/link";
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog";
@@ -50,6 +67,9 @@ export default function ProjectPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteComplaintId, setDeleteComplaintId] = useState<number | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false);
+  const [newProjectStatus, setNewProjectStatus] = useState<"planning" | "in_progress" | "on_hold">("in_progress");
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Check if project is cancelled
   const isProjectCancelled = project?.status === "cancelled";
@@ -69,6 +89,7 @@ export default function ProjectPage() {
           setCollaborators(projectData.collaborators);
           setTaskStats(projectData.taskStats);
           setIsProjectOwner(projectData.userPermission.isOwner);
+          setIsAdmin(projectData.userPermission.isAdmin || false);
           
           // Fetch complaints for the project
           const projectComplaints = await getProjectComplaints(projectData.project.id);
@@ -113,6 +134,26 @@ export default function ProjectPage() {
     if (project) {
       const updated = await getProjectComplaints(project.id);
       setComplaints(updated);
+    }
+  };
+
+  const handleReactivateProject = async () => {
+    if (!project || !enhancedUser?.id) return;
+    
+    try {
+      await reactivateProject(project.id.toString(), enhancedUser.id, newProjectStatus);
+      
+      // Refresh project data
+      const projectData = await getProjectById(enhancedUser.id, params.id as string);
+      if (projectData) {
+        setProject(projectData.project as any);
+      }
+      
+      setIsReactivateDialogOpen(false);
+      alert("Project successfully reactivated!");
+    } catch (error) {
+      console.error("Error reactivating project:", error);
+      alert("Failed to reactivate project: " + (error as Error).message);
     }
   };
 
@@ -183,13 +224,24 @@ export default function ProjectPage() {
         {isProjectCancelled && (
           <Card className="mb-6 border-red-500 bg-red-50">
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Badge variant="destructive" className="text-lg px-4 py-2">
-                  Project Cancelled
-                </Badge>
-                <p className="text-red-800 font-medium">
-                  This project has been cancelled. All actions are disabled and no modifications can be made.
-                </p>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Badge variant="destructive" className="text-lg px-4 py-2">
+                    Project Cancelled
+                  </Badge>
+                  <p className="text-red-800 font-medium">
+                    This project has been cancelled. All actions are disabled and no modifications can be made.
+                  </p>
+                </div>
+                {isAdmin && (
+                  <Button
+                    onClick={() => setIsReactivateDialogOpen(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <PlayCircle className="w-4 h-4 mr-2" />
+                    Continue Project
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -728,6 +780,59 @@ export default function ProjectPage() {
         cancelText="Cancel"
         variant="danger"
       />
+
+      {/* Reactivate Project Dialog */}
+      <Dialog open={isReactivateDialogOpen} onOpenChange={setIsReactivateDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Continue Project</DialogTitle>
+            <DialogDescription>
+              Select the status you want to set for this project when reactivating it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800">
+                ✅ This will reactivate the cancelled project and allow team members to work on it again.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newStatus">New Project Status</Label>
+              <Select
+                value={newProjectStatus}
+                onValueChange={(value) => setNewProjectStatus(value as "planning" | "in_progress" | "on_hold")}
+              >
+                <SelectTrigger id="newStatus">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="planning">Planning</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="on_hold">On Hold</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Choose the appropriate status based on the project's current state.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsReactivateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReactivateProject}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <PlayCircle className="w-4 h-4 mr-2" />
+              Continue Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
