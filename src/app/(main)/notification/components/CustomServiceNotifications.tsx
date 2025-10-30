@@ -22,9 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Bell, Check, X, Package } from "lucide-react";
 import {
-  getAllPendingCustomServices,
   getAllCustomServices,
-  getUserPendingCustomServices,
   getUserCustomServices,
   approveCustomService,
   rejectCustomService,
@@ -81,16 +79,18 @@ export default function CustomServiceNotifications({
       setLoading(true);
       if (isAdmin) {
         // Admin: fetch all services from all users
-        const pending = await getAllPendingCustomServices();
         const all = await getAllCustomServices();
-        setPendingServices(pending);
         setAllServices(all);
+        // Filter pending from all data (client-side filtering)
+        const pending = all.filter(service => service.status === "PENDING");
+        setPendingServices(pending);
       } else {
         // Regular user: fetch only their own services
-        const pending = await getUserPendingCustomServices(userId);
         const all = await getUserCustomServices(userId);
-        setPendingServices(pending);
         setAllServices(all);
+        // Filter pending from all data (client-side filtering)
+        const pending = all.filter(service => service.status === "PENDING");
+        setPendingServices(pending);
       }
     } catch (error) {
       console.error("Failed to fetch custom services:", error);
@@ -195,22 +195,25 @@ export default function CustomServiceNotifications({
           <h2 className="text-xl font-semibold">
             {isAdmin ? "All Custom Service Requests" : "My Custom Service Requests"}
           </h2>
-          <Badge variant="secondary">{pendingServices.length}</Badge>
+          <Badge variant="secondary">{allServices.length}</Badge>
+          <Badge variant="default" className="ml-2">
+            {pendingServices.length} Pending
+          </Badge>
         </div>
 
-        {pendingServices.length === 0 ? (
+        {allServices.length === 0 ? (
           <Card>
             <CardContent className="p-6 text-center">
               <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-muted-foreground">
                 {isAdmin 
-                  ? "No pending custom service requests in the system."
+                  ? "No custom service requests in the system."
                   : "You haven't submitted any custom service requests yet."}
               </p>
             </CardContent>
           </Card>
         ) : (
-          pendingServices.map((service) => (
+          allServices.map((service) => (
             <Card key={service.id} className="p-4">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">

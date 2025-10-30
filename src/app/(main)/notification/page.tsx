@@ -6,16 +6,10 @@ import {
   getUserInvitations,
   acceptProjectInvitation,
   declineProjectInvitation,
-  getAllPendingInvitations,
   getAllInvitationsForAdmin,
   isUserAdmin,
 } from "../projects/permissions";
-import {
-  getAllPendingCustomServices,
-  getAllCustomServices,
-  approveCustomService,
-  rejectCustomService,
-} from "../quotations/action";
+// Custom service functions imported in CustomServiceNotifications component
 import {
   Card,
   CardContent,
@@ -144,8 +138,11 @@ export default function NotificationPage() {
           const allData = await getAllInvitationsForAdmin();
           setAllInvitations(allData as ProjectInvitation[]);
           
-          const pendingData = await getAllPendingInvitations();
-          setPendingInvitations(pendingData as ProjectInvitation[]);
+          // Filter pending from all data (client-side filtering)
+          const pendingData = (allData as ProjectInvitation[]).filter(
+            inv => inv.status === "pending"
+          );
+          setPendingInvitations(pendingData);
         } catch (error) {
           console.error("Failed to fetch admin invitations:", error);
           setAllInvitations([]);
@@ -287,107 +284,20 @@ export default function NotificationPage() {
       </div>
 
       {isAdmin ? (
-        <Tabs defaultValue="pending" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="pending">Pending Invitations</TabsTrigger>
-            <TabsTrigger value="all">All Invitations (Log)</TabsTrigger>
+        <Tabs defaultValue="invitations" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="invitations">Project Invitations</TabsTrigger>
             <TabsTrigger value="custom-services">Custom Services</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pending" className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <Shield className="w-5 h-5" />
-              <h2 className="text-xl font-semibold">Pending Project Invitations</h2>
-              <Badge variant="secondary">{pendingInvitations.length}</Badge>
-            </div>
-            
-            {pendingInvitations.length === 0 ? (
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground">No pending invitations in the system.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              pendingInvitations.map((invitation) => (
-                <Card key={invitation.id} className="p-4">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{invitation.project.name}</CardTitle>
-                        <CardDescription>
-                          {invitation.inviter.firstName} {invitation.inviter.lastName} invited {invitation.invitee.firstName} {invitation.invitee.lastName}
-                        </CardDescription>
-                      </div>
-                      {getStatusBadge(invitation.status)}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="font-medium mb-2">Project Details</h4>
-                        <div className="space-y-1 text-sm">
-                          <p>
-                            <strong>Project:</strong> {invitation.project.name}
-                          </p>
-                          <p>
-                            <strong>Value:</strong> RM
-                            {invitation.project.quotations[0]?.totalPrice.toFixed(2) || '0.00'}
-                          </p>
-                          <p>
-                            <strong>Inviter:</strong> {invitation.inviter.firstName} {invitation.inviter.lastName}
-                          </p>
-                          <p>
-                            <strong>Invitee:</strong> {invitation.invitee.firstName} {invitation.invitee.lastName}
-                          </p>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium mb-2">Permissions</h4>
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {getPermissionBadges(invitation)}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          <strong>Invited:</strong> {new Date(invitation.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => handleAdminAcceptInvitation(invitation.id)}
-                        className="flex-1"
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        Accept as Admin
-                      </Button>
-                      <Button
-                          variant="outline"
-                        onClick={() => handleAdminDeclineInvitation(invitation.id)}
-                        className="flex-1"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Decline as Admin
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={() => handleAdminDeleteInvitation(invitation.id)}
-                        size="sm"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="all" className="space-y-4">
+          <TabsContent value="invitations" className="space-y-4">
             <div className="flex items-center gap-2 mb-4">
               <Bell className="w-5 h-5" />
-              <h2 className="text-xl font-semibold">All Invitations (Complete Log)</h2>
+              <h2 className="text-xl font-semibold">All Project Invitations</h2>
               <Badge variant="secondary">{allInvitations.length}</Badge>
+              <Badge variant="default" className="ml-2">
+                {pendingInvitations.length} Pending
+              </Badge>
             </div>
             
             {allInvitations.length === 0 ? (
@@ -444,6 +354,33 @@ export default function NotificationPage() {
                         </p>
                       </div>
                     </div>
+
+                    {invitation.status === "pending" && (
+                      <div className="flex gap-2 border-t pt-4">
+                        <Button
+                          onClick={() => handleAdminAcceptInvitation(invitation.id)}
+                          className="flex-1"
+                        >
+                          <Check className="w-4 h-4 mr-2" />
+                          Accept as Admin
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleAdminDeclineInvitation(invitation.id)}
+                          className="flex-1"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Decline as Admin
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleAdminDeleteInvitation(invitation.id)}
+                          size="sm"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))
