@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
 import { 
-  inviteProjectCollaborator, 
   getProjectPermissions, 
   removeProjectCollaborator,
   updateProjectPermission,
@@ -28,13 +27,12 @@ import {
   createProjectInvitation,
   getProjectInvitations
 } from "../permissions";
-import { User, Users, X, Crown, Eye, Edit } from "lucide-react";
+import { User, Users, X, Crown } from "lucide-react";
 import { useSession } from "../../contexts/SessionProvider";
 import { 
   ProjectPermission, 
   AvailableUser, 
-  ProjectInvitation,
-  InvitePermissions 
+  ProjectInvitation 
 } from "../types";
 
 interface ProjectCollaboratorsDialogProps {
@@ -56,13 +54,9 @@ export default function ProjectCollaboratorsDialog({
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
-  const [invitePermissions, setInvitePermissions] = useState<InvitePermissions>({
-    canView: true,
-    canEdit: true,
-    isOwner: false,
-  });
+  const [makeOwner, setMakeOwner] = useState(false);
+  const [projectCreatorId, setProjectCreatorId] = useState<string | null>(null);
 
 
 
@@ -116,6 +110,15 @@ export default function ProjectCollaboratorsDialog({
         invitationsData = [];
       }
       
+      // Fetch project creator
+      try {
+        const { getProjectCreator } = await import("../permissions");
+        const creator = await getProjectCreator(projectId);
+        setProjectCreatorId(creator);
+      } catch (error) {
+        console.error("Failed to fetch project creator:", error);
+      }
+      
       // Set all the data
       setPermissions(permissionsData as ProjectPermission[]);
       setAvailableUsers(availableUsersData as AvailableUser[]);
@@ -156,78 +159,62 @@ export default function ProjectCollaboratorsDialog({
       const selectedUser = availableUsers.find(user => user.supabase_id === selectedUserId);
       const userName = selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName}` : 'User';
       
-      console.log("Inviting user:", selectedUserId, "with permissions:", invitePermissions);
+      console.log("Inviting user:", selectedUserId, "as owner:", makeOwner);
       
-      // Try to create the actual invitation
-      try {
-        console.log("Attempting to create invitation with data:", {
-          projectId,
-          invitedBy: enhancedUser.id,
-          invitedUser: selectedUserId,
-          canView: invitePermissions.canView,
-          canEdit: invitePermissions.canEdit,
-          isOwner: invitePermissions.isOwner
-        });
-        
-        const result = await createProjectInvitation(
-          projectId,
-          enhancedUser.id,
-          selectedUserId,
-          invitePermissions.canView,
-          invitePermissions.canEdit,
-          invitePermissions.isOwner
-        );
-        
-        console.log("Invitation created successfully in database:", result);
-        alert(`Invitation sent successfully to ${userName}! Check your notifications.`);
-      } catch (invitationError) {
-        console.error("Failed to create invitation in database:", invitationError);
-        console.error("Error details:", {
-          message: invitationError instanceof Error ? invitationError.message : 'Unknown error',
-          stack: invitationError instanceof Error ? invitationError.stack : undefined
-        });
-        
-        // If database fails, still show success message for testing
-        alert(`Invitation would be sent to ${userName}! (Database invitation system is being set up)`);
-      }
+      // Always grant view and edit permissions, only owner status varies
+      const result = await createProjectInvitation(
+        projectId,
+        enhancedUser.id,
+        selectedUserId,
+        true, // canView - always true
+        true, // canEdit - always true
+        makeOwner // isOwner - based on checkbox
+      );
+      
+      console.log("Invitation created successfully:", result);
+      alert(`Invitation sent successfully to ${userName}!`);
       
       // Reset form
       setSelectedUserId("");
-      setInvitePermissions({
-        canView: true,
-        canEdit: true,
-        isOwner: false,
-      });
+      setMakeOwner(false);
       
+      // Refresh data
+      await fetchPermissions();
     } catch (error) {
       console.error("Error sending invitation:", error);
-      alert("Failed to send invitation. Please try again.");
+      alert("Failed to send invitation: " + (error instanceof Error ? error.message : "Please try again."));
     }
   };
 
   const handleRemoveCollaborator = async (userId: string) => {
+    if (!enhancedUser?.id) {
+      alert("User not authenticated");
+      return;
+    }
+
     try {
-      await removeProjectCollaborator(projectId, userId);
+      await removeProjectCollaborator(projectId, userId, enhancedUser.id);
       await fetchPermissions();
       alert("Collaborator removed successfully!");
     } catch (error) {
       console.error("Error removing collaborator:", error);
-      alert("Failed to remove collaborator. Please try again.");
+      alert("Failed to remove collaborator: " + (error instanceof Error ? error.message : "Please try again."));
     }
   };
 
-  const handleUpdatePermission = async (
-    userId: string,
-    canView?: boolean,
-    canEdit?: boolean,
-    isOwner?: boolean
-  ) => {
+  const handleToggleOwner = async (userId: string, currentIsOwner: boolean) => {
+    if (!enhancedUser?.id) {
+      alert("User not authenticated");
+      return;
+    }
+
     try {
-      await updateProjectPermission(projectId, userId, canView, canEdit, isOwner);
+      await updateProjectPermission(projectId, userId, enhancedUser.id, !currentIsOwner);
       await fetchPermissions();
+      alert(`Collaborator ${!currentIsOwner ? 'promoted to' : 'demoted from'} owner successfully!`);
     } catch (error) {
       console.error("Error updating permission:", error);
-      alert("Failed to update permission. Please try again.");
+      alert("Failed to update permission: " + (error instanceof Error ? error.message : "Please try again."));
     }
   };
 
@@ -300,36 +287,24 @@ export default function ProjectCollaboratorsDialog({
                   </p>
                 )}
               </div>
-              <div>
-                <Label>Permissions</Label>
-                <div className="flex gap-2 mt-2">
-                  <Checkbox
-                    id="can-view"
-                    checked={invitePermissions.canView}
-                    onCheckedChange={(checked) =>
-                      setInvitePermissions(prev => ({ ...prev, canView: !!checked }))
-                    }
-                  />
-                  <Label htmlFor="can-view" className="text-sm">View</Label>
-                  
-                  <Checkbox
-                    id="can-edit"
-                    checked={invitePermissions.canEdit}
-                    onCheckedChange={(checked) =>
-                      setInvitePermissions(prev => ({ ...prev, canEdit: !!checked }))
-                    }
-                  />
-                  <Label htmlFor="can-edit" className="text-sm">Edit</Label>
-                  
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">
+                  All collaborators can view and edit the project
+                </Label>
+                <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/50">
                   <Checkbox
                     id="is-owner"
-                    checked={invitePermissions.isOwner}
-                    onCheckedChange={(checked) =>
-                      setInvitePermissions(prev => ({ ...prev, isOwner: !!checked }))
-                    }
+                    checked={makeOwner}
+                    onCheckedChange={(checked) => setMakeOwner(!!checked)}
                   />
-                  <Label htmlFor="is-owner" className="text-sm">Owner</Label>
+                  <Label htmlFor="is-owner" className="flex items-center gap-2 cursor-pointer">
+                    <Crown className="w-4 h-4" />
+                    <span>Grant owner permissions</span>
+                  </Label>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Owners can delete the project and manage collaborators
+                </p>
               </div>
             </div>
             <Button 
@@ -372,20 +347,8 @@ export default function ProjectCollaboratorsDialog({
                         <Badge variant="outline" className="text-yellow-700 bg-yellow-100">
                           Pending
                         </Badge>
-                        {invitation.canView && (
-                          <Badge variant="outline" className="flex items-center gap-1">
-                            <Eye className="w-3 h-3" />
-                            View
-                          </Badge>
-                        )}
-                        {invitation.canEdit && (
-                          <Badge variant="outline" className="flex items-center gap-1">
-                            <Edit className="w-3 h-3" />
-                            Edit
-                          </Badge>
-                        )}
                         {invitation.isOwner && (
-                          <Badge variant="outline" className="flex items-center gap-1">
+                          <Badge variant="default" className="flex items-center gap-1">
                             <Crown className="w-3 h-3" />
                             Owner
                           </Badge>
@@ -401,54 +364,63 @@ export default function ProjectCollaboratorsDialog({
           <div className="space-y-4">
             <h3 className="font-semibold">Current Collaborators</h3>
             <div className="space-y-3">
-              {permissions.map((permission) => (
-                <div
-                  key={permission.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <p className="font-medium">
-                        {permission.user.firstName} {permission.user.lastName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {permission.user.email}
-                      </p>
+              {permissions.map((permission) => {
+                const isCreator = permission.userId === projectCreatorId;
+                const currentUserIsOwner = permissions.find(p => p.userId === enhancedUser?.id)?.isOwner;
+                
+                return (
+                  <div
+                    key={permission.id}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <p className="font-medium">
+                          {permission.user.firstName} {permission.user.lastName}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {permission.user.email}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {isCreator && (
+                        <Badge variant="secondary" className="flex items-center gap-1 bg-blue-100 text-blue-800">
+                          <Crown className="w-3 h-3" />
+                          Creator
+                        </Badge>
+                      )}
+                      {permission.isOwner && !isCreator && (
+                        <Badge variant="default" className="flex items-center gap-1">
+                          <Crown className="w-3 h-3" />
+                          Owner
+                        </Badge>
+                      )}
+                      
+                      {/* Only show controls if current user is an owner and target is not the creator */}
+                      {currentUserIsOwner && !isCreator && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleOwner(permission.userId, permission.isOwner)}
+                          >
+                            {permission.isOwner ? 'Demote' : 'Promote'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveCollaborator(permission.userId)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {permission.isOwner && (
-                      <Badge variant="default" className="flex items-center gap-1">
-                        <Crown className="w-3 h-3" />
-                        Owner
-                      </Badge>
-                    )}
-                    {permission.canView && (
-                      <Badge variant="outline" className="flex items-center gap-1">
-                        <Eye className="w-3 h-3" />
-                        View
-                      </Badge>
-                    )}
-                    {permission.canEdit && (
-                      <Badge variant="outline" className="flex items-center gap-1">
-                        <Edit className="w-3 h-3" />
-                        Edit
-                      </Badge>
-                    )}
-                    
-                    {!permission.isOwner && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveCollaborator(permission.userId)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               
               {permissions.length === 0 && (
                 <div className="text-center py-8">

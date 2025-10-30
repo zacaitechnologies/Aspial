@@ -148,14 +148,25 @@ export async function updateTask(taskId: number, data: UpdateTaskData): Promise<
 
 // Delete a task
 export async function deleteTask(taskId: number): Promise<void> {
+  // Get the task's milestone before deleting
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { milestoneId: true },
+  })
+  
   await prisma.task.delete({
     where: { id: taskId },
   })
+  
+  // Update milestone status if task was part of a milestone
+  if (task?.milestoneId) {
+    await updateMilestoneStatus(task.milestoneId)
+  }
 }
 
 // Update task status (for drag and drop functionality)
 export async function updateTaskStatus(taskId: number, status: string): Promise<TaskWithAssignee> {
-  return await prisma.task.update({
+  const updatedTask = await prisma.task.update({
     where: { id: taskId },
     data: { status: status as any },
     include: {
@@ -168,8 +179,22 @@ export async function updateTaskStatus(taskId: number, status: string): Promise<
           supabase_id: true,
         },
       },
+      milestone: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+        },
+      },
     },
   }) as TaskWithAssignee
+  
+  // Update milestone status if task has a milestone
+  if (updatedTask.milestoneId) {
+    await updateMilestoneStatus(updatedTask.milestoneId)
+  }
+  
+  return updatedTask
 }
 
 // Reorder tasks (for drag and drop functionality)

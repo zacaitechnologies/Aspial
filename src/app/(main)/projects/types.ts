@@ -141,12 +141,6 @@ export type ProjectInvitation = {
   };
 };
 
-export type InvitePermissions = {
-  canView: boolean;
-  canEdit: boolean;
-  isOwner: boolean;
-};
-
 
 
 // Project ownership state type

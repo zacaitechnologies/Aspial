@@ -86,35 +86,54 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
   }))
 }
 
-export async function inviteProjectCollaborator(
-  projectId: number,
-  userId: string,
-  canView: boolean = true,
-  canEdit: boolean = true,
-  isOwner: boolean = false
-) {
-  return await prisma.projectPermission.create({
-    data: {
-      userId,
-      projectId,
-      canView,
-      canEdit,
-      isOwner,
-    },
-    include: {
-      user: true,
-      project: true,
-    },
-  })
-}
-
 export async function updateProjectPermission(
   projectId: number,
   userId: string,
-  canView?: boolean,
-  canEdit?: boolean,
-  isOwner?: boolean
+  requestingUserId: string,
+  newIsOwner: boolean
 ) {
+  // 1. Check if requester is admin
+  const isAdmin = await isUserAdmin(requestingUserId);
+  
+  if (!isAdmin) {
+    // 2. Check if requester is an owner
+    const requesterPermission = await prisma.projectPermission.findUnique({
+      where: { userId_projectId: { userId: requestingUserId, projectId } }
+    });
+    
+    if (!requesterPermission?.isOwner) {
+      throw new Error("Only project owners can update permissions");
+    }
+    
+    // 3. Check if target is the creator (cannot demote creator)
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { createdBy: true }
+    });
+    
+    if (userId === project?.createdBy && !newIsOwner) {
+      throw new Error("Cannot demote the project creator from owner status");
+    }
+    
+    // 4. Check if demoting the last owner
+    if (!newIsOwner) {
+      const currentPermission = await prisma.projectPermission.findUnique({
+        where: { userId_projectId: { userId, projectId } }
+      });
+      
+      if (currentPermission?.isOwner) {
+        const ownerCount = await prisma.projectPermission.count({
+          where: { projectId, isOwner: true }
+        });
+        
+        if (ownerCount <= 1) {
+          throw new Error("Cannot demote the last owner. Promote another collaborator to owner first");
+        }
+      }
+    }
+  }
+  
+  // Proceed with update - always keep canView and canEdit as true
   return await prisma.projectPermission.update({
     where: {
       userId_projectId: {
@@ -123,18 +142,62 @@ export async function updateProjectPermission(
       },
     },
     data: {
-      ...(canView !== undefined && { canView }),
-      ...(canEdit !== undefined && { canEdit }),
-      ...(isOwner !== undefined && { isOwner }),
+      canView: true, // Always true
+      canEdit: true, // Always true
+      isOwner: newIsOwner,
     },
     include: {
       user: true,
       project: true,
     },
-  })
+  });
 }
 
-export async function removeProjectCollaborator(projectId: number, userId: string) {
+export async function removeProjectCollaborator(
+  projectId: number, 
+  userId: string, 
+  requestingUserId: string
+) {
+  // 1. Check if requester is admin
+  const isAdmin = await isUserAdmin(requestingUserId);
+  
+  if (!isAdmin) {
+    // 2. Check if requester is an owner
+    const requesterPermission = await prisma.projectPermission.findUnique({
+      where: { userId_projectId: { userId: requestingUserId, projectId } }
+    });
+    
+    if (!requesterPermission?.isOwner) {
+      throw new Error("Only project owners can remove collaborators");
+    }
+    
+    // 3. Check if target is the creator
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { createdBy: true }
+    });
+    
+    if (userId === project?.createdBy) {
+      throw new Error("Cannot remove the project creator");
+    }
+    
+    // 4. Check if this would remove the last owner
+    const targetPermission = await prisma.projectPermission.findUnique({
+      where: { userId_projectId: { userId, projectId } }
+    });
+    
+    if (targetPermission?.isOwner) {
+      const ownerCount = await prisma.projectPermission.count({
+        where: { projectId, isOwner: true }
+      });
+      
+      if (ownerCount <= 1) {
+        throw new Error("Cannot remove the last owner. Promote another collaborator to owner first");
+      }
+    }
+  }
+  
+  // Proceed with removal
   return await prisma.projectPermission.delete({
     where: {
       userId_projectId: {
@@ -142,7 +205,16 @@ export async function removeProjectCollaborator(projectId: number, userId: strin
         projectId,
       },
     },
-  })
+  });
+}
+
+export async function getProjectCreator(projectId: number): Promise<string | null> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { createdBy: true }
+  });
+  
+  return project?.createdBy || null;
 }
 
 export async function getProjectPermissions(projectId: number) {

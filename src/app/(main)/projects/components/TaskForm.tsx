@@ -45,11 +45,13 @@ import { useSession } from "../../contexts/SessionProvider";
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
-  priority: z.enum(["low", "medium", "high"]),
+  priority: z.enum(["low", "medium", "high"], {
+    required_error: "Priority is required",
+  }),
   milestoneId: z.string().optional(),
   assigneeId: z.string().optional(),
-  startDate: z.string().optional(),
-  dueDate: z.string().optional(),
+  startDate: z.string().min(1, "Start date is required"),
+  dueDate: z.string().min(1, "Due date is required"),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -141,7 +143,7 @@ const PriorityField = ({ form }: { form: any }) => (
     name="priority"
     render={({ field }) => (
       <FormItem>
-        <FormLabel>Priority</FormLabel>
+        <FormLabel>Priority *</FormLabel>
         <Select onValueChange={field.onChange} defaultValue={field.value}>
           <FormControl>
             <SelectTrigger>
@@ -197,7 +199,7 @@ const DateFields = ({ form }: { form: any }) => (
       name="startDate"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>Start Date</FormLabel>
+          <FormLabel>Start Date *</FormLabel>
           <FormControl>
             <Input type="date" {...field} />
           </FormControl>
@@ -210,7 +212,7 @@ const DateFields = ({ form }: { form: any }) => (
       name="dueDate"
       render={({ field }) => (
         <FormItem>
-          <FormLabel>Due Date</FormLabel>
+          <FormLabel>Due Date *</FormLabel>
           <FormControl>
             <Input type="date" {...field} />
           </FormControl>
@@ -229,7 +231,8 @@ const TaskFormContent = ({
   isSubmitting,
   isEdit = false,
   onCancel,
-  onSubmit
+  onSubmit,
+  error
 }: {
   form: any;
   availableUsers: any[];
@@ -238,9 +241,16 @@ const TaskFormContent = ({
   isEdit?: boolean;
   onCancel?: () => void;
   onSubmit: (data: TaskFormData) => Promise<void>;
+  error?: string | null;
 }) => (
   <Form {...form}>
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <TitleField form={form} />
         <MilestoneField form={form} availableMilestones={availableMilestones} />
@@ -283,6 +293,7 @@ export function TaskForm({
   const { enhancedUser } = useSession();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
@@ -297,24 +308,18 @@ export function TaskForm({
         : new Date().toISOString().split("T")[0],
       dueDate: task?.dueDate
         ? new Date(task.dueDate).toISOString().split("T")[0]
-        : "",
+        : new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split("T")[0], // Default to 7 days from now
     },
   } as any);
 
   const onSubmit = async (data: TaskFormData) => {
     if (!enhancedUser?.id) {
-      console.error("User not authenticated");
+      setError("You must be logged in to create tasks");
       return;
     }
 
+    setError(null); // Clear any previous errors
     setIsSubmitting(true);
-    
-    if (!enhancedUser?.id) {
-      console.error("User not authenticated");
-      alert("You must be logged in to create tasks");
-      setIsSubmitting(false);
-      return;
-    }
     
     try {
       const taskData = {
@@ -331,15 +336,20 @@ export function TaskForm({
       if (task) {
         const updatedTask = await updateTask(task.id, taskData as UpdateTaskData);
         onTaskUpdated?.(updatedTask);
+        alert("Task updated successfully!");
       } else {
         const newTask = await createTask(taskData as CreateTaskData);
         onTaskCreated?.(newTask);
+        alert("Task created successfully!");
       }
 
       setOpen(false);
       form.reset();
     } catch (error) {
       console.error("Error saving task:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to save task. Please try again.";
+      setError(errorMessage);
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -359,6 +369,7 @@ export function TaskForm({
           isSubmitting={isSubmitting}
           isEdit={true}
           onSubmit={onSubmit}
+          error={error}
         />
       </div>
     );
@@ -386,6 +397,7 @@ export function TaskForm({
           isSubmitting={isSubmitting}
           onCancel={() => setOpen(false)}
           onSubmit={onSubmit}
+          error={error}
         />
       </DialogContent>
     </Dialog>
