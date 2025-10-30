@@ -620,6 +620,85 @@ export async function getAllCustomServices() {
   });
 }
 
+// Get user's own pending custom services
+export async function getUserPendingCustomServices(userId: string) {
+  return await prisma.customService.findMany({
+    where: {
+      createdById: userId,
+      status: "PENDING",
+    },
+    include: {
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      reviewedBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      quotation: {
+        select: {
+          id: true,
+          name: true,
+          Client: {
+            select: {
+              name: true,
+              company: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+// Get user's own custom services (all statuses)
+export async function getUserCustomServices(userId: string) {
+  return await prisma.customService.findMany({
+    where: {
+      createdById: userId,
+    },
+    include: {
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      reviewedBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+        },
+      },
+      quotation: {
+        select: {
+          id: true,
+          name: true,
+          Client: {
+            select: {
+              name: true,
+              company: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
 // Approve custom service
 export async function approveCustomService(
   customServiceId: string,

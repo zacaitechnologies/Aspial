@@ -401,11 +401,11 @@ export async function createProjectInvitation(
 	})
 }
 
+// Regular user function - Get their own invitations (all statuses for history)
 export async function getUserInvitations(userId: string) {
   return await prisma.projectInvitation.findMany({
-    where: {
+    where: { 
       invitedUser: userId,
-      status: "pending",
     },
     include: {
       project: {
@@ -422,9 +422,36 @@ export async function getUserInvitations(userId: string) {
         },
       },
     },
-    orderBy: {
-      createdAt: "desc",
+    orderBy: { createdAt: "desc" },
+  })
+}
+
+// Admin function - Get all invitations for all users (including accepted/declined)
+export async function getAllInvitationsForAdmin() {
+  return await prisma.projectInvitation.findMany({
+    include: {
+      project: {
+        include: {
+          quotations: true,
+          createdByUser: true,
+        },
+      },
+      inviter: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      invitee: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
     },
+    orderBy: { createdAt: "desc" },
   })
 }
 
