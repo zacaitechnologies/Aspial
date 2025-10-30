@@ -367,6 +367,8 @@ export async function getProjectsForQuotationOptimized(userId?: string) {
         name: true,
         description: true,
         status: true,
+        startDate: true,
+        endDate: true,
         Client: {
           select: {
             name: true,
@@ -388,13 +390,21 @@ export async function getProjectsForQuotationOptimized(userId?: string) {
         { canView: true }
       ]
     },
-    include: {
+    select: {
+      id: true,
+      projectId: true,
+      userId: true,
+      canView: true,
+      canEdit: true,
+      isOwner: true,
       project: {
         select: {
           id: true,
           name: true,
           description: true,
           status: true,
+          startDate: true,
+          endDate: true,
           Client: {
             select: {
               name: true,

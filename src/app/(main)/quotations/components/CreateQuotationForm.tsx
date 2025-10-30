@@ -752,9 +752,24 @@ export default function CreateQuotationForm({
           <ProjectSelection
             selectedProjectId={selectedProjectId}
             newProjectData={newProjectData}
-            onProjectSelect={(projectId, projectName) => {
+            onProjectSelect={(projectId, projectName, projectData) => {
               setSelectedProjectId(projectId);
               setSelectedProjectName(projectName);
+              
+              // Populate newProjectData with selected project's data
+              if (projectData) {
+                setNewProjectData({
+                  name: projectData.name || "",
+                  description: projectData.description || "",
+                  startDate: projectData.startDate 
+                    ? new Date(projectData.startDate).toISOString().split("T")[0] 
+                    : "",
+                  endDate: projectData.endDate 
+                    ? new Date(projectData.endDate).toISOString().split("T")[0] 
+                    : "",
+                  priority: "low", // Default priority for existing projects (projects don't have priority field)
+                });
+              }
             }}
             onNewProjectDataChange={setNewProjectData}
             onModeChange={setProjectMode}

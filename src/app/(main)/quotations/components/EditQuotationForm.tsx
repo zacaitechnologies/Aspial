@@ -219,13 +219,6 @@ export default function EditQuotationForm({
       .reduce((sum, cs) => sum + cs.price, 0);
   };
 
-  const handleProjectSelected = (projectId: number, projectName: string) => {
-    setEditForm((prev) => ({
-      ...prev,
-      projectId: projectId,
-    }));
-  };
-
   const handleCustomServiceCreated = (newCustomService: any) => {
     // Refresh custom services list
     if (editingQuotation) {
@@ -642,21 +635,6 @@ export default function EditQuotationForm({
               )}
             </div>
 
-            {/* Project Selection */}
-            <ProjectSelection
-              selectedProjectId={editForm.projectId}
-              newProjectData={editForm.newProject}
-              onProjectSelect={handleProjectSelected}
-              onNewProjectDataChange={(newProjectData) =>
-                setEditForm((prev) => ({
-                  ...prev,
-                  newProject: newProjectData,
-                }))
-              }
-              onModeChange={setProjectMode}
-              mode={projectMode}
-              currentUserId={enhancedUser.id}
-            />
             <div className="grid gap-2">
               <Label htmlFor="edit-paymentStatus">Payment Status</Label>
               <Select
@@ -851,6 +829,22 @@ export default function EditQuotationForm({
           </Button>
           <Button
             onClick={() => {
+              // Pre-fill the Create New Project form with quotation data
+              setNewProjectData({
+                name: editForm.name || "",
+                description: editForm.description || "",
+                startDate: editForm.startDate || "",
+                endDate: editForm.startDate && editForm.duration 
+                  ? (() => {
+                      const start = new Date(editForm.startDate);
+                      const end = new Date(start);
+                      end.setMonth(end.getMonth() + parseInt(editForm.duration));
+                      return end.toISOString().split("T")[0];
+                    })()
+                  : "",
+                priority: "low",
+              });
+              
               setShowConfirmationDialog(false);
               setShowProjectSelectionDialog(true);
             }}
@@ -874,9 +868,24 @@ export default function EditQuotationForm({
           <ProjectSelection
             selectedProjectId={selectedProjectId}
             newProjectData={newProjectData}
-            onProjectSelect={(projectId, projectName) => {
+            onProjectSelect={(projectId, projectName, projectData) => {
               setSelectedProjectId(projectId);
               setSelectedProjectName(projectName);
+              
+              // Populate newProjectData with selected project's data
+              if (projectData) {
+                setNewProjectData({
+                  name: projectData.name || "",
+                  description: projectData.description || "",
+                  startDate: projectData.startDate 
+                    ? new Date(projectData.startDate).toISOString().split("T")[0] 
+                    : "",
+                  endDate: projectData.endDate 
+                    ? new Date(projectData.endDate).toISOString().split("T")[0] 
+                    : "",
+                  priority: "low", // Default priority for existing projects (projects don't have priority field)
+                });
+              }
             }}
             onNewProjectDataChange={setNewProjectData}
             onModeChange={setProjectMode}

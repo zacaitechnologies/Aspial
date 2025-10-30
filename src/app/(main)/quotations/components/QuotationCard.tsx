@@ -239,9 +239,24 @@ export default function QuotationCard({
     setClientData(null);
   };
 
-  const handleProjectSelection = (projectId: number, projectName: string) => {
+  const handleProjectSelection = (projectId: number, projectName: string, projectData?: any) => {
     setSelectedProjectId(projectId.toString());
     setSelectedProjectName(projectName);
+    
+    // Populate newProjectData with selected project's data
+    if (projectData) {
+      setNewProjectData({
+        name: projectData.name || "",
+        description: projectData.description || "",
+        startDate: projectData.startDate 
+          ? new Date(projectData.startDate).toISOString().split("T")[0] 
+          : "",
+        endDate: projectData.endDate 
+          ? new Date(projectData.endDate).toISOString().split("T")[0] 
+          : "",
+        priority: "low", // Default priority for existing projects (projects don't have priority field)
+      });
+    }
   };
 
   const handleLinkProject = async () => {

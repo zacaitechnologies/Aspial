@@ -13,6 +13,8 @@ interface ProjectForQuotation {
   name: string;
   description: string | null;
   status: string;
+  startDate: Date | null;
+  endDate: Date | null;
   Client: {
     name: string;
   } | null;
@@ -29,7 +31,7 @@ interface NewProjectData {
 interface ProjectSelectionProps {
   selectedProjectId?: number;
   newProjectData?: NewProjectData;
-  onProjectSelect: (projectId: number, projectName: string) => void;
+  onProjectSelect: (projectId: number, projectName: string, projectData?: ProjectForQuotation) => void;
   onNewProjectDataChange: (data: NewProjectData) => void;
   onModeChange: (mode: "existing" | "new") => void;
   mode: "existing" | "new";
@@ -176,7 +178,7 @@ export default function ProjectSelection({
                             : "border-border hover:border-primary/50"
                         }`}
                         onClick={() =>
-                          onProjectSelect(project.id, project.name)
+                          onProjectSelect(project.id, project.name, project)
                         }
                       >
                         <div className="flex items-start justify-between">
