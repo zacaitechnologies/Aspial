@@ -563,7 +563,6 @@ export async function getUserComplaintCount(userId: string): Promise<number> {
 		const count = await prisma.complaint.findMany({
 			where: {
 				userId,
-				status: "pending",
 			},
 		})
 
