@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 
+export const dynamic = 'force-dynamic'
+
 async function getStudios() {
 	return await prisma.studio.findMany({
 		include: {
