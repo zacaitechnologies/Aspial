@@ -77,7 +77,6 @@ export function DatePicker({ currentDate, onDateChange }: DatePickerProps) {
         variant="outline"
         size="sm"
         onClick={() => navigateMonth("prev")}
-        className="transition-all duration-200 hover:scale-105"
       >
         <ChevronLeft className="w-4 h-4" />
       </Button>
@@ -120,7 +119,6 @@ export function DatePicker({ currentDate, onDateChange }: DatePickerProps) {
         variant="outline"
         size="sm"
         onClick={goToToday}
-        className="transition-all duration-200 hover:scale-105"
       >
         Today
       </Button>
@@ -129,7 +127,6 @@ export function DatePicker({ currentDate, onDateChange }: DatePickerProps) {
         variant="outline"
         size="sm"
         onClick={() => navigateMonth("next")}
-        className="transition-all duration-200 hover:scale-105"
       >
         <ChevronRight className="w-4 h-4" />
       </Button>

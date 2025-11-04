@@ -472,3 +472,40 @@
   background-color: var(--accent) !important;
   outline: none !important;
 }
+
+/* Disable ALL hover and animation effects for everything in calendar page - only transitions/animations, keep colors */
+.calendar-page *:hover,
+.calendar-page *:hover *,
+.calendar-day,
+.calendar-day *,
+.calendar-day:hover,
+.calendar-day *:hover,
+.calendar-page .card:hover,
+.calendar-page .card:hover::after,
+.calendar-page .card:hover::before,
+.calendar-page button:hover,
+.calendar-page [role="button"]:hover,
+.calendar-page .badge:hover,
+.calendar-page [class*="Badge"]:hover,
+.calendar-page [class*="calendar"]:hover,
+.calendar-page [class*="calendar"] *:hover {
+  transition: none !important;
+  transform: none !important;
+  filter: none !important;
+  scale: 1 !important;
+  animation: none !important;
+}
+
+/* Override Card hover effects specifically - disable transforms and shadows only */
+.calendar-page .card:hover {
+  transform: none !important;
+  box-shadow: var(--card-shadow-rest) !important;
+}
+
+.calendar-page .card:hover::after {
+  opacity: 0 !important;
+}
+
+.calendar-page .card:hover::before {
+  box-shadow: var(--card-glow) !important;
+}

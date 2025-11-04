@@ -71,7 +71,7 @@ export function DateEventsDialog({
             events.map((event) => (
               <div
                 key={event.id}
-                className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                className="border rounded-lg p-4 cursor-pointer"
                 onClick={() => onEventClick(event)}
               >
                 <div className="flex items-start justify-between mb-2">

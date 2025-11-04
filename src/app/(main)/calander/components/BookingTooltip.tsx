@@ -14,7 +14,7 @@ export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
 
   const tooltipContent = (
     <div
-      className="fixed !z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg p-4 !w-60 animate-in fade-in-0 slide-in-from-top-2 duration-200"
+      className="fixed !z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg p-4 !w-60"
       style={{ top: 'var(--tooltip-top)', left: 'var(--tooltip-left)' }}
     >
       <div className="text-sm font-medium text-gray-900 mb-2">{booking.title}</div>

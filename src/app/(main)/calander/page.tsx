@@ -27,7 +27,6 @@ export default function OrganizationCalendar() {
 	const [bookmarkScope, setBookmarkScope] = useState<string>("all")
 	const [selectedProject, setSelectedProject] = useState<string>("all")
 	const [projects, setProjects] = useState<{ id: number; name: string }[]>([])
-	const [hoveredDate, setHoveredDate] = useState<string>("")
 	const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null)
 	const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
 	const [selectedDate, setSelectedDate] = useState<string>("")
@@ -164,7 +163,6 @@ export default function OrganizationCalendar() {
       const dateString = formatDate(date)
       const dayBookings = getBookingsForDate(dateString)
       const isToday = dateString === formatDate(new Date())
-      const isHovered = hoveredDate === dateString
 
       days.push(
         <CalendarDay
@@ -174,10 +172,8 @@ export default function OrganizationCalendar() {
           dateString={dateString}
           dayBookings={dayBookings}
           isToday={isToday}
-          isHovered={isHovered}
           onDateClick={handleDateClick}
           onBookingClick={handleBookingClick}
-          onHoverChange={setHoveredDate}
         />
       )
     }
@@ -186,7 +182,7 @@ export default function OrganizationCalendar() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] p-6">
+    <div className="calendar-page min-h-screen bg-[var(--color-background)] p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
