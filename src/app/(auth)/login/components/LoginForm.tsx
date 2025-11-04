@@ -44,7 +44,10 @@ export function LoginForm({
 
   async function onSubmit(values: LoginValues) {
     startTransition(async () => {
-      await login(values);
+      const result = await login(values);
+      if (result && !result.success) {
+        alert("Wrong credentials");
+      }
     });
   }
 
