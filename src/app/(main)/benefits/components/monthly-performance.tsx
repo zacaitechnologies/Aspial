@@ -82,7 +82,7 @@ export function MonthlyPerformance({ monthlyData, totalStars, starsAfterComplain
             }`}>
               {hasSuperPerformanceAward 
                 ? `✅ SUPER PERFORMANCE AWARD ACTIVE - You earned ${previousYearStars} ⭐ last year!`
-                : "📊 Work towards earning 3+ ⭐ to unlock the Super Performance Award next year"}
+                : "📊 Work towards earning 12⭐ to unlock the Super Performance Award next year"}
             </p>
           </div>
         </div>

@@ -292,7 +292,7 @@ export default function EmployeeBenefitsPage() {
               }`}>
                 {hasSuperPerformanceAward 
                   ? `You earned ${previousYearStars} ⭐ last year! Your award is active this year!`
-                  : "Earn 3+ ⭐ next year to unlock the Super Performance Award!"}
+                  : "Earn 12 ⭐ next year to unlock the Super Performance Award!"}
               </p>
             </div>
           </div>
