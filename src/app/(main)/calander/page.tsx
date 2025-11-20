@@ -26,6 +26,7 @@ export default function OrganizationCalendar() {
 	const [filterType, setFilterType] = useState<string>("all")
 	const [bookmarkScope, setBookmarkScope] = useState<string>("all")
 	const [selectedProject, setSelectedProject] = useState<string>("all")
+	const [taskOwnershipFilter, setTaskOwnershipFilter] = useState<string>("all")
 	const [projects, setProjects] = useState<{ id: number; name: string }[]>([])
 	const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null)
 	const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
@@ -117,6 +118,21 @@ export default function OrganizationCalendar() {
         if (booking.projectId !== projectId) return false
       }
       
+      // Filter by task ownership (only for tasks)
+      if (booking.type === "task" && taskOwnershipFilter !== "all") {
+        if (taskOwnershipFilter === "my") {
+          // Show tasks assigned to the current user or created by them
+          if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
+            return false
+          }
+        } else if (taskOwnershipFilter === "teammate") {
+          // Show tasks assigned to teammates (not the current user)
+          if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
+            return false
+          }
+        }
+      }
+      
       return true
     })
   }
@@ -203,6 +219,17 @@ export default function OrganizationCalendar() {
                   <SelectItem value="task">Tasks</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Select value={taskOwnershipFilter} onValueChange={setTaskOwnershipFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tasks</SelectItem>
+                  <SelectItem value="my">My Tasks</SelectItem>
+                  <SelectItem value="teammate">Teammate Tasks</SelectItem>
+                </SelectContent>
+              </Select>
               
               {!isAdmin && (
                 <>
@@ -249,6 +276,18 @@ export default function OrganizationCalendar() {
                 if (selectedProject && selectedProject !== "all") {
                   const projectId = parseInt(selectedProject)
                   if (b.projectId !== projectId) return false
+                }
+                // Filter by task ownership (only for tasks)
+                if (b.type === "task" && taskOwnershipFilter !== "all") {
+                  if (taskOwnershipFilter === "my") {
+                    if (b.assigneeId !== enhancedUser?.id && b.creatorId !== enhancedUser?.id) {
+                      return false
+                    }
+                  } else if (taskOwnershipFilter === "teammate") {
+                    if (b.assigneeId === enhancedUser?.id || b.creatorId === enhancedUser?.id) {
+                      return false
+                    }
+                  }
                 }
                 return true
               }).length
@@ -321,6 +360,18 @@ export default function OrganizationCalendar() {
                   if (selectedProject && selectedProject !== "all") {
                     const projectId = parseInt(selectedProject)
                     if (booking.projectId !== projectId) return false
+                  }
+                  // Filter by task ownership (only for tasks)
+                  if (booking.type === "task" && taskOwnershipFilter !== "all") {
+                    if (taskOwnershipFilter === "my") {
+                      if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
+                        return false
+                      }
+                    } else if (taskOwnershipFilter === "teammate") {
+                      if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
+                        return false
+                      }
+                    }
                   }
                   return true
                 })

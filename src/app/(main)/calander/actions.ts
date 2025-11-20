@@ -47,6 +47,8 @@ export interface CalendarBooking {
 	projectId?: number | null
 	isUserBooking?: boolean
 	isTeamBooking?: boolean
+	assigneeId?: string | null
+	creatorId?: string
 }
 
 const bookingTypes = {
@@ -331,6 +333,10 @@ export async function fetchAllBookings(
 						? `OVERDUE: ${task.title} - ${task.project?.name || 'Unknown Project'}`
 						: `DUE: ${task.title} - ${task.project?.name || 'Unknown Project'}`
 
+					// Determine if this is the user's task
+					const isUserTask = task.assigneeId === userId
+					const isCreatorTask = task.creatorId === userId
+					
 					calendarBookings.push({
 						id: `task-${task.id}`,
 						title: taskTitle,
@@ -342,6 +348,11 @@ export async function fetchAllBookings(
 						location: task.project?.name || 'Unknown Project',
 						attendees: 1,
 						color: isOverdue ? "bg-red-600" : bookingTypes.task.color,
+						projectId: task.project?.id,
+						isUserBooking: isUserTask || isCreatorTask,
+						isTeamBooking: !isUserTask && !isCreatorTask,
+						assigneeId: task.assigneeId || null,
+						creatorId: task.creatorId,
 						originalData: { ...task, isOverdue, dueDate: dueDate.toISOString() }
 					})
 				}

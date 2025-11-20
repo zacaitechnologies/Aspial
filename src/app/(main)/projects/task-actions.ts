@@ -338,6 +338,15 @@ export async function getAllUserTasks(userId: string): Promise<TaskWithAssignee[
             supabase_id: true,
           },
         },
+        assignee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            supabase_id: true,
+          },
+        },
         project: {
           select: {
             id: true,
