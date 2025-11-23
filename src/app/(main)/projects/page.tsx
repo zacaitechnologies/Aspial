@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, DollarSign, Clock } from "lucide-react";
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { getAllProjectsOptimized, cancelProject } from "./action";
+import { useState, useMemo } from "react";
+import { cancelProject } from "./action";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
 import ProjectCollaboratorsDialog from "./components/ProjectCollaboratorsDialog";
@@ -17,11 +17,11 @@ import {
 } from "./types";
 import Link from "next/link";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { useProjectsCache } from "./hooks/useProjectsCache";
 
 export default function ProjectsPage() {
   const { enhancedUser } = useSession();
-  const [projects, setProjects] = useState<ProjectWithQuotation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { projects, isLoading: loading, onRefresh } = useProjectsCache(enhancedUser?.id);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingProject, setEditingProject] =
     useState<ProjectWithQuotation | null>(null);
@@ -31,11 +31,6 @@ export default function ProjectsPage() {
   const [selectedProject, setSelectedProject] =
     useState<ProjectWithQuotation | null>(null);
 
-  
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
-  const [hasMore, setHasMore] = useState(true);
   
   // Confirmation dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -66,37 +61,6 @@ export default function ProjectsPage() {
   // Memoize project statistics
   const projectStats = useMemo(() => getProjectStats(projects), [projects]);
 
-  const fetchProjects = useCallback(async (page = 1) => {
-    try {
-      if (!enhancedUser?.id) {
-        console.error("User not authenticated");
-        return;
-      }
-      
-      setLoading(true);
-      const data = await getAllProjectsOptimized(enhancedUser.id);
-      
-      // Simple pagination - take first 20 projects for initial load
-      const paginatedData = data.slice(0, page * pageSize);
-      setProjects(paginatedData as any);
-      setHasMore(data.length > page * pageSize);
-      setCurrentPage(page);
-
-      // Note: Ownership information is now included in the server response
-      // No need for additional client-side permission checks
-    } catch (error) {
-      console.error("Failed to fetch projects:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [enhancedUser?.id, pageSize]);
-
-  useEffect(() => {
-    if (enhancedUser?.id) {
-      fetchProjects();
-    }
-  }, [enhancedUser?.id, fetchProjects]);
-
   const handleEditProject = (project: ProjectWithQuotation) => {
     setEditingProject(project);
     setIsEditOpen(true);
@@ -112,7 +76,7 @@ export default function ProjectsPage() {
 
     try {
       await cancelProject(projectToDelete, enhancedUser.id);
-      await fetchProjects();
+      await onRefresh();
       setShowDeleteDialog(false);
       setProjectToDelete(null);
     } catch (error) {
@@ -409,23 +373,10 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Load More Button */}
-      {hasMore && filteredProjects.length > 0 && (
-        <div className="flex justify-center mt-6">
-          <Button
-            onClick={() => fetchProjects(currentPage + 1)}
-            disabled={loading}
-            variant="outline"
-          >
-            {loading ? "Loading..." : "Load More Projects"}
-          </Button>
-        </div>
-      )}
-
       <EditProjectDialog
         isOpen={isEditOpen}
         onOpenChange={setIsEditOpen}
-        onSuccess={fetchProjects}
+        onSuccess={onRefresh}
         project={editingProject}
       />
 

@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { ProjectWithQuotation } from "../types";
-import { getProjectById } from "../action";
 import { getProjectComplaints, reactivateProject } from "../action";
-
 import { useSession } from "../../contexts/SessionProvider";
+import { useProjectCache } from "../hooks/useProjectCache";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,12 +50,18 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 export default function ProjectPage() {
   const params = useParams();
   const { enhancedUser } = useSession();
-  const [project, setProject] = useState<ProjectWithQuotation | null>(null);
-  const [collaborators, setCollaborators] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Use cache hook for project data
+  const { 
+    project, 
+    collaborators, 
+    taskStats, 
+    userPermission,
+    isLoading: loading, 
+    onRefresh 
+  } = useProjectCache(enhancedUser?.id, params.id as string);
+  
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
-  const [isProjectOwner, setIsProjectOwner] = useState(false);
-  const [taskStats, setTaskStats] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "complaints">("overview");
   const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">(
     "createDate"
@@ -69,41 +74,20 @@ export default function ProjectPage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false);
   const [newProjectStatus, setNewProjectStatus] = useState<"planning" | "in_progress" | "on_hold">("in_progress");
-  const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Derived values from userPermission
+  const isProjectOwner = userPermission?.isOwner || false;
+  const isAdmin = userPermission?.isAdmin || false;
   
   // Check if project is cancelled
   const isProjectCancelled = project?.status === "cancelled";
 
+  // Fetch complaints when project is loaded
   useEffect(() => {
-    const fetchProject = async () => {
-      try {
-        if (!enhancedUser?.id || !params.id) return;
-
-        const projectData = await getProjectById(
-          enhancedUser.id,
-          params.id as string
-        );
-
-        if (projectData) {
-          setProject(projectData.project as any);
-          setCollaborators(projectData.collaborators);
-          setTaskStats(projectData.taskStats);
-          setIsProjectOwner(projectData.userPermission.isOwner);
-          setIsAdmin(projectData.userPermission.isAdmin || false);
-          
-          // Fetch complaints for the project
-          const projectComplaints = await getProjectComplaints(projectData.project.id);
-          setComplaints(projectComplaints);
-        }
-      } catch (error) {
-        console.error("Failed to fetch project:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProject();
-  }, [enhancedUser?.id, params.id]);
+    if (project?.id) {
+      getProjectComplaints(project.id).then(setComplaints);
+    }
+  }, [project?.id]);
 
   const handleManageCollaborators = () => {
     setIsCollaboratorsOpen(true);
@@ -143,11 +127,8 @@ export default function ProjectPage() {
     try {
       await reactivateProject(project.id.toString(), enhancedUser.id, newProjectStatus);
       
-      // Refresh project data
-      const projectData = await getProjectById(enhancedUser.id, params.id as string);
-      if (projectData) {
-        setProject(projectData.project as any);
-      }
+      // Refresh project data using cache
+      await onRefresh();
       
       setIsReactivateDialogOpen(false);
       alert("Project successfully reactivated!");
