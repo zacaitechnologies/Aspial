@@ -36,6 +36,15 @@ export function AppHeader() {
       return currentItem?.title || "Dashboard";
     };
 
+    // Get user initials
+    const getInitials = () => {
+      const firstName = enhancedUser?.profile?.firstName || "";
+      const lastName = enhancedUser?.profile?.lastName || "";
+      const firstInitial = firstName.charAt(0).toUpperCase() || "";
+      const lastInitial = lastName.charAt(0).toUpperCase() || "";
+      return firstInitial + lastInitial || "U";
+    };
+
   return (
     <header className="border-b border-[var(--color-sidebar-border)] bg-sidebar px-6 py-4">
       <div className="flex items-center justify-between">
@@ -56,8 +65,13 @@ export function AppHeader() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-muted hover:cursor-pointer transition-colors">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src="/placeholder.svg?height=40&width=40" alt="User" />
-                  <AvatarFallback className="bg-blue-600 text-white">JD</AvatarFallback>
+                  <AvatarImage 
+                    src={enhancedUser?.profile?.profilePicture || undefined} 
+                    alt={`${enhancedUser?.profile?.firstName || ""} ${enhancedUser?.profile?.lastName || ""}`} 
+                  />
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {getInitials()}
+                  </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>

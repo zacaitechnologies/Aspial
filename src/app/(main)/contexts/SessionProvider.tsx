@@ -13,6 +13,7 @@ interface UserProfile {
   lastName: string;
   email: string;
   supabase_id: string;
+  profilePicture: string | null;
   created_at: Date;
   updated_at: Date;
 }

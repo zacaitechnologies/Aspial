@@ -41,6 +41,7 @@ model User {
   lastName               String
   email                  String
   supabase_id            String              @unique
+  profilePicture          String?
   created_at             DateTime            @default(now())
   updated_at             DateTime            @default(now())
   staffRoleId            String?
