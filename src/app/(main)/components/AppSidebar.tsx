@@ -8,7 +8,6 @@ import { useSession } from "../contexts/SessionProvider";
 import {
   Settings,
   Bell,
-  HelpCircle,
   Calendar,
   CalendarClockIcon,
   Wrench,
@@ -212,15 +211,7 @@ export function AppSidebar() {
           )}
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
-              <Link href="#" className="flex items-center gap-3">
-                <HelpCircle className="w-5 h-5" />
-                <span>Help & Support</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
-              <Link href="#" className="flex items-center gap-3">
+              <Link href="/settings" className="flex items-center gap-3">
                 <Settings className="w-5 h-5" />
                 <span>Settings</span>
               </Link>
