@@ -181,18 +181,18 @@ export function AppSidebar() {
         </SidebarGroup> */}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-slate-200 overflow-hidden bg-[#f0e8d8]">
+      <SidebarFooter className="border-t border-slate-200 overflow-visible bg-[#f0e8d8]">
         <div className="mx-0 my-0 border-t border-[var(--color-accent)]" />
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
-              <Link href="/notification" className="flex items-center gap-3 relative">
-                <Bell className="w-5 h-5" />
-                <span>Notifications</span>
+          <SidebarMenuItem className="overflow-visible">
+            <SidebarMenuButton asChild className="hover:bg-sidebar-ring overflow-visible">
+              <Link href="/notification" className="flex items-center gap-3 relative overflow-visible w-full">
+                <Bell className="w-5 h-5 flex-shrink-0" />
+                <span className="flex-1">Notifications</span>
                 {isAdmin && pendingInvitationsCount > 0 && (
                   <Badge 
                     variant="destructive" 
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+                    className="h-5 min-w-[1.25rem] rounded-full px-1.5 flex items-center justify-center text-xs flex-shrink-0"
                   >
                     {pendingInvitationsCount > 99 ? '99+' : pendingInvitationsCount}
                   </Badge>
