@@ -203,7 +203,7 @@ export async function generateQuotationPDF(quotation: QuotationWithServices) {
     (sum, customService) => sum + customService.price,
     0
   );
-  let subtotal = servicesTotal + customServicesTotal;
+  const subtotal = servicesTotal + customServicesTotal;
 
   let discountAmount = 0;
   if (quotation.discountValue && quotation.discountValue > 0) {
