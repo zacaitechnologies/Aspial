@@ -1,20 +1,31 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { User, Clock, TrendingUp } from "lucide-react"
 import { TimeEntry, User as UserType, Project } from "@prisma/client"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
+interface UserWithProfilePicture extends UserType {
+  profilePicture: string | null
+}
 
 interface UserTimeOverviewProps {
   timeEntries: (TimeEntry & {
-    user: UserType
+    user: UserWithProfilePicture
     project: Project
   })[]
-  users: UserType[]
+  users: UserWithProfilePicture[]
   projects: Project[]
   selectedPeriod: "week" | "month" | "quarter"
 }
 
 export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod }: UserTimeOverviewProps) {
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
   const userStats = useMemo(() => {
     const now = new Date()
     const periodStart = new Date()
@@ -56,6 +67,15 @@ export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod 
 
   const formatLastActivity = (date: Date | null) => {
     if (!date) return "No activity"
+    
+    if (!isMounted) {
+      // Return a consistent format during SSR
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${month}/${day}/${year}`
+    }
+
     const now = new Date()
     const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
 
@@ -63,7 +83,12 @@ export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod 
     if (diffHours < 24) return `${diffHours}h ago`
     const diffDays = Math.floor(diffHours / 24)
     if (diffDays < 7) return `${diffDays}d ago`
-    return date.toLocaleDateString()
+    
+    // Use consistent date format instead of locale-dependent
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${month}/${day}/${year}`
   }
 
   return (
@@ -84,9 +109,16 @@ export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod 
             >
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div className="w-12 h-12 bg-[var(--color-secondary)] rounded-full flex items-center justify-center text-[var(--color-secondary-foreground)] font-semibold">
-                    {stat.user.firstName.charAt(0).toUpperCase()}
-                  </div>
+                  <Avatar className="w-12 h-12">
+                    <AvatarImage 
+                      src={stat.user.profilePicture || undefined} 
+                      alt={`${stat.user.firstName} ${stat.user.lastName}`} 
+                    />
+                    <AvatarFallback className="bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)] font-semibold">
+                      {stat.user.firstName.charAt(0).toUpperCase()}
+                      {stat.user.lastName.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   {index < 3 && (
                     <div className="absolute -top-1 -right-1 w-6 h-6 bg-[var(--color-accent)] rounded-full flex items-center justify-center text-xs font-bold text-[var(--color-accent-foreground)]">
                       {index + 1}

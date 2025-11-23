@@ -1,19 +1,36 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Activity, Clock } from "lucide-react"
 import { TimeEntry, User as UserType, Project } from "@prisma/client"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
+interface UserWithProfilePicture extends UserType {
+  profilePicture: string | null
+}
 
 interface RecentActivityProps {
   timeEntries: (TimeEntry & {
-    user: UserType
+    user: UserWithProfilePicture
     project: Project
   })[]
-  users: UserType[]
+  users: UserWithProfilePicture[]
   projects: Project[]
 }
 
 export function RecentActivity({ timeEntries, users, projects }: RecentActivityProps) {
+  const [now, setNow] = useState<Date>(() => new Date())
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+    const interval = setInterval(() => {
+      setNow(new Date())
+    }, 60000) // Update every minute
+
+    return () => clearInterval(interval)
+  }, [])
+
   const recentActivities = useMemo(() => {
     const userMap = new Map(users.map((user) => [user.id, user]))
     const projectMap = new Map(projects.map((project) => [project.id, project]))
@@ -35,7 +52,14 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
   }
 
   const formatTimeAgo = (date: Date) => {
-    const now = new Date()
+    if (!isMounted) {
+      // Return a consistent format during SSR
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${month}/${day}/${year}`
+    }
+
     const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
 
     if (diffMinutes < 1) return "Just now"
@@ -47,7 +71,11 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
     const diffDays = Math.floor(diffHours / 24)
     if (diffDays < 7) return `${diffDays}d ago`
 
-    return date.toLocaleDateString()
+    // Use consistent date format instead of locale-dependent
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${month}/${day}/${year}`
   }
 
   return (
@@ -66,9 +94,16 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
               key={activity.id}
               className="flex items-start gap-3 p-3 bg-[var(--color-muted)] rounded-lg border border-[var(--color-border)]"
             >
-              <div className="w-8 h-8 bg-[var(--color-secondary)] rounded-full flex items-center justify-center text-[var(--color-secondary-foreground)] text-sm font-semibold flex-shrink-0">
-                {activity.user?.firstName.charAt(0).toUpperCase()}
-              </div>
+              <Avatar className="w-8 h-8 flex-shrink-0">
+                <AvatarImage 
+                  src={activity.user?.profilePicture || undefined} 
+                  alt={`${activity.user?.firstName} ${activity.user?.lastName}`} 
+                />
+                <AvatarFallback className="bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)] text-sm font-semibold">
+                  {activity.user?.firstName.charAt(0).toUpperCase()}
+                  {activity.user?.lastName.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">

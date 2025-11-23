@@ -35,7 +35,13 @@ export async function getUserWithRole() {
     
     const dbUser = await prisma.user.findUnique({
       where: { supabase_id: user.id },
-      include: {
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        supabase_id: true,
+        profilePicture: true,
         userRoles: {
           include: {
             role: true
@@ -66,7 +72,15 @@ export async function getUserWithRole() {
 export async function fetchAllUserTimeEntries() {
   const entries = await prisma.timeEntry.findMany({
     include: {
-      user: true,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          profilePicture: true,
+        }
+      },
       project: true
     },
     orderBy: {
@@ -79,7 +93,12 @@ export async function fetchAllUserTimeEntries() {
 
 export async function fetchAllUsers() {
   const users = await prisma.user.findMany({
-    include: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      profilePicture: true,
       userRoles: {
         include: {
           role: true
