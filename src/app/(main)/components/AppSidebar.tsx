@@ -19,7 +19,7 @@ import {
   Shield,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getAllPendingInvitations, isUserAdmin } from "../projects/permissions";
+import { getAllPendingInvitations, getUserInvitations, isUserAdmin } from "../projects/permissions";
 
 import {
   Sidebar,
@@ -92,15 +92,27 @@ export function AppSidebar() {
         setIsAdmin(adminStatus);
 
         if (adminStatus) {
+          // For admins: get all pending invitations
           const pendingInvitations = await getAllPendingInvitations();
           setPendingInvitationsCount(pendingInvitations.length);
+        } else {
+          // For regular users: get their own pending invitations
+          const userInvitations = await getUserInvitations(enhancedUser.id);
+          const pendingCount = userInvitations.filter(inv => inv.status === "pending").length;
+          setPendingInvitationsCount(pendingCount);
         }
       } catch (error) {
         console.error("Failed to fetch pending invitations:", error);
+        setPendingInvitationsCount(0);
       }
     };
 
     fetchPendingInvitations();
+    
+    // Refresh count periodically (every 30 seconds)
+    const interval = setInterval(fetchPendingInvitations, 30000);
+    
+    return () => clearInterval(interval);
   }, [enhancedUser?.id]);
 
   return (
@@ -188,7 +200,7 @@ export function AppSidebar() {
               <Link href="/notification" className="flex items-center gap-3 relative overflow-visible w-full">
                 <Bell className="w-5 h-5 flex-shrink-0" />
                 <span className="flex-1">Notifications</span>
-                {isAdmin && pendingInvitationsCount > 0 && (
+                {pendingInvitationsCount > 0 && (
                   <Badge 
                     variant="destructive" 
                     className="h-5 min-w-[1.25rem] rounded-full px-1.5 flex items-center justify-center text-xs flex-shrink-0"
