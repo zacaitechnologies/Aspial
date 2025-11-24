@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 import { Suspense } from "react"
 import { BookingDashboard } from "./equipment-dashboard"
 import { prisma } from "@/lib/prisma";
