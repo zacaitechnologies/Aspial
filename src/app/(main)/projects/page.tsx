@@ -274,16 +274,16 @@ export default function ProjectsPage() {
           </div>
         ) : (
         filteredProjects.map((project) => (
-          <Card key={project.id} className="card">
+          <Card key={project.id} className="card flex flex-col h-full">
             <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-lg">{project.name}</CardTitle>
-                  <div className="flex items-center gap-2 mt-1">
+              <div className="flex justify-between items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg line-clamp-2 mb-2" title={project.name}>{project.name}</CardTitle>
+                  <div className="flex items-center gap-2">
                     {getStatusBadge(project.status)}
                   </div>
                 </div>
-                <div className="flex space-x-1">
+                <div className="flex space-x-1 flex-shrink-0">
                   <Link href={`/projects/${project.id}`}>
                     <Button
                       variant="ghost"
@@ -313,7 +313,7 @@ export default function ProjectsPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="w-4 h-4 text-muted-foreground" />

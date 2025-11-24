@@ -582,20 +582,20 @@ export default function UserManagementPage() {
       <div className="relative">
         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
         {users.map((user) => (
-          <Card key={user.id} className="card">
+          <Card key={user.id} className="card flex flex-col h-full">
             <CardHeader>
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <User className="w-5 h-5 text-muted-foreground" />
-                    {user.firstName} {user.lastName}
+              <div className="flex justify-between items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg flex items-center gap-2 mb-1">
+                    <User className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="line-clamp-2" title={`${user.firstName} ${user.lastName}`}>{user.firstName} {user.lastName}</span>
                   </CardTitle>
-                  <CardDescription className="flex items-center gap-1 mt-1">
-                    <Mail className="w-3 h-3" />
+                  <CardDescription className="flex items-center gap-1 break-all">
+                    <Mail className="w-3 h-3 flex-shrink-0" />
                     {user.email}
                   </CardDescription>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -624,7 +624,7 @@ export default function UserManagementPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-muted-foreground" />
@@ -763,19 +763,19 @@ export default function UserManagementPage() {
               const usersCount = users.filter(u => u.staffRoleId === role.id).length
               
               return (
-                <Card key={role.id} className="card">
+                <Card key={role.id} className="card flex flex-col h-full">
                   <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Briefcase className="w-5 h-5 text-muted-foreground" />
-                          {role.roleName}
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg flex items-center gap-2 mb-1">
+                          <Briefcase className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                          <span className="line-clamp-2" title={role.roleName}>{role.roleName}</span>
                         </CardTitle>
-                        <CardDescription className="mt-1">
+                        <CardDescription>
                           {usersCount} {usersCount === 1 ? 'user' : 'users'} assigned
                         </CardDescription>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"

@@ -343,83 +343,90 @@ export default function ClientsPage() {
           {clients.map((client) => (
             <Card
               key={client.id}
-              className="card bg-white border-2"
+              className="card bg-white border-2 flex flex-col h-full"
               style={{ borderColor: "#BDC4A5" }}
             >
               <CardHeader className="">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0">
-                      {client.photo ? (
-                        <Image
-                          src={client.photo || "/placeholder.svg"}
-                          alt={`${client.name} profile`}
-                          width={60}
-                          height={60}
-                          className="rounded-full object-cover border-2"
-                          style={{ borderColor: "#BDC4A5" }}
-                        />
-                      ) : (
-                        <div
-                          className="w-15 h-15 rounded-full flex items-center justify-center border-2"
-                          style={{ backgroundColor: "#BDC4A5", borderColor: "#898D74" }}
-                        >
-                          <User className="w-8 h-8" style={{ color: "#202F21" }} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-xl font-semibold mb-1" style={{ color: "#202F21" }}>
+                <div className="flex items-start gap-3">
+                  {/* Photo */}
+                  <div className="flex-shrink-0">
+                    {client.photo ? (
+                      <Image
+                        src={client.photo || "/placeholder.svg"}
+                        alt={`${client.name} profile`}
+                        width={60}
+                        height={60}
+                        className="rounded-full object-cover border-2"
+                        style={{ borderColor: "#BDC4A5" }}
+                      />
+                    ) : (
+                      <div
+                        className="w-15 h-15 rounded-full flex items-center justify-center border-2"
+                        style={{ backgroundColor: "#BDC4A5", borderColor: "#898D74" }}
+                      >
+                        <User className="w-8 h-8" style={{ color: "#202F21" }} />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Content Area */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                      <CardTitle 
+                        className="text-xl font-semibold line-clamp-2" 
+                        style={{ color: "#202F21" }}
+                        title={client.company || client.name}
+                      >
                         {client.company || client.name}
                       </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"} 
-                          variant="outline"
+                      <div className="flex space-x-1 flex-shrink-0">
+                        <Link href={`/clients/${client.id}`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="View Client"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditClient(client)}
+                          title="Edit Client"
                         >
-                          <Crown className="w-3 h-3 mr-1" />
-                          {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
-                        </Badge>
-                        {client.industry && (
-                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {client.industry}
-                          </Badge>
-                        )}
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteClient(client)}
+                          title="Delete Client"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex space-x-1">
-                    <Link href={`/clients/${client.id}`}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="View Client"
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge 
+                        className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"} 
+                        variant="outline"
                       >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditClient(client)}
-                      title="Edit Client"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => handleDeleteClient(client)}
-                      title="Delete Client"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                        <Crown className="w-3 h-3 mr-1" />
+                        {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
+                      </Badge>
+                      {client.industry && (
+                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {client.industry}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-4">
+              <CardContent className="flex-1 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <Mail className="w-4 h-4" style={{ color: "#898D74" }} />
@@ -453,7 +460,7 @@ export default function ClientsPage() {
                   )}
                 </div>
 
-                <div className="pt-4 border-t" style={{ borderColor: "#BDC4A5" }}>
+                <div className="pt-4 border-t mt-4" style={{ borderColor: "#BDC4A5" }}>
                   <div className="text-sm">
                     <p style={{ color: "#898D74" }}>Quotations: {client.quotationsCount}</p>
                     <p className="font-semibold" style={{ color: "#202F21" }}>
