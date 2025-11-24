@@ -139,6 +139,202 @@ export async function getAllProjectsOptimized(userId?: string) {
   }));
 }
 
+export async function getProjectsPaginated(
+  userId?: string,
+  page: number = 1,
+  pageSize: number = 10,
+  searchQuery?: string,
+  statusFilter?: string
+) {
+  if (!userId) {
+    return {
+      projects: [],
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 0
+    }
+  }
+
+  const skip = (page - 1) * pageSize
+  const isAdmin = await isUserAdmin(userId)
+
+  // Build where clause for filtering
+  const buildWhereClause = () => {
+    const where: any = {}
+    
+    if (searchQuery) {
+      where.OR = [
+        { name: { contains: searchQuery, mode: 'insensitive' } },
+        { description: { contains: searchQuery, mode: 'insensitive' } },
+        { 
+          createdByUser: { 
+            OR: [
+              { firstName: { contains: searchQuery, mode: 'insensitive' } },
+              { lastName: { contains: searchQuery, mode: 'insensitive' } }
+            ]
+          } 
+        }
+      ]
+    }
+
+    if (statusFilter && statusFilter !== 'all') {
+      where.status = statusFilter
+    }
+
+    return where
+  }
+
+  if (isAdmin) {
+    const whereClause = buildWhereClause()
+    
+    // Get total count for pagination
+    const total = await prisma.project.count({ where: whereClause })
+    
+    // Get paginated projects
+    const projects = await prisma.project.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        created_at: true,
+        updated_at: true,
+        createdByUser: {
+          select: {
+            firstName: true,
+            lastName: true,
+          }
+        },
+        Client: {
+          select: {
+            name: true,
+          }
+        },
+        _count: {
+          select: {
+            tasks: true,
+          },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      skip,
+      take: pageSize,
+    })
+
+    // Get ownership information
+    const projectIds = projects.map(p => p.id)
+    const userPermissions = await prisma.projectPermission.findMany({
+      where: {
+        userId,
+        projectId: { in: projectIds },
+        OR: [
+          { isOwner: true },
+          { canEdit: true }
+        ]
+      },
+      select: {
+        projectId: true,
+        isOwner: true,
+        canEdit: true
+      }
+    })
+
+    const ownershipMap: { [key: number]: boolean } = {}
+    userPermissions.forEach(permission => {
+      ownershipMap[permission.projectId] = permission.isOwner || permission.canEdit
+    })
+
+    return {
+      projects: projects.map(project => ({
+        ...project,
+        taskCount: project._count.tasks,
+        isOwner: ownershipMap[project.id] || false
+      })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize)
+    }
+  }
+
+  // For non-admins: count and fetch with permissions
+  const whereClause: any = {
+    userId,
+    OR: [
+      { isOwner: true },
+      { canView: true }
+    ]
+  }
+
+  const projectWhereClause = buildWhereClause()
+  
+  // Get total count
+  const total = await prisma.projectPermission.count({
+    where: {
+      ...whereClause,
+      project: projectWhereClause
+    }
+  })
+
+  const userPermissions = await prisma.projectPermission.findMany({
+    where: {
+      ...whereClause,
+      project: projectWhereClause
+    },
+    include: {
+      project: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          created_at: true,
+          updated_at: true,
+          createdByUser: {
+            select: {
+              firstName: true,
+              lastName: true,
+            }
+          },
+          Client: {
+            select: {
+              name: true,
+            }
+          },
+          _count: {
+            select: {
+              tasks: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      project: { created_at: "desc" },
+    },
+    skip,
+    take: pageSize,
+  })
+
+  return {
+    projects: userPermissions.map((permission) => ({
+      ...permission.project,
+      taskCount: permission.project._count.tasks,
+      isOwner: permission.isOwner || permission.canEdit
+    })),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize)
+  }
+}
+
 // Helper function to check if project is cancelled
 export async function isProjectCancelled(projectId: number): Promise<boolean> {
   const project = await prisma.project.findUnique({

@@ -25,6 +25,52 @@ export async function getAllServices() {
   return services.map(transformService)
 }
 
+export async function getServicesPaginated(
+  page: number = 1,
+  pageSize: number = 12,
+  filters: {
+    searchQuery?: string
+  } = {}
+) {
+  const skip = (page - 1) * pageSize
+  const { searchQuery } = filters
+
+  // Build where clause
+  const where: any = {}
+  if (searchQuery) {
+    where.OR = [
+      { name: { contains: searchQuery, mode: 'insensitive' } },
+      { description: { contains: searchQuery, mode: 'insensitive' } },
+    ]
+  }
+
+  // Get total count
+  const total = await prisma.services.count({ where })
+
+  // Get paginated data
+  const services = await prisma.services.findMany({
+    where,
+    orderBy: { created_at: "desc" },
+    include: {
+      ServiceToTag: {
+        include: {
+          service_tags: true
+        }
+      }
+    },
+    skip,
+    take: pageSize,
+  })
+
+  return {
+    data: services.map(transformService),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  }
+}
+
 export async function searchServices(query: string) {
   const services = await prisma.services.findMany({
     where: {

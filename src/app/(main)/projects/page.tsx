@@ -17,16 +17,27 @@ import {
 } from "./types";
 import Link from "next/link";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { useProjectsCache } from "./hooks/useProjectsCache";
+import { useProjectsPaginated } from "./hooks/useProjectsCache";
+import { ProjectPagination } from "./components/ProjectPagination";
 
 export default function ProjectsPage() {
   const { enhancedUser } = useSession();
-  const { projects, isLoading: loading, onRefresh } = useProjectsCache(enhancedUser?.id);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const { 
+    projects, 
+    isLoading: loading, 
+    page,
+    pageSize,
+    total,
+    totalPages,
+    onRefresh,
+    goToPage,
+    setPageSize
+  } = useProjectsPaginated(enhancedUser?.id, 1, 10, searchQuery, statusFilter);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingProject, setEditingProject] =
     useState<ProjectWithQuotation | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [selectedProject, setSelectedProject] =
     useState<ProjectWithQuotation | null>(null);
@@ -48,18 +59,14 @@ export default function ProjectsPage() {
     return new Date(latestProject.updated_at);
   };
 
-  // Calculate project statistics
-  const getProjectStats = (projects: ProjectWithQuotation[]) => {
-    const total = projects.length;
+  // Memoize project statistics
+  const projectStats = useMemo(() => {
     const newProjects = projects.filter((p) => p.status === "planning").length;
     const ongoing = projects.filter((p) => p.status === "in_progress").length;
     const completed = projects.filter((p) => p.status === "completed").length;
 
     return { total, newProjects, ongoing, completed };
-  };
-
-  // Memoize project statistics
-  const projectStats = useMemo(() => getProjectStats(projects), [projects]);
+  }, [projects, total]);
 
   const handleEditProject = (project: ProjectWithQuotation) => {
     setEditingProject(project);
@@ -113,39 +120,14 @@ export default function ProjectsPage() {
     );
   };
 
-  // Filter projects based on search query and status filter - optimized with useMemo
-  const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
-      const matchesSearch =
-        project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (project.description &&
-          project.description
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase())) ||
-        project.createdByUser.firstName
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        project.createdByUser.lastName
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
+  // With server-side filtering, we don't need client-side filtering
+  const filteredProjects = projects;
 
-      const matchesStatus =
-        statusFilter === "all" || project.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [projects, searchQuery, statusFilter]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        Loading projects...
-      </div>
-    );
-  }
+  const showEmptyState = !projects.length && loading
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="relative">
+      <div className="container mx-auto p-4">
       <p className="text-primary text-xl font-semibold">
         Hi, {enhancedUser?.profile?.firstName}. Welcome Back!{" "}
       </p>
@@ -284,7 +266,14 @@ export default function ProjectsPage() {
 
       {/* Projects Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredProjects.map((project) => (
+        {showEmptyState ? (
+          <div className="col-span-full flex flex-col items-center justify-center py-20 text-primary">
+            <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+            <p className="text-lg font-medium">Loading your projects…</p>
+            <p className="text-sm text-primary/70">This may take a few seconds the first time.</p>
+          </div>
+        ) : (
+        filteredProjects.map((project) => (
           <Card key={project.id} className="card">
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -348,10 +337,10 @@ export default function ProjectsPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+        )))}
       </div>
 
-      {filteredProjects.length === 0 && projects.length > 0 && (
+      {!showEmptyState && filteredProjects.length === 0 && total === 0 && (
         <div className="text-center py-12">
           <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">
@@ -363,7 +352,7 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {projects.length === 0 && (
+      {!loading && total === 0 && !searchQuery && statusFilter === 'all' && (
         <div className="text-center py-12">
           <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">No projects available.</p>
@@ -372,6 +361,16 @@ export default function ProjectsPage() {
           </p>
         </div>
       )}
+
+      {/* Pagination Controls */}
+      <ProjectPagination
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={goToPage}
+        onPageSizeChange={setPageSize}
+      />
 
       <EditProjectDialog
         isOpen={isEditOpen}
@@ -402,5 +401,15 @@ export default function ProjectsPage() {
         variant="danger"
       />
     </div>
+
+    {loading && (
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-[2px]">
+        <div className="flex flex-col items-center gap-3 text-primary">
+          <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+          <p className="text-sm font-medium">Refreshing projects…</p>
+        </div>
+      </div>
+    )}
+  </div>
   );
 }

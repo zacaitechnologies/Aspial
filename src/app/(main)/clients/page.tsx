@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -25,10 +25,12 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { getAllClients, deleteClient } from "./action"
+import { getClientsPaginated, deleteClient } from "./action"
 import CreateClientDialog from "./components/CreateClientDialog"
 import EditClientDialog from "./components/EditClientDialog"
 import DeleteClientDialog from "./components/DeleteClientDialog"
+import { usePaginatedData } from "@/hooks/use-paginated-data"
+import { ProjectPagination } from "../projects/components/ProjectPagination"
 
 
 interface Client {
@@ -56,8 +58,6 @@ type SortOption = "name" | "yearlyRevenue" | "totalValue" | "created_at"
 type SortDirection = "asc" | "desc"
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [industryFilter, setIndustryFilter] = useState<string>("all")
   const [membershipFilter, setMembershipFilter] = useState<"all" | "MEMBER" | "NON_MEMBER">("all")
@@ -68,22 +68,38 @@ export default function ClientsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
 
-  const fetchClients = useCallback(async () => {
-    try {
-      setLoading(true)
-      const clientsData = await getAllClients()
-      setClients(clientsData)
-    } catch (error) {
-      console.error("Failed to fetch clients:", error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Pagination with server-side filtering
+  const {
+    data: clients,
+    isLoading: loading,
+    page,
+    pageSize,
+    total,
+    totalPages,
+    goToPage,
+    setPageSize,
+    refresh,
+    invalidateCache,
+  } = usePaginatedData<Client, any>({
+    fetchFn: async (page, pageSize) => {
+      return await getClientsPaginated(page, pageSize, {
+        searchTerm,
+        industry: industryFilter,
+        membershipType: membershipFilter,
+        sortBy,
+        sortDirection,
+      })
+    },
+    initialPage: 1,
+    initialPageSize: 12,
+    filters: { searchTerm, industryFilter, membershipFilter, sortBy, sortDirection },
+  })
 
-  // Get unique industries from all clients
-  const uniqueIndustries = Array.from(
-    new Set(clients.filter(client => client.industry).map(client => client.industry!))
-  ).sort()
+  // Get unique industries (note: this is now from current page only)
+  const uniqueIndustries = useMemo(
+    () => Array.from(new Set(clients.filter(client => client.industry).map(client => client.industry!))).sort(),
+    [clients]
+  )
 
   const handleSort = (option: SortOption) => {
     if (sortBy === option) {
@@ -92,11 +108,8 @@ export default function ClientsPage() {
       setSortBy(option)
       setSortDirection("asc")
     }
+    // Cache will auto-invalidate and refetch with new sort
   }
-
-  useEffect(() => {
-    fetchClients()
-  }, [fetchClients])
 
   const handleEditClient = (client: Client) => {
     setEditingClient(client)
@@ -113,56 +126,21 @@ export default function ClientsPage() {
     
     try {
       await deleteClient(deletingClient.id)
-      await fetchClients()
+      invalidateCache()
+      await refresh()
     } catch (error) {
       console.error("Failed to delete client:", error)
       alert("Failed to delete client. Please try again.")
     }
   }
 
+  const handleSuccess = async () => {
+    invalidateCache()
+    await refresh()
+  }
 
-  const filteredAndSortedClients = clients
-    .filter((client) => {
-      const matchesSearch =
-        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.company?.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesIndustry = industryFilter === "all" || client.industry === industryFilter
-      const matchesMembership = membershipFilter === "all" || client.membershipType === membershipFilter
-      return matchesSearch && matchesIndustry && matchesMembership
-    })
-    .sort((a, b) => {
-      let aValue: any, bValue: any
-      
-      switch (sortBy) {
-        case "name":
-          aValue = a.name.toLowerCase()
-          bValue = b.name.toLowerCase()
-          break
-        case "yearlyRevenue":
-          aValue = a.yearlyRevenue || 0
-          bValue = b.yearlyRevenue || 0
-          break
-        case "totalValue":
-          aValue = a.totalValue
-          bValue = b.totalValue
-          break
-        case "created_at":
-          aValue = new Date(a.created_at).getTime()
-          bValue = new Date(b.created_at).getTime()
-          break
-        default:
-          return 0
-      }
-      
-      if (sortDirection === "asc") {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
-      }
-    })
-
-  const totalClients = clients.length
+  // Calculate stats from total
+  const totalClients = total
   const memberClients = clients.filter((c) => c.membershipType === "MEMBER").length
   const totalValue = clients.reduce((sum, client) => sum + client.totalValue, 0)
   const avgValue = totalClients > 0 ? totalValue / totalClients : 0
@@ -180,7 +158,7 @@ export default function ClientsPage() {
               Manage your client relationships and track business opportunities
             </p>
           </div>
-                     <CreateClientDialog onSuccess={fetchClients} />
+                     <CreateClientDialog onSuccess={handleSuccess} />
         </div>
 
         {/* Stats Cards */}
@@ -359,17 +337,10 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center h-64">
-            <p style={{ color: "#898D74" }}>Loading clients...</p>
-          </div>
-        )}
-
-        {/* Clients Grid */}
-        {!loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredAndSortedClients.map((client) => (
+        {/* Clients Grid with Loading Overlay */}
+        <div className="relative">
+          <div className={`grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+          {clients.map((client) => (
             <Card
               key={client.id}
               className="card bg-white border-2"
@@ -494,30 +465,50 @@ export default function ClientsPage() {
             </Card>
           ))}
         </div>
-        )}
 
-                 {!loading && clients.length === 0 && (
+        {/* Loading Indicator */}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
+            <div className="flex flex-col items-center gap-3" style={{ color: "#202F21" }}>
+              <div className="h-10 w-10 border-4 border-[#BDC4A5] border-t-[#202F21] rounded-full animate-spin" />
+              <p className="text-sm font-medium">Loading clients…</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+        {!loading && clients.length === 0 && total === 0 && (
            <div className="text-center py-12">
              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
              <p className="text-muted-foreground">No clients available.</p>
            </div>
          )}
 
-                   {/* Edit Client Dialog */}
-          <EditClientDialog
-            client={editingClient}
-            isOpen={isEditDialogOpen}
-            onOpenChange={setIsEditDialogOpen}
-            onSuccess={fetchClients}
-          />
+         {/* Pagination */}
+        <ProjectPagination
+          currentPage={page}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={goToPage}
+          onPageSizeChange={setPageSize}
+        />
 
-          {/* Delete Client Dialog */}
-          <DeleteClientDialog
-            isOpen={isDeleteDialogOpen}
-            onOpenChange={setIsDeleteDialogOpen}
-            onConfirm={confirmDeleteClient}
-            clientName={deletingClient?.name || ""}
-          />
+        {/* Edit Client Dialog */}
+        <EditClientDialog
+          client={editingClient}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onSuccess={handleSuccess}
+        />
+
+        {/* Delete Client Dialog */}
+        <DeleteClientDialog
+          isOpen={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          onConfirm={confirmDeleteClient}
+          clientName={deletingClient?.name || ""}
+        />
        </div>
      </div>
    )

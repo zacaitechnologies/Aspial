@@ -88,6 +88,106 @@ export async function getAllClients() {
   }
 }
 
+export async function getClientsPaginated(
+  page: number = 1,
+  pageSize: number = 12,
+  filters: {
+    searchTerm?: string
+    industry?: string
+    membershipType?: 'all' | 'MEMBER' | 'NON_MEMBER'
+    sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
+    sortDirection?: 'asc' | 'desc'
+  } = {}
+) {
+  try {
+    await getCurrentUser()
+
+    const skip = (page - 1) * pageSize
+    const {
+      searchTerm,
+      industry,
+      membershipType,
+      sortBy = 'created_at',
+      sortDirection = 'desc',
+    } = filters
+
+    // Build where clause
+    const where: any = {}
+
+    if (searchTerm) {
+      where.OR = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { email: { contains: searchTerm, mode: 'insensitive' } },
+        { company: { contains: searchTerm, mode: 'insensitive' } },
+      ]
+    }
+
+    if (industry && industry !== 'all') {
+      where.industry = industry
+    }
+
+    if (membershipType && membershipType !== 'all') {
+      where.membershipType = membershipType
+    }
+
+    // Get total count
+    const total = await prisma.client.count({ where })
+
+    // Get paginated data
+    const clients = await prisma.client.findMany({
+      where,
+      include: {
+        quotations: {
+          select: {
+            id: true,
+            totalPrice: true,
+          },
+        },
+        projects: {
+          select: {
+            id: true,
+          },
+        },
+      },
+      skip,
+      take: pageSize,
+      orderBy: { [sortBy]: sortDirection },
+    })
+
+    // Transform data
+    const transformedClients = clients.map(client => ({
+      id: client.id,
+      name: client.name,
+      email: client.email,
+      phone: client.phone || undefined,
+      company: client.company || undefined,
+      address: client.address || undefined,
+      city: client.city || undefined,
+      country: client.country || undefined,
+      notes: client.notes || undefined,
+      industry: client.industry || undefined,
+      yearlyRevenue: client.yearlyRevenue || undefined,
+      membershipType: client.membershipType,
+      quotationsCount: client.quotations.length,
+      totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
+      created_at: client.created_at.toISOString(),
+      photo: client.photo || undefined,
+    }))
+
+    return {
+      data: transformedClients,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    }
+  } catch (error: any) {
+    if (isRedirectError(error)) throw error
+    console.error('Error in getClientsPaginated:', error)
+    throw new Error(`Failed to fetch clients: ${error.message}`)
+  }
+}
+
 export async function getClientById(id: string) {
   try {
     await getCurrentUser() // Ensure user is authenticated

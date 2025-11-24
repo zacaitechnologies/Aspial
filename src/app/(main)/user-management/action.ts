@@ -139,6 +139,60 @@ export async function getAllNonAdminUsers(): Promise<UserWithRole[]> {
   }
 }
 
+// Fetch non-admin users with pagination
+export async function getUsersPaginated(
+  page: number = 1,
+  pageSize: number = 12
+) {
+  const validation = await validateAdminUser()
+  if (!validation.valid) {
+    throw new Error(validation.error)
+  }
+
+  try {
+    const skip = (page - 1) * pageSize
+
+    // Get all users first (to filter out admins)
+    const allUsers = await prisma.user.findMany({
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        },
+        staffRole: true
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    })
+
+    // Filter out admin users
+    const nonAdminUsers = allUsers.filter(user => {
+      const isAdmin = user.userRoles.some(ur => ur.role.slug === 'admin')
+      return !isAdmin
+    })
+
+    // Apply pagination
+    const total = nonAdminUsers.length
+    const paginatedUsers = nonAdminUsers.slice(skip, skip + pageSize)
+
+    return {
+      data: paginatedUsers.map(user => ({
+        ...user,
+        roles: user.userRoles
+      })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize)
+    }
+  } catch (error) {
+    console.error("Error fetching paginated users:", error)
+    throw error
+  }
+}
+
 // Fetch all staff roles
 export async function getAllStaffRoles(): Promise<StaffRole[]> {
   // Validate admin access

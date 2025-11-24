@@ -1,26 +1,46 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { getAllProjectsOptimized } from "../action"
+import { useState, useEffect, useCallback } from "react"
+import { getProjectsPaginated } from "../action"
 import { ProjectWithQuotation } from "../types"
 
-interface UseProjectsCacheReturn {
+interface UseProjectsPaginatedReturn {
   projects: ProjectWithQuotation[]
   isLoading: boolean
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
   onRefresh: () => Promise<void>
+  goToPage: (page: number) => void
+  setPageSize: (size: number) => void
   invalidateCache: () => void
 }
 
 const CACHE_DURATION = 3 * 60 * 1000 // 3 minutes cache
 
-// ✅ MODULE-LEVEL CACHE (persists across component unmounts)
-let cachedProjects: ProjectWithQuotation[] = []
-let cacheTimestamp: number = 0
+// Cache structure: Map<cacheKey, {data, timestamp}>
+interface CacheEntry {
+  data: any
+  timestamp: number
+}
+
+const cache = new Map<string, CacheEntry>()
 let isCurrentlyLoading: boolean = false
 
-export function useProjectsCache(userId: string | undefined): UseProjectsCacheReturn {
-  const [projects, setProjects] = useState<ProjectWithQuotation[]>(cachedProjects)
+export function useProjectsPaginated(
+  userId: string | undefined,
+  initialPage: number = 1,
+  initialPageSize: number = 10,
+  searchQuery?: string,
+  statusFilter?: string
+): UseProjectsPaginatedReturn {
+  const [projects, setProjects] = useState<ProjectWithQuotation[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(initialPage)
+  const [pageSize, setPageSize] = useState(initialPageSize)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   
   const loadProjects = useCallback(async (forceRefresh = false) => {
     if (!userId) {
@@ -28,49 +48,73 @@ export function useProjectsCache(userId: string | undefined): UseProjectsCacheRe
       return
     }
 
+    const cacheKey = `${userId}_${page}_${pageSize}_${searchQuery || ''}_${statusFilter || 'all'}`
     const now = Date.now()
     
     // Check if cache is still valid
-    if (!forceRefresh && now - cacheTimestamp < CACHE_DURATION) {
-      console.log("✅ PROJECTS CACHE HIT - Skipping API call (Age: " + Math.floor((now - cacheTimestamp) / 1000) + "s)")
-      setProjects(cachedProjects)
+    const cachedEntry = cache.get(cacheKey)
+    if (!forceRefresh && cachedEntry && now - cachedEntry.timestamp < CACHE_DURATION) {
+      console.log("✅ PROJECTS CACHE HIT - Page " + page)
+      setProjects(cachedEntry.data.projects)
+      setTotal(cachedEntry.data.total)
+      setTotalPages(cachedEntry.data.totalPages)
       setIsLoading(false)
       return
     }
     
-    // Prevent duplicate simultaneous loads (React Strict Mode)
+    // Prevent duplicate simultaneous loads
     if (isCurrentlyLoading) {
       console.log("⏳ PROJECTS: Already loading, skipping duplicate request")
       return
     }
     
-    console.log("❌ PROJECTS CACHE MISS - Loading from API (Cache age: " + Math.floor((now - cacheTimestamp) / 1000) + "s)")
+    console.log("❌ PROJECTS CACHE MISS - Loading page " + page)
     isCurrentlyLoading = true
     setIsLoading(true)
     try {
-      const loadedProjects = await getAllProjectsOptimized(userId)
-      // Update module-level cache
-      cachedProjects = loadedProjects as any
-      cacheTimestamp = now
+      const result = await getProjectsPaginated(
+        userId,
+        page,
+        pageSize,
+        searchQuery,
+        statusFilter
+      )
+      
+      // Update cache
+      cache.set(cacheKey, {
+        data: result,
+        timestamp: now
+      })
+      
       // Update component state
-      setProjects(cachedProjects)
+      setProjects(result.projects as any)
+      setTotal(result.total)
+      setTotalPages(result.totalPages)
     } catch (error) {
       console.error("Error loading projects:", error)
     } finally {
       setIsLoading(false)
       isCurrentlyLoading = false
     }
-  }, [userId])
+  }, [userId, page, pageSize, searchQuery, statusFilter])
 
   const onRefresh = useCallback(async () => {
     console.log("PROJECTS: Force refresh requested")
     await loadProjects(true)
   }, [loadProjects])
 
+  const goToPage = useCallback((newPage: number) => {
+    setPage(newPage)
+  }, [])
+
+  const handleSetPageSize = useCallback((size: number) => {
+    setPageSize(size)
+    setPage(1) // Reset to first page when changing page size
+  }, [])
+
   const invalidateCache = useCallback(() => {
     console.log("🔄 PROJECTS: Cache invalidated")
-    cacheTimestamp = 0
-    cachedProjects = []
+    cache.clear()
   }, [])
 
   useEffect(() => {
@@ -80,7 +124,13 @@ export function useProjectsCache(userId: string | undefined): UseProjectsCacheRe
   return {
     projects,
     isLoading,
+    page,
+    pageSize,
+    total,
+    totalPages,
     onRefresh,
+    goToPage,
+    setPageSize: handleSetPageSize,
     invalidateCache
   }
 }

@@ -36,6 +36,19 @@ export default function ServicesList({
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [filteredServices, setFilteredServices] = useState<Service[]>(services);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredServices.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedServices = filteredServices.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedTagFilter]);
 
   // Search as you type with debounce
   useEffect(() => {
@@ -218,7 +231,7 @@ export default function ServicesList({
       {/* Services Grid */}
       {!isLoading && (
         <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-          {filteredServices.map((service) => (
+          {paginatedServices.map((service) => (
             <Card key={service.id} className="card">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -304,6 +317,36 @@ export default function ServicesList({
               : "Get started by creating your first service."}
           </p>
           {!searchQuery && <ServiceForm onSuccess={handleServiceSuccess} />}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {!isLoading && filteredServices.length > itemsPerPage && (
+        <div className="flex items-center justify-between mt-6 px-2">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1} to {Math.min(endIndex, filteredServices.length)} of {filteredServices.length} services
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
 

@@ -20,6 +20,53 @@ export async function getAllQuotations(userId?: string) {
   })
 }
 
+export async function getQuotationsPaginated(
+  page: number = 1,
+  pageSize: number = 10,
+  filters: {
+    statusFilter?: string
+  } = {}
+) {
+  const skip = (page - 1) * pageSize
+  const { statusFilter } = filters
+
+  // Build where clause
+  const where: any = {}
+  if (statusFilter && statusFilter !== 'all') {
+    where.workflowStatus = statusFilter
+  }
+
+  // Get total count
+  const total = await prisma.quotation.count({ where })
+
+  // Get paginated data
+  const quotations = await prisma.quotation.findMany({
+    where,
+    include: {
+      services: {
+        include: {
+          service: true,
+        },
+      },
+      project: true,
+      createdBy: true,
+      Client: true,
+      customServices: true,
+    },
+    orderBy: { created_at: "desc" },
+    skip,
+    take: pageSize,
+  })
+
+  return {
+    data: quotations,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  }
+}
+
 export async function getQuotationById(id: string) {
   const quotation = await prisma.quotation.findUnique({
     where: { id: parseInt(id) },
