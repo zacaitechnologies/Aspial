@@ -1,13 +1,12 @@
-export const dynamic = "force-dynamic"
-export const revalidate = 0
-
 import { Suspense } from "react"
 import { BookingDashboard } from "./equipment-dashboard"
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/utils/supabase/server"
+import { getCachedUser } from "@/lib/auth-cache"
+import { unstable_cache } from "next/cache"
 import { redirect } from "next/navigation"
 
-async function getStudios() {
+// Internal functions - not cached, used by cached versions
+async function _getStudiosInternal() {
 	return await prisma.studio.findMany({
 		include: {
 			bookings: {
@@ -31,7 +30,7 @@ async function getStudios() {
 	})
 }
 
-async function getEquipment() {
+async function _getEquipmentInternal() {
 	return await prisma.equipment.findMany({
 		include: {
 			bookings: {
@@ -55,58 +54,45 @@ async function getEquipment() {
 	})
 }
 
-async function getUserWithRole() {
-	try {
-		const supabase = await createClient()
+async function _getUserWithRoleInternal() {
+	const user = await getCachedUser()
 
-		const { data: { user }, error } = await supabase.auth.getUser()
-
-		if (error || !user) {
-			return redirect("/login")
-		}
-
-		const dbUser = await prisma.user.findUnique({
-			where: { supabase_id: user.id },
-			include: {
-				userRoles: {
-					include: {
-						role: true
-					}
+	const dbUser = await prisma.user.findUnique({
+		where: { supabase_id: user.id },
+		include: {
+			userRoles: {
+				include: {
+					role: true
 				}
 			}
-		})
-
-		if (!dbUser) {
-			return redirect("/login")
 		}
+	})
 
-		const isAdmin = dbUser.userRoles.some(userRole => userRole.role.slug === "admin")
+	if (!dbUser) {
+		return redirect("/login")
+	}
 
-		return {
-			user: dbUser,
-			isAdmin,
-			userId: user.id
-		}
-	} catch (error: any) {
-		console.error("Error in getUserWithRole:", error)
-		throw new Error("Failed to get user with role")
+	const isAdmin = dbUser.userRoles.some(userRole => userRole.role.slug === "admin")
+
+	return {
+		user: dbUser,
+		isAdmin,
+		userId: user.id
 	}
 }
 
-async function getUserProjectIds(userId: string) {
-	try {
-		// Get projects where user is the creator
-		const createdProjects = await prisma.project.findMany({
+async function _getUserProjectIdsInternal(userId: string) {
+	// Execute both queries in parallel for better performance
+	const [createdProjects, permittedProjects] = await Promise.all([
+		prisma.project.findMany({
 			where: {
 				createdBy: userId,
 			},
 			select: {
 				id: true,
 			},
-		})
-
-		// Get projects where user has permissions
-		const permittedProjects = await prisma.project.findMany({
+		}),
+		prisma.project.findMany({
 			where: {
 				permissions: {
 					some: {
@@ -118,14 +104,66 @@ async function getUserProjectIds(userId: string) {
 				id: true,
 			},
 		})
+	])
 
-		// Combine and deduplicate
-		const allProjects = [...createdProjects, ...permittedProjects]
-		const uniqueProjectIds = Array.from(
-			new Set(allProjects.map(p => p.id))
-		)
+	// Combine and deduplicate
+	const allProjects = [...createdProjects, ...permittedProjects]
+	const uniqueProjectIds = Array.from(
+		new Set(allProjects.map(p => p.id))
+	)
 
-		return uniqueProjectIds
+	return uniqueProjectIds
+}
+
+// Cached versions
+async function getStudios() {
+	return await unstable_cache(
+		async () => _getStudiosInternal(),
+		['equipment-bookings-studios'],
+		{
+			revalidate: 30, // 30 seconds
+			tags: ['equipment-bookings'],
+		}
+	)()
+}
+
+async function getEquipment() {
+	return await unstable_cache(
+		async () => _getEquipmentInternal(),
+		['equipment-bookings-equipment'],
+		{
+			revalidate: 30, // 30 seconds
+			tags: ['equipment-bookings'],
+		}
+	)()
+}
+
+async function getUserWithRole() {
+	try {
+		return await unstable_cache(
+			async () => _getUserWithRoleInternal(),
+			['equipment-bookings-user-role'],
+			{
+				revalidate: 60, // 60 seconds (user role changes less frequently)
+				tags: ['user-role'],
+			}
+		)()
+	} catch (error: any) {
+		console.error("Error in getUserWithRole:", error)
+		throw new Error("Failed to get user with role")
+	}
+}
+
+async function getUserProjectIds(userId: string) {
+	try {
+		return await unstable_cache(
+			async () => _getUserProjectIdsInternal(userId),
+			[`equipment-bookings-user-projects-${userId}`],
+			{
+				revalidate: 60, // 60 seconds
+				tags: ['user-projects', `user-projects-${userId}`],
+			}
+		)()
 	} catch (error) {
 		console.error('Error fetching user project IDs:', error)
 		return []
