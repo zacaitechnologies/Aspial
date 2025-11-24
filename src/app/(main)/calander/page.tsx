@@ -32,7 +32,7 @@ export default function OrganizationCalendar() {
 	const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
 	const [selectedDate, setSelectedDate] = useState<string>("")
 	const [isDateEventsDialogOpen, setIsDateEventsDialogOpen] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
+	const [isLoading, setIsLoading] = useState(true)
 	const [isAdmin, setIsAdmin] = useState(false)
 
 	// Get user name for filtering bookings
@@ -43,7 +43,6 @@ export default function OrganizationCalendar() {
 	// Load all bookings on component mount
 	useEffect(() => {
 		const loadBookings = async () => {
-			setIsLoading(true)
 			try {
 				if (enhancedUser?.id && userName) {
 					const fetchedBookings = await fetchAllBookings(enhancedUser.id, userName)
@@ -267,7 +266,7 @@ export default function OrganizationCalendar() {
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {Object.entries(bookingTypes).map(([type, config]) => {
-              const count = bookings.filter((b) => {
+              const count = isLoading ? 0 : bookings.filter((b) => {
                 if (b.type !== type) return false
                 if (!isAdmin) {
                   if (bookmarkScope === "own" && !b.isUserBooking) return false
@@ -300,9 +299,11 @@ export default function OrganizationCalendar() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-[var(--color-muted-foreground)]">{config.label}s</p>
-                        <p className="text-2xl font-bold text-[var(--color-foreground)]">{count}</p>
+                        <p className={`text-2xl font-bold text-[var(--color-foreground)] ${isLoading ? 'animate-pulse' : ''}`}>
+                          {isLoading ? '...' : count}
+                        </p>
                       </div>
-                      <div className={`w-3 h-3 rounded-full ${config.color}`}></div>
+                      <div className={`w-3 h-3 rounded-full ${config.color} ${isLoading ? 'animate-pulse' : ''}`}></div>
                     </div>
                   </CardContent>
                 </Card>
@@ -335,7 +336,17 @@ export default function OrganizationCalendar() {
             </div>
 
             {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-0 border-l border-t border-[var(--color-border)] relative">{renderCalendarDays()}</div>
+            <div className="grid grid-cols-7 gap-0 border-l border-t border-[var(--color-border)] relative">
+              {renderCalendarDays()}
+              {isLoading && (
+                <div className="absolute inset-0 bg-[var(--color-background)]/50 backdrop-blur-sm flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)] mx-auto mb-2"></div>
+                    <p className="text-sm text-[var(--color-muted-foreground)]">Loading events...</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -348,9 +359,100 @@ export default function OrganizationCalendar() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {bookings
-                .filter((booking) => {
+            {isLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="p-4 rounded-lg border-l-4 bg-[var(--color-muted)] border-[var(--color-border)] animate-pulse"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="h-5 bg-[var(--color-border)] rounded w-1/3 mb-2"></div>
+                        <div className="h-4 bg-[var(--color-border)] rounded w-2/3 mb-2"></div>
+                        <div className="flex items-center gap-4 mt-2">
+                          <div className="h-3 bg-[var(--color-border)] rounded w-20"></div>
+                          <div className="h-3 bg-[var(--color-border)] rounded w-24"></div>
+                          <div className="h-3 bg-[var(--color-border)] rounded w-20"></div>
+                        </div>
+                      </div>
+                      <div className="h-6 bg-[var(--color-border)] rounded w-16"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {bookings
+                  .filter((booking) => {
+                    if (new Date(booking.date) < new Date()) return false
+                    if (filterType !== "all" && booking.type !== filterType) return false
+                    if (!isAdmin) {
+                      if (bookmarkScope === "own" && !booking.isUserBooking) return false
+                      if (bookmarkScope === "team" && !booking.isTeamBooking) return false
+                    }
+                    if (selectedProject && selectedProject !== "all") {
+                      const projectId = parseInt(selectedProject)
+                      if (booking.projectId !== projectId) return false
+                    }
+                    // Filter by task ownership (only for tasks)
+                    if (booking.type === "task" && taskOwnershipFilter !== "all") {
+                      if (taskOwnershipFilter === "my") {
+                        if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
+                          return false
+                        }
+                      } else if (taskOwnershipFilter === "teammate") {
+                        if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
+                          return false
+                        }
+                      }
+                    }
+                    return true
+                  })
+                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                  .slice(0, 5)
+                  .map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="p-4 rounded-lg border-l-4 bg-[var(--color-muted)] border-[var(--color-border)]"
+                      style={{
+                        borderLeftColor: booking.color.includes("primary") ? "var(--color-primary)" : "var(--color-accent)",
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-[var(--color-foreground)]">{booking.title}</h4>
+                          <p className="text-sm text-[var(--color-muted-foreground)] mt-1">{booking.description}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-muted-foreground)]">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(booking.date).toLocaleDateString()}
+                            </div>
+                            {booking.type !== "task" && (
+                              <>
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {booking.startTime} - {booking.endTime}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Users className="w-3 h-3" />
+                                  {booking.attendees} attendees
+                                </div>
+                              </>
+                            )}
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {booking.location}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className={`${booking.color} text-white`}>
+                          {bookingTypes[booking.type].label}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                {!isLoading && bookings.filter((booking) => {
                   if (new Date(booking.date) < new Date()) return false
                   if (filterType !== "all" && booking.type !== filterType) return false
                   if (!isAdmin) {
@@ -361,64 +463,14 @@ export default function OrganizationCalendar() {
                     const projectId = parseInt(selectedProject)
                     if (booking.projectId !== projectId) return false
                   }
-                  // Filter by task ownership (only for tasks)
-                  if (booking.type === "task" && taskOwnershipFilter !== "all") {
-                    if (taskOwnershipFilter === "my") {
-                      if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
-                        return false
-                      }
-                    } else if (taskOwnershipFilter === "teammate") {
-                      if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
-                        return false
-                      }
-                    }
-                  }
                   return true
-                })
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                .slice(0, 5)
-                .map((booking) => (
-                  <div
-                    key={booking.id}
-                    className="p-4 rounded-lg border-l-4 bg-[var(--color-muted)] border-[var(--color-border)]"
-                    style={{
-                      borderLeftColor: booking.color.includes("primary") ? "var(--color-primary)" : "var(--color-accent)",
-                    }}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-[var(--color-foreground)]">{booking.title}</h4>
-                        <p className="text-sm text-[var(--color-muted-foreground)] mt-1">{booking.description}</p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-muted-foreground)]">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(booking.date).toLocaleDateString()}
-                          </div>
-                          {booking.type !== "task" && (
-                            <>
-                              <div className="flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {booking.startTime} - {booking.endTime}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                {booking.attendees} attendees
-                              </div>
-                            </>
-                          )}
-                          <div className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {booking.location}
-                          </div>
-                        </div>
-                      </div>
-                      <Badge variant="secondary" className={`${booking.color} text-white`}>
-                        {bookingTypes[booking.type].label}
-                      </Badge>
-                    </div>
+                }).length === 0 && (
+                  <div className="text-center py-8 text-[var(--color-muted-foreground)]">
+                    No upcoming bookings
                   </div>
-                ))}
-            </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
