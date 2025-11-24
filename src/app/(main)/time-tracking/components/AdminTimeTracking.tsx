@@ -12,9 +12,17 @@ interface UserWithProfilePicture extends User {
   profilePicture: string | null
 }
 
+interface TimeEntryUser {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  profilePicture: string | null
+}
+
 interface AdminTimeTrackingProps {
   initialTimeEntries: (TimeEntry & {
-    user: UserWithProfilePicture
+    user: TimeEntryUser
     project: Project
   })[]
   initialProjects: Project[]

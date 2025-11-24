@@ -9,9 +9,17 @@ interface UserWithProfilePicture extends UserType {
   profilePicture: string | null
 }
 
+interface TimeEntryUser {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  profilePicture: string | null
+}
+
 interface RecentActivityProps {
   timeEntries: (TimeEntry & {
-    user: UserWithProfilePicture
+    user: TimeEntryUser
     project: Project
   })[]
   users: UserWithProfilePicture[]
