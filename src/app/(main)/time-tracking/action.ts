@@ -100,6 +100,10 @@ export async function fetchAllUsers() {
       lastName: true,
       email: true,
       profilePicture: true,
+      supabase_id: true,
+      created_at: true,
+      updated_at: true,
+      staffRoleId: true,
       userRoles: {
         include: {
           role: true
