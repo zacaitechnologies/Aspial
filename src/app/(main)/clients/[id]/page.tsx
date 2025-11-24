@@ -285,7 +285,7 @@ export default function ClientDetailPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium" style={{ color: "#898D74" }}>Amount:</span>
                         <span className="text-lg font-bold" style={{ color: "#202F21" }}>
-                          ${quotation.totalPrice.toLocaleString()}
+                          RM {quotation.totalPrice.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">

@@ -213,7 +213,7 @@ export default function ClientsPage() {
                     Total Value
                   </p>
                   <p className="text-3xl font-bold" style={{ color: "#202F21" }}>
-                    ${totalValue.toLocaleString()}
+                    RM {totalValue.toLocaleString()}
                   </p>
                 </div>
                 <div
@@ -234,7 +234,7 @@ export default function ClientsPage() {
                     Avg. Value
                   </p>
                   <p className="text-3xl font-bold" style={{ color: "#202F21" }}>
-                    ${avgValue.toLocaleString()}
+                    RM {avgValue.toLocaleString()}
                   </p>
                 </div>
                 <div
@@ -464,7 +464,7 @@ export default function ClientsPage() {
                   <div className="text-sm">
                     <p style={{ color: "#898D74" }}>Quotations: {client.quotationsCount}</p>
                     <p className="font-semibold" style={{ color: "#202F21" }}>
-                      ${client.totalValue.toLocaleString()}
+                      RM {client.totalValue.toLocaleString()}
                     </p>
                   </div>
                 </div>
