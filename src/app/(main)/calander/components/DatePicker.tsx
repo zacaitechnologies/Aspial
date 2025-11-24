@@ -11,7 +11,10 @@ interface DatePickerProps {
 
 export function DatePicker({ currentDate, onDateChange }: DatePickerProps) {
   const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i)
+  // Generate years from 2020 to 5 years in the future
+  const startYear = 2020
+  const endYear = currentYear + 5
+  const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i)
   const months = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"

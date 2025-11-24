@@ -321,14 +321,16 @@ export default function EmployeeBenefitsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[...Array(5)].map((_, i) => {
-                    const year = new Date().getFullYear() - i
-                    return (
+                  {(() => {
+                    const currentYear = new Date().getFullYear()
+                    const startYear = 2020
+                    const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) => currentYear - i)
+                    return years.map((year) => (
                       <SelectItem key={year} value={year.toString()}>
                         {year}
                       </SelectItem>
-                    )
-                  })}
+                    ))
+                  })()}
                 </SelectContent>
               </Select>
             )}
@@ -352,14 +354,16 @@ export default function EmployeeBenefitsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[...Array(5)].map((_, i) => {
-                      const year = new Date().getFullYear() - i
-                      return (
+                    {(() => {
+                      const currentYear = new Date().getFullYear()
+                      const startYear = 2020
+                      const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) => currentYear - i)
+                      return years.map((year) => (
                         <SelectItem key={year} value={year.toString()}>
                           {year}
                         </SelectItem>
-                      )
-                    })}
+                      ))
+                    })()}
                   </SelectContent>
                 </Select>
               </div>
