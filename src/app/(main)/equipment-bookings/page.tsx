@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 import { Suspense } from "react"
 import { BookingDashboard } from "./equipment-dashboard"
 import { prisma } from "@/lib/prisma";
@@ -52,33 +55,6 @@ async function _getEquipmentInternal() {
 			createdAt: "desc",
 		},
 	})
-}
-
-async function _getUserWithRoleInternal() {
-	const user = await getCachedUser()
-
-	const dbUser = await prisma.user.findUnique({
-		where: { supabase_id: user.id },
-		include: {
-			userRoles: {
-				include: {
-					role: true
-				}
-			}
-		}
-	})
-
-	if (!dbUser) {
-		return redirect("/login")
-	}
-
-	const isAdmin = dbUser.userRoles.some(userRole => userRole.role.slug === "admin")
-
-	return {
-		user: dbUser,
-		isAdmin,
-		userId: user.id
-	}
 }
 
 async function _getUserProjectIdsInternal(userId: string) {
@@ -138,16 +114,33 @@ async function getEquipment() {
 	)()
 }
 
+// Cannot cache this - it uses cookies/auth which is dynamic
 async function getUserWithRole() {
 	try {
-		return await unstable_cache(
-			async () => _getUserWithRoleInternal(),
-			['equipment-bookings-user-role'],
-			{
-				revalidate: 60, // 60 seconds (user role changes less frequently)
-				tags: ['user-role'],
+		const user = await getCachedUser()
+
+		const dbUser = await prisma.user.findUnique({
+			where: { supabase_id: user.id },
+			include: {
+				userRoles: {
+					include: {
+						role: true
+					}
+				}
 			}
-		)()
+		})
+
+		if (!dbUser) {
+			return redirect("/login")
+		}
+
+		const isAdmin = dbUser.userRoles.some(userRole => userRole.role.slug === "admin")
+
+		return {
+			user: dbUser,
+			isAdmin,
+			userId: user.id
+		}
 	} catch (error: any) {
 		console.error("Error in getUserWithRole:", error)
 		throw new Error("Failed to get user with role")
