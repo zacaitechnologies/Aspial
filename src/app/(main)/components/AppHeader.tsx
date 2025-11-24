@@ -3,7 +3,7 @@
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,7 @@ import { signout } from "@/lib/auth-actions"
 export function AppHeader() {
     const { enhancedUser } = useSession();
     const pathname = usePathname();
+    const router = useRouter();
     
     // Get page title based on current path
     const getPageTitle = () => {
@@ -83,10 +84,9 @@ export function AppHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Billing</DropdownMenuItem>
-              <DropdownMenuItem>Team</DropdownMenuItem>
-              <DropdownMenuItem>Subscription</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/settings")}>
+                Profile
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signout}>Log out</DropdownMenuItem>
             </DropdownMenuContent>
