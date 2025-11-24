@@ -248,8 +248,41 @@ export async function calculateFinalStars(userId: string): Promise<{ totalStars:
 }
 
 // Check if user has super performance award (based on previous year)
-export async function checkSuperPerformanceAward(userId: string): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number }> {
+export async function checkSuperPerformanceAward(userId: string): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number; manualOverride: boolean }> {
   try {
+    // Check for manual override first
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        superPerformanceAwardActive: true,
+      },
+    })
+
+    // If there's a manual override (admin activated/deactivated), use that
+    if (user && user.superPerformanceAwardActive !== null) {
+      const previousYear = new Date().getFullYear() - 1
+      const previousYearSalesData = await getEmployeeSalesData(userId, previousYear)
+      const previousYearComplaints = await getEmployeeComplaints(userId)
+      
+      const totalStars = previousYearSalesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
+      
+      const previousYearStart = new Date(previousYear, 0, 1)
+      const previousYearEnd = new Date(previousYear, 11, 31, 23, 59, 59)
+      
+      const previousYearComplaintsCount = previousYearComplaints.filter(complaint => {
+        const complaintDate = new Date(complaint.date)
+        return complaintDate >= previousYearStart && complaintDate <= previousYearEnd
+      }).length
+      
+      const previousYearStars = totalStars - previousYearComplaintsCount
+
+      return {
+        hasSuperPerformanceAward: user.superPerformanceAwardActive,
+        previousYearStars,
+        manualOverride: true,
+      }
+    }
+
     const previousYear = new Date().getFullYear() - 1
     
     // Get previous year sales data
@@ -271,19 +304,209 @@ export async function checkSuperPerformanceAward(userId: string): Promise<{ hasS
     
     const previousYearStars = totalStars - previousYearComplaintsCount
     
-    // Super performance award requires 3 or more stars
-    const hasSuperPerformanceAward = previousYearStars >= 3
+    // Super performance award requires 12 or more stars
+    const hasSuperPerformanceAward = previousYearStars >= 12
 
     return {
       hasSuperPerformanceAward,
       previousYearStars,
+      manualOverride: false,
     }
   } catch (error) {
     console.error("Error checking super performance award:", error)
     return {
       hasSuperPerformanceAward: false,
       previousYearStars: 0,
+      manualOverride: false,
     }
   }
 }
 
+// Check if user is admin
+export async function checkIsAdmin(userId: string): Promise<boolean> {
+  try {
+    const userWithRoles = await prisma.user.findUnique({
+      where: { supabase_id: userId },
+      include: {
+        userRoles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    })
+
+    if (!userWithRoles) {
+      return false
+    }
+
+    return userWithRoles.userRoles.some((userRole) => userRole.role.slug === 'admin')
+  } catch (error) {
+    console.error('Error checking admin status:', error)
+    return false
+  }
+}
+
+// Admin: Get all users' sales data and award status
+export interface UserBenefitsSummary {
+  userId: string
+  userName: string
+  email: string
+  profilePicture: string | null
+  currentYearlySales: number
+  currentLevel: number
+  commissionRate: string
+  totalStars: number
+  complaintsCount: number
+  starsAfterComplaints: number
+  hasSuperPerformanceAward: boolean
+  previousYearStars: number
+  manualOverride: boolean
+}
+
+export async function getAllUsersBenefits(year: number = new Date().getFullYear()): Promise<UserBenefitsSummary[]> {
+  try {
+    // Get all non-admin users
+    const users = await prisma.user.findMany({
+      where: {
+        userRoles: {
+          none: {
+            role: {
+              slug: 'admin',
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        supabase_id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        profilePicture: true,
+      },
+      orderBy: {
+        firstName: 'asc',
+      },
+    })
+
+    // Fetch data for each user
+    const usersBenefitsPromises = users.map(async (user) => {
+      try {
+        const salesData = await getEmployeeSalesData(user.id, year)
+        const complaints = await getEmployeeComplaints(user.id)
+        const awardStatus = await checkSuperPerformanceAward(user.id)
+
+        const totalStars = salesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
+        const starsAfterComplaints = totalStars - complaints.length
+
+        return {
+          userId: user.id,
+          userName: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          profilePicture: user.profilePicture,
+          currentYearlySales: salesData.currentYearlySales,
+          currentLevel: salesData.currentLevel,
+          commissionRate: salesData.commissionRate,
+          totalStars,
+          complaintsCount: complaints.length,
+          starsAfterComplaints,
+          hasSuperPerformanceAward: awardStatus.hasSuperPerformanceAward,
+          previousYearStars: awardStatus.previousYearStars,
+          manualOverride: awardStatus.manualOverride,
+        }
+      } catch (error) {
+        console.error(`Error fetching benefits for user ${user.id}:`, error)
+        return {
+          userId: user.id,
+          userName: `${user.firstName} ${user.lastName}`,
+          email: user.email,
+          profilePicture: user.profilePicture,
+          currentYearlySales: 0,
+          currentLevel: 0,
+          commissionRate: '0%',
+          totalStars: 0,
+          complaintsCount: 0,
+          starsAfterComplaints: 0,
+          hasSuperPerformanceAward: false,
+          previousYearStars: 0,
+          manualOverride: false,
+        }
+      }
+    })
+
+    return await Promise.all(usersBenefitsPromises)
+  } catch (error) {
+    console.error('Error fetching all users benefits:', error)
+    return []
+  }
+}
+
+// Admin: Manually activate super performance award
+export async function activateSuperPerformanceAward(userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        superPerformanceAwardActive: true,
+      },
+    })
+
+    return {
+      success: true,
+      message: 'Super Performance Award activated successfully',
+    }
+  } catch (error) {
+    console.error('Error activating super performance award:', error)
+    return {
+      success: false,
+      message: 'Failed to activate Super Performance Award',
+    }
+  }
+}
+
+// Admin: Manually terminate super performance award
+export async function terminateSuperPerformanceAward(userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        superPerformanceAwardActive: false,
+      },
+    })
+
+    return {
+      success: true,
+      message: 'Super Performance Award terminated successfully',
+    }
+  }  catch (error) {
+    console.error('Error terminating super performance award:', error)
+    return {
+      success: false,
+      message: 'Failed to terminate Super Performance Award',
+    }
+  }
+}
+
+// Admin: Reset super performance award to auto (based on performance)
+export async function resetSuperPerformanceAward(userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        superPerformanceAwardActive: null,
+      },
+    })
+
+    return {
+      success: true,
+      message: 'Super Performance Award reset to automatic',
+    }
+  } catch (error) {
+    console.error('Error resetting super performance award:', error)
+    return {
+      success: false,
+      message: 'Failed to reset Super Performance Award',
+    }
+  }
+}

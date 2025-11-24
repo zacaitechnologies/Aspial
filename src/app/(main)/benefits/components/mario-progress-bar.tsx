@@ -76,9 +76,9 @@ export function MarioProgressBar({ progress, targets, viewMode }: MarioProgressB
         </div>
 
         {/* Grass layer at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-b from-green-600 to-green-700 border-t-2 border-green-800">
+        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-b from-green-600 to-green-700 border-t-2 border-green-800" suppressHydrationWarning>
           {/* Grass blades */}
-          <div className="absolute inset-0 flex items-end justify-around px-2">
+          <div className="absolute inset-0 flex items-end justify-around px-2" suppressHydrationWarning>
             {[...Array(30)].map((_, i) => (
               <div
                 key={i}
@@ -87,6 +87,7 @@ export function MarioProgressBar({ progress, targets, viewMode }: MarioProgressB
                   height: `${Math.random() * 15 + 10}px`,
                   opacity: 0.6,
                 }}
+                suppressHydrationWarning
               />
             ))}
           </div>
