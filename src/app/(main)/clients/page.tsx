@@ -24,7 +24,6 @@ import {
   Crown,
 } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
 import { getClientsPaginated, deleteClient } from "./action"
 import CreateClientDialog from "./components/CreateClientDialog"
 import EditClientDialog from "./components/EditClientDialog"
@@ -49,7 +48,6 @@ interface Client {
   quotationsCount: number
   totalValue: number
   created_at: string
-  photo?: string
 }
 
 
@@ -348,26 +346,6 @@ export default function ClientsPage() {
             >
               <CardHeader className="">
                 <div className="flex items-start gap-3">
-                  {/* Photo */}
-                  <div className="flex-shrink-0">
-                    {client.photo ? (
-                      <Image
-                        src={client.photo || "/placeholder.svg"}
-                        alt={`${client.name} profile`}
-                        width={60}
-                        height={60}
-                        className="rounded-full object-cover border-2"
-                        style={{ borderColor: "#BDC4A5" }}
-                      />
-                    ) : (
-                      <div
-                        className="w-15 h-15 rounded-full flex items-center justify-center border-2"
-                        style={{ backgroundColor: "#BDC4A5", borderColor: "#898D74" }}
-                      >
-                        <User className="w-8 h-8" style={{ color: "#202F21" }} />
-                      </div>
-                    )}
-                  </div>
                   
                   {/* Content Area */}
                   <div className="flex-1 min-w-0">

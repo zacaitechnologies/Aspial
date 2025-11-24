@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
+
 // Authentication functions
 export async function getCurrentUser() {
   try {
@@ -73,7 +74,7 @@ export async function getAllClients() {
       membershipType: client.membershipType,
       quotationsCount: client.quotations.length,
       totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
-      created_at: client.created_at.toISOString()
+      created_at: client.created_at.toISOString(),
     }))
   } catch (error: any) {
     // Handle redirect errors
@@ -162,8 +163,6 @@ export async function getClientsPaginated(
       phone: client.phone || undefined,
       company: client.company || undefined,
       address: client.address || undefined,
-      city: client.city || undefined,
-      country: client.country || undefined,
       notes: client.notes || undefined,
       industry: client.industry || undefined,
       yearlyRevenue: client.yearlyRevenue || undefined,
@@ -171,7 +170,6 @@ export async function getClientsPaginated(
       quotationsCount: client.quotations.length,
       totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
       created_at: client.created_at.toISOString(),
-      photo: client.photo || undefined,
     }))
 
     return {

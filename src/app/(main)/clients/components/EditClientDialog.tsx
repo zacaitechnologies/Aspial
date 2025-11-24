@@ -23,7 +23,6 @@ interface Client {
   quotationsCount: number
   totalValue: number
   created_at: string
-  photo?: string
 }
 
 interface EditClientDialogProps {
@@ -50,7 +49,6 @@ export default function EditClientDialog({
     yearlyRevenue: "",
     membershipType: "NON_MEMBER"
   })
-
   // Update form data when client changes
   useEffect(() => {
     if (client) {
@@ -100,110 +98,113 @@ export default function EditClientDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle style={{ color: "#202F21" }}>Edit Client</DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="edit-name">Full Name</Label>
-            <Input 
-              id="edit-name" 
-              placeholder="John Smith" 
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-            />
+      <DialogContent className="max-w-2xl max-h-[90vh] rounded-lg">
+        <div className="custom-scrollbar overflow-y-auto max-h-[calc(90vh-4rem)] pr-2">
+          <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
+            <DialogTitle style={{ color: "#202F21" }}>Edit Client</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Full Name</Label>
+              <Input 
+                id="edit-name" 
+                placeholder="John Smith" 
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input 
+                id="edit-email" 
+                type="email" 
+                placeholder="john@company.com" 
+                value={formData.email}
+                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input 
+                id="edit-phone" 
+                placeholder="+1 (555) 123-4567" 
+                value={formData.phone}
+                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-company">Company</Label>
+              <Input 
+                id="edit-company" 
+                placeholder="Company Name" 
+                value={formData.company}
+                onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="edit-address">Address</Label>
+              <Input 
+                id="edit-address" 
+                placeholder="123 Business Avenue" 
+                value={formData.address}
+                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-industry">Industry</Label>
+              <Input 
+                id="edit-industry" 
+                placeholder="Technology, Healthcare, etc." 
+                value={formData.industry}
+                onChange={(e) => setFormData(prev => ({ ...prev, industry: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-yearlyRevenue">Yearly Revenue (RM)</Label>
+              <Input 
+                id="edit-yearlyRevenue" 
+                type="number"
+                placeholder="1000000" 
+                value={formData.yearlyRevenue}
+                onChange={(e) => setFormData(prev => ({ ...prev, yearlyRevenue: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-membershipType">Membership Type</Label>
+              <Select value={formData.membershipType} onValueChange={(value) => setFormData(prev => ({ ...prev, membershipType: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select membership type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MEMBER">Member</SelectItem>
+                  <SelectItem value="NON_MEMBER">Non-Member</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea 
+                id="edit-notes" 
+                placeholder="Additional notes about the client..." 
+                value={formData.notes}
+                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-email">Email</Label>
-            <Input 
-              id="edit-email" 
-              type="email" 
-              placeholder="john@company.com" 
-              value={formData.email}
-              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-            />
+
+          <div className="flex justify-end gap-2 sticky bottom-0 bg-background pt-4">
+            <Button variant="outline" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button 
+              style={{ backgroundColor: "#202F21" }} 
+              className="text-white"
+              onClick={handleUpdateClient}
+              disabled={!formData.name || !formData.email}
+            >
+              Update Client
+            </Button>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-phone">Phone</Label>
-            <Input 
-              id="edit-phone" 
-              placeholder="+1 (555) 123-4567" 
-              value={formData.phone}
-              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-company">Company</Label>
-            <Input 
-              id="edit-company" 
-              placeholder="Company Name" 
-              value={formData.company}
-              onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
-            />
-          </div>
-          <div className="col-span-2 space-y-2">
-            <Label htmlFor="edit-address">Address</Label>
-            <Input 
-              id="edit-address" 
-              placeholder="123 Business Avenue" 
-              value={formData.address}
-              onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-industry">Industry</Label>
-            <Input 
-              id="edit-industry" 
-              placeholder="Technology, Healthcare, etc." 
-              value={formData.industry}
-              onChange={(e) => setFormData(prev => ({ ...prev, industry: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-yearlyRevenue">Yearly Revenue (RM)</Label>
-            <Input 
-              id="edit-yearlyRevenue" 
-              type="number"
-              placeholder="1000000" 
-              value={formData.yearlyRevenue}
-              onChange={(e) => setFormData(prev => ({ ...prev, yearlyRevenue: e.target.value }))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="edit-membershipType">Membership Type</Label>
-            <Select value={formData.membershipType} onValueChange={(value) => setFormData(prev => ({ ...prev, membershipType: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select membership type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MEMBER">Member</SelectItem>
-                <SelectItem value="NON_MEMBER">Non-Member</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-2 space-y-2">
-            <Label htmlFor="edit-notes">Notes</Label>
-            <Textarea 
-              id="edit-notes" 
-              placeholder="Additional notes about the client..." 
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-            />
-          </div>
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button 
-            style={{ backgroundColor: "#202F21" }} 
-            className="text-white"
-            onClick={handleUpdateClient}
-            disabled={!formData.name || !formData.email}
-          >
-            Update Client
-          </Button>
         </div>
       </DialogContent>
     </Dialog>
