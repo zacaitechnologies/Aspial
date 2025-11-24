@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
+import { isUserAdmin } from "../projects/permissions"
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -161,28 +162,47 @@ export async function fetchUserProjects(supabaseId: string) {
     throw new Error("User not found")
   }
   
-  const projects = await prisma.project.findMany({
-    // where: {
-    //   OR: [
-    //     { createdBy: dbUser.supabase_id },
-    //     {
-    //       permissions: {
-    //         some: {
-    //           userId: dbUser.supabase_id
-    //         }
-    //       }
-    //     }
-    //   ]
-    // },
+  // Check if user is admin
+  const admin = await isUserAdmin(supabaseId)
+  
+  if (admin) {
+    // Admins can see all projects
+    const projects = await prisma.project.findMany({
+      include: {
+        quotations: true
+      },
+      orderBy: {
+        created_at: "desc"
+      }
+    })
+    
+    return projects
+  }
+  
+  // Non-admins: only show projects they have permissions for
+  const userPermissions = await prisma.projectPermission.findMany({
+    where: { 
+      userId: supabaseId, 
+      OR: [
+        { isOwner: true },
+        { canView: true }
+      ]
+    },
     include: {
-      quotations: true
+      project: {
+        include: {
+          quotations: true
+        }
+      }
     },
     orderBy: {
-      created_at: "desc"
+      project: {
+        created_at: "desc"
+      }
     }
   })
   
-  return projects
+  return userPermissions.map((permission) => permission.project)
 }
 
 // CRUD operations for time entries

@@ -9,9 +9,13 @@ const PROFILE_PICTURES_BUCKET = "profile-pictures"
 
 // Create admin client for bucket operations (requires SUPABASE_SERVICE_ROLE_KEY)
 function createAdminClient() {
+	const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+	if (!serviceRoleKey) {
+		throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set. Cannot perform admin operations.")
+	}
 	return createSupabaseClient(
 		process.env.NEXT_PUBLIC_SUPABASE_URL!,
-		process.env.SUPABASE_SERVICE_ROLE_KEY!,
+		serviceRoleKey,
 		{
 			auth: {
 				autoRefreshToken: false,
@@ -222,12 +226,41 @@ export async function uploadProfilePicture(formData: FormData) {
 		// Delete old profile picture if it exists
 		if (dbUser.profilePicture) {
 			try {
-				// Extract file path from URL (remove domain and bucket name)
-				const oldFilePath = dbUser.profilePicture.split("/").pop()
-				if (oldFilePath) {
-					await supabase.storage
-						.from(PROFILE_PICTURES_BUCKET)
-						.remove([oldFilePath])
+				// Extract file path from URL
+				// URL format: https://[project-id].supabase.co/storage/v1/object/public/profile-pictures/[filename]
+				const urlParts = dbUser.profilePicture.split("/")
+				const fileName = urlParts[urlParts.length - 1]
+				
+				if (fileName) {
+					// Try to use admin client first (bypasses RLS)
+					try {
+						const adminClient = createAdminClient()
+						const { error: deleteError } = await adminClient.storage
+							.from(PROFILE_PICTURES_BUCKET)
+							.remove([fileName])
+						
+						if (deleteError) {
+							console.error("Error deleting old profile picture with admin client:", deleteError)
+							// Try with regular client as fallback
+							const { error: fallbackError } = await supabase.storage
+								.from(PROFILE_PICTURES_BUCKET)
+								.remove([fileName])
+							
+							if (fallbackError) {
+								console.error("Error deleting old profile picture with regular client:", fallbackError)
+							}
+						}
+					} catch (adminError: any) {
+						// If admin client creation fails (e.g., no service role key), try regular client
+						console.warn("Admin client not available, using regular client:", adminError.message)
+						const { error: fallbackError } = await supabase.storage
+							.from(PROFILE_PICTURES_BUCKET)
+							.remove([fileName])
+						
+						if (fallbackError) {
+							console.error("Error deleting old profile picture with regular client:", fallbackError)
+						}
+					}
 				}
 			} catch (deleteError) {
 				// Log but don't fail if old image deletion fails
@@ -350,14 +383,47 @@ export async function deleteProfilePicture() {
 
 		// Delete file from storage
 		try {
-			const filePath = dbUser.profilePicture.split("/").pop()
-			if (filePath) {
-				await supabase.storage
-					.from(PROFILE_PICTURES_BUCKET)
-					.remove([filePath])
+			// Extract file path from URL
+			// URL format: https://[project-id].supabase.co/storage/v1/object/public/profile-pictures/[filename]
+			const urlParts = dbUser.profilePicture.split("/")
+			const fileName = urlParts[urlParts.length - 1]
+			
+			if (fileName) {
+				// Try to use admin client first (bypasses RLS)
+				try {
+					const adminClient = createAdminClient()
+					const { error: deleteError } = await adminClient.storage
+						.from(PROFILE_PICTURES_BUCKET)
+						.remove([fileName])
+					
+					if (deleteError) {
+						console.error("Error deleting profile picture with admin client:", deleteError)
+						// Try with regular client as fallback
+						const { error: fallbackError } = await supabase.storage
+							.from(PROFILE_PICTURES_BUCKET)
+							.remove([fileName])
+						
+						if (fallbackError) {
+							console.error("Error deleting profile picture with regular client:", fallbackError)
+							// Don't throw - continue to update database even if file deletion fails
+						}
+					}
+				} catch (adminError: any) {
+					// If admin client creation fails (e.g., no service role key), try regular client
+					console.warn("Admin client not available, using regular client:", adminError.message)
+					const { error: fallbackError } = await supabase.storage
+						.from(PROFILE_PICTURES_BUCKET)
+						.remove([fileName])
+					
+					if (fallbackError) {
+						console.error("Error deleting profile picture with regular client:", fallbackError)
+						// Don't throw - continue to update database even if file deletion fails
+					}
+				}
 			}
 		} catch (deleteError) {
 			console.error("Error deleting profile picture from storage:", deleteError)
+			// Don't throw - continue to update database even if file deletion fails
 		}
 
 		// Update user record

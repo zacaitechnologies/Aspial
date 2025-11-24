@@ -356,6 +356,25 @@ export async function createProjectInvitation(
 	canEdit: boolean = true,
 	isOwner: boolean = false
 ) {
+	// Check if the inviter is an admin or project owner
+	const isAdmin = await isUserAdmin(invitedBy);
+	
+	if (!isAdmin) {
+		// For non-admins, check if they are a project owner
+		const permission = await prisma.projectPermission.findUnique({
+			where: {
+				userId_projectId: {
+					userId: invitedBy,
+					projectId: projectId,
+				},
+			},
+		});
+		
+		if (!permission?.isOwner) {
+			throw new Error("Only project owners or admins can invite collaborators");
+		}
+	}
+	
 	// Use upsert to update existing invitation or create new one
 	return await prisma.projectInvitation.upsert({
 		where: {

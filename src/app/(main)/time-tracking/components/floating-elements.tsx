@@ -9,16 +9,8 @@ export function FloatingElements() {
         style={{ animationDelay: "0s", animationDuration: "3s" }}
       />
       <div
-        className="absolute top-40 right-20 w-3 h-3 bg-purple-400 rounded-full animate-bounce opacity-40"
-        style={{ animationDelay: "1s", animationDuration: "4s" }}
-      />
-      <div
         className="absolute bottom-32 left-1/4 w-2 h-2 bg-green-400 rounded-full animate-bounce opacity-50"
         style={{ animationDelay: "2s", animationDuration: "5s" }}
-      />
-      <div
-        className="absolute bottom-20 right-1/3 w-4 h-4 bg-pink-400 rounded-full animate-bounce opacity-30"
-        style={{ animationDelay: "0.5s", animationDuration: "3.5s" }}
       />
 
       {/* Floating shapes */}

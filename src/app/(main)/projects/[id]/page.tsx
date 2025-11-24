@@ -348,7 +348,7 @@ export default function ProjectPage() {
                     })}
                   </div>
 
-                  {isProjectOwner && !isProjectCancelled && (
+                  {(isProjectOwner || isAdmin) && !isProjectCancelled && (
                     <Button
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                       onClick={handleManageCollaborators}
