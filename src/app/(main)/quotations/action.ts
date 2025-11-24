@@ -58,8 +58,34 @@ export async function getQuotationsPaginated(
     take: pageSize,
   })
 
+  // Transform data to match QuotationWithServices type (convert null to undefined)
+  const transformedQuotations = quotations.map(quotation => ({
+    ...quotation,
+    discountValue: quotation.discountValue ?? undefined,
+    discountType: quotation.discountType ?? undefined,
+    Client: quotation.Client ? {
+      ...quotation.Client,
+      phone: quotation.Client.phone ?? undefined,
+      company: quotation.Client.company ?? undefined,
+      address: quotation.Client.address ?? undefined,
+      notes: quotation.Client.notes ?? undefined,
+      industry: quotation.Client.industry ?? undefined,
+      yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
+    } : undefined,
+    services: quotation.services.map(service => ({
+      ...service,
+      customServiceId: service.customServiceId ?? undefined,
+    })),
+    project: quotation.project ? {
+      ...quotation.project,
+      description: quotation.project.description ?? undefined,
+      startDate: quotation.project.startDate ?? undefined,
+      endDate: quotation.project.endDate ?? undefined,
+    } : null,
+  }))
+
   return {
-    data: quotations,
+    data: transformedQuotations,
     total,
     page,
     pageSize,

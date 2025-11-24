@@ -104,6 +104,7 @@ export async function fetchAllUsers() {
       created_at: true,
       updated_at: true,
       staffRoleId: true,
+      superPerformanceAwardActive: true,
       userRoles: {
         include: {
           role: true
