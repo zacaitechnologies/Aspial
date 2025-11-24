@@ -5,7 +5,8 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
-
+import { getCachedUser } from "@/lib/auth-cache"
+import { unstable_cache } from "next/cache"
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -89,7 +90,8 @@ export async function getAllClients() {
   }
 }
 
-export async function getClientsPaginated(
+// Internal function - not cached, used by cached version
+async function _getClientsPaginatedInternal(
   page: number = 1,
   pageSize: number = 12,
   filters: {
@@ -100,42 +102,38 @@ export async function getClientsPaginated(
     sortDirection?: 'asc' | 'desc'
   } = {}
 ) {
-  try {
-    await getCurrentUser()
+  const skip = (page - 1) * pageSize
+  const {
+    searchTerm,
+    industry,
+    membershipType,
+    sortBy = 'created_at',
+    sortDirection = 'desc',
+  } = filters
 
-    const skip = (page - 1) * pageSize
-    const {
-      searchTerm,
-      industry,
-      membershipType,
-      sortBy = 'created_at',
-      sortDirection = 'desc',
-    } = filters
+  // Build where clause
+  const where: any = {}
 
-    // Build where clause
-    const where: any = {}
+  if (searchTerm) {
+    where.OR = [
+      { name: { contains: searchTerm, mode: 'insensitive' } },
+      { email: { contains: searchTerm, mode: 'insensitive' } },
+      { company: { contains: searchTerm, mode: 'insensitive' } },
+    ]
+  }
 
-    if (searchTerm) {
-      where.OR = [
-        { name: { contains: searchTerm, mode: 'insensitive' } },
-        { email: { contains: searchTerm, mode: 'insensitive' } },
-        { company: { contains: searchTerm, mode: 'insensitive' } },
-      ]
-    }
+  if (industry && industry !== 'all') {
+    where.industry = industry
+  }
 
-    if (industry && industry !== 'all') {
-      where.industry = industry
-    }
+  if (membershipType && membershipType !== 'all') {
+    where.membershipType = membershipType
+  }
 
-    if (membershipType && membershipType !== 'all') {
-      where.membershipType = membershipType
-    }
-
-    // Get total count
-    const total = await prisma.client.count({ where })
-
-    // Get paginated data
-    const clients = await prisma.client.findMany({
+  // Execute count and findMany in parallel for better performance
+  const [total, clients] = await Promise.all([
+    prisma.client.count({ where }),
+    prisma.client.findMany({
       where,
       include: {
         quotations: {
@@ -153,32 +151,62 @@ export async function getClientsPaginated(
       skip,
       take: pageSize,
       orderBy: { [sortBy]: sortDirection },
-    })
+    }),
+  ])
 
-    // Transform data
-    const transformedClients = clients.map(client => ({
-      id: client.id,
-      name: client.name,
-      email: client.email,
-      phone: client.phone || undefined,
-      company: client.company || undefined,
-      address: client.address || undefined,
-      notes: client.notes || undefined,
-      industry: client.industry || undefined,
-      yearlyRevenue: client.yearlyRevenue || undefined,
-      membershipType: client.membershipType,
-      quotationsCount: client.quotations.length,
-      totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
-      created_at: client.created_at.toISOString(),
-    }))
+  // Transform data
+  const transformedClients = clients.map(client => ({
+    id: client.id,
+    name: client.name,
+    email: client.email,
+    phone: client.phone || undefined,
+    company: client.company || undefined,
+    address: client.address || undefined,
+    notes: client.notes || undefined,
+    industry: client.industry || undefined,
+    yearlyRevenue: client.yearlyRevenue || undefined,
+    membershipType: client.membershipType,
+    quotationsCount: client.quotations.length,
+    totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
+    created_at: client.created_at.toISOString(),
+  }))
 
-    return {
-      data: transformedClients,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.ceil(total / pageSize),
-    }
+  return {
+    data: transformedClients,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  }
+}
+
+export async function getClientsPaginated(
+  page: number = 1,
+  pageSize: number = 12,
+  filters: {
+    searchTerm?: string
+    industry?: string
+    membershipType?: 'all' | 'MEMBER' | 'NON_MEMBER'
+    sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
+    sortDirection?: 'asc' | 'desc'
+  } = {}
+) {
+  try {
+    // Use cached auth - deduplicates within same request
+    await getCachedUser()
+
+    // Cache key based on all parameters
+    const cacheKey = `clients-paginated-${page}-${pageSize}-${JSON.stringify(filters)}`
+    
+    // Cache for 30 seconds - balances freshness with performance
+    return await unstable_cache(
+      async () => _getClientsPaginatedInternal(page, pageSize, filters),
+      [cacheKey],
+      {
+        revalidate: 30, // 30 seconds
+        tags: ['clients'],
+      }
+    )()
   } catch (error: any) {
     if (isRedirectError(error)) throw error
     console.error('Error in getClientsPaginated:', error)

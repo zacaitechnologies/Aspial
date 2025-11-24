@@ -69,6 +69,35 @@ export function usePaginatedData<T, F = any>({
 		[]
 	)
 
+	// Silent prefetch - doesn't update UI state, only caches data
+	const prefetchPage = useCallback(
+		async (targetPage: number, targetPageSize: number) => {
+			const cacheKey = getCacheKey(targetPage, targetPageSize, filters as F)
+			const now = Date.now()
+
+			// Check if already cached and fresh
+			const cached = cacheRef.current.get(cacheKey)
+			if (cached && now - cached.timestamp < cacheTime) {
+				return // Already have fresh data
+			}
+
+			// Silently fetch and cache (don't update UI state)
+			try {
+				const result = await fetchFn(targetPage, targetPageSize, filters as F)
+				cacheRef.current.set(cacheKey, {
+					data: result.data,
+					total: result.total,
+					totalPages: result.totalPages,
+					timestamp: now,
+				})
+			} catch (error) {
+				// Silent fail for prefetch
+				console.debug('Prefetch failed:', error)
+			}
+		},
+		[fetchFn, filters, cacheTime, getCacheKey]
+	)
+
 	const loadData = useCallback(
 		async (targetPage: number, targetPageSize: number, forceRefresh = false) => {
 			const cacheKey = getCacheKey(targetPage, targetPageSize, filters as F)
@@ -121,12 +150,36 @@ export function usePaginatedData<T, F = any>({
 
 	const goToPage = useCallback(
 		(newPage: number) => {
-			// Optimistic page update - change page immediately
+			// Optimistic page update - change page immediately (this updates the UI instantly)
 			setPage(newPage)
-			// Then load data with loading indicator
+			
+			// Check cache first for instant UI update
+			const cacheKey = getCacheKey(newPage, pageSize, filters as F)
+			const cached = cacheRef.current.get(cacheKey)
+			const now = Date.now()
+			
+			if (cached && now - cached.timestamp < cacheTime) {
+				// We have fresh cached data - show it immediately, no loading, no fetch
+				setData(cached.data)
+				setTotal(cached.total)
+				setTotalPages(cached.totalPages)
+				setIsLoading(false)
+				
+				// Prefetch adjacent pages in background for faster future navigation
+				if (newPage > 1) {
+					prefetchPage(newPage - 1, pageSize)
+				}
+				if (newPage < totalPages) {
+					prefetchPage(newPage + 1, pageSize)
+				}
+				
+				return
+			}
+			
+			// No cache or stale cache - fetch data
 			loadData(newPage, pageSize)
 		},
-		[loadData, pageSize]
+		[loadData, pageSize, getCacheKey, filters, cacheTime, totalPages, prefetchPage]
 	)
 
 	const setPageSize = useCallback(
@@ -147,10 +200,19 @@ export function usePaginatedData<T, F = any>({
 		cacheRef.current.clear()
 	}, [])
 
-	// Initial load and filter changes
+	// Initial load
 	useEffect(() => {
-		loadData(page, pageSize)
-	}, [loadData, page, pageSize])
+		loadData(initialPage, initialPageSize)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []) // Only run on mount
+	
+	// Reload when filters or pageSize change (but not when page changes - that's handled by goToPage)
+	useEffect(() => {
+		// Reset to page 1 when filters change
+		setPage(1)
+		loadData(1, pageSize, true) // Force refresh when filters change
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [JSON.stringify(filters), pageSize])
 
 	return {
 		data,

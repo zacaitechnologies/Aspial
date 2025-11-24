@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/utils/supabase/server"
+import { unstable_cache } from "next/cache"
 
 // Create admin client with service role key for admin operations
 function createAdminClient() {
@@ -140,20 +141,36 @@ export async function getAllNonAdminUsers(): Promise<UserWithRole[]> {
 }
 
 // Fetch non-admin users with pagination
-export async function getUsersPaginated(
+// Internal function - not cached, used by cached version
+async function _getUsersPaginatedInternal(
   page: number = 1,
   pageSize: number = 12
 ) {
-  const validation = await validateAdminUser()
-  if (!validation.valid) {
-    throw new Error(validation.error)
+  const skip = (page - 1) * pageSize
+
+  // Get admin role ID first (more efficient than filtering in memory)
+  const adminRole = await prisma.role.findFirst({
+    where: { slug: 'admin' },
+    select: { id: true }
+  })
+
+  // Build where clause to exclude users with admin role
+  const where: any = {}
+  if (adminRole) {
+    where.NOT = {
+      userRoles: {
+        some: {
+          roleId: adminRole.id
+        }
+      }
+    }
   }
 
-  try {
-    const skip = (page - 1) * pageSize
-
-    // Get all users first (to filter out admins)
-    const allUsers = await prisma.user.findMany({
+  // Execute count and findMany in parallel for better performance
+  const [total, users] = await Promise.all([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
       include: {
         userRoles: {
           include: {
@@ -164,29 +181,46 @@ export async function getUsersPaginated(
       },
       orderBy: {
         created_at: 'desc'
+      },
+      skip,
+      take: pageSize,
+    })
+  ])
+
+  return {
+    data: users.map(user => ({
+      ...user,
+      roles: user.userRoles
+    })),
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize)
+  }
+}
+
+export async function getUsersPaginated(
+  page: number = 1,
+  pageSize: number = 12
+) {
+  const validation = await validateAdminUser()
+  if (!validation.valid) {
+    throw new Error(validation.error)
+  }
+
+  try {
+    // Cache key based on all parameters
+    const cacheKey = `users-paginated-${page}-${pageSize}`
+    
+    // Cache for 30 seconds - balances freshness with performance
+    return await unstable_cache(
+      async () => _getUsersPaginatedInternal(page, pageSize),
+      [cacheKey],
+      {
+        revalidate: 30, // 30 seconds
+        tags: ['users'],
       }
-    })
-
-    // Filter out admin users
-    const nonAdminUsers = allUsers.filter(user => {
-      const isAdmin = user.userRoles.some(ur => ur.role.slug === 'admin')
-      return !isAdmin
-    })
-
-    // Apply pagination
-    const total = nonAdminUsers.length
-    const paginatedUsers = nonAdminUsers.slice(skip, skip + pageSize)
-
-    return {
-      data: paginatedUsers.map(user => ({
-        ...user,
-        roles: user.userRoles
-      })),
-      total,
-      page,
-      pageSize,
-      totalPages: Math.ceil(total / pageSize)
-    }
+    )()
   } catch (error) {
     console.error("Error fetching paginated users:", error)
     throw error

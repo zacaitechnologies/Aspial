@@ -1,6 +1,8 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { getCachedUser } from "@/lib/auth-cache"
+import { unstable_cache } from "next/cache"
 import { isUserAdmin } from "../projects/permissions"
 
 export async function getAllQuotations(userId?: string) {
@@ -20,7 +22,8 @@ export async function getAllQuotations(userId?: string) {
   })
 }
 
-export async function getQuotationsPaginated(
+// Internal function - not cached, used by cached version
+async function _getQuotationsPaginatedInternal(
   page: number = 1,
   pageSize: number = 10,
   filters: {
@@ -36,27 +39,27 @@ export async function getQuotationsPaginated(
     where.workflowStatus = statusFilter
   }
 
-  // Get total count
-  const total = await prisma.quotation.count({ where })
-
-  // Get paginated data
-  const quotations = await prisma.quotation.findMany({
-    where,
-    include: {
-      services: {
-        include: {
-          service: true,
+  // Execute count and findMany in parallel for better performance
+  const [total, quotations] = await Promise.all([
+    prisma.quotation.count({ where }),
+    prisma.quotation.findMany({
+      where,
+      include: {
+        services: {
+          include: {
+            service: true,
+          },
         },
+        project: true,
+        createdBy: true,
+        Client: true,
+        customServices: true,
       },
-      project: true,
-      createdBy: true,
-      Client: true,
-      customServices: true,
-    },
-    orderBy: { created_at: "desc" },
-    skip,
-    take: pageSize,
-  })
+      orderBy: { created_at: "desc" },
+      skip,
+      take: pageSize,
+    })
+  ])
 
   // Transform data to match QuotationWithServices type (convert null to undefined)
   const transformedQuotations = quotations.map(quotation => ({
@@ -91,6 +94,30 @@ export async function getQuotationsPaginated(
     pageSize,
     totalPages: Math.ceil(total / pageSize),
   }
+}
+
+export async function getQuotationsPaginated(
+  page: number = 1,
+  pageSize: number = 10,
+  filters: {
+    statusFilter?: string
+  } = {}
+) {
+  // Use cached auth - deduplicates within same request
+  await getCachedUser()
+
+  // Cache key based on all parameters
+  const cacheKey = `quotations-paginated-${page}-${pageSize}-${JSON.stringify(filters)}`
+  
+  // Cache for 30 seconds - balances freshness with performance
+  return await unstable_cache(
+    async () => _getQuotationsPaginatedInternal(page, pageSize, filters),
+    [cacheKey],
+    {
+      revalidate: 30, // 30 seconds
+      tags: ['quotations'],
+    }
+  )()
 }
 
 export async function getQuotationById(id: string) {

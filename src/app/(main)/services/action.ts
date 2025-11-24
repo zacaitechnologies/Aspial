@@ -1,6 +1,8 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { getCachedUser } from "@/lib/auth-cache"
+import { unstable_cache } from "next/cache"
 
 // Helper function to transform Prisma service data to include tags
 function transformService(service: any) {
@@ -25,7 +27,8 @@ export async function getAllServices() {
   return services.map(transformService)
 }
 
-export async function getServicesPaginated(
+// Internal function - not cached, used by cached version
+async function _getServicesPaginatedInternal(
   page: number = 1,
   pageSize: number = 12,
   filters: {
@@ -44,23 +47,23 @@ export async function getServicesPaginated(
     ]
   }
 
-  // Get total count
-  const total = await prisma.services.count({ where })
-
-  // Get paginated data
-  const services = await prisma.services.findMany({
-    where,
-    orderBy: { created_at: "desc" },
-    include: {
-      ServiceToTag: {
-        include: {
-          service_tags: true
+  // Execute count and findMany in parallel for better performance
+  const [total, services] = await Promise.all([
+    prisma.services.count({ where }),
+    prisma.services.findMany({
+      where,
+      orderBy: { created_at: "desc" },
+      include: {
+        ServiceToTag: {
+          include: {
+            service_tags: true
+          }
         }
-      }
-    },
-    skip,
-    take: pageSize,
-  })
+      },
+      skip,
+      take: pageSize,
+    }),
+  ])
 
   return {
     data: services.map(transformService),
@@ -69,6 +72,30 @@ export async function getServicesPaginated(
     pageSize,
     totalPages: Math.ceil(total / pageSize),
   }
+}
+
+export async function getServicesPaginated(
+  page: number = 1,
+  pageSize: number = 12,
+  filters: {
+    searchQuery?: string
+  } = {}
+) {
+  // Use cached auth - deduplicates within same request
+  await getCachedUser()
+
+  // Cache key based on all parameters
+  const cacheKey = `services-paginated-${page}-${pageSize}-${JSON.stringify(filters)}`
+  
+  // Cache for 30 seconds - balances freshness with performance
+  return await unstable_cache(
+    async () => _getServicesPaginatedInternal(page, pageSize, filters),
+    [cacheKey],
+    {
+      revalidate: 30, // 30 seconds
+      tags: ['services'],
+    }
+  )()
 }
 
 export async function searchServices(query: string) {
