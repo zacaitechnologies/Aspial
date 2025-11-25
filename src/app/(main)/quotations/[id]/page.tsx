@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getQuotationById } from "../action";
+import { useMemo, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -30,46 +29,31 @@ import {
 } from "lucide-react";
 import { workflowStatusOptions, paymentStatusOptions } from "../types";
 import { generateQuotationPDF } from "../utils/pdfExport";
+import { useQuotationCache } from "../hooks/useQuotationCache";
 
 export default function QuotationDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [quotation, setQuotation] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { quotation, isLoading } = useQuotationCache(params.id as string);
 
-  useEffect(() => {
-    fetchQuotation();
-  }, [params.id]);
-
-  const fetchQuotation = async () => {
-    try {
-      setLoading(true);
-      const data = await getQuotationById(params.id as string);
-      setQuotation(data);
-    } catch (error) {
-      console.error("Failed to fetch quotation:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getWorkflowStatusBadge = (status: string) => {
+  // Memoize badge functions to avoid recreating on every render
+  const getWorkflowStatusBadge = useCallback((status: string) => {
     const statusConfig = workflowStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge variant={statusConfig?.color || "secondary"} className={statusConfig?.className}>
         {statusConfig?.label || status}
       </Badge>
     );
-  };
+  }, []);
 
-  const getPaymentStatusBadge = (status: string) => {
+  const getPaymentStatusBadge = useCallback((status: string) => {
     const statusConfig = paymentStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge variant={statusConfig?.color || "secondary"} className={statusConfig?.className}>
         {statusConfig?.label || status}
       </Badge>
     );
-  };
+  }, []);
 
   const getCustomServiceStatusBadge = (status: string) => {
     switch (status) {
@@ -99,28 +83,26 @@ export default function QuotationDetailPage() {
     }
   };
 
-  const calculateApprovedCustomServicesTotal = () => {
+  // Memoize calculations to avoid recalculating on every render
+  const approvedCustomServicesTotal = useMemo(() => {
     if (!quotation?.customServices) return 0;
-    // Custom service prices are already total (not per month)
     return quotation.customServices
       .filter((cs: any) => cs.status === "APPROVED")
       .reduce((sum: number, cs: any) => sum + cs.price, 0);
-  };
+  }, [quotation?.customServices]);
 
-  const calculateGrandTotal = () => {
-    // quotation.totalPrice is already the grand total for entire duration (fixed services)
+  const grandTotal = useMemo(() => {
     const fixedServicesTotal = quotation?.totalPrice || 0;
-    const customServicesTotal = calculateApprovedCustomServicesTotal();
-    return fixedServicesTotal + customServicesTotal;
-  };
+    return fixedServicesTotal + approvedCustomServicesTotal;
+  }, [quotation?.totalPrice, approvedCustomServicesTotal]);
 
-  const calculateMonthlyFixedTotal = () => {
+  const monthlyFixedTotal = useMemo(() => {
     if (!quotation) return 0;
     const duration = quotation.duration || 1;
     return quotation.totalPrice / duration;
-  };
+  }, [quotation?.totalPrice, quotation?.duration]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="container mx-auto p-6">
         <div className="flex items-center justify-center h-64">
@@ -365,7 +347,7 @@ export default function QuotationDetailPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Fixed Services (per month):</span>
                 <span className="font-semibold">
-                  RM{calculateMonthlyFixedTotal().toFixed(2)}
+                  RM{monthlyFixedTotal.toFixed(2)}
                 </span>
               </div>
 
@@ -380,7 +362,7 @@ export default function QuotationDetailPage() {
                 </div>
               )}
 
-              {calculateApprovedCustomServicesTotal() > 0 && (
+              {approvedCustomServicesTotal > 0 && (
                 <>
                   <Separator />
                   <div className="flex justify-between text-green-600">
@@ -388,7 +370,7 @@ export default function QuotationDetailPage() {
                       Custom Services Total{quotation.duration && quotation.duration > 1 ? ` (${quotation.duration} months)` : ''}:
                     </span>
                     <span className="font-bold">
-                      RM{calculateApprovedCustomServicesTotal().toFixed(2)}
+                      RM{approvedCustomServicesTotal.toFixed(2)}
                     </span>
                   </div>
                 </>
@@ -403,12 +385,12 @@ export default function QuotationDetailPage() {
                   </p>
                   {quotation.duration && quotation.duration > 1 && (
                     <p className="text-xs text-blue-600">
-                      {quotation.totalPrice.toFixed(2)} + {calculateApprovedCustomServicesTotal().toFixed(2)}
+                      {quotation.totalPrice.toFixed(2)} + {approvedCustomServicesTotal.toFixed(2)}
                     </p>
                   )}
                 </div>
                 <span className="text-2xl font-bold text-blue-800">
-                  RM{calculateGrandTotal().toFixed(2)}
+                  RM{grandTotal.toFixed(2)}
                 </span>
               </div>
             </CardContent>

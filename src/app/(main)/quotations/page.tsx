@@ -2,8 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Plus, FileText, Filter } from "lucide-react";
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { getAllQuotations, deleteQuotationById } from "./action";
+import { useState, useMemo } from "react";
+import { deleteQuotationById } from "./action";
 import CreateQuotationForm from "./components/CreateQuotationForm";
 import EditQuotationForm from "./components/EditQuotationForm";
 import QuotationCard from "./components/QuotationCard";
@@ -16,37 +16,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useQuotationsCache } from "./hooks/useQuotationsCache";
 
 export default function QuotationsPage() {
   const { enhancedUser } = useSession();
-  const [quotations, setQuotations] = useState<QuotationWithServices[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { quotations, isLoading, onRefresh } = useQuotationsCache(enhancedUser?.id);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingQuotation, setEditingQuotation] =
     useState<QuotationWithServices | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-
-  const fetchData = useCallback(async () => {
-    try {
-      if (!enhancedUser?.id) {
-        console.error("User not authenticated");
-        return;
-      }
-      const quotationsData = await getAllQuotations(enhancedUser.id);
-      setQuotations(quotationsData as QuotationWithServices[]);
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [enhancedUser?.id]);
-
-  useEffect(() => {
-    if (enhancedUser?.id) {
-      fetchData();
-    }
-  }, [enhancedUser?.id, fetchData]);
 
   const handleEditQuotation = (quotation: QuotationWithServices) => {
     setEditingQuotation(quotation);
@@ -56,7 +35,7 @@ export default function QuotationsPage() {
   const handleDeleteQuotation = async (quotationId: string) => {
     try {
       await deleteQuotationById(quotationId);
-      await fetchData();
+      await onRefresh();
     } catch (error) {
       console.error("Error deleting quotation:", error);
       alert("Failed to delete quotation. Please try again.");
@@ -71,7 +50,7 @@ export default function QuotationsPage() {
     return quotations.filter((quotation) => quotation.workflowStatus === statusFilter);
   }, [quotations, statusFilter]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         Loading quotations...
@@ -137,7 +116,7 @@ export default function QuotationsPage() {
               quotation={quotation}
               onEdit={handleEditQuotation}
               onDelete={handleDeleteQuotation}
-              onRefresh={fetchData}
+              onRefresh={onRefresh}
             />
           ))}
         </div>
@@ -168,14 +147,14 @@ export default function QuotationsPage() {
         <CreateQuotationForm
           isOpen={isCreateOpen}
           onOpenChange={setIsCreateOpen}
-          onSuccess={fetchData}
+          onSuccess={onRefresh}
         />
 
         {/* Edit Quotation Form */}
         <EditQuotationForm
           isOpen={isEditOpen}
           onOpenChange={setIsEditOpen}
-          onSuccess={fetchData}
+          onSuccess={onRefresh}
           editingQuotation={editingQuotation}
         />
       </div>
