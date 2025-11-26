@@ -8,7 +8,6 @@ import { useSession } from "../contexts/SessionProvider";
 import {
   Settings,
   Bell,
-  HelpCircle,
   Calendar,
   CalendarClockIcon,
   Wrench,
@@ -20,7 +19,7 @@ import {
   Shield,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getAllPendingInvitations, isUserAdmin } from "../projects/permissions";
+import { getAllPendingInvitations, getUserInvitations, isUserAdmin } from "../projects/permissions";
 
 import {
   Sidebar,
@@ -93,15 +92,27 @@ export function AppSidebar() {
         setIsAdmin(adminStatus);
 
         if (adminStatus) {
+          // For admins: get all pending invitations
           const pendingInvitations = await getAllPendingInvitations();
           setPendingInvitationsCount(pendingInvitations.length);
+        } else {
+          // For regular users: get their own pending invitations
+          const userInvitations = await getUserInvitations(enhancedUser.id);
+          const pendingCount = userInvitations.filter(inv => inv.status === "pending").length;
+          setPendingInvitationsCount(pendingCount);
         }
       } catch (error) {
         console.error("Failed to fetch pending invitations:", error);
+        setPendingInvitationsCount(0);
       }
     };
 
     fetchPendingInvitations();
+    
+    // Refresh count periodically (every 30 seconds)
+    const interval = setInterval(fetchPendingInvitations, 30000);
+    
+    return () => clearInterval(interval);
   }, [enhancedUser?.id]);
 
   return (
@@ -181,18 +192,18 @@ export function AppSidebar() {
         </SidebarGroup> */}
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-slate-200 overflow-hidden bg-[#f0e8d8]">
+      <SidebarFooter className="border-t border-slate-200 overflow-visible bg-[#f0e8d8]">
         <div className="mx-0 my-0 border-t border-[var(--color-accent)]" />
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
-              <Link href="/notification" className="flex items-center gap-3 relative">
-                <Bell className="w-5 h-5" />
-                <span>Notifications</span>
-                {isAdmin && pendingInvitationsCount > 0 && (
+          <SidebarMenuItem className="overflow-visible">
+            <SidebarMenuButton asChild className="hover:bg-sidebar-ring overflow-visible">
+              <Link href="/notification" className="flex items-center gap-3 relative overflow-visible w-full">
+                <Bell className="w-5 h-5 flex-shrink-0" />
+                <span className="flex-1">Notifications</span>
+                {pendingInvitationsCount > 0 && (
                   <Badge 
                     variant="destructive" 
-                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+                    className="h-5 min-w-[1.25rem] rounded-full px-1.5 flex items-center justify-center text-xs flex-shrink-0"
                   >
                     {pendingInvitationsCount > 99 ? '99+' : pendingInvitationsCount}
                   </Badge>
@@ -212,15 +223,7 @@ export function AppSidebar() {
           )}
           <SidebarMenuItem>
             <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
-              <Link href="#" className="flex items-center gap-3">
-                <HelpCircle className="w-5 h-5" />
-                <span>Help & Support</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
-              <Link href="#" className="flex items-center gap-3">
+              <Link href="/settings" className="flex items-center gap-3">
                 <Settings className="w-5 h-5" />
                 <span>Settings</span>
               </Link>

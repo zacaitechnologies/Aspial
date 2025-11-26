@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, Mail, Phone, MapPin, Calendar, FileText, FolderOpen, Edit, Save, X } from "lucide-react"
-import { PhotoUpload } from "@/components/photo-upload"
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Calendar, FileText, FolderOpen, Edit } from "lucide-react"
 import Link from "next/link"
 import { getClientById } from "../action"
 
@@ -55,8 +54,6 @@ export default function ClientDetailPage() {
 
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
-  const [isEditingPhoto, setIsEditingPhoto] = useState(false)
-  const [tempPhoto, setTempPhoto] = useState<string | null>(null)
 
   const fetchClient = useCallback(async () => {
     try {
@@ -76,21 +73,7 @@ export default function ClientDetailPage() {
     }
   }, [fetchClient, clientId])
 
-  // Photo handling functions
-  const handlePhotoChange = (photo: string | null) => {
-    setTempPhoto(photo)
-  }
-
-  const handleSavePhoto = () => {
-    // Photo functionality not implemented in database yet
-    setIsEditingPhoto(false)
-    console.log("Saving photo:", tempPhoto)
-  }
-
-  const handleCancelPhotoEdit = () => {
-    setTempPhoto(null)
-    setIsEditingPhoto(false)
-  }
+  // Photo handling function
 
   if (loading) {
     return (
@@ -157,58 +140,9 @@ export default function ClientDetailPage() {
           </div>
         </div>
 
-        {/* Photo Section and Client Info Card */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
-          {/* Photo Upload Section */}
-          <div className="lg:col-span-1">
-            {isEditingPhoto ? (
-              <div className="space-y-4">
-                <PhotoUpload currentPhoto={tempPhoto || undefined} onPhotoChange={handlePhotoChange} />
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleSavePhoto}
-                    size="sm"
-                    className="flex-1 text-white"
-                    style={{ backgroundColor: "#202F21" }}
-                  >
-                    <Save className="w-4 h-4 mr-1" />
-                    Save
-                  </Button>
-                  <Button
-                    onClick={handleCancelPhotoEdit}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 border-2 bg-transparent"
-                    style={{ borderColor: "#BDC4A5" }}
-                  >
-                    <X className="w-4 h-4 mr-1" />
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <PhotoUpload
-                  currentPhoto={undefined}
-                  onPhotoChange={() => {}} // Read-only when not editing
-                />
-                <Button
-                  onClick={() => setIsEditingPhoto(true)}
-                  variant="outline"
-                  size="sm"
-                  className="w-full border-2"
-                  style={{ borderColor: "#BDC4A5" }}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit Photo
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Client Info Card */}
-          <div className="lg:col-span-3">
-            <Card className="bg-white border-2 h-full" style={{ borderColor: "#BDC4A5" }}>
+        {/* Client Info Card */}
+        <div className="mb-8">
+          <Card className="bg-white border-2 h-full" style={{ borderColor: "#BDC4A5" }}>
               <CardHeader>
                 <CardTitle style={{ color: "#202F21" }}>Client Information</CardTitle>
               </CardHeader>
@@ -256,7 +190,6 @@ export default function ClientDetailPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
         </div>
 
         {/* Tabs Section */}
@@ -285,7 +218,7 @@ export default function ClientDetailPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium" style={{ color: "#898D74" }}>Amount:</span>
                         <span className="text-lg font-bold" style={{ color: "#202F21" }}>
-                          ${quotation.totalPrice.toLocaleString()}
+                          RM {quotation.totalPrice.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">

@@ -4,9 +4,17 @@ import { Users, Clock, TrendingUp, Calendar } from "lucide-react"
 import { useMemo } from "react"
 import { TimeEntry, User, Project } from "@prisma/client"
 
+interface TimeEntryUser {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  profilePicture: string | null
+}
+
 interface AdminStatsProps {
   timeEntries: (TimeEntry & {
-    user: User
+    user: TimeEntryUser
     project: Project
   })[]
   users: User[]

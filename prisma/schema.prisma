@@ -36,27 +36,29 @@ model staffRole {
 }
 
 model User {
-  id                     String              @id @default(cuid())
-  firstName              String
-  lastName               String
-  email                  String
-  supabase_id            String              @unique
-  created_at             DateTime            @default(now())
-  updated_at             DateTime            @default(now())
-  staffRoleId            String?
-  staffRole              staffRole?          @relation(fields: [staffRoleId], references: [id])
-  reviewedCustomServices CustomService[]     @relation("CustomServiceReviewer")
-  createdCustomServices  CustomService[]     @relation("CustomServiceCreator")
-  sentInvitations        ProjectInvitation[] @relation("ProjectInviter")
-  receivedInvitations    ProjectInvitation[] @relation("ProjectInvitee")
-  projectPermissions     ProjectPermission[]
-  projects               Project[]           @relation("ProjectCreator")
-  quotations             Quotation[]         @relation("QuotationCreator")
-  tasksAssigned          Task[]              @relation("TaskAssignee")
-  assignedTasks          Task[]              @relation("TaskCreator")
-  timeEntries            TimeEntry[]
-  userRoles              UserRole[]
-  complaints             Complaint[]
+  id                             String              @id @default(cuid())
+  firstName                      String
+  lastName                       String
+  email                          String
+  supabase_id                    String              @unique
+  profilePicture                 String?
+  created_at                     DateTime            @default(now())
+  updated_at                     DateTime            @default(now())
+  staffRoleId                    String?
+  superPerformanceAwardActive    Boolean?
+  staffRole                      staffRole?          @relation(fields: [staffRoleId], references: [id])
+  reviewedCustomServices         CustomService[]     @relation("CustomServiceReviewer")
+  createdCustomServices          CustomService[]     @relation("CustomServiceCreator")
+  sentInvitations                ProjectInvitation[] @relation("ProjectInviter")
+  receivedInvitations            ProjectInvitation[] @relation("ProjectInvitee")
+  projectPermissions             ProjectPermission[]
+  projects                       Project[]           @relation("ProjectCreator")
+  quotations                     Quotation[]         @relation("QuotationCreator")
+  tasksAssigned                  Task[]              @relation("TaskAssignee")
+  assignedTasks                  Task[]              @relation("TaskCreator")
+  timeEntries                    TimeEntry[]
+  userRoles                      UserRole[]
+  complaints                     Complaint[]
 
   @@map("user")
 }

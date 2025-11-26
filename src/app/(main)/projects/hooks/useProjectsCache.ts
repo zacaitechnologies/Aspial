@@ -1,65 +1,46 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { getAllProjectsOptimized } from "../action"
-import { ProjectWithQuotation } from "../types"
+import { getProjectsPaginated } from "../action"
+import type { ProjectWithQuotation } from "../types"
 
-interface UseProjectsCacheReturn {
+interface UseProjectsPaginatedReturn {
   projects: ProjectWithQuotation[]
   isLoading: boolean
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
   onRefresh: () => Promise<void>
+  goToPage: (page: number) => void
+  setPageSize: (size: number) => void
   invalidateCache: () => void
 }
 
-const MEMORY_CACHE_DURATION = 3 * 60 * 1000 // 3 minutes for active session
-const LOCALSTORAGE_MAX_AGE = 30 * 60 * 1000 // 30 minutes max for localStorage
-const STORAGE_KEY = 'projects-cache'
-const STORAGE_TIMESTAMP_KEY = 'projects-cache-timestamp'
+const CACHE_DURATION = 3 * 60 * 1000 // 3 minutes for active session
 
-// ✅ MODULE-LEVEL MEMORY CACHE (fast access during session)
-let memoryCachedProjects: ProjectWithQuotation[] = []
-let memoryCacheTimestamp: number = 0
+// Cache structure: Map<cacheKey, {data, timestamp}>
+interface CacheEntry {
+  data: any
+  timestamp: number
+}
+
+const cache = new Map<string, CacheEntry>()
 let isCurrentlyLoading: boolean = false
 
-// ✅ LOCALSTORAGE HELPERS (persistent across browser restarts)
-const loadFromLocalStorage = () => {
-  try {
-    const cached = localStorage.getItem(STORAGE_KEY)
-    const timestamp = localStorage.getItem(STORAGE_TIMESTAMP_KEY)
-    
-    if (cached && timestamp) {
-      return {
-        projects: JSON.parse(cached) as ProjectWithQuotation[],
-        timestamp: parseInt(timestamp)
-      }
-    }
-  } catch (error) {
-    console.error('Error reading from localStorage:', error)
-  }
-  return null
-}
-
-const saveToLocalStorage = (projects: ProjectWithQuotation[], timestamp: number) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects))
-    localStorage.setItem(STORAGE_TIMESTAMP_KEY, timestamp.toString())
-  } catch (error) {
-    console.error('Error saving to localStorage:', error)
-  }
-}
-
-export function useProjectsCache(userId: string | undefined): UseProjectsCacheReturn {
-  const [projects, setProjects] = useState<ProjectWithQuotation[]>(() => {
-    // Initialize with localStorage if available
-    const stored = loadFromLocalStorage()
-    if (stored && stored.projects.length > 0) {
-      memoryCachedProjects = stored.projects
-      memoryCacheTimestamp = stored.timestamp
-      return stored.projects
-    }
-    return memoryCachedProjects
-  })
+export function useProjectsPaginated(
+  userId: string | undefined,
+  initialPage: number = 1,
+  initialPageSize: number = 10,
+  searchQuery?: string,
+  statusFilter?: string
+): UseProjectsPaginatedReturn {
+  const [projects, setProjects] = useState<ProjectWithQuotation[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(initialPage)
+  const [pageSize, setPageSize] = useState(initialPageSize)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
   
   const loadProjects = useCallback(async (forceRefresh = false) => {
     if (!userId) {
@@ -67,32 +48,18 @@ export function useProjectsCache(userId: string | undefined): UseProjectsCacheRe
       return
     }
 
+    const cacheKey = `${userId}_${page}_${pageSize}_${searchQuery || ''}_${statusFilter || 'all'}`
     const now = Date.now()
     
-    // STALE-WHILE-REVALIDATE PATTERN
-    if (!forceRefresh) {
-      // Check memory cache first (fastest)
-      if (now - memoryCacheTimestamp < MEMORY_CACHE_DURATION) {
-        console.log("✅ MEMORY CACHE HIT - Instant load (Age: " + Math.floor((now - memoryCacheTimestamp) / 1000) + "s)")
-        setProjects(memoryCachedProjects)
-        setIsLoading(false)
-        return
-      }
-      
-      // Check localStorage (persistent)
-      const stored = loadFromLocalStorage()
-      if (stored && now - stored.timestamp < LOCALSTORAGE_MAX_AGE) {
-        const age = Math.floor((now - stored.timestamp) / 1000)
-        console.log("📦 LOCALSTORAGE HIT - Showing stale data (Age: " + age + "s) while revalidating...")
-        
-        // Show cached data immediately
-        setProjects(stored.projects)
-        memoryCachedProjects = stored.projects
-        memoryCacheTimestamp = stored.timestamp
-        setIsLoading(false)
-        
-        // Continue to fetch fresh data in background (don't return!)
-      }
+    // Check if cache is still valid
+    const cachedEntry = cache.get(cacheKey)
+    if (!forceRefresh && cachedEntry && now - cachedEntry.timestamp < CACHE_DURATION) {
+      console.log("✅ PROJECTS CACHE HIT - Page " + page)
+      setProjects(cachedEntry.data.projects)
+      setTotal(cachedEntry.data.total)
+      setTotalPages(cachedEntry.data.totalPages)
+      setIsLoading(false)
+      return
     }
     
     // Prevent duplicate simultaneous loads
@@ -101,8 +68,7 @@ export function useProjectsCache(userId: string | undefined): UseProjectsCacheRe
       return
     }
     
-    const age = memoryCacheTimestamp > 0 ? Math.floor((now - memoryCacheTimestamp) / 1000) : 0
-    console.log("🔄 FETCHING FRESH DATA from API (Previous age: " + age + "s)")
+    console.log("❌ PROJECTS CACHE MISS - Loading page " + page)
     isCurrentlyLoading = true
     
     // Only show loading spinner if we don't have ANY cached data
@@ -111,17 +77,24 @@ export function useProjectsCache(userId: string | undefined): UseProjectsCacheRe
     }
     
     try {
-      const loadedProjects = await getAllProjectsOptimized(userId)
-      const freshTimestamp = Date.now()
+      const result = await getProjectsPaginated(
+        userId,
+        page,
+        pageSize,
+        searchQuery,
+        statusFilter
+      )
       
-      // Update all caches
-      memoryCachedProjects = loadedProjects as any
-      memoryCacheTimestamp = freshTimestamp
-      saveToLocalStorage(memoryCachedProjects, freshTimestamp)
+      // Update cache
+      cache.set(cacheKey, {
+        data: result,
+        timestamp: now
+      })
       
       // Update component state
-      setProjects(memoryCachedProjects)
-      console.log("✅ FRESH DATA LOADED and cached (Memory + localStorage)")
+      setProjects(result.projects as any)
+      setTotal(result.total)
+      setTotalPages(result.totalPages)
     } catch (error) {
       console.error("Error loading projects:", error)
       // If we have cached data, keep showing it (graceful degradation)
@@ -129,23 +102,25 @@ export function useProjectsCache(userId: string | undefined): UseProjectsCacheRe
       setIsLoading(false)
       isCurrentlyLoading = false
     }
-  }, [userId])
+  }, [userId, page, pageSize, searchQuery, statusFilter])
 
   const onRefresh = useCallback(async () => {
     console.log("PROJECTS: Force refresh requested")
     await loadProjects(true)
   }, [loadProjects])
 
+  const goToPage = useCallback((newPage: number) => {
+    setPage(newPage)
+  }, [])
+
+  const handleSetPageSize = useCallback((size: number) => {
+    setPageSize(size)
+    setPage(1) // Reset to first page when changing page size
+  }, [])
+
   const invalidateCache = useCallback(() => {
-    console.log("🔄 PROJECTS: Cache invalidated (Memory + localStorage)")
-    memoryCacheTimestamp = 0
-    memoryCachedProjects = []
-    try {
-      localStorage.removeItem(STORAGE_KEY)
-      localStorage.removeItem(STORAGE_TIMESTAMP_KEY)
-    } catch (error) {
-      console.error('Error clearing localStorage:', error)
-    }
+    console.log("🔄 PROJECTS: Cache invalidated")
+    cache.clear()
   }, [])
 
   useEffect(() => {
@@ -155,7 +130,13 @@ export function useProjectsCache(userId: string | undefined): UseProjectsCacheRe
   return {
     projects,
     isLoading,
+    page,
+    pageSize,
+    total,
+    totalPages,
     onRefresh,
+    goToPage,
+    setPageSize: handleSetPageSize,
     invalidateCache
   }
 }

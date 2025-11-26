@@ -7,9 +7,11 @@ import { RewardCard } from "./components/reward-card"
 import { MonthlyPerformance } from "./components/monthly-performance"
 import { ComplaintsTracker } from "./components/complaints-tracker"
 import { SuperPerformanceBenefits } from "./components/super-performance-benefits"
+import { AdminBenefitsView } from "./components/admin-benefits-view"
 import { Plane, Award, Trophy, Car, Loader2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Toaster } from "@/components/ui/toaster"
 import {
   Select,
   SelectContent,
@@ -17,7 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getEmployeeSalesData, getEmployeeComplaints, checkSuperPerformanceAward, type EmployeeSalesData } from "./action"
+import { 
+	getEmployeeSalesData, 
+	getEmployeeComplaints, 
+	checkSuperPerformanceAward, 
+	checkIsAdmin, 
+	getAllUsersBenefits,
+	type EmployeeSalesData,
+	type UserBenefitsSummary,
+} from "./action"
 import { useSession } from "../contexts/SessionProvider"
 
 export default function EmployeeBenefitsPage() {
@@ -30,17 +40,30 @@ export default function EmployeeBenefitsPage() {
   const [loading, setLoading] = useState(true)
   const [hasSuperPerformanceAward, setHasSuperPerformanceAward] = useState(false)
   const [previousYearStars, setPreviousYearStars] = useState(0)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [allUsersBenefits, setAllUsersBenefits] = useState<UserBenefitsSummary[]>([])
+  const [adminLoading, setAdminLoading] = useState(false)
 
+  // Check if user is admin
+  useEffect(() => {
+    async function checkAdmin() {
+      if (enhancedUser?.id) {
+        const adminStatus = await checkIsAdmin(enhancedUser.id)
+        setIsAdmin(adminStatus)
+      }
+    }
+    checkAdmin()
+  }, [enhancedUser?.id])
+
+  // Fetch staff view data (only for non-admin users)
   useEffect(() => {
     async function fetchData() {
-      if (!enhancedUser?.profile?.id) {
-        console.error("User not authenticated")
+      if (!enhancedUser?.profile?.id || isAdmin) {
         setLoading(false)
         return
       }
 
       try {
-        setLoading(true)
         const year = parseInt(selectedYear)
         const month = viewMode === "monthly" ? parseInt(selectedMonth) : undefined
 
@@ -61,32 +84,44 @@ export default function EmployeeBenefitsPage() {
     }
 
     fetchData()
-  }, [enhancedUser?.profile?.id, selectedYear, selectedMonth, viewMode])
+  }, [enhancedUser?.profile?.id, isAdmin, selectedYear, selectedMonth, viewMode])
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-white mx-auto mb-4" />
-          <p className="text-2xl font-bold text-white">Loading your benefits...</p>
-        </div>
-      </div>
-    )
+  // Fetch admin view data
+  useEffect(() => {
+    async function fetchAdminData() {
+      if (isAdmin) {
+        setAdminLoading(true)
+        try {
+          const year = parseInt(selectedYear)
+          const usersData = await getAllUsersBenefits(year)
+          setAllUsersBenefits(usersData)
+        } catch (error) {
+          console.error('Error fetching admin benefits data:', error)
+        } finally {
+          setAdminLoading(false)
+        }
+      }
+    }
+
+    fetchAdminData()
+  }, [isAdmin, selectedYear])
+
+  const handleRefreshAdminData = async () => {
+    setAdminLoading(true)
+    try {
+      const year = parseInt(selectedYear)
+      const usersData = await getAllUsersBenefits(year)
+      setAllUsersBenefits(usersData)
+    } catch (error) {
+      console.error('Error refreshing admin benefits data:', error)
+    } finally {
+      setAdminLoading(false)
+    }
   }
 
-  if (!salesData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 flex items-center justify-center">
-        <Card className="p-8 bg-white/95 border-4 border-foreground/20 shadow-2xl">
-          <p className="text-2xl font-bold text-center">Unable to load benefits data</p>
-        </Card>
-      </div>
-    )
-  }
-
-  const currentYearlySales = salesData.currentYearlySales
-  const currentMonthlySales = salesData.currentMonthlySales
-  const monthlyData = salesData.monthlyData
+  const currentYearlySales = salesData?.currentYearlySales || 0
+  const currentMonthlySales = salesData?.currentMonthlySales || 0
+  const monthlyData = salesData?.monthlyData || []
 
   const totalStars = monthlyData.reduce((sum, month) => sum + month.stars, 0)
   const starsAfterComplaints = totalStars - complaints.length
@@ -156,11 +191,11 @@ export default function EmployeeBenefitsPage() {
 
   // Employee data from database
   const employeeData = {
-    name: salesData.userName,
+    name: salesData?.userName || (enhancedUser?.profile ? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim() : 'User'),
     currentSales: viewMode === "yearly" ? currentYearlySales : currentMonthlySales,
     monthlySales: currentYearlySales / 12,
-    level: salesData.currentLevel,
-    commissionRate: salesData.commissionRate,
+    level: salesData?.currentLevel || 0,
+    commissionRate: salesData?.commissionRate || '0%',
   }
 
   const rewards = [
@@ -239,26 +274,9 @@ export default function EmployeeBenefitsPage() {
     },
   ]
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 relative overflow-hidden">
-      {/* Floating clouds */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div
-          className="absolute top-20 left-[10%] w-32 h-16 bg-white/80 rounded-full animate-float"
-          style={{ animationDelay: "0s", animationDuration: "4s" }}
-        />
-        <div
-          className="absolute top-40 right-[15%] w-40 h-20 bg-white/80 rounded-full animate-float"
-          style={{ animationDelay: "1s", animationDuration: "5s" }}
-        />
-        <div
-          className="absolute top-32 left-[60%] w-28 h-14 bg-white/80 rounded-full animate-float"
-          style={{ animationDelay: "2s", animationDuration: "4.5s" }}
-        />
-      </div>
-
-      <div className="container mx-auto px-4 py-8 relative z-10">
-        {/* Header */}
+  const renderStaffView = () => (
+    <>
+      {/* Header */}
         <div className="text-center mb-8">
           <h1
             className="text-6xl font-black text-white mb-2 drop-shadow-[0_4px_0_rgba(0,0,0,0.3)] tracking-tight"
@@ -277,25 +295,35 @@ export default function EmployeeBenefitsPage() {
             ? "bg-yellow-50 border-yellow-500"
             : "bg-gray-50 border-gray-300"
         }`}>
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="text-5xl">
-              {hasSuperPerformanceAward ? "🏆" : "⭐"}
+          {loading ? (
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <div className="w-16 h-16 bg-gray-200 animate-pulse rounded"></div>
+              <div>
+                <div className="h-8 w-64 bg-gray-200 animate-pulse rounded mb-2"></div>
+                <div className="h-4 w-48 bg-gray-200 animate-pulse rounded"></div>
+              </div>
             </div>
-            <div>
-              <h3 className="text-2xl font-black text-foreground mb-1">
-                {hasSuperPerformanceAward ? "SUPER PERFORMANCE AWARD ACTIVE" : "No Super Performance Award"}
-              </h3>
-              <p className={`text-sm font-bold ${
-                hasSuperPerformanceAward
-                  ? "text-yellow-800"
-                  : "text-gray-600"
-              }`}>
-                {hasSuperPerformanceAward 
-                  ? `You earned ${previousYearStars} ⭐ last year! Your award is active this year!`
-                  : "Earn 12 ⭐ next year to unlock the Super Performance Award!"}
-              </p>
+          ) : (
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <div className="text-5xl">
+                {hasSuperPerformanceAward ? "🏆" : "⭐"}
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-foreground mb-1">
+                  {hasSuperPerformanceAward ? "SUPER PERFORMANCE AWARD ACTIVE" : "No Super Performance Award"}
+                </h3>
+                <p className={`text-sm font-bold ${
+                  hasSuperPerformanceAward
+                    ? "text-yellow-800"
+                    : "text-gray-600"
+                }`}>
+                  {hasSuperPerformanceAward 
+                    ? `You earned ${previousYearStars} ⭐ last year! Your award is active this year!`
+                    : "Earn 12 ⭐ next year to unlock the Super Performance Award!"}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </Card>
 
         <Card className="mb-8 p-4 bg-white/95 border-4 border-foreground/20 shadow-xl">
@@ -321,14 +349,16 @@ export default function EmployeeBenefitsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[...Array(5)].map((_, i) => {
-                    const year = new Date().getFullYear() - i
-                    return (
+                  {(() => {
+                    const currentYear = new Date().getFullYear()
+                    const startYear = 2020
+                    const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) => currentYear - i)
+                    return years.map((year) => (
                       <SelectItem key={year} value={year.toString()}>
                         {year}
                       </SelectItem>
-                    )
-                  })}
+                    ))
+                  })()}
                 </SelectContent>
               </Select>
             )}
@@ -352,14 +382,16 @@ export default function EmployeeBenefitsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[...Array(5)].map((_, i) => {
-                      const year = new Date().getFullYear() - i
-                      return (
+                    {(() => {
+                      const currentYear = new Date().getFullYear()
+                      const startYear = 2020
+                      const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) => currentYear - i)
+                      return years.map((year) => (
                         <SelectItem key={year} value={year.toString()}>
                           {year}
                         </SelectItem>
-                      )
-                    })}
+                      ))
+                    })()}
                   </SelectContent>
                 </Select>
               </div>
@@ -369,38 +401,54 @@ export default function EmployeeBenefitsPage() {
 
         {/* Stats Card */}
         <Card className="mb-8 p-6 bg-white/95 border-4 border-foreground/20 shadow-2xl">
-          <div className="flex flex-wrap gap-6 justify-around items-center">
-            <div className="text-center">
-              <div className="text-5xl font-black text-primary mb-2">RM {(currentYearlySales / 1000).toFixed(0)}K</div>
-              <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Yearly Sales</div>
+          {loading ? (
+            <div className="flex flex-wrap gap-6 justify-around items-center">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="text-center">
+                  <div className="text-5xl font-black mb-2 h-14 w-32 bg-gray-200 animate-pulse rounded"></div>
+                  <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide h-4 w-24 bg-gray-200 animate-pulse rounded mx-auto"></div>
+                </div>
+              ))}
             </div>
-            <div className="text-center">
-              <div className="text-5xl font-black text-accent mb-2">
-                RM {(employeeData.monthlySales / 1000).toFixed(0)}K
+          ) : (
+            <div className="flex flex-wrap gap-6 justify-around items-center">
+              <div className="text-center">
+                <div className="text-5xl font-black text-primary mb-2">RM {(currentYearlySales / 1000).toFixed(0)}K</div>
+                <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Yearly Sales</div>
               </div>
-              <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Monthly Average</div>
+              <div className="text-center">
+                <div className="text-5xl font-black text-accent mb-2">
+                  RM {(employeeData.monthlySales / 1000).toFixed(0)}K
+                </div>
+                <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Monthly Average</div>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-black text-secondary mb-2">Level {employeeData.level}</div>
+                <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Current Level</div>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-black text-green-600 mb-2">{employeeData.commissionRate}</div>
+                <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Commission Rate</div>
+              </div>
             </div>
-            <div className="text-center">
-              <div className="text-5xl font-black text-secondary mb-2">Level {employeeData.level}</div>
-              <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Current Level</div>
-            </div>
-            <div className="text-center">
-              <div className="text-5xl font-black text-green-600 mb-2">{employeeData.commissionRate}</div>
-              <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Commission Rate</div>
-            </div>
-          </div>
+          )}
         </Card>
 
         {/* Mario Progress Bar */}
-        <div className="mb-12">
+        <div className="mb-12 relative">
           <MarioProgressBar
             progress={currentProgress}
             targets={viewMode === "yearly" ? salesTargets : monthlySalesTargets}
             viewMode={viewMode}
           />
+          {loading && (
+            <div className="absolute inset-0 bg-white/50 backdrop-blur-sm rounded-lg flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          )}
         </div>
 
-        <div className="mb-12">
+        <div className="mb-12 relative">
           <MonthlyPerformance
             monthlyData={monthlyData}
             totalStars={totalStars}
@@ -408,10 +456,20 @@ export default function EmployeeBenefitsPage() {
             hasSuperPerformanceAward={hasSuperPerformanceAward}
             previousYearStars={previousYearStars}
           />
+          {loading && (
+            <div className="absolute inset-0 bg-white/50 backdrop-blur-sm rounded-lg flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          )}
         </div>
 
-        <div className="mb-12">
+        <div className="mb-12 relative">
           <ComplaintsTracker complaints={complaints} starsDeducted={complaints.length} />
+          {loading && (
+            <div className="absolute inset-0 bg-white/50 backdrop-blur-sm rounded-lg flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          )}
         </div>
 
         {/* Super Performance Award Benefits */}
@@ -436,29 +494,38 @@ export default function EmployeeBenefitsPage() {
 
         {/* Motivational Message */}
         <Card className="p-8 bg-gradient-to-r from-primary to-destructive text-white border-4 border-foreground/30 shadow-2xl">
-          <div className="text-center">
-            <div className="text-6xl mb-4">🌟</div>
-            <h3 className="text-3xl font-black mb-3 drop-shadow-md">KEEP GOING!</h3>
-            {currentLevel < 4 ? (
-              <>
-                <p className="text-xl font-bold mb-2">
-                  You're only RM{" "}
-                  {(
-                    (Object.values(viewMode === "yearly" ? salesTargets : monthlySalesTargets)[currentLevel] -
-                      employeeData.currentSales) /
-                    1000
-                  ).toFixed(0)}
-                  K away from Level {currentLevel + 1}!
-                </p>
-                <p className="text-lg opacity-90">Every sale brings you closer to amazing rewards!</p>
-              </>
-            ) : (
-              <>
-                <p className="text-xl font-bold mb-2">You've reached the PLATINUM level!</p>
-                <p className="text-lg opacity-90">Keep up the excellent work to maintain your status!</p>
-              </>
-            )}
-          </div>
+          {loading ? (
+            <div className="text-center">
+              <div className="text-6xl mb-4">🌟</div>
+              <div className="h-9 w-48 bg-white/30 animate-pulse rounded mx-auto mb-3"></div>
+              <div className="h-7 w-96 bg-white/30 animate-pulse rounded mx-auto mb-2"></div>
+              <div className="h-6 w-80 bg-white/30 animate-pulse rounded mx-auto"></div>
+            </div>
+          ) : (
+            <div className="text-center">
+              <div className="text-6xl mb-4">🌟</div>
+              <h3 className="text-3xl font-black mb-3 drop-shadow-md">KEEP GOING!</h3>
+              {currentLevel < 4 ? (
+                <>
+                  <p className="text-xl font-bold mb-2">
+                    You're only RM{" "}
+                    {(
+                      (Object.values(viewMode === "yearly" ? salesTargets : monthlySalesTargets)[currentLevel] -
+                        employeeData.currentSales) /
+                      1000
+                    ).toFixed(0)}
+                    K away from Level {currentLevel + 1}!
+                  </p>
+                  <p className="text-lg opacity-90">Every sale brings you closer to amazing rewards!</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xl font-bold mb-2">You've reached the PLATINUM level!</p>
+                  <p className="text-lg opacity-90">Keep up the excellent work to maintain your status!</p>
+                </>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Policy Notes */}
@@ -491,11 +558,91 @@ export default function EmployeeBenefitsPage() {
             </li>
           </ul>
         </Card>
+    </>
+  )
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 relative overflow-hidden">
+      {/* Floating clouds */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div
+          className="absolute top-20 left-[10%] w-32 h-16 bg-white/80 rounded-full animate-float"
+          style={{ animationDelay: "0s", animationDuration: "4s" }}
+        />
+        <div
+          className="absolute top-40 right-[15%] w-40 h-20 bg-white/80 rounded-full animate-float"
+          style={{ animationDelay: "1s", animationDuration: "5s" }}
+        />
+        <div
+          className="absolute top-32 left-[60%] w-28 h-14 bg-white/80 rounded-full animate-float"
+          style={{ animationDelay: "2s", animationDuration: "4.5s" }}
+        />
+      </div>
+
+      <div className="container mx-auto px-4 py-8 relative z-10">
+        {isAdmin ? (
+          <>
+            {/* Admin View Header */}
+            <div className="text-center mb-8">
+              <h1
+                className="text-6xl font-black text-white mb-2 drop-shadow-[0_4px_0_rgba(0,0,0,0.3)] tracking-tight"
+                style={{ textShadow: "4px 4px 0 rgba(0,0,0,0.2)" }}
+              >
+                BENEFITS MANAGEMENT
+              </h1>
+              <p className="text-2xl font-bold text-foreground/90">
+                Admin Dashboard
+              </p>
+            </div>
+
+            {/* Year Selector for Admin */}
+            <Card className="mb-6 p-4 bg-white/95 border-4 border-foreground/20 shadow-xl">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="admin-year" className="font-bold text-lg">
+                  Select Year
+                </Label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(() => {
+                      const currentYear = new Date().getFullYear()
+                      const startYear = 2020
+                      const years = Array.from({ length: currentYear - startYear + 1 }, (_, i) => currentYear - i)
+                      return years.map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))
+                    })()}
+                  </SelectContent>
+                </Select>
+              </div>
+            </Card>
+
+            {adminLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center">
+                  <Loader2 className="w-12 h-12 animate-spin text-white mx-auto mb-4" />
+                  <p className="text-2xl font-bold text-white">Loading admin data...</p>
+                </div>
+              </div>
+            ) : (
+              <AdminBenefitsView 
+                usersBenefits={allUsersBenefits} 
+                onRefresh={handleRefreshAdminData}
+              />
+            )}
+          </>
+        ) : (
+          renderStaffView()
+        )}
       </div>
 
       {/* Grass at bottom */}
-      <div className="fixed bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-green-600 to-green-800 border-t-4 border-green-900 pointer-events-none z-0">
-        <div className="absolute inset-0 opacity-30">
+      <div className="fixed bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-green-600 to-green-800 border-t-4 border-green-900 pointer-events-none z-0" suppressHydrationWarning>
+        <div className="absolute inset-0 opacity-30" suppressHydrationWarning>
           {[...Array(20)].map((_, i) => (
             <div
               key={i}
@@ -505,10 +652,14 @@ export default function EmployeeBenefitsPage() {
                 height: `${Math.random() * 30 + 20}px`,
                 transform: `rotate(${Math.random() * 20 - 10}deg)`,
               }}
+              suppressHydrationWarning
             />
           ))}
         </div>
       </div>
+
+      {/* Toast notifications */}
+      <Toaster />
     </div>
   )
 }

@@ -23,8 +23,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Bell, Check, X, Users, Eye, Edit, Crown, Shield, Trash2, Package } from "lucide-react";
+import { Bell, Check, X, Users, Eye, Edit, Crown, Shield, Trash2, Package, CheckCircle2, AlertCircle } from "lucide-react";
 import CustomServiceNotifications from "./components/CustomServiceNotifications";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type ProjectInvitation = {
   id: number;
@@ -99,6 +100,8 @@ export default function NotificationPage() {
   const [pendingInvitations, setPendingInvitations] = useState<ProjectInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   const fetchInvitations = useCallback(async () => {
     try {
@@ -164,6 +167,9 @@ export default function NotificationPage() {
   }, [enhancedUser?.id, fetchInvitations]);
 
   const handleAcceptInvitation = async (invitationId: number) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+    
     try {
       console.log("Accepting invitation:", invitationId);
       
@@ -172,14 +178,22 @@ export default function NotificationPage() {
       
       // Refresh invitations to show updated status
       await fetchInvitations();
-      alert("Invitation accepted! You can now access the project.");
+      setSuccessMessage("Invitation accepted! You can now access the project.");
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
     } catch (error) {
       console.error("Error accepting invitation:", error);
-      alert("Failed to accept invitation. Please try again.");
+      setErrorMessage("Failed to accept invitation. Please try again.");
     }
   };
 
   const handleDeclineInvitation = async (invitationId: number) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+    
     try {
       console.log("Declining invitation:", invitationId);
       
@@ -188,39 +202,63 @@ export default function NotificationPage() {
       
       // Refresh invitations to show updated status
       await fetchInvitations();
-      alert("Invitation declined.");
+      setSuccessMessage("Invitation declined.");
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
     } catch (error) {
       console.error("Error declining invitation:", error);
-      alert("Failed to decline invitation. Please try again.");
+      setErrorMessage("Failed to decline invitation. Please try again.");
     }
   };
 
   // Admin functions - using existing functions
   const handleAdminAcceptInvitation = async (invitationId: number) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+    
     try {
       await acceptProjectInvitation(invitationId);
       // Refresh all invitation lists
       fetchInvitations();
-      alert("Invitation accepted by admin!");
+      setSuccessMessage("Invitation accepted by admin!");
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
     } catch (error) {
       console.error("Error accepting invitation as admin:", error);
-      alert("Failed to accept invitation. Please try again.");
+      setErrorMessage("Failed to accept invitation. Please try again.");
     }
   };
 
   const handleAdminDeclineInvitation = async (invitationId: number) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+    
     try {
       await declineProjectInvitation(invitationId);
       // Refresh all invitation lists
       fetchInvitations();
-      alert("Invitation declined by admin!");
+      setSuccessMessage("Invitation declined by admin!");
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
     } catch (error) {
       console.error("Error declining invitation as admin:", error);
-      alert("Failed to decline invitation. Please try again.");
+      setErrorMessage("Failed to decline invitation. Please try again.");
     }
   };
 
   const handleAdminDeleteInvitation = async (invitationId: number) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+    
     if (!confirm("Are you sure you want to delete this invitation? This action cannot be undone.")) {
       return;
     }
@@ -231,10 +269,15 @@ export default function NotificationPage() {
       await declineProjectInvitation(invitationId);
       // Refresh all invitation lists
       fetchInvitations();
-      alert("Invitation declined by admin!");
+      setSuccessMessage("Invitation declined by admin!");
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
     } catch (error) {
       console.error("Error declining invitation as admin:", error);
-      alert("Failed to decline invitation. Please try again.");
+      setErrorMessage("Failed to decline invitation. Please try again.");
     }
   };
 
@@ -282,6 +325,22 @@ export default function NotificationPage() {
           {isAdmin ? "Manage project invitations and custom service requests" : "View your project invitations"}
         </p>
       </div>
+
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <Alert className="bg-green-50 border-green-200 text-green-800 mb-4">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertTitle>Success</AlertTitle>
+          <AlertDescription>{successMessage}</AlertDescription>
+        </Alert>
+      )}
+      {errorMessage && (
+        <Alert variant="destructive" className="bg-red-50 border-red-200 mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      )}
 
       {isAdmin ? (
         <Tabs defaultValue="invitations" className="w-full">

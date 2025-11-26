@@ -3,7 +3,7 @@
 import { Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,7 @@ import { signout } from "@/lib/auth-actions"
 export function AppHeader() {
     const { enhancedUser } = useSession();
     const pathname = usePathname();
+    const router = useRouter();
     
     // Get page title based on current path
     const getPageTitle = () => {
@@ -34,6 +35,15 @@ export function AppHeader() {
       
       const currentItem = navItems.find(item => pathname.includes(item.path.replace('/', '')));
       return currentItem?.title || "Dashboard";
+    };
+
+    // Get user initials
+    const getInitials = () => {
+      const firstName = enhancedUser?.profile?.firstName || "";
+      const lastName = enhancedUser?.profile?.lastName || "";
+      const firstInitial = firstName.charAt(0).toUpperCase() || "";
+      const lastInitial = lastName.charAt(0).toUpperCase() || "";
+      return firstInitial + lastInitial || "U";
     };
 
   return (
@@ -56,8 +66,13 @@ export function AppHeader() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-muted hover:cursor-pointer transition-colors">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src="/placeholder.svg?height=40&width=40" alt="User" />
-                  <AvatarFallback className="bg-blue-600 text-white">JD</AvatarFallback>
+                  <AvatarImage 
+                    src={enhancedUser?.profile?.profilePicture || undefined} 
+                    alt={`${enhancedUser?.profile?.firstName || ""} ${enhancedUser?.profile?.lastName || ""}`} 
+                  />
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {getInitials()}
+                  </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
@@ -69,10 +84,9 @@ export function AppHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Billing</DropdownMenuItem>
-              <DropdownMenuItem>Team</DropdownMenuItem>
-              <DropdownMenuItem>Subscription</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/settings")}>
+                Profile
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signout}>Log out</DropdownMenuItem>
             </DropdownMenuContent>

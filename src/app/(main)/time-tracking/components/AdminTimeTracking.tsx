@@ -8,13 +8,25 @@ import { RecentActivity } from "./admin/recent-activity"
 import { FloatingElements } from "./floating-elements"
 import { TimeEntry, User, Project } from "@prisma/client"
 
+interface UserWithProfilePicture extends User {
+  profilePicture: string | null
+}
+
+interface TimeEntryUser {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  profilePicture: string | null
+}
+
 interface AdminTimeTrackingProps {
   initialTimeEntries: (TimeEntry & {
-    user: User
+    user: TimeEntryUser
     project: Project
   })[]
   initialProjects: Project[]
-  initialUsers: User[]
+  initialUsers: UserWithProfilePicture[]
 }
 
 export default function AdminTimeTracking({ 

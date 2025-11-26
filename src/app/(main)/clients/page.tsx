@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -24,11 +24,12 @@ import {
   Crown,
 } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
-import { getAllClients, deleteClient } from "./action"
+import { getClientsPaginated, deleteClient } from "./action"
 import CreateClientDialog from "./components/CreateClientDialog"
 import EditClientDialog from "./components/EditClientDialog"
 import DeleteClientDialog from "./components/DeleteClientDialog"
+import { usePaginatedData } from "@/hooks/use-paginated-data"
+import { ProjectPagination } from "../projects/components/ProjectPagination"
 
 
 interface Client {
@@ -47,7 +48,6 @@ interface Client {
   quotationsCount: number
   totalValue: number
   created_at: string
-  photo?: string
 }
 
 
@@ -56,8 +56,6 @@ type SortOption = "name" | "yearlyRevenue" | "totalValue" | "created_at"
 type SortDirection = "asc" | "desc"
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [industryFilter, setIndustryFilter] = useState<string>("all")
   const [membershipFilter, setMembershipFilter] = useState<"all" | "MEMBER" | "NON_MEMBER">("all")
@@ -68,22 +66,38 @@ export default function ClientsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
 
-  const fetchClients = useCallback(async () => {
-    try {
-      setLoading(true)
-      const clientsData = await getAllClients()
-      setClients(clientsData)
-    } catch (error) {
-      console.error("Failed to fetch clients:", error)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Pagination with server-side filtering
+  const {
+    data: clients,
+    isLoading: loading,
+    page,
+    pageSize,
+    total,
+    totalPages,
+    goToPage,
+    setPageSize,
+    refresh,
+    invalidateCache,
+  } = usePaginatedData<Client, any>({
+    fetchFn: async (page, pageSize) => {
+      return await getClientsPaginated(page, pageSize, {
+        searchTerm,
+        industry: industryFilter,
+        membershipType: membershipFilter,
+        sortBy,
+        sortDirection,
+      })
+    },
+    initialPage: 1,
+    initialPageSize: 12,
+    filters: { searchTerm, industryFilter, membershipFilter, sortBy, sortDirection },
+  })
 
-  // Get unique industries from all clients
-  const uniqueIndustries = Array.from(
-    new Set(clients.filter(client => client.industry).map(client => client.industry!))
-  ).sort()
+  // Get unique industries (note: this is now from current page only)
+  const uniqueIndustries = useMemo(
+    () => Array.from(new Set(clients.filter(client => client.industry).map(client => client.industry!))).sort(),
+    [clients]
+  )
 
   const handleSort = (option: SortOption) => {
     if (sortBy === option) {
@@ -92,11 +106,8 @@ export default function ClientsPage() {
       setSortBy(option)
       setSortDirection("asc")
     }
+    // Cache will auto-invalidate and refetch with new sort
   }
-
-  useEffect(() => {
-    fetchClients()
-  }, [fetchClients])
 
   const handleEditClient = (client: Client) => {
     setEditingClient(client)
@@ -113,56 +124,21 @@ export default function ClientsPage() {
     
     try {
       await deleteClient(deletingClient.id)
-      await fetchClients()
+      invalidateCache()
+      await refresh()
     } catch (error) {
       console.error("Failed to delete client:", error)
       alert("Failed to delete client. Please try again.")
     }
   }
 
+  const handleSuccess = async () => {
+    invalidateCache()
+    await refresh()
+  }
 
-  const filteredAndSortedClients = clients
-    .filter((client) => {
-      const matchesSearch =
-        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.company?.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchesIndustry = industryFilter === "all" || client.industry === industryFilter
-      const matchesMembership = membershipFilter === "all" || client.membershipType === membershipFilter
-      return matchesSearch && matchesIndustry && matchesMembership
-    })
-    .sort((a, b) => {
-      let aValue: any, bValue: any
-      
-      switch (sortBy) {
-        case "name":
-          aValue = a.name.toLowerCase()
-          bValue = b.name.toLowerCase()
-          break
-        case "yearlyRevenue":
-          aValue = a.yearlyRevenue || 0
-          bValue = b.yearlyRevenue || 0
-          break
-        case "totalValue":
-          aValue = a.totalValue
-          bValue = b.totalValue
-          break
-        case "created_at":
-          aValue = new Date(a.created_at).getTime()
-          bValue = new Date(b.created_at).getTime()
-          break
-        default:
-          return 0
-      }
-      
-      if (sortDirection === "asc") {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
-      } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
-      }
-    })
-
-  const totalClients = clients.length
+  // Calculate stats from total
+  const totalClients = total
   const memberClients = clients.filter((c) => c.membershipType === "MEMBER").length
   const totalValue = clients.reduce((sum, client) => sum + client.totalValue, 0)
   const avgValue = totalClients > 0 ? totalValue / totalClients : 0
@@ -180,7 +156,7 @@ export default function ClientsPage() {
               Manage your client relationships and track business opportunities
             </p>
           </div>
-                     <CreateClientDialog onSuccess={fetchClients} />
+                     <CreateClientDialog onSuccess={handleSuccess} />
         </div>
 
         {/* Stats Cards */}
@@ -235,7 +211,7 @@ export default function ClientsPage() {
                     Total Value
                   </p>
                   <p className="text-3xl font-bold" style={{ color: "#202F21" }}>
-                    ${totalValue.toLocaleString()}
+                    RM {totalValue.toLocaleString()}
                   </p>
                 </div>
                 <div
@@ -256,7 +232,7 @@ export default function ClientsPage() {
                     Avg. Value
                   </p>
                   <p className="text-3xl font-bold" style={{ color: "#202F21" }}>
-                    ${avgValue.toLocaleString()}
+                    RM {avgValue.toLocaleString()}
                   </p>
                 </div>
                 <div
@@ -359,96 +335,76 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center h-64">
-            <p style={{ color: "#898D74" }}>Loading clients...</p>
-          </div>
-        )}
-
-        {/* Clients Grid */}
-        {!loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredAndSortedClients.map((client) => (
+        {/* Clients Grid with Loading Overlay */}
+        <div className="relative">
+          <div className={`grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+          {clients.map((client) => (
             <Card
               key={client.id}
-              className="card bg-white border-2"
+              className="card bg-white border-2 flex flex-col h-full"
               style={{ borderColor: "#BDC4A5" }}
             >
               <CardHeader className="">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0">
-                      {client.photo ? (
-                        <Image
-                          src={client.photo || "/placeholder.svg"}
-                          alt={`${client.name} profile`}
-                          width={60}
-                          height={60}
-                          className="rounded-full object-cover border-2"
-                          style={{ borderColor: "#BDC4A5" }}
-                        />
-                      ) : (
-                        <div
-                          className="w-15 h-15 rounded-full flex items-center justify-center border-2"
-                          style={{ backgroundColor: "#BDC4A5", borderColor: "#898D74" }}
-                        >
-                          <User className="w-8 h-8" style={{ color: "#202F21" }} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-xl font-semibold mb-1" style={{ color: "#202F21" }}>
+                <div className="flex items-start gap-3">
+                  
+                  {/* Content Area */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                      <CardTitle 
+                        className="text-xl font-semibold line-clamp-2" 
+                        style={{ color: "#202F21" }}
+                        title={client.company || client.name}
+                      >
                         {client.company || client.name}
                       </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"} 
-                          variant="outline"
+                      <div className="flex space-x-1 flex-shrink-0">
+                        <Link href={`/clients/${client.id}`}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="View Client"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditClient(client)}
+                          title="Edit Client"
                         >
-                          <Crown className="w-3 h-3 mr-1" />
-                          {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
-                        </Badge>
-                        {client.industry && (
-                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {client.industry}
-                          </Badge>
-                        )}
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteClient(client)}
+                          title="Delete Client"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex space-x-1">
-                    <Link href={`/clients/${client.id}`}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        title="View Client"
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge 
+                        className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"} 
+                        variant="outline"
                       >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditClient(client)}
-                      title="Edit Client"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => handleDeleteClient(client)}
-                      title="Delete Client"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                        <Crown className="w-3 h-3 mr-1" />
+                        {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
+                      </Badge>
+                      {client.industry && (
+                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {client.industry}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-4">
+              <CardContent className="flex-1 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <Mail className="w-4 h-4" style={{ color: "#898D74" }} />
@@ -482,11 +438,11 @@ export default function ClientsPage() {
                   )}
                 </div>
 
-                <div className="pt-4 border-t" style={{ borderColor: "#BDC4A5" }}>
+                <div className="pt-4 border-t mt-4" style={{ borderColor: "#BDC4A5" }}>
                   <div className="text-sm">
                     <p style={{ color: "#898D74" }}>Quotations: {client.quotationsCount}</p>
                     <p className="font-semibold" style={{ color: "#202F21" }}>
-                      ${client.totalValue.toLocaleString()}
+                      RM {client.totalValue.toLocaleString()}
                     </p>
                   </div>
                 </div>
@@ -494,30 +450,50 @@ export default function ClientsPage() {
             </Card>
           ))}
         </div>
-        )}
 
-                 {!loading && clients.length === 0 && (
+        {/* Loading Indicator */}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
+            <div className="flex flex-col items-center gap-3" style={{ color: "#202F21" }}>
+              <div className="h-10 w-10 border-4 border-[#BDC4A5] border-t-[#202F21] rounded-full animate-spin" />
+              <p className="text-sm font-medium">Loading clients…</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+        {!loading && clients.length === 0 && total === 0 && (
            <div className="text-center py-12">
              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
              <p className="text-muted-foreground">No clients available.</p>
            </div>
          )}
 
-                   {/* Edit Client Dialog */}
-          <EditClientDialog
-            client={editingClient}
-            isOpen={isEditDialogOpen}
-            onOpenChange={setIsEditDialogOpen}
-            onSuccess={fetchClients}
-          />
+         {/* Pagination */}
+        <ProjectPagination
+          currentPage={page}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={goToPage}
+          onPageSizeChange={setPageSize}
+        />
 
-          {/* Delete Client Dialog */}
-          <DeleteClientDialog
-            isOpen={isDeleteDialogOpen}
-            onOpenChange={setIsDeleteDialogOpen}
-            onConfirm={confirmDeleteClient}
-            clientName={deletingClient?.name || ""}
-          />
+        {/* Edit Client Dialog */}
+        <EditClientDialog
+          client={editingClient}
+          isOpen={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onSuccess={handleSuccess}
+        />
+
+        {/* Delete Client Dialog */}
+        <DeleteClientDialog
+          isOpen={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          onConfirm={confirmDeleteClient}
+          clientName={deletingClient?.name || ""}
+        />
        </div>
      </div>
    )

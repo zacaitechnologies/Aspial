@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select"
 import { Plus, Trash2, Mail, User, Shield, Loader2, Edit, Key, Briefcase, Users } from "lucide-react"
 import { 
-  getAllNonAdminUsers, 
+  getUsersPaginated, 
   createUserAccount, 
   deleteUserAccount, 
   updateUserAccount, 
@@ -39,13 +39,13 @@ import {
 } from "./action"
 import { isUserAdmin } from "../projects/permissions"
 import { useSession } from "../contexts/SessionProvider"
+import { usePaginatedData } from "@/hooks/use-paginated-data"
+import { ProjectPagination } from "../projects/components/ProjectPagination"
 
 export default function UserManagementPage() {
   const router = useRouter()
   const { enhancedUser } = useSession()
-  const [users, setUsers] = useState<UserWithRole[]>([])
   const [staffRoles, setStaffRoles] = useState<StaffRole[]>([])
-  const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -88,21 +88,25 @@ export default function UserManagementPage() {
   const [roleError, setRoleError] = useState("")
   const [editRoleError, setEditRoleError] = useState("")
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      setLoading(true)
-      const data = await getAllNonAdminUsers()
-      setUsers(data)
-    } catch (error: any) {
-      console.error("Failed to fetch users:", error)
-      // If unauthorized or forbidden, redirect to home
-      if (error.message?.includes("Unauthorized") || error.message?.includes("Forbidden")) {
-        router.push("/")
-      }
-    } finally {
-      setLoading(false)
-    }
-  }, [router])
+  // Pagination for users
+  const {
+    data: users,
+    isLoading: loading,
+    page,
+    pageSize,
+    total,
+    totalPages,
+    goToPage,
+    setPageSize,
+    refresh: refreshUsers,
+    invalidateCache,
+  } = usePaginatedData<UserWithRole, any>({
+    fetchFn: async (page, pageSize) => {
+      return await getUsersPaginated(page, pageSize)
+    },
+    initialPage: 1,
+    initialPageSize: 12,
+  })
 
   const fetchStaffRoles = useCallback(async () => {
     try {
@@ -113,7 +117,7 @@ export default function UserManagementPage() {
     }
   }, [])
 
-  const checkAdminAndFetchUsers = useCallback(async () => {
+  const checkAdminAndFetchData = useCallback(async () => {
     if (!enhancedUser?.id) {
       router.push("/")
       return
@@ -128,16 +132,16 @@ export default function UserManagementPage() {
         return
       }
 
-      await Promise.all([fetchUsers(), fetchStaffRoles()])
+      await fetchStaffRoles()
     } catch (error) {
       console.error("Error checking admin status:", error)
       router.push("/")
     }
-  }, [enhancedUser?.id, router, fetchUsers, fetchStaffRoles])
+  }, [enhancedUser?.id, router, fetchStaffRoles])
 
   useEffect(() => {
-    checkAdminAndFetchUsers()
-  }, [checkAdminAndFetchUsers])
+    checkAdminAndFetchData()
+  }, [checkAdminAndFetchData])
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -174,7 +178,8 @@ export default function UserManagementPage() {
         setIsCreateDialogOpen(false)
         
         // Refresh users list
-        await fetchUsers()
+        invalidateCache()
+        await refreshUsers()
       } else {
         setError(result.error || "Failed to create user")
         // If unauthorized or forbidden, redirect to home
@@ -226,7 +231,8 @@ export default function UserManagementPage() {
         setEditingUser(null)
         
         // Refresh users list
-        await fetchUsers()
+        invalidateCache()
+        await refreshUsers()
       } else {
         setEditError(result.error || "Failed to update user")
         // If unauthorized or forbidden, redirect to home
@@ -298,7 +304,8 @@ export default function UserManagementPage() {
       const result = await deleteUserAccount(userId)
       
       if (result.success) {
-        await fetchUsers()
+        invalidateCache()
+        await refreshUsers()
       } else {
         alert(result.error || "Failed to delete user")
         // If unauthorized or forbidden, redirect to home
@@ -367,7 +374,9 @@ export default function UserManagementPage() {
       if (result.success) {
         setIsEditRoleDialogOpen(false)
         setEditingRole(null)
-        await Promise.all([fetchStaffRoles(), fetchUsers()])
+        await fetchStaffRoles()
+        invalidateCache()
+        await refreshUsers()
       } else {
         setEditRoleError(result.error || "Failed to update role")
       }
@@ -387,7 +396,9 @@ export default function UserManagementPage() {
       const result = await deleteStaffRole(roleId)
       
       if (result.success) {
-        await Promise.all([fetchStaffRoles(), fetchUsers()])
+        await fetchStaffRoles()
+        invalidateCache()
+        await refreshUsers()
       } else {
         alert(result.error || "Failed to delete role")
       }
@@ -400,15 +411,6 @@ export default function UserManagementPage() {
     return null
   }
 
-  if (loading) {
-    return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -576,22 +578,24 @@ export default function UserManagementPage() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Users Grid with Loading Overlay */}
+      <div className="relative">
+        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
         {users.map((user) => (
-          <Card key={user.id} className="card">
+          <Card key={user.id} className="card flex flex-col h-full">
             <CardHeader>
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <User className="w-5 h-5 text-muted-foreground" />
-                    {user.firstName} {user.lastName}
+              <div className="flex justify-between items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg flex items-center gap-2 mb-1">
+                    <User className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <span className="line-clamp-2" title={`${user.firstName} ${user.lastName}`}>{user.firstName} {user.lastName}</span>
                   </CardTitle>
-                  <CardDescription className="flex items-center gap-1 mt-1">
-                    <Mail className="w-3 h-3" />
+                  <CardDescription className="flex items-center gap-1 break-all">
+                    <Mail className="w-3 h-3 flex-shrink-0" />
                     {user.email}
                   </CardDescription>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -620,7 +624,7 @@ export default function UserManagementPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-muted-foreground" />
@@ -647,9 +651,20 @@ export default function UserManagementPage() {
             </CardContent>
           </Card>
         ))}
+        </div>
+
+        {/* Loading Indicator */}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
+            <div className="flex flex-col items-center gap-3 text-primary">
+              <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+              <p className="text-sm font-medium">Loading users…</p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {users.length === 0 && (
+      {!loading && users.length === 0 && (
         <Card>
           <CardContent className="p-12 text-center">
             <User className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -661,6 +676,16 @@ export default function UserManagementPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Pagination */}
+      <ProjectPagination
+        currentPage={page}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={goToPage}
+        onPageSizeChange={setPageSize}
+      />
         </TabsContent>
 
         {/* Staff Roles Tab */}
@@ -738,19 +763,19 @@ export default function UserManagementPage() {
               const usersCount = users.filter(u => u.staffRoleId === role.id).length
               
               return (
-                <Card key={role.id} className="card">
+                <Card key={role.id} className="card flex flex-col h-full">
                   <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Briefcase className="w-5 h-5 text-muted-foreground" />
-                          {role.roleName}
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg flex items-center gap-2 mb-1">
+                          <Briefcase className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                          <span className="line-clamp-2" title={role.roleName}>{role.roleName}</span>
                         </CardTitle>
-                        <CardDescription className="mt-1">
+                        <CardDescription>
                           {usersCount} {usersCount === 1 ? 'user' : 'users'} assigned
                         </CardDescription>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 flex-shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"

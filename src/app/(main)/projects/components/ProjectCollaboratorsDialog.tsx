@@ -25,15 +25,17 @@ import {
   updateProjectPermission,
   getAvailableUsersForProject,
   createProjectInvitation,
-  getProjectInvitations
+  getProjectInvitations,
+  isUserAdmin
 } from "../permissions";
-import { User, Users, X, Crown } from "lucide-react";
+import { User, Users, X, Crown, CheckCircle2, AlertCircle } from "lucide-react";
 import { useSession } from "../../contexts/SessionProvider";
 import { 
   ProjectPermission, 
   AvailableUser, 
   ProjectInvitation 
 } from "../types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface ProjectCollaboratorsDialogProps {
   isOpen: boolean;
@@ -57,6 +59,9 @@ export default function ProjectCollaboratorsDialog({
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [makeOwner, setMakeOwner] = useState(false);
   const [projectCreatorId, setProjectCreatorId] = useState<string | null>(null);
+  const [isUserAdminRole, setIsUserAdminRole] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
 
 
@@ -119,6 +124,17 @@ export default function ProjectCollaboratorsDialog({
         console.error("Failed to fetch project creator:", error);
       }
       
+      // Check if current user is admin
+      if (enhancedUser?.id) {
+        try {
+          const adminStatus = await isUserAdmin(enhancedUser.id);
+          console.log("User admin status:", adminStatus, "for user:", enhancedUser.id);
+          setIsUserAdminRole(adminStatus);
+        } catch (error) {
+          console.error("Failed to check admin status:", error);
+        }
+      }
+      
       // Set all the data
       setPermissions(permissionsData as ProjectPermission[]);
       setAvailableUsers(availableUsersData as AvailableUser[]);
@@ -145,13 +161,16 @@ export default function ProjectCollaboratorsDialog({
   }, [isOpen, projectId, fetchPermissions]);
 
   const handleInviteCollaborator = async () => {
+    setSuccessMessage("");
+    setErrorMessage("");
+    
     if (!selectedUserId) {
-      alert("Please select a user to invite");
+      setErrorMessage("Please select a user to invite");
       return;
     }
 
     if (!enhancedUser?.id) {
-      alert("User not authenticated");
+      setErrorMessage("User not authenticated");
       return;
     }
 
@@ -172,49 +191,66 @@ export default function ProjectCollaboratorsDialog({
       );
       
       console.log("Invitation created successfully:", result);
-      alert(`Invitation sent successfully to ${userName}!`);
+      setSuccessMessage(`Invitation sent successfully to ${userName}!`);
       
       // Reset form
       setSelectedUserId("");
       setMakeOwner(false);
       
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
+      
       // Refresh data
       await fetchPermissions();
     } catch (error) {
       console.error("Error sending invitation:", error);
-      alert("Failed to send invitation: " + (error instanceof Error ? error.message : "Please try again."));
+      setErrorMessage("Failed to send invitation: " + (error instanceof Error ? error.message : "Please try again."));
     }
   };
 
   const handleRemoveCollaborator = async (userId: string) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+    
     if (!enhancedUser?.id) {
-      alert("User not authenticated");
+      setErrorMessage("User not authenticated");
       return;
     }
 
     try {
       await removeProjectCollaborator(projectId, userId, enhancedUser.id);
       await fetchPermissions();
-      alert("Collaborator removed successfully!");
+      setSuccessMessage("Collaborator removed successfully!");
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
     } catch (error) {
       console.error("Error removing collaborator:", error);
-      alert("Failed to remove collaborator: " + (error instanceof Error ? error.message : "Please try again."));
+      setErrorMessage("Failed to remove collaborator: " + (error instanceof Error ? error.message : "Please try again."));
     }
   };
 
   const handleToggleOwner = async (userId: string, currentIsOwner: boolean) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+    
     if (!enhancedUser?.id) {
-      alert("User not authenticated");
+      setErrorMessage("User not authenticated");
       return;
     }
 
     try {
       await updateProjectPermission(projectId, userId, enhancedUser.id, !currentIsOwner);
       await fetchPermissions();
-      alert(`Collaborator ${!currentIsOwner ? 'promoted to' : 'demoted from'} owner successfully!`);
+      setSuccessMessage(`Collaborator ${!currentIsOwner ? 'promoted to' : 'demoted from'} owner successfully!`);
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 3000);
     } catch (error) {
       console.error("Error updating permission:", error);
-      alert("Failed to update permission: " + (error instanceof Error ? error.message : "Please try again."));
+      setErrorMessage("Failed to update permission: " + (error instanceof Error ? error.message : "Please try again."));
     }
   };
 
@@ -263,6 +299,22 @@ export default function ProjectCollaboratorsDialog({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Success/Error Messages */}
+          {successMessage && (
+            <Alert className="bg-green-50 border-green-200 text-green-800">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>Success</AlertTitle>
+              <AlertDescription>{successMessage}</AlertDescription>
+            </Alert>
+          )}
+          {errorMessage && (
+            <Alert variant="destructive" className="bg-red-50 border-red-200">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Invite New Collaborator */}
           <div className="space-y-4 p-4 border rounded-lg">
             <h3 className="font-semibold">Invite New Collaborator</h3>
@@ -367,6 +419,7 @@ export default function ProjectCollaboratorsDialog({
               {permissions.map((permission) => {
                 const isCreator = permission.userId === projectCreatorId;
                 const currentUserIsOwner = permissions.find(p => p.userId === enhancedUser?.id)?.isOwner;
+                const canManage = isUserAdminRole || (currentUserIsOwner && !isCreator);
                 
                 return (
                   <div
@@ -398,8 +451,8 @@ export default function ProjectCollaboratorsDialog({
                         </Badge>
                       )}
                       
-                      {/* Only show controls if current user is an owner and target is not the creator */}
-                      {currentUserIsOwner && !isCreator && (
+                      {/* Show controls if current user is admin or owner (and target is not the creator) */}
+                      {canManage && !isCreator && (
                         <>
                           <Button
                             variant="outline"

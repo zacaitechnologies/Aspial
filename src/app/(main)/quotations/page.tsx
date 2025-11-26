@@ -2,8 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Plus, FileText, Filter } from "lucide-react";
-import { useState, useMemo } from "react";
-import { deleteQuotationById } from "./action";
+import { useState } from "react";
+import { getQuotationsPaginated, deleteQuotationById } from "./action";
 import CreateQuotationForm from "./components/CreateQuotationForm";
 import EditQuotationForm from "./components/EditQuotationForm";
 import QuotationCard from "./components/QuotationCard";
@@ -16,16 +16,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useQuotationsCache } from "./hooks/useQuotationsCache";
+import { usePaginatedData } from "@/hooks/use-paginated-data";
+import { ProjectPagination } from "../projects/components/ProjectPagination";
 
 export default function QuotationsPage() {
   const { enhancedUser } = useSession();
-  const { quotations, isLoading, onRefresh } = useQuotationsCache(enhancedUser?.id);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingQuotation, setEditingQuotation] =
     useState<QuotationWithServices | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Pagination with server-side filtering
+  const {
+    data: quotations,
+    isLoading: loading,
+    page,
+    pageSize,
+    total,
+    totalPages,
+    goToPage,
+    setPageSize,
+    refresh,
+    invalidateCache,
+  } = usePaginatedData<QuotationWithServices, any>({
+    fetchFn: async (page, pageSize) => {
+      return await getQuotationsPaginated(page, pageSize, {
+        statusFilter,
+      })
+    },
+    initialPage: 1,
+    initialPageSize: 10,
+    filters: { statusFilter },
+  })
 
   const handleEditQuotation = (quotation: QuotationWithServices) => {
     setEditingQuotation(quotation);
@@ -35,27 +58,17 @@ export default function QuotationsPage() {
   const handleDeleteQuotation = async (quotationId: string) => {
     try {
       await deleteQuotationById(quotationId);
-      await onRefresh();
+      invalidateCache()
+      await refresh();
     } catch (error) {
       console.error("Error deleting quotation:", error);
       alert("Failed to delete quotation. Please try again.");
     }
   };
 
-  // Filter quotations by status
-  const filteredQuotations = useMemo(() => {
-    if (statusFilter === "all") {
-      return quotations;
-    }
-    return quotations.filter((quotation) => quotation.workflowStatus === statusFilter);
-  }, [quotations, statusFilter]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        Loading quotations...
-      </div>
-    );
+  const handleSuccess = async () => {
+    invalidateCache()
+    await refresh()
   }
 
   return (
@@ -104,24 +117,43 @@ export default function QuotationsPage() {
             </Button>
           )}
           <span className="text-sm text-muted-foreground ml-auto">
-            Showing {filteredQuotations.length} of {quotations.length} quotations
+            Showing {quotations.length} of {total} quotations
           </span>
         </div>
 
-        {/* Quotations Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 justify-start gap-6">
-          {filteredQuotations.map((quotation) => (
-            <QuotationCard
-              key={quotation.id}
-              quotation={quotation}
-              onEdit={handleEditQuotation}
-              onDelete={handleDeleteQuotation}
-              onRefresh={onRefresh}
-            />
-          ))}
+        {/* Quotations Grid with Loading Overlay */}
+        <div className="relative">
+          <div className={`grid grid-cols-1 lg:grid-cols-2 justify-start gap-6 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+            {quotations.map((quotation) => (
+              <QuotationCard
+                key={quotation.id}
+                quotation={quotation}
+                onEdit={handleEditQuotation}
+                onDelete={handleDeleteQuotation}
+                onRefresh={handleSuccess}
+              />
+            ))}
+          </div>
+
+          {/* Loading Indicator */}
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3 text-primary">
+                <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                <p className="text-sm font-medium">Loading quotations…</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {filteredQuotations.length === 0 && quotations.length > 0 && (
+        {!loading && quotations.length === 0 && total === 0 && statusFilter === 'all' && (
+          <div className="text-center py-12">
+            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No quotations available.</p>
+          </div>
+        )}
+
+        {!loading && quotations.length === 0 && statusFilter !== 'all' && (
           <div className="text-center py-12">
             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">No quotations match the selected filter.</p>
@@ -136,25 +168,28 @@ export default function QuotationsPage() {
           </div>
         )}
 
-        {quotations.length === 0 && (
-          <div className="text-center py-12">
-            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">No quotations available.</p>
-          </div>
-        )}
+        {/* Pagination */}
+        <ProjectPagination
+          currentPage={page}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={goToPage}
+          onPageSizeChange={setPageSize}
+        />
 
         {/* Create Quotation Form */}
         <CreateQuotationForm
           isOpen={isCreateOpen}
           onOpenChange={setIsCreateOpen}
-          onSuccess={onRefresh}
+          onSuccess={handleSuccess}
         />
 
         {/* Edit Quotation Form */}
         <EditQuotationForm
           isOpen={isEditOpen}
           onOpenChange={setIsEditOpen}
-          onSuccess={onRefresh}
+          onSuccess={handleSuccess}
           editingQuotation={editingQuotation}
         />
       </div>

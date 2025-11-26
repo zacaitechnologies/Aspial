@@ -319,14 +319,17 @@ export default function QuotationCard({
   };
 
   return (
-    <Card className="card">
+    <Card className="card flex flex-col h-full">
       <CardHeader>
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className={`text-lg flex items-center gap-2 ${isFinalQuotation ? 'text-gray-700' : ''}`}>
+        <div className="flex justify-between items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <CardTitle 
+              className={`text-lg line-clamp-2 mb-2 ${isFinalQuotation ? 'text-gray-700' : ''}`}
+              title={quotation.name}
+            >
               {quotation.name}
             </CardTitle>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 flex-wrap">
               {getWorkflowStatusBadge(quotation.workflowStatus)}
               {getPaymentStatusBadge(quotation.paymentStatus)}
               {isProjectCancelled && (
@@ -340,7 +343,7 @@ export default function QuotationCard({
               </Badge>
             </div>
           </div>
-          <div className="flex space-x-1">
+          <div className="flex space-x-1 flex-shrink-0">
             <Button
               variant="ghost"
               size="sm"
@@ -418,7 +421,7 @@ export default function QuotationCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1">
         {/* Client Information */}
         {quotation.Client && (
           <div className="mb-3 p-3 bg-muted/50 rounded-lg">

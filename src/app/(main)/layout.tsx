@@ -60,6 +60,7 @@ export default async function Layout({
         lastName: true,
         email: true,
         supabase_id: true,
+        profilePicture: true,
         created_at: true,
         updated_at: true
       }
@@ -74,6 +75,7 @@ export default async function Layout({
         lastName: 'User',
         email: 'dev@example.com',
         supabase_id: 'mock-user-id',
+        profilePicture: null,
         created_at: new Date(),
         updated_at: new Date()
       };

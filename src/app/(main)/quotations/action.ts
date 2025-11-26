@@ -1,6 +1,8 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { getCachedUser } from "@/lib/auth-cache"
+import { unstable_cache } from "next/cache"
 import { isUserAdmin } from "../projects/permissions"
 
 export async function getAllQuotations(userId?: string) {
@@ -18,6 +20,104 @@ export async function getAllQuotations(userId?: string) {
     },
     orderBy: { created_at: "desc" },
   })
+}
+
+// Internal function - not cached, used by cached version
+async function _getQuotationsPaginatedInternal(
+  page: number = 1,
+  pageSize: number = 10,
+  filters: {
+    statusFilter?: string
+  } = {}
+) {
+  const skip = (page - 1) * pageSize
+  const { statusFilter } = filters
+
+  // Build where clause
+  const where: any = {}
+  if (statusFilter && statusFilter !== 'all') {
+    where.workflowStatus = statusFilter
+  }
+
+  // Execute count and findMany in parallel for better performance
+  const [total, quotations] = await Promise.all([
+    prisma.quotation.count({ where }),
+    prisma.quotation.findMany({
+      where,
+      include: {
+        services: {
+          include: {
+            service: true,
+          },
+        },
+        project: true,
+        createdBy: true,
+        Client: true,
+        customServices: true,
+      },
+      orderBy: { created_at: "desc" },
+      skip,
+      take: pageSize,
+    })
+  ])
+
+  // Transform data to match QuotationWithServices type (convert null to undefined)
+  const transformedQuotations = quotations.map(quotation => ({
+    ...quotation,
+    discountValue: quotation.discountValue ?? undefined,
+    discountType: quotation.discountType ?? undefined,
+    Client: quotation.Client ? {
+      ...quotation.Client,
+      phone: quotation.Client.phone ?? undefined,
+      company: quotation.Client.company ?? undefined,
+      address: quotation.Client.address ?? undefined,
+      notes: quotation.Client.notes ?? undefined,
+      industry: quotation.Client.industry ?? undefined,
+      yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
+    } : undefined,
+    services: quotation.services.map(service => ({
+      ...service,
+      customServiceId: service.customServiceId ?? undefined,
+    })),
+    project: quotation.project ? {
+      ...quotation.project,
+      description: quotation.project.description ?? undefined,
+      startDate: quotation.project.startDate ?? undefined,
+      endDate: quotation.project.endDate ?? undefined,
+    } : null,
+  }))
+
+  return {
+    data: transformedQuotations,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  }
+}
+
+export async function getQuotationsPaginated(
+  page: number = 1,
+  pageSize: number = 10,
+  filters: {
+    statusFilter?: string
+  } = {}
+) {
+  // Use cached auth - deduplicates within same request
+  await getCachedUser()
+
+  // Cache key based on all parameters
+  const cacheKey = `quotations-paginated-${page}-${pageSize}-${JSON.stringify(filters)}`
+  
+  // Cache for 30 seconds - balances freshness with performance
+  return await unstable_cache(
+    async () => _getQuotationsPaginatedInternal(page, pageSize, filters),
+    [cacheKey],
+    {
+      revalidate: 30, // 30 seconds
+      tags: ['quotations'],
+    }
+  )()
 }
 
 export async function getQuotationById(id: string) {
