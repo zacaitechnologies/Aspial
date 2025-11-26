@@ -59,7 +59,7 @@ export function useQuotationCache(quotationId: string | undefined): UseQuotation
 	})
 	
 	// Only show loading if we don't have cached data
-	const [isLoading, setIsLoading] = useState(() => {
+	const [isLoading, setIsLoading] = useState<boolean>(() => {
 		if (!quotationId) return false
 		const stored = loadFromLocalStorage(cacheKey)
 		return !stored && !memoryQuotationCache[cacheKey]
