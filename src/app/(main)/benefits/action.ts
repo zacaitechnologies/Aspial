@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_cache } from "next/cache"
+import { unstable_cache, revalidateTag } from "next/cache"
 
 export interface MonthlyPerformance {
   month: string
@@ -284,56 +284,29 @@ export async function calculateFinalStars(userId: string): Promise<{ totalStars:
 }
 
 // Internal function - not cached, used by cached version
-async function _checkSuperPerformanceAwardInternal(userId: string): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number; manualOverride: boolean }> {
-  // Check for manual override first
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      superPerformanceAwardActive: true,
+// year parameter: the year to check the award for (award is based on previous year's performance)
+async function _checkSuperPerformanceAwardInternal(userId: string, year?: number): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number; manualOverride: boolean }> {
+  const currentYear = year || new Date().getFullYear()
+  const previousYear = currentYear - 1
+  
+  // Check if there's a record in the new table for this year
+  const awardRecord = await prisma.superPerformanceAward.findUnique({
+    where: {
+      userId_year: {
+        userId,
+        year: currentYear,
+      },
     },
   })
 
-  // If there's a manual override (admin activated/deactivated), use that
-  if (user && user.superPerformanceAwardActive !== null) {
-    const previousYear = new Date().getFullYear() - 1
-    // Execute both calls in parallel
-    const [previousYearSalesData, previousYearComplaints] = await Promise.all([
-      getEmployeeSalesData(userId, previousYear),
-      getEmployeeComplaints(userId),
-    ])
-    
-    const totalStars = previousYearSalesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
-    
-    const previousYearStart = new Date(previousYear, 0, 1)
-    const previousYearEnd = new Date(previousYear, 11, 31, 23, 59, 59)
-    
-    const previousYearComplaintsCount = previousYearComplaints.filter(complaint => {
-      const complaintDate = new Date(complaint.date)
-      return complaintDate >= previousYearStart && complaintDate <= previousYearEnd
-    }).length
-    
-    const previousYearStars = totalStars - previousYearComplaintsCount
-
-    return {
-      hasSuperPerformanceAward: user.superPerformanceAwardActive,
-      previousYearStars,
-      manualOverride: true,
-    }
-  }
-
-  const previousYear = new Date().getFullYear() - 1
-  
-  // Execute both calls in parallel
+  // Calculate previous year stars for display (needed regardless of whether record exists)
   const [previousYearSalesData, previousYearComplaints] = await Promise.all([
     getEmployeeSalesData(userId, previousYear),
     getEmployeeComplaints(userId),
   ])
   
-  // Calculate total stars from previous year
   const totalStars = previousYearSalesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
   
-  // Filter complaints for previous year only
-  const currentYear = new Date().getFullYear()
   const previousYearStart = new Date(previousYear, 0, 1)
   const previousYearEnd = new Date(previousYear, 11, 31, 23, 59, 59)
   
@@ -343,29 +316,38 @@ async function _checkSuperPerformanceAwardInternal(userId: string): Promise<{ ha
   }).length
   
   const previousYearStars = totalStars - previousYearComplaintsCount
-  
-  // Super performance award requires 12 or more stars
-  const hasSuperPerformanceAward = previousYearStars >= 12
 
+  // If there's a record (manual override or previously set), use that
+  if (awardRecord) {
+    return {
+      hasSuperPerformanceAward: awardRecord.hasAward,
+      previousYearStars,
+      manualOverride: awardRecord.manualOverride,
+    }
+  }
+
+  // No record exists - show as having no award
   return {
-    hasSuperPerformanceAward,
+    hasSuperPerformanceAward: false,
     previousYearStars,
     manualOverride: false,
   }
 }
 
 // Check if user has super performance award (based on previous year)
-export async function checkSuperPerformanceAward(userId: string): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number; manualOverride: boolean }> {
+// year parameter: the year to check the award for (defaults to current year)
+export async function checkSuperPerformanceAward(userId: string, year?: number): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number; manualOverride: boolean }> {
   try {
-    const cacheKey = `super-performance-award-${userId}`
+    const currentYear = year || new Date().getFullYear()
+    const cacheKey = `super-performance-award-${userId}-${currentYear}`
     
     // Cache for 60 seconds
     return await unstable_cache(
-      async () => _checkSuperPerformanceAwardInternal(userId),
+      async () => _checkSuperPerformanceAwardInternal(userId, currentYear),
       [cacheKey],
       {
         revalidate: 60,
-        tags: ['super-performance-award', `super-performance-award-${userId}`],
+        tags: ['super-performance-award', `super-performance-award-${userId}`, `super-performance-award-${userId}-${currentYear}`],
       }
     )()
   } catch (error) {
@@ -450,10 +432,11 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
   const usersBenefitsPromises = users.map(async (user) => {
     try {
       // Execute all three calls in parallel for each user
+      // Note: Award for a year is based on previous year's performance
       const [salesData, complaints, awardStatus] = await Promise.all([
         getEmployeeSalesData(user.id, year),
         getEmployeeComplaints(user.id),
-        checkSuperPerformanceAward(user.id),
+        checkSuperPerformanceAward(user.id, year),
       ])
 
       const totalStars = salesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
@@ -520,19 +503,43 @@ export async function getAllUsersBenefits(year: number = new Date().getFullYear(
   }
 }
 
-// Admin: Manually activate super performance award
-export async function activateSuperPerformanceAward(userId: string): Promise<{ success: boolean; message: string }> {
+// Admin: Manually activate super performance award for a specific year
+export async function activateSuperPerformanceAward(userId: string, year?: number): Promise<{ success: boolean; message: string }> {
   try {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        superPerformanceAwardActive: true,
+    const currentYear = year || new Date().getFullYear()
+    
+    // Upsert the award record for this year
+    await prisma.superPerformanceAward.upsert({
+      where: {
+        userId_year: {
+          userId,
+          year: currentYear,
+        },
+      },
+      create: {
+        userId,
+        year: currentYear,
+        hasAward: true,
+        manualOverride: true,
+      },
+      update: {
+        hasAward: true,
+        manualOverride: true,
       },
     })
 
+    // Invalidate all relevant caches
+    revalidateTag(`super-performance-award-${userId}`)
+    revalidateTag(`super-performance-award-${userId}-${currentYear}`)
+    revalidateTag('super-performance-award')
+    revalidateTag('benefits')
+    revalidateTag(`benefits-${currentYear}`)
+    // Also invalidate previous year in case viewing that
+    revalidateTag(`benefits-${currentYear - 1}`)
+
     return {
       success: true,
-      message: 'Super Performance Award activated successfully',
+      message: `Super Performance Award activated successfully for ${currentYear}`,
     }
   } catch (error) {
     console.error('Error activating super performance award:', error)
@@ -543,19 +550,43 @@ export async function activateSuperPerformanceAward(userId: string): Promise<{ s
   }
 }
 
-// Admin: Manually terminate super performance award
-export async function terminateSuperPerformanceAward(userId: string): Promise<{ success: boolean; message: string }> {
+// Admin: Manually terminate super performance award for a specific year
+export async function terminateSuperPerformanceAward(userId: string, year?: number): Promise<{ success: boolean; message: string }> {
   try {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        superPerformanceAwardActive: false,
+    const currentYear = year || new Date().getFullYear()
+    
+    // Upsert the award record for this year
+    await prisma.superPerformanceAward.upsert({
+      where: {
+        userId_year: {
+          userId,
+          year: currentYear,
+        },
+      },
+      create: {
+        userId,
+        year: currentYear,
+        hasAward: false,
+        manualOverride: true,
+      },
+      update: {
+        hasAward: false,
+        manualOverride: true,
       },
     })
 
+    // Invalidate all relevant caches
+    revalidateTag(`super-performance-award-${userId}`)
+    revalidateTag(`super-performance-award-${userId}-${currentYear}`)
+    revalidateTag('super-performance-award')
+    revalidateTag('benefits')
+    revalidateTag(`benefits-${currentYear}`)
+    // Also invalidate previous year in case viewing that
+    revalidateTag(`benefits-${currentYear - 1}`)
+
     return {
       success: true,
-      message: 'Super Performance Award terminated successfully',
+      message: `Super Performance Award terminated successfully for ${currentYear}`,
     }
   }  catch (error) {
     console.error('Error terminating super performance award:', error)
@@ -566,25 +597,148 @@ export async function terminateSuperPerformanceAward(userId: string): Promise<{ 
   }
 }
 
-// Admin: Reset super performance award to auto (based on performance)
-export async function resetSuperPerformanceAward(userId: string): Promise<{ success: boolean; message: string }> {
+// Admin: Reset super performance award to auto (based on performance) for a specific year
+export async function resetSuperPerformanceAward(userId: string, year?: number): Promise<{ success: boolean; message: string }> {
   try {
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        superPerformanceAwardActive: null,
+    const currentYear = year || new Date().getFullYear()
+    
+    // Delete the record to remove manual override - user will show as having no award
+    await prisma.superPerformanceAward.delete({
+      where: {
+        userId_year: {
+          userId,
+          year: currentYear,
+        },
       },
+    }).catch(() => {
+      // If record doesn't exist, that's fine - user already shows as having no award
     })
+
+    // Invalidate all relevant caches
+    revalidateTag(`super-performance-award-${userId}`)
+    revalidateTag(`super-performance-award-${userId}-${currentYear}`)
+    revalidateTag('super-performance-award')
+    revalidateTag('benefits')
+    revalidateTag(`benefits-${currentYear}`)
+    // Also invalidate previous year in case viewing that
+    revalidateTag(`benefits-${currentYear - 1}`)
 
     return {
       success: true,
-      message: 'Super Performance Award reset to automatic',
+      message: `Super Performance Award reset to automatic for ${currentYear}`,
     }
   } catch (error) {
     console.error('Error resetting super performance award:', error)
     return {
       success: false,
       message: 'Failed to reset Super Performance Award',
+    }
+  }
+}
+
+// Auto-calculate and create super performance awards for all users based on previous year's performance
+// This should be called on January 1st of each year
+export async function calculateAndCreateSuperPerformanceAwards(year?: number): Promise<{ success: boolean; message: string; awardsCreated: number; awardsActivated: number }> {
+  try {
+    const currentYear = year || new Date().getFullYear()
+    const previousYear = currentYear - 1
+    
+    // Get all non-admin users
+    const users = await prisma.user.findMany({
+      where: {
+        userRoles: {
+          none: {
+            role: {
+              slug: 'admin',
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    let awardsCreated = 0
+    let awardsActivated = 0
+
+    // Process each user
+    for (const user of users) {
+      try {
+        // Check if award record already exists for this year
+        const existingAward = await prisma.superPerformanceAward.findUnique({
+          where: {
+            userId_year: {
+              userId: user.id,
+              year: currentYear,
+            },
+          },
+        })
+
+        // Skip if record exists (to preserve manual overrides)
+        if (existingAward) {
+          continue
+        }
+
+        // Calculate previous year's performance
+        const [previousYearSalesData, previousYearComplaints] = await Promise.all([
+          getEmployeeSalesData(user.id, previousYear),
+          getEmployeeComplaints(user.id),
+        ])
+
+        const totalStars = previousYearSalesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
+
+        const previousYearStart = new Date(previousYear, 0, 1)
+        const previousYearEnd = new Date(previousYear, 11, 31, 23, 59, 59)
+
+        const previousYearComplaintsCount = previousYearComplaints.filter(complaint => {
+          const complaintDate = new Date(complaint.date)
+          return complaintDate >= previousYearStart && complaintDate <= previousYearEnd
+        }).length
+
+        const previousYearStars = totalStars - previousYearComplaintsCount
+
+        // Create award record - hasAward is true if 12+ stars, false otherwise
+        const hasAward = previousYearStars >= 12
+
+        await prisma.superPerformanceAward.create({
+          data: {
+            userId: user.id,
+            year: currentYear,
+            hasAward,
+            manualOverride: false, // Auto-calculated, not manual
+          },
+        })
+
+        awardsCreated++
+        if (hasAward) {
+          awardsActivated++
+        }
+      } catch (error) {
+        console.error(`Error processing award for user ${user.id}:`, error)
+        // Continue with next user
+      }
+    }
+
+    // Invalidate all benefits caches
+    revalidateTag('super-performance-award')
+    revalidateTag('benefits')
+    revalidateTag(`benefits-${currentYear}`)
+    revalidateTag(`benefits-${previousYear}`)
+
+    return {
+      success: true,
+      message: `Super Performance Awards calculated for ${currentYear}. Created ${awardsCreated} records, ${awardsActivated} awards activated.`,
+      awardsCreated,
+      awardsActivated,
+    }
+  } catch (error) {
+    console.error('Error calculating super performance awards:', error)
+    return {
+      success: false,
+      message: 'Failed to calculate Super Performance Awards',
+      awardsCreated: 0,
+      awardsActivated: 0,
     }
   }
 }
