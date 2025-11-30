@@ -336,7 +336,7 @@ export function TaskForm({
       if (task) {
         const updatedTask = await updateTask(task.id, taskData as UpdateTaskData);
         onTaskUpdated?.(updatedTask);
-        alert("Task updated successfully!");
+        // Don't show alert - let the page refresh handle it
       } else {
         const newTask = await createTask(taskData as CreateTaskData);
         onTaskCreated?.(newTask);

@@ -192,6 +192,7 @@ export async function updateMilestoneStatus(milestoneId: number): Promise<Milest
 
   const totalTasks = milestone.tasks.length
   const completedTasks = milestone.tasks.filter(task => task.status === 'done').length
+  const inProgressTasks = milestone.tasks.filter(task => task.status === 'in_progress').length
 
   let newStatus: 'not_started' | 'in_progress' | 'completed'
 
@@ -199,7 +200,8 @@ export async function updateMilestoneStatus(milestoneId: number): Promise<Milest
     newStatus = 'not_started'
   } else if (completedTasks === totalTasks) {
     newStatus = 'completed'
-  } else if (completedTasks > 0) {
+  } else if (completedTasks > 0 || inProgressTasks > 0) {
+    // Milestone is in progress if any task is done OR in progress
     newStatus = 'in_progress'
   } else {
     newStatus = 'not_started'

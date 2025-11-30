@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { ProjectWithQuotation } from "../types";
 import { getProjectComplaints, reactivateProject } from "../action";
 import { useSession } from "../../contexts/SessionProvider";
@@ -49,6 +49,8 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 export default function ProjectPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { enhancedUser } = useSession();
   
   // Use cache hook for project data
@@ -62,11 +64,23 @@ export default function ProjectPage() {
   } = useProjectCache(enhancedUser?.id, params.id as string);
   
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "complaints">("overview");
+  
+  // Initialize activeTab from URL or default to "overview"
+  const tabFromUrl = searchParams.get("tab") as "overview" | "tasks" | "complaints" | null;
+  const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "complaints">(
+    tabFromUrl && ["overview", "tasks", "complaints"].includes(tabFromUrl) ? tabFromUrl : "overview"
+  );
+  
+  // Update URL when tab changes
+  const handleTabChange = (tab: "overview" | "tasks" | "complaints") => {
+    setActiveTab(tab);
+    router.push(`/projects/${params.id}?tab=${tab}`, { scroll: false });
+  };
   const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">(
     "createDate"
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [taskFilter, setTaskFilter] = useState<"all" | "my">("all");
   const [complaints, setComplaints] = useState<any[]>([]);
   const [editingComplaint, setEditingComplaint] = useState<any | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -88,6 +102,14 @@ export default function ProjectPage() {
       getProjectComplaints(project.id).then(setComplaints);
     }
   }, [project?.id]);
+
+  // Sync activeTab with URL when URL changes
+  useEffect(() => {
+    const tabFromUrl = searchParams.get("tab") as "overview" | "tasks" | "complaints" | null;
+    if (tabFromUrl && ["overview", "tasks", "complaints"].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
 
   const handleManageCollaborators = () => {
     setIsCollaboratorsOpen(true);
@@ -231,7 +253,7 @@ export default function ProjectPage() {
         {/* Tab Navigation */}
         <div className="flex gap-4 border-b border-border mb-6">
           <button
-            onClick={() => setActiveTab("overview")}
+            onClick={() => handleTabChange("overview")}
             className={`px-4 py-2 border-b-2 font-medium transition-colors ${
               activeTab === "overview"
                 ? "border-primary text-primary"
@@ -242,7 +264,7 @@ export default function ProjectPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("tasks")}
+            onClick={() => handleTabChange("tasks")}
             className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
               activeTab === "tasks"
                 ? "border-b-2 border-primary text-primary"
@@ -261,7 +283,7 @@ export default function ProjectPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("complaints")}
+            onClick={() => handleTabChange("complaints")}
             className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
               activeTab === "complaints"
                 ? "border-b-2 border-primary text-primary"
@@ -658,14 +680,32 @@ export default function ProjectPage() {
         )}
 
         {activeTab === "tasks" && (
-          <KanbanBoard
-            projectId={params.id as string}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSortByChange={setSortBy}
-            onSortOrderChange={setSortOrder}
-            isProjectCancelled={isProjectCancelled}
-          />
+          <>
+            {/* Task Filter Controls */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <Select value={taskFilter} onValueChange={(value: "all" | "my") => setTaskFilter(value)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Tasks</SelectItem>
+                    <SelectItem value="my">My Tasks</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <KanbanBoard
+              projectId={params.id as string}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortByChange={setSortBy}
+              onSortOrderChange={setSortOrder}
+              isProjectCancelled={isProjectCancelled}
+              taskFilter={taskFilter}
+              userId={enhancedUser?.id}
+            />
+          </>
         )}
 
         {activeTab === "complaints" && (

@@ -9,8 +9,11 @@ import { CalendarDay } from "./components/CalendarDay"
 import { BookingDetailsDialog } from "./components/BookingDetailsDialog"
 import { DateEventsDialog } from "./components/DateEventsDialog"
 import { DatePicker } from "./components/DatePicker"
+import { ExportCalendarDialog } from "./components/ExportCalendarDialog"
 import { useSession } from "../contexts/SessionProvider"
 import { fetchAllBookings, CalendarBooking, getUserProjects, checkIsAdmin } from "./actions"
+import { Button } from "@/components/ui/button"
+import { Download } from "lucide-react"
 
 
 const bookingTypes = {
@@ -32,6 +35,7 @@ export default function OrganizationCalendar() {
 	const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
 	const [selectedDate, setSelectedDate] = useState<string>("")
 	const [isDateEventsDialogOpen, setIsDateEventsDialogOpen] = useState(false)
+	const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
 	const [isLoading, setIsLoading] = useState(true)
 	const [isAdmin, setIsAdmin] = useState(false)
 
@@ -319,10 +323,20 @@ export default function OrganizationCalendar() {
               <CardTitle className="text-xl font-semibold text-[var(--color-foreground)]">
                 Calendar
               </CardTitle>
-              <DatePicker 
-                currentDate={currentDate}
-                onDateChange={handleDateChange}
-              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsExportDialogOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </Button>
+                <DatePicker 
+                  currentDate={currentDate}
+                  onDateChange={handleDateChange}
+                />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -500,6 +514,13 @@ export default function OrganizationCalendar() {
             setIsDateEventsDialogOpen(false)
             setIsDetailsDialogOpen(true)
           }}
+        />
+
+        {/* Export Calendar Dialog */}
+        <ExportCalendarDialog
+          isOpen={isExportDialogOpen}
+          onClose={() => setIsExportDialogOpen(false)}
+          bookings={bookings}
         />
       </div>
     </div>

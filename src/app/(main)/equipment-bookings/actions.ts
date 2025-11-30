@@ -200,6 +200,40 @@ export async function createBooking(formData: FormData) {
 	const projectId = projectIdStr && projectIdStr !== '' ? Number.parseInt(projectIdStr) : null
 
 	try {
+		// Check for overlapping bookings with the same equipment
+		// Two time ranges overlap if: newStart < existingEnd AND newEnd > existingStart
+		const overlappingBookings = await prisma.booking.findMany({
+			where: {
+				equipmentId,
+				status: 'active',
+				AND: [
+					{
+						startDate: { lt: endDate }, // existing start < new end
+					},
+					{
+						endDate: { gt: startDate }, // existing end > new start
+					},
+				],
+			},
+			include: {
+				equipment: {
+					select: {
+						name: true,
+					},
+				},
+			},
+		})
+
+		if (overlappingBookings.length > 0) {
+			const booking = overlappingBookings[0]
+			const bookingStart = new Date(booking.startDate).toLocaleString()
+			const bookingEnd = new Date(booking.endDate).toLocaleString()
+			return {
+				success: false,
+				error: `This equipment is already booked from ${bookingStart} to ${bookingEnd} by ${booking.bookedBy}`,
+			}
+		}
+
 		await prisma.booking.create({
 			data: {
 				equipmentId,
@@ -230,6 +264,40 @@ export async function createStudioBooking(formData: FormData) {
 	const projectId = projectIdStr && projectIdStr !== '' ? Number.parseInt(projectIdStr) : null
 
 	try {
+		// Check for overlapping bookings with the same studio
+		// Two time ranges overlap if: newStart < existingEnd AND newEnd > existingStart
+		const overlappingBookings = await prisma.studioBooking.findMany({
+			where: {
+				studioId,
+				status: 'active',
+				AND: [
+					{
+						startDate: { lt: endDate }, // existing start < new end
+					},
+					{
+						endDate: { gt: startDate }, // existing end > new start
+					},
+				],
+			},
+			include: {
+				studio: {
+					select: {
+						name: true,
+					},
+				},
+			},
+		})
+
+		if (overlappingBookings.length > 0) {
+			const booking = overlappingBookings[0]
+			const bookingStart = new Date(booking.startDate).toLocaleString()
+			const bookingEnd = new Date(booking.endDate).toLocaleString()
+			return {
+				success: false,
+				error: `This studio is already booked from ${bookingStart} to ${bookingEnd} by ${booking.bookedBy}`,
+			}
+		}
+
 		await prisma.studioBooking.create({
 			data: {
 				studioId,

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_cache } from "next/cache"
+import { unstable_noStore } from "next/cache"
 import { isUserAdmin } from "../projects/permissions"
 
 export async function getAllQuotations(userId?: string) {
@@ -103,21 +103,14 @@ export async function getQuotationsPaginated(
     statusFilter?: string
   } = {}
 ) {
+  // Disable server-side caching for real-time data
+  unstable_noStore()
+
   // Use cached auth - deduplicates within same request
   await getCachedUser()
 
-  // Cache key based on all parameters
-  const cacheKey = `quotations-paginated-${page}-${pageSize}-${JSON.stringify(filters)}`
-  
-  // Cache for 30 seconds - balances freshness with performance
-  return await unstable_cache(
-    async () => _getQuotationsPaginatedInternal(page, pageSize, filters),
-    [cacheKey],
-    {
-      revalidate: 30, // 30 seconds
-      tags: ['quotations'],
-    }
-  )()
+  // Return fresh data without server-side caching
+  return await _getQuotationsPaginatedInternal(page, pageSize, filters)
 }
 
 export async function getQuotationById(id: string) {

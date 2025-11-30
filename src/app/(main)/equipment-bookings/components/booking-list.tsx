@@ -97,15 +97,22 @@ export function BookingList({
 
   const isSlotBooked = (item: Equipment | Studio, slot: { start: Date; end: Date }) => {
     const bookings = item.bookings || []
+    // Filter to only active bookings and check for overlaps
     return bookings.some(booking => {
-      // Since booking dates are already Date objects from the database
-      const bookingStart = booking.startDate
-      const bookingEnd = booking.endDate
-      return (
-        (slot.start >= bookingStart && slot.start < bookingEnd) ||
-        (slot.end > bookingStart && slot.end <= bookingEnd) ||
-        (slot.start <= bookingStart && slot.end >= bookingEnd)
-      )
+      // Only check active bookings
+      if (booking.status !== 'active') return false
+      
+      // Convert booking dates to Date objects if they're strings
+      const bookingStart = booking.startDate instanceof Date 
+        ? booking.startDate 
+        : new Date(booking.startDate)
+      const bookingEnd = booking.endDate instanceof Date 
+        ? booking.endDate 
+        : new Date(booking.endDate)
+      
+      // Check if slot overlaps with booking
+      // Two time ranges overlap if: slotStart < bookingEnd AND slotEnd > bookingStart
+      return slot.start < bookingEnd && slot.end > bookingStart
     })
   }
 
@@ -196,10 +203,14 @@ export function BookingList({
                      className={cn(
                        "p-2 text-xs border rounded transition-colors",
                        {
-                         "bg-gray-100 text-gray-400 cursor-not-allowed": isDisabled,
-                         "bg-red-100 text-red-600 border-red-200": isBooked,
-                         "bg-blue-500 text-white border-blue-600": isSelected,
-                         "bg-white hover:bg-gray-50 border-gray-200": !isDisabled && !isSelected,
+                         // Booked slots should be red, even if disabled
+                         "bg-red-100 text-red-600 border-red-200 cursor-not-allowed": isBooked,
+                         // Selected slots (blue) take precedence over other states
+                         "bg-blue-500 text-white border-blue-600": isSelected && !isBooked,
+                         // Disabled but not booked (gray)
+                         "bg-gray-100 text-gray-400 cursor-not-allowed": isDisabled && !isBooked,
+                         // Available slots (white)
+                         "bg-white hover:bg-gray-50 border-gray-200": !isDisabled && !isSelected && !isBooked,
                        }
                      )}
                      title={
@@ -282,10 +293,14 @@ export function BookingList({
                      className={cn(
                        "p-2 text-xs border rounded transition-colors",
                        {
-                         "bg-gray-100 text-gray-400 cursor-not-allowed": isDisabled,
-                         "bg-red-100 text-red-600 border-red-200": isBooked,
-                         "bg-blue-500 text-white border-blue-600": isSelected,
-                         "bg-white hover:bg-gray-50 border-gray-200": !isDisabled && !isSelected,
+                         // Booked slots should be red, even if disabled
+                         "bg-red-100 text-red-600 border-red-200 cursor-not-allowed": isBooked,
+                         // Selected slots (blue) take precedence over other states
+                         "bg-blue-500 text-white border-blue-600": isSelected && !isBooked,
+                         // Disabled but not booked (gray)
+                         "bg-gray-100 text-gray-400 cursor-not-allowed": isDisabled && !isBooked,
+                         // Available slots (white)
+                         "bg-white hover:bg-gray-50 border-gray-200": !isDisabled && !isSelected && !isBooked,
                        }
                      )}
                      title={

@@ -22,6 +22,7 @@
     "setup:storage": "tsx scripts/setup-storage.ts"
   },
   "dependencies": {
+    "@e965/xlsx": "^0.20.3",
     "@hookform/resolvers": "^5.1.1",
     "@prisma/client": "^6.10.1",
     "@prisma/extension-accelerate": "^2.0.1",

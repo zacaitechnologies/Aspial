@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { getVisibleProjectsForUser, isUserAdmin } from "./permissions"
 import { CreateProjectData, UpdateProjectData } from "./types"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_cache } from "next/cache"
+import { unstable_noStore } from "next/cache"
+import { revalidateTag } from "next/cache"
 
 export async function getAllProjects(userId?: string) {
   if (!userId) {
@@ -348,6 +349,9 @@ export async function getProjectsPaginated(
   searchQuery?: string,
   statusFilter?: string
 ) {
+  // Disable server-side caching for real-time data
+  unstable_noStore()
+
   if (!userId) {
     return {
       projects: [],
@@ -361,18 +365,8 @@ export async function getProjectsPaginated(
   // Use cached auth - deduplicates within same request
   await getCachedUser()
 
-  // Cache key based on all parameters
-  const cacheKey = `projects-paginated-${userId}-${page}-${pageSize}-${searchQuery || ''}-${statusFilter || 'all'}`
-  
-  // Cache for 30 seconds - balances freshness with performance
-  return await unstable_cache(
-    async () => _getProjectsPaginatedInternal(userId, page, pageSize, searchQuery, statusFilter),
-    [cacheKey],
-    {
-      revalidate: 30, // 30 seconds
-      tags: ['projects'],
-    }
-  )()
+  // Return fresh data without server-side caching
+  return await _getProjectsPaginatedInternal(userId, page, pageSize, searchQuery, statusFilter)
 }
 
 // Helper function to check if project is cancelled
@@ -441,6 +435,9 @@ export async function createProject(data: CreateProjectData) {
     });
   }
 
+  // Invalidate cache
+  revalidateTag('projects')
+
   return project
 }
 
@@ -457,10 +454,15 @@ export async function updateProjectStatus(
     throw new Error("Cannot update cancelled projects or insufficient permissions");
   }
   
-  return await prisma.project.update({
+  const result = await prisma.project.update({
     where: { id: Number.parseInt(id) },
     data: { status },
   });
+
+  // Invalidate cache
+  revalidateTag('projects')
+
+  return result
 }
 
 export async function updateProject(
@@ -474,10 +476,15 @@ export async function updateProject(
     throw new Error("Cannot update cancelled projects or insufficient permissions");
   }
   
-  return await prisma.project.update({
+  const result = await prisma.project.update({
     where: { id: Number.parseInt(id) },
     data,
   });
+
+  // Invalidate cache
+  revalidateTag('projects')
+
+  return result
 }
 
 // Soft delete: Cancel project (changes status to cancelled)
@@ -500,10 +507,15 @@ export async function cancelProject(id: string, userId: string) {
     }
   }
   
-  return await prisma.project.update({
+  const result = await prisma.project.update({
     where: { id: Number.parseInt(id) },
     data: { status: "cancelled" },
   });
+
+  // Invalidate cache
+  revalidateTag('projects')
+
+  return result
 }
 
 // Reactivate: Change cancelled project back to active (admin only)
@@ -532,10 +544,15 @@ export async function reactivateProject(
     throw new Error("Only cancelled projects can be reactivated");
   }
   
-  return await prisma.project.update({
+  const result = await prisma.project.update({
     where: { id: Number.parseInt(id) },
     data: { status: newStatus },
   });
+
+  // Invalidate cache
+  revalidateTag('projects')
+
+  return result
 }
 
 // Hard delete: Permanently delete project (only for admins)

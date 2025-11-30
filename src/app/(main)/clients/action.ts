@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_cache } from "next/cache"
+import { unstable_noStore } from "next/cache"
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -251,21 +251,14 @@ export async function getClientsPaginated(
   } = {}
 ) {
   try {
+    // Disable server-side caching for real-time data
+    unstable_noStore()
+
     // Use cached auth - deduplicates within same request
     await getCachedUser()
 
-    // Cache key based on all parameters
-    const cacheKey = `clients-paginated-${page}-${pageSize}-${JSON.stringify(filters)}`
-    
-    // Cache for 30 seconds - balances freshness with performance
-    return await unstable_cache(
-      async () => _getClientsPaginatedInternal(page, pageSize, filters),
-      [cacheKey],
-      {
-        revalidate: 30, // 30 seconds
-        tags: ['clients'],
-      }
-    )()
+    // Return fresh data without server-side caching
+    return await _getClientsPaginatedInternal(page, pageSize, filters)
   } catch (error: any) {
     if (isRedirectError(error)) throw error
     console.error('Error in getClientsPaginated:', error)

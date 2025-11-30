@@ -17,7 +17,7 @@ interface UseProjectsPaginatedReturn {
   invalidateCache: () => void
 }
 
-const CACHE_DURATION = 3 * 60 * 1000 // 3 minutes cache
+const CACHE_DURATION = 10 * 1000 // 10 seconds cache - reduced for real-time updates
 
 // Cache structure: Map<cacheKey, {data, timestamp}>
 interface CacheEntry {

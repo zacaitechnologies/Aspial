@@ -33,6 +33,8 @@ interface KanbanBoardProps {
   onSortByChange?: (sortBy: "dueDate" | "createDate" | "priority") => void;
   onSortOrderChange?: (sortOrder: "asc" | "desc") => void;
   isProjectCancelled?: boolean;
+  taskFilter?: "all" | "my";
+  userId?: string;
 }
 
 export function KanbanBoard({
@@ -42,6 +44,8 @@ export function KanbanBoard({
   onSortByChange,
   onSortOrderChange,
   isProjectCancelled = false,
+  taskFilter = "all",
+  userId,
 }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TaskWithAssignee[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -88,7 +92,14 @@ export function KanbanBoard({
   };
 
   const getTasksForColumn = (columnId: string) => {
-    const columnTasks = tasks.filter((task) => task.status === columnId);
+    let columnTasks = tasks.filter((task) => task.status === columnId);
+
+    // Filter by task ownership if "my" filter is selected
+    if (taskFilter === "my" && userId) {
+      columnTasks = columnTasks.filter(
+        (task) => task.assigneeId === userId || task.creatorId === userId
+      );
+    }
 
     // Sort tasks based on props
     return columnTasks.sort((a, b) => {

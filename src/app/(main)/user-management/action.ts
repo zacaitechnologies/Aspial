@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/utils/supabase/server"
-import { unstable_cache } from "next/cache"
+import { unstable_noStore } from "next/cache"
 
 // Create admin client with service role key for admin operations
 function createAdminClient() {
@@ -213,18 +213,11 @@ export async function getUsersPaginated(
   }
 
   try {
-    // Cache key based on all parameters
-    const cacheKey = `users-paginated-${page}-${pageSize}`
-    
-    // Cache for 30 seconds - balances freshness with performance
-    return await unstable_cache(
-      async () => _getUsersPaginatedInternal(page, pageSize),
-      [cacheKey],
-      {
-        revalidate: 30, // 30 seconds
-        tags: ['users'],
-      }
-    )()
+    // Disable server-side caching for real-time data
+    unstable_noStore()
+
+    // Return fresh data without server-side caching
+    return await _getUsersPaginatedInternal(page, pageSize)
   } catch (error) {
     console.error("Error fetching paginated users:", error)
     throw error

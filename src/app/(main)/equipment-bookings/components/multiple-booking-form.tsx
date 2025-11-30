@@ -53,6 +53,7 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 	const [projects, setProjects] = useState<Project[]>([])
 	const [selectedProject, setSelectedProject] = useState<string>("")
 	const [isLoadingProjects, setIsLoadingProjects] = useState(true)
+	const [error, setError] = useState<string | null>(null)
 
 	// Fetch user's accessible projects (only for equipment bookings)
 	useEffect(() => {
@@ -117,6 +118,7 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
 		setIsSubmitting(true)
+		setError(null)
 
 		try {
 			// Create bookings for each group of consecutive slots
@@ -140,10 +142,18 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 				formData.append("endDate", group[group.length - 1].end.toISOString())
 				formData.append("purpose", purpose)
 
+				let result
 				if (isStudio) {
-					await createStudioBooking(formData)
+					result = await createStudioBooking(formData)
 				} else {
-					await createBooking(formData)
+					result = await createBooking(formData)
+				}
+
+				// Check if booking creation failed
+				if (!result.success) {
+					setError(result.error || "Failed to create booking")
+					setIsSubmitting(false)
+					return
 				}
 			}
 
@@ -151,6 +161,7 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 			onClose()
 		} catch (error) {
 			console.error("Failed to create bookings:", error)
+			setError("An unexpected error occurred. Please try again.")
 		} finally {
 			setIsSubmitting(false)
 		}
@@ -168,6 +179,12 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
       </div>
 
 			<form onSubmit={handleSubmit} className="space-y-4">
+				{error && (
+					<div className="p-3 bg-red-50 border border-red-200 rounded-md">
+						<p className="text-sm text-red-800">{error}</p>
+					</div>
+				)}
+
 				<div className="space-y-2">
 					<Label htmlFor="bookedBy">Booked By</Label>
 					<Input

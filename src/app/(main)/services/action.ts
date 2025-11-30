@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_cache } from "next/cache"
+import { unstable_noStore } from "next/cache"
 
 // Helper function to transform Prisma service data to include tags
 function transformService(service: any) {
@@ -81,21 +81,14 @@ export async function getServicesPaginated(
     searchQuery?: string
   } = {}
 ) {
+  // Disable server-side caching for real-time data
+  unstable_noStore()
+
   // Use cached auth - deduplicates within same request
   await getCachedUser()
 
-  // Cache key based on all parameters
-  const cacheKey = `services-paginated-${page}-${pageSize}-${JSON.stringify(filters)}`
-  
-  // Cache for 30 seconds - balances freshness with performance
-  return await unstable_cache(
-    async () => _getServicesPaginatedInternal(page, pageSize, filters),
-    [cacheKey],
-    {
-      revalidate: 30, // 30 seconds
-      tags: ['services'],
-    }
-  )()
+  // Return fresh data without server-side caching
+  return await _getServicesPaginatedInternal(page, pageSize, filters)
 }
 
 export async function searchServices(query: string) {

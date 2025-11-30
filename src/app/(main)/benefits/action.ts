@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_cache, revalidateTag } from "next/cache"
+import { unstable_noStore, revalidateTag } from "next/cache"
 
 export interface MonthlyPerformance {
   month: string
@@ -191,17 +191,11 @@ export async function getEmployeeSalesData(
   month?: number
 ): Promise<EmployeeSalesData> {
   try {
-    const cacheKey = `employee-sales-${userId}-${year}${month !== undefined ? `-${month}` : ''}`
-    
-    // Cache for 60 seconds
-    return await unstable_cache(
-      async () => _getEmployeeSalesDataInternal(userId, year, month),
-      [cacheKey],
-      {
-        revalidate: 60,
-        tags: ['employee-sales', `employee-sales-${userId}`],
-      }
-    )()
+    // Disable server-side caching for real-time data
+    unstable_noStore()
+
+    // Return fresh data without server-side caching
+    return await _getEmployeeSalesDataInternal(userId, year, month)
   } catch (error) {
     console.error("Error fetching employee sales data:", error)
     throw error
@@ -252,17 +246,11 @@ async function _getEmployeeComplaintsInternal(userId: string) {
 // Get complaints data from database
 export async function getEmployeeComplaints(userId: string) {
   try {
-    const cacheKey = `employee-complaints-${userId}`
-    
-    // Cache for 60 seconds
-    return await unstable_cache(
-      async () => _getEmployeeComplaintsInternal(userId),
-      [cacheKey],
-      {
-        revalidate: 60,
-        tags: ['employee-complaints', `employee-complaints-${userId}`],
-      }
-    )()
+    // Disable server-side caching for real-time data
+    unstable_noStore()
+
+    // Return fresh data without server-side caching
+    return await _getEmployeeComplaintsInternal(userId)
   } catch (error) {
     console.error("Error fetching complaints:", error)
     return []
@@ -338,18 +326,13 @@ async function _checkSuperPerformanceAwardInternal(userId: string, year?: number
 // year parameter: the year to check the award for (defaults to current year)
 export async function checkSuperPerformanceAward(userId: string, year?: number): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number; manualOverride: boolean }> {
   try {
+    // Disable server-side caching for real-time data
+    unstable_noStore()
+
     const currentYear = year || new Date().getFullYear()
-    const cacheKey = `super-performance-award-${userId}-${currentYear}`
     
-    // Cache for 60 seconds
-    return await unstable_cache(
-      async () => _checkSuperPerformanceAwardInternal(userId, currentYear),
-      [cacheKey],
-      {
-        revalidate: 60,
-        tags: ['super-performance-award', `super-performance-award-${userId}`, `super-performance-award-${userId}-${currentYear}`],
-      }
-    )()
+    // Return fresh data without server-side caching
+    return await _checkSuperPerformanceAwardInternal(userId, currentYear)
   } catch (error) {
     console.error("Error checking super performance award:", error)
     return {
@@ -482,21 +465,14 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
 
 export async function getAllUsersBenefits(year: number = new Date().getFullYear()): Promise<UserBenefitsSummary[]> {
   try {
+    // Disable server-side caching for real-time data
+    unstable_noStore()
+
     // Use cached auth - deduplicates within same request
     await getCachedUser()
 
-    // Cache key based on year
-    const cacheKey = `all-users-benefits-${year}`
-    
-    // Cache for 60 seconds - benefits data changes less frequently
-    return await unstable_cache(
-      async () => _getAllUsersBenefitsInternal(year),
-      [cacheKey],
-      {
-        revalidate: 60, // 60 seconds
-        tags: ['benefits', `benefits-${year}`],
-      }
-    )()
+    // Return fresh data without server-side caching
+    return await _getAllUsersBenefitsInternal(year)
   } catch (error) {
     console.error('Error fetching all users benefits:', error)
     return []

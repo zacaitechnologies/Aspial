@@ -56,6 +56,7 @@ export function TaskCard({
   isProjectCancelled = false,
 }: TaskCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this task?")) return;
@@ -104,7 +105,7 @@ export function TaskCard({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <Dialog>
+                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                   <DialogTrigger asChild>
                     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                       <Edit className="h-4 w-4 mr-2" />
@@ -120,7 +121,14 @@ export function TaskCard({
                       task={task}
                       availableUsers={availableUsers}
                       availableMilestones={availableMilestones}
-                      onTaskUpdated={onTaskUpdated}
+                      onTaskUpdated={(updatedTask) => {
+                        onTaskUpdated?.(updatedTask);
+                        setIsEditDialogOpen(false);
+                        // Refresh page with tasks tab preserved
+                        if (typeof window !== 'undefined') {
+                          window.location.href = `${window.location.pathname}?tab=tasks`;
+                        }
+                      }}
                     />
                   </DialogContent>
                 </Dialog>
