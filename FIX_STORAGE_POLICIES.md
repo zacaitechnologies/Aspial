@@ -1,57 +1,102 @@
-# Fix Storage Policies - Quick Guide
-
-## The Problem
-
-Your policies are checking for folder ownership (`storage.foldername(name)`), but files are uploaded directly to the bucket root. This causes the RLS policy error.
-
-## The Solution
-
-Update your INSERT policy to remove the folder check. Here are two options:
-
-### Option 1: Edit Existing Policy (Recommended)
-
-1. Go to **Supabase Dashboard** → **Storage** → **Policies** → **OTHER POLICIES UNDER STORAGE.OBJECTS**
-2. Find the policy: **"Users can upload their own profile pictures"** (INSERT)
-3. Click the **three dots (⋮)** on the right → **Edit**
-4. In the **WITH CHECK** expression, change it to:
-   ```
-   bucket_id = 'profile-pictures'
-   ```
-5. Remove any folder ownership checks like `(storage.foldername(name))[1] = auth.uid()::text`
-6. Click **Save**
-
-### Option 2: Delete and Recreate (If editing doesn't work)
-
-1. Delete the existing INSERT policy
-2. Create a new one with these settings:
-   - **Policy name**: `Allow authenticated uploads`
-   - **Allowed operation**: `INSERT`
-   - **Target roles**: `authenticated`
-   - **WITH CHECK expression**: `bucket_id = 'profile-pictures'`
-   - **USING expression**: (leave empty)
-
-## Quick SQL Fix
-
-Or run this SQL in **Supabase SQL Editor** to fix the INSERT policy:
-
-```sql
--- Drop the existing policy
+-- 1. CLEAN UP: Drop all existing policies by name to avoid conflicts across both buckets.
+-----------------------------------------------------------------------------------------
 DROP POLICY IF EXISTS "Users can upload their own profile pictures" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view profile pictures" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update their own profile pictures" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete their own profile pictures" ON storage.objects;
 
--- Create a simpler policy
-CREATE POLICY "Allow authenticated uploads"
+DROP POLICY IF EXISTS "Users can upload contracts" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view contracts" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update contracts" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete contracts" ON storage.objects;
+
+
+-- 2. POLICY RE-CREATION: Define the policies for both the 'profile-pictures' and 'contracts' buckets.
+------------------------------------------------------------------------------------------------------
+
+-- A. Policies for 'profile-pictures' Bucket (Owner-Only Write, Public Read)
+
+-- Policy A1: INSERT (Upload)
+-- Allows authenticated users to upload files to 'profile-pictures' IF the filename starts with their UUID.
+CREATE POLICY "Users can upload their own profile pictures"
 ON storage.objects FOR INSERT
 TO authenticated
-WITH CHECK (bucket_id = 'profile-pictures');
-```
+WITH CHECK (
+  (bucket_id = 'profile-pictures')
+  AND name LIKE ((auth.uid())::text || '-%')
+);
 
-## Verify Other Policies
+-- Policy A2: SELECT (View)
+-- Allows ANY user (public) to view files in the 'profile-pictures' bucket.
+CREATE POLICY "Anyone can view profile pictures"
+ON storage.objects FOR SELECT
+TO public
+USING (
+  bucket_id = 'profile-pictures'
+);
 
-Make sure your other policies also use simple bucket checks:
+-- Policy A3: UPDATE (Modify)
+-- Allows authenticated users to update files in 'profile-pictures' ONLY if the name matches their UUID prefix.
+CREATE POLICY "Users can update their own profile pictures"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+  (bucket_id = 'profile-pictures')
+  AND name LIKE ((auth.uid())::text || '-%')
+)
+WITH CHECK (
+  (bucket_id = 'profile-pictures')
+  AND name LIKE ((auth.uid())::text || '-%')
+);
 
-- **SELECT**: `bucket_id = 'profile-pictures'` (should work as-is)
-- **UPDATE**: `bucket_id = 'profile-pictures'` (remove folder checks if present)
-- **DELETE**: `bucket_id = 'profile-pictures'` (remove folder checks if present)
+-- Policy A4: DELETE (Remove)
+-- Allows authenticated users to delete files in 'profile-pictures' ONLY if the name starts with their UUID.
+CREATE POLICY "Users can delete their own profile pictures"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+  (bucket_id = 'profile-pictures')
+  AND name LIKE ((auth.uid())::text || '-%')
+);
 
-After fixing the INSERT policy, try uploading again!
 
+-- B. Policies for 'contracts' Bucket (Authenticated Write, Public Read)
+
+-- Policy B1: INSERT (Upload)
+-- Allows any authenticated user to upload files to the 'contracts' bucket.
+CREATE POLICY "Users can upload contracts"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'contracts'
+);
+
+-- Policy B2: SELECT (View)
+-- Allows ANY user (public) to view files in the 'contracts' bucket.
+CREATE POLICY "Anyone can view contracts"
+ON storage.objects FOR SELECT
+TO public
+USING (
+  bucket_id = 'contracts'
+);
+
+-- Policy B3: UPDATE (Modify)
+-- Allows any authenticated user to update files in the 'contracts' bucket.
+CREATE POLICY "Authenticated users can update contracts"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'contracts'
+)
+WITH CHECK (
+  bucket_id = 'contracts'
+);
+
+-- Policy B4: DELETE (Remove)
+-- Allows any authenticated user to delete files in the 'contracts' bucket.
+CREATE POLICY "Authenticated users can delete contracts"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'contracts'
+);

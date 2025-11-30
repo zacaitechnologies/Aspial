@@ -59,6 +59,7 @@ model User {
   userRoles                      UserRole[]
   complaints                     Complaint[]
   superPerformanceAwards        SuperPerformanceAward[]
+  contracts                      Contract[]
 
   @@map("user")
 }
@@ -185,6 +186,7 @@ model Project {
   milestones    Milestone[]
   invitations   ProjectInvitation[]
   permissions   ProjectPermission[]
+  contracts     Contract[]
   Client        Client              @relation(fields: [clientId], references: [id])
   createdByUser User                @relation("ProjectCreator", fields: [createdBy], references: [supabase_id])
   quotations    Quotation[]
@@ -453,3 +455,18 @@ model SuperPerformanceAward {
   @@unique([userId, year])
   @@map("super_performance_awards")
 }
+
+model Contract {
+  id          String   @id @default(cuid())
+  projectId   Int
+  fileName    String
+  filePath    String
+  uploadedBy  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader    User     @relation(fields: [uploadedBy], references: [supabase_id], onDelete: Cascade)
+
+  @@map("contracts")
+}
+

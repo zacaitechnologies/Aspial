@@ -38,12 +38,14 @@ import {
   AlertCircle,
   Trash2,
   PlayCircle,
+  File as FileIcon,
 } from "lucide-react";
 import Link from "next/link";
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog";
 import { KanbanBoard } from "../components/ProjectKanbanBoard";
 import CreateComplaintDialog from "../components/CreateComplaintDialog";
 import EditComplaintDialog from "../components/EditComplaintDialog";
+import ProjectContracts from "../components/ProjectContracts";
 import { deleteComplaint } from "../action";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
@@ -66,13 +68,13 @@ export default function ProjectPage() {
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   
   // Initialize activeTab from URL or default to "overview"
-  const tabFromUrl = searchParams.get("tab") as "overview" | "tasks" | "complaints" | null;
-  const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "complaints">(
-    tabFromUrl && ["overview", "tasks", "complaints"].includes(tabFromUrl) ? tabFromUrl : "overview"
+  const tabFromUrl = searchParams.get("tab") as "overview" | "tasks" | "complaints" | "contracts" | null;
+  const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "complaints" | "contracts">(
+    tabFromUrl && ["overview", "tasks", "complaints", "contracts"].includes(tabFromUrl) ? tabFromUrl : "overview"
   );
   
   // Update URL when tab changes
-  const handleTabChange = (tab: "overview" | "tasks" | "complaints") => {
+  const handleTabChange = (tab: "overview" | "tasks" | "complaints" | "contracts") => {
     setActiveTab(tab);
     router.push(`/projects/${params.id}?tab=${tab}`, { scroll: false });
   };
@@ -103,13 +105,13 @@ export default function ProjectPage() {
     }
   }, [project?.id]);
 
-  // Sync activeTab with URL when URL changes
-  useEffect(() => {
-    const tabFromUrl = searchParams.get("tab") as "overview" | "tasks" | "complaints" | null;
-    if (tabFromUrl && ["overview", "tasks", "complaints"].includes(tabFromUrl)) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [searchParams]);
+    // Sync activeTab with URL when URL changes
+    useEffect(() => {
+      const tabFromUrl = searchParams.get("tab") as "overview" | "tasks" | "complaints" | "contracts" | null;
+      if (tabFromUrl && ["overview", "tasks", "complaints", "contracts"].includes(tabFromUrl)) {
+        setActiveTab(tabFromUrl);
+      }
+    }, [searchParams]);
 
   const handleManageCollaborators = () => {
     setIsCollaboratorsOpen(true);
@@ -299,6 +301,18 @@ export default function ProjectPage() {
                 {complaints.length}
               </Badge>
             )}
+          </button>
+
+          <button
+            onClick={() => handleTabChange("contracts")}
+            className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${
+              activeTab === "contracts"
+                ? "border-b-2 border-primary text-primary"
+                : "border-b-2 border-transparent text-black hover:text-foreground"
+            }`}
+          >
+            <FileIcon className="w-4 h-4" />
+            Contracts
           </button>
         </div>
 
@@ -769,6 +783,13 @@ export default function ProjectPage() {
               ))
             )}
           </div>
+        )}
+
+        {activeTab === "contracts" && project && (
+          <ProjectContracts
+            projectId={project.id}
+            userPermission={userPermission}
+          />
         )}
       </div>
 
