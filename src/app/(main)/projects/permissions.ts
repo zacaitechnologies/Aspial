@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { revalidateTag } from "next/cache"
 
 export async function isUserAdmin(userSupabaseId: string) {
   // Check if userSupabaseId is valid
@@ -197,8 +198,19 @@ export async function removeProjectCollaborator(
     }
   }
   
+  // Get project and user info before removal for notification
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { name: true },
+  });
+
+  const requester = await prisma.user.findUnique({
+    where: { supabase_id: requestingUserId },
+    select: { firstName: true, lastName: true },
+  });
+
   // Proceed with removal
-  return await prisma.projectPermission.delete({
+  const result = await prisma.projectPermission.delete({
     where: {
       userId_projectId: {
         userId,
@@ -206,6 +218,40 @@ export async function removeProjectCollaborator(
       },
     },
   });
+
+  // Create notification for the removed user
+  try {
+    await prisma.projectInvitation.upsert({
+      where: {
+        projectId_invitedUser: {
+          projectId,
+          invitedUser: userId,
+        },
+      },
+      update: {
+        status: 'removed',
+        invitedBy: requestingUserId,
+        canView: false,
+        canEdit: false,
+        isOwner: false,
+        updatedAt: new Date(),
+      },
+      create: {
+        projectId,
+        invitedBy: requestingUserId,
+        invitedUser: userId,
+        status: 'removed',
+        canView: false,
+        canEdit: false,
+        isOwner: false,
+      },
+    });
+  } catch (error) {
+    // If notification creation fails, log but don't fail the removal
+    console.error('Failed to create removal notification:', error);
+  }
+
+  return result;
 }
 
 export async function getProjectCreator(projectId: number): Promise<string | null> {
@@ -489,7 +535,7 @@ export async function acceptProjectInvitation(invitationId: number) {
   }
 
   // Use a transaction to update invitation and create permission
-  return await prisma.$transaction(async (tx) => {
+  const permission = await prisma.$transaction(async (tx) => {
     // Update invitation status
     await tx.projectInvitation.update({
       where: { id: invitationId },
@@ -513,6 +559,11 @@ export async function acceptProjectInvitation(invitationId: number) {
 
     return permission
   })
+
+  // Invalidate project cache to reflect the new collaborator
+  revalidateTag('projects')
+
+  return permission
 }
 
 export async function declineProjectInvitation(invitationId: number) {

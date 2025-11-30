@@ -431,6 +431,7 @@ enum InvitationStatus {
   accepted
   declined
   expired
+  removed
 }
 
 enum CustomServiceStatus {

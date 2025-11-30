@@ -291,6 +291,8 @@ export default function NotificationPage() {
         return <Badge variant="destructive">Declined</Badge>;
       case "expired":
         return <Badge variant="outline">Expired</Badge>;
+      case "removed":
+        return <Badge variant="destructive">Removed</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -414,6 +416,18 @@ export default function NotificationPage() {
                       </div>
                     </div>
 
+                    {invitation.status === "removed" && (
+                      <div className="border-t pt-4 mt-4">
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>User Removed from Project</AlertTitle>
+                          <AlertDescription>
+                            {invitation.invitee.firstName} {invitation.invitee.lastName} was removed from this project by {invitation.inviter.firstName} {invitation.inviter.lastName}.
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    )}
+
                     {invitation.status === "pending" && (
                       <div className="flex gap-2 border-t pt-4">
                         <Button
@@ -423,7 +437,7 @@ export default function NotificationPage() {
                           <Check className="w-4 h-4 mr-2" />
                           Accept as Admin
                         </Button>
-                        <Button
+                          <Button
                           variant="outline"
                           onClick={() => handleAdminDeclineInvitation(invitation.id)}
                           className="flex-1"
@@ -521,6 +535,19 @@ export default function NotificationPage() {
                         </p>
                       </div>
                     </div>
+
+                    {invitation.status === "removed" && (
+                      <div className="border-t pt-4 mt-4">
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Removed from Project</AlertTitle>
+                          <AlertDescription>
+                            You have been removed from this project by {invitation.inviter.firstName} {invitation.inviter.lastName}. 
+                            You no longer have access to this project.
+                          </AlertDescription>
+                        </Alert>
+                      </div>
+                    )}
 
                     {invitation.status === "pending" && (
                       <div className="flex gap-2">
