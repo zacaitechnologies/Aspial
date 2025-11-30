@@ -74,7 +74,7 @@ export async function getAllClients() {
       yearlyRevenue: client.yearlyRevenue || undefined,
       membershipType: client.membershipType,
       quotationsCount: client.quotations.length,
-      totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
+      totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
       created_at: client.created_at.toISOString(),
     }))
   } catch (error: any) {
@@ -130,10 +130,19 @@ async function _getClientsPaginatedInternal(
     where.membershipType = membershipType
   }
 
-  // Execute count and findMany in parallel for better performance
-  const [total, clients] = await Promise.all([
-    prisma.client.count({ where }),
-    prisma.client.findMany({
+  // Handle sorting: totalValue is a computed field, so we need to fetch all matching records,
+  // compute it, sort in memory, then paginate
+  const isTotalValueSort = sortBy === 'totalValue'
+  
+  let total: number
+  let clients: any[]
+  
+  if (isTotalValueSort) {
+    // For totalValue sorting, we need to fetch all matching records, compute totalValue,
+    // sort in memory, then paginate
+    total = await prisma.client.count({ where })
+    
+    const allClients = await prisma.client.findMany({
       where,
       include: {
         quotations: {
@@ -148,14 +157,64 @@ async function _getClientsPaginatedInternal(
           },
         },
       },
-      skip,
-      take: pageSize,
-      orderBy: { [sortBy]: sortDirection },
-    }),
-  ])
+    })
+    
+    // Transform and sort in memory
+    const transformed = allClients.map(client => ({
+      id: client.id,
+      name: client.name,
+      email: client.email,
+      phone: client.phone || undefined,
+      company: client.company || undefined,
+      address: client.address || undefined,
+      notes: client.notes || undefined,
+      industry: client.industry || undefined,
+      yearlyRevenue: client.yearlyRevenue || undefined,
+      membershipType: client.membershipType,
+      quotationsCount: client.quotations.length,
+      totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
+      created_at: client.created_at.toISOString(),
+    }))
+    
+    // Sort by totalValue
+    transformed.sort((a, b) => {
+      const comparison = a.totalValue - b.totalValue
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+    
+    // Apply pagination
+    clients = transformed.slice(skip, skip + pageSize)
+  } else {
+    // For database fields, use Prisma's orderBy
+    const [totalCount, fetchedClients] = await Promise.all([
+      prisma.client.count({ where }),
+      prisma.client.findMany({
+        where,
+        include: {
+          quotations: {
+            select: {
+              id: true,
+              totalPrice: true,
+            },
+          },
+          projects: {
+            select: {
+              id: true,
+            },
+          },
+        },
+        skip,
+        take: pageSize,
+        orderBy: { [sortBy]: sortDirection },
+      }),
+    ])
+    
+    total = totalCount
+    clients = fetchedClients
+  }
 
-  // Transform data
-  const transformedClients = clients.map(client => ({
+  // Transform data (if not already transformed)
+  const transformedClients = isTotalValueSort ? clients : clients.map(client => ({
     id: client.id,
     name: client.name,
     email: client.email,
@@ -167,7 +226,7 @@ async function _getClientsPaginatedInternal(
     yearlyRevenue: client.yearlyRevenue || undefined,
     membershipType: client.membershipType,
     quotationsCount: client.quotations.length,
-    totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
+    totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
     created_at: client.created_at.toISOString(),
   }))
 
