@@ -23,12 +23,14 @@ interface ServicesListProps {
   services: Service[];
   isLoading: boolean;
   onRefresh: () => Promise<void>;
+  isAdmin?: boolean;
 }
 
 export default function ServicesList({
   services,
   isLoading,
   onRefresh,
+  isAdmin = false,
 }: ServicesListProps) {
   const { invalidateAllCaches, serviceTags } = useServicesCacheContext();
   const [searchQuery, setSearchQuery] = useState("");
@@ -153,7 +155,7 @@ export default function ServicesList({
             {filteredServices.length !== 1 ? "s" : ""} available
           </p>
         </div>
-        <ServiceForm onSuccess={handleServiceSuccess} />
+        {isAdmin && <ServiceForm onSuccess={handleServiceSuccess} />}
       </div>
 
       {/* Search and Filter Section */}
@@ -246,25 +248,27 @@ export default function ServicesList({
                       </Badge>
                     </div>
                   </div>
-                  <div className="flex space-x-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditService(service)}
-                      title="Edit Service"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteService(service.id)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      title="Delete Service"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditService(service)}
+                        title="Edit Service"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteService(service.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        title="Delete Service"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
 
@@ -316,7 +320,7 @@ export default function ServicesList({
               ? "Try adjusting your search terms or create a new service."
               : "Get started by creating your first service."}
           </p>
-          {!searchQuery && <ServiceForm onSuccess={handleServiceSuccess} />}
+          {!searchQuery && isAdmin && <ServiceForm onSuccess={handleServiceSuccess} />}
         </div>
       )}
 

@@ -1,14 +1,24 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ServiceTagManager from "./components/ServiceTagManager"
 import ServicesList from "./components/ServicesList"
 import { ServicesCacheProvider, useServicesCacheContext } from "./contexts/ServicesCacheContext"
+import { checkIsAdmin } from "./service-actions"
 
 function ServicesPageContent() {
   const [activeTab, setActiveTab] = useState("services")
+  const [isAdmin, setIsAdmin] = useState(false)
   const { services, serviceTags, invalidateAllCaches } = useServicesCacheContext()
+
+  useEffect(() => {
+    const fetchAdminStatus = async () => {
+      const adminStatus = await checkIsAdmin()
+      setIsAdmin(adminStatus)
+    }
+    fetchAdminStatus()
+  }, [])
 
   // Invalidate cache when switching tabs to ensure fresh data if needed
   const handleTabChange = (value: string) => {
@@ -27,25 +37,28 @@ function ServicesPageContent() {
         {/* Tabs Section */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
           <div className="relative">
-            <TabsList className="grid w-full grid-cols-2 bg-transparent border-primary border-1 transition-all duration-300 ease-in-out">
+            <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'} bg-transparent border-primary border-1 transition-all duration-300 ease-in-out`}>
               <TabsTrigger 
                 value="services" 
                 className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
               >
                 Services
               </TabsTrigger>
-              <TabsTrigger 
-                value="tags" 
-                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
-              >
-                Service Tags
-              </TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger 
+                  value="tags" 
+                  className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+                >
+                  Service Tags
+                </TabsTrigger>
+              )}
             </TabsList>
             {/* Sliding indicator */}
             <div 
               className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
-                activeTab === "services" ? "left-1 w-[calc(50%-4px)]" : 
-                "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+                isAdmin 
+                  ? (activeTab === "services" ? "left-1 w-[calc(50%-4px)]" : "left-[calc(50%+2px)] w-[calc(50%-4px)]")
+                  : "left-1 w-[calc(100%-8px)]"
               }`}
             />
           </div>
@@ -54,13 +67,16 @@ function ServicesPageContent() {
             <ServicesList 
               services={services.services} 
               isLoading={services.isLoading} 
-              onRefresh={services.onRefresh} 
+              onRefresh={services.onRefresh}
+              isAdmin={isAdmin}
             />
           </TabsContent>
 
-          <TabsContent value="tags" className="space-y-0">
-            <ServiceTagManager />
-          </TabsContent>
+          {isAdmin && (
+            <TabsContent value="tags" className="space-y-0">
+              <ServiceTagManager />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

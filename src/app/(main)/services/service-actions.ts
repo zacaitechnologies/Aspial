@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { getCachedUser } from "@/lib/auth-cache"
 import { CreateServiceData, UpdateServiceData, CreateServiceTagData, UpdateServiceTagData, Service, ServiceTag } from "./types"
 
 // Helper function to transform Prisma service data to match our Service type
@@ -21,6 +22,11 @@ function transformServiceTag(tag: any): ServiceTag {
 
 // Service Tag Actions
 export async function createServiceTag(data: CreateServiceTagData): Promise<ServiceTag> {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+
   const tag = await prisma.serviceTag.create({
     data: {
       name: data.name,
@@ -69,6 +75,11 @@ export async function getServiceTagById(id: number): Promise<ServiceTag | null> 
 }
 
 export async function updateServiceTag(id: number, data: UpdateServiceTagData): Promise<ServiceTag> {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+
   const tag = await prisma.serviceTag.update({
     where: { id },
     data,
@@ -85,6 +96,11 @@ export async function updateServiceTag(id: number, data: UpdateServiceTagData): 
 }
 
 export async function deleteServiceTag(id: number): Promise<void> {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+
   await prisma.serviceTag.delete({
     where: { id },
   })
@@ -92,6 +108,11 @@ export async function deleteServiceTag(id: number): Promise<void> {
 
 // Service Actions
 export async function createService(data: CreateServiceData): Promise<Service> {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+
   const { tagIds, ...serviceData } = data
   
   const service = await prisma.services.create({
@@ -146,6 +167,11 @@ export async function getServiceById(id: number): Promise<Service | null> {
 }
 
 export async function updateService(id: number, data: UpdateServiceData): Promise<Service> {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+
   const { tagIds, ...serviceData } = data
   
   // Update the service with new tags
@@ -176,6 +202,11 @@ export async function updateService(id: number, data: UpdateServiceData): Promis
 }
 
 export async function deleteService(id: number): Promise<void> {
+  const isAdmin = await checkIsAdmin()
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+
   await prisma.services.delete({
     where: { id },
   })
@@ -224,4 +255,31 @@ export async function searchServices(query: string): Promise<Service[]> {
   })
   
   return services.map(transformService)
+}
+
+// Check if current user is admin
+export async function checkIsAdmin(): Promise<boolean> {
+  try {
+    const user = await getCachedUser()
+    
+    const userWithRoles = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
+      }
+    })
+    
+    if (!userWithRoles) {
+      return false
+    }
+    
+    return userWithRoles.userRoles.some((userRole) => userRole.role.slug === "admin")
+  } catch (error) {
+    console.error("Error checking admin status:", error)
+    return false
+  }
 }
