@@ -313,6 +313,22 @@ export async function editQuotationById(
     }
   },
 ) {
+  // Check if user is the creator of the quotation
+  const user = await getCachedUser()
+  const quotation = await prisma.quotation.findUnique({
+    where: { id: Number.parseInt(id) },
+    select: { createdById: true }
+  })
+
+  if (!quotation) {
+    throw new Error("Quotation not found")
+  }
+
+  // Check if current user is the creator
+  if (quotation.createdById !== user.id) {
+    throw new Error("Unauthorized: You can only edit quotations you created")
+  }
+
   // Validate that final quotations have a project
   if (data.workflowStatus === "final" && !data.projectId) {
     throw new Error("Final quotations must be linked to a project. Please select or create a project before finalizing.");
@@ -426,6 +442,22 @@ export async function editQuotationById(
 }
 
 export async function deleteQuotationById(id: string) {
+  // Check if user is the creator of the quotation
+  const user = await getCachedUser()
+  const quotation = await prisma.quotation.findUnique({
+    where: { id: Number.parseInt(id) },
+    select: { createdById: true }
+  })
+
+  if (!quotation) {
+    throw new Error("Quotation not found")
+  }
+
+  // Check if current user is the creator
+  if (quotation.createdById !== user.id) {
+    throw new Error("Unauthorized: You can only delete quotations you created")
+  }
+
   // First, delete any associated projects
   await prisma.project.deleteMany({
     where: { quotations: { some: { id: Number.parseInt(id) } } },
@@ -574,6 +606,22 @@ export async function createCustomService(data: {
   createdById: string;
   quotationId: number;
 }) {
+  // Check if user is the creator of the quotation
+  const user = await getCachedUser()
+  const quotation = await prisma.quotation.findUnique({
+    where: { id: data.quotationId },
+    select: { createdById: true }
+  })
+
+  if (!quotation) {
+    throw new Error("Quotation not found")
+  }
+
+  // Check if current user is the creator
+  if (quotation.createdById !== user.id) {
+    throw new Error("Unauthorized: You can only add custom services to quotations you created")
+  }
+
   return await prisma.$transaction(async (tx) => {
     // Create the custom service
     const customService = await tx.customService.create({

@@ -142,6 +142,7 @@ export default function QuotationCard({
   const isProjectCancelled = quotation.project?.status === "cancelled";
   const isFinalQuotation = quotation.workflowStatus === "final";
   const isEditableQuotation = quotation.workflowStatus === "draft" || quotation.workflowStatus === "accepted" || quotation.workflowStatus === "rejected";
+  const isCreator = enhancedUser?.id === quotation.createdBy?.supabase_id;
   const handleDelete = () => {
     // For final quotations, prevent deletion
     if (isFinalQuotation) {
@@ -353,28 +354,32 @@ export default function QuotationCard({
             >
               <Info className="w-4 h-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={isFinalQuotation ? undefined : () => setIsCustomServiceDialogOpen(true)}
-              disabled={isFinalQuotation}
-              className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : "text-blue-600 hover:text-blue-700"}
-              title={isFinalQuotation ? "Cannot add custom services to final quotations" : "Add Custom Service"}
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEdit(quotation)}
-              title={
-                isFinalQuotation
-                  ? "Edit final quotation (limited to payment status only)"
-                  : "Edit Quotation"
-              }
-            >
-              <Edit className="w-4 h-4" />
-            </Button>
+            {isCreator && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={isFinalQuotation ? undefined : () => setIsCustomServiceDialogOpen(true)}
+                disabled={isFinalQuotation}
+                className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : "text-blue-600 hover:text-blue-700"}
+                title={isFinalQuotation ? "Cannot add custom services to final quotations" : "Add Custom Service"}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            )}
+            {isCreator && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(quotation)}
+                title={
+                  isFinalQuotation
+                    ? "Edit final quotation (limited to payment status only)"
+                    : "Edit Quotation"
+                }
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+            )}
 
             {/* Create Project Button - Show for accepted/rejected quotations without project */}
             {isEditableQuotation && !hasProject && (
@@ -402,22 +407,24 @@ export default function QuotationCard({
               </Button>
             )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={isFinalQuotation ? undefined : handleDelete}
-              disabled={isFinalQuotation}
-              className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : ""}
-              title={
-                isFinalQuotation
-                  ? "Cannot delete final quotations"
-                  : hasProject
-                  ? "Delete quotation (will also delete associated project)"
-                  : "Delete quotation"
-              }
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            {isCreator && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={isFinalQuotation ? undefined : handleDelete}
+                disabled={isFinalQuotation}
+                className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : ""}
+                title={
+                  isFinalQuotation
+                    ? "Cannot delete final quotations"
+                    : hasProject
+                    ? "Delete quotation (will also delete associated project)"
+                    : "Delete quotation"
+                }
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
