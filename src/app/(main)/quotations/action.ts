@@ -116,14 +116,41 @@ export async function getQuotationsPaginated(
 export async function getQuotationById(id: string) {
   const quotation = await prisma.quotation.findUnique({
     where: { id: parseInt(id) },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      totalPrice: true,
+      workflowStatus: true,
+      paymentStatus: true,
+      discountValue: true,
+      discountType: true,
+      duration: true,
+      startDate: true,
+      endDate: true,
+      created_at: true,
       services: {
-        include: {
-          service: true,
+        select: {
+          id: true,
+          service: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              basePrice: true,
+            },
+          },
         },
       },
       customServices: {
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          price: true,
+          status: true,
+          approvalComment: true,
+          rejectionComment: true,
           createdBy: {
             select: {
               firstName: true,
@@ -139,7 +166,13 @@ export async function getQuotationById(id: string) {
           },
         },
       },
-      project: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+        },
+      },
       createdBy: {
         select: {
           firstName: true,
@@ -147,11 +180,20 @@ export async function getQuotationById(id: string) {
           email: true,
         },
       },
-      Client: true,
+      Client: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          company: true,
+        },
+      },
     },
   });
 
   // If quotation is in_review and no pending custom services, determine status based on custom service outcomes
+  // Update status in background (non-blocking) to avoid slowing down the read operation
   if (quotation && quotation.workflowStatus === "in_review") {
     const hasPendingCustomServices = quotation.customServices.some(
       (cs) => cs.status === "PENDING"
@@ -166,11 +208,16 @@ export async function getQuotationById(id: string) {
       // If any services were approved, set to accepted, otherwise rejected
       const newStatus = hasApprovedServices ? "accepted" : "rejected";
       
-      await prisma.quotation.update({
+      // Update the status in the returned object immediately (for display)
+      quotation.workflowStatus = newStatus;
+      
+      // Update database in background (non-blocking) - don't await
+      prisma.quotation.update({
         where: { id: parseInt(id) },
         data: { workflowStatus: newStatus },
+      }).catch((error) => {
+        console.error("Error updating quotation status:", error);
       });
-      quotation.workflowStatus = newStatus;
     }
   }
 

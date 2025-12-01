@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { getProjectsPaginated } from "../action"
-import { ProjectWithQuotation } from "../types"
+import type { ProjectWithQuotation } from "../types"
 
 interface UseProjectsPaginatedReturn {
   projects: ProjectWithQuotation[]
@@ -17,7 +17,7 @@ interface UseProjectsPaginatedReturn {
   invalidateCache: () => void
 }
 
-const CACHE_DURATION = 10 * 1000 // 10 seconds cache - reduced for real-time updates
+const CACHE_DURATION = 3 * 60 * 1000 // 3 minutes for active session
 
 // Cache structure: Map<cacheKey, {data, timestamp}>
 interface CacheEntry {
@@ -70,7 +70,12 @@ export function useProjectsPaginated(
     
     console.log("❌ PROJECTS CACHE MISS - Loading page " + page)
     isCurrentlyLoading = true
-    setIsLoading(true)
+    
+    // Only show loading spinner if we don't have ANY cached data
+    if (projects.length === 0) {
+      setIsLoading(true)
+    }
+    
     try {
       const result = await getProjectsPaginated(
         userId,
@@ -92,6 +97,7 @@ export function useProjectsPaginated(
       setTotalPages(result.totalPages)
     } catch (error) {
       console.error("Error loading projects:", error)
+      // If we have cached data, keep showing it (graceful degradation)
     } finally {
       setIsLoading(false)
       isCurrentlyLoading = false

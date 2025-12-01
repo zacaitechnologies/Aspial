@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Plus, FileText, Filter } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { getQuotationsPaginated, deleteQuotationById } from "./action";
 import CreateQuotationForm from "./components/CreateQuotationForm";
 import EditQuotationForm from "./components/EditQuotationForm";

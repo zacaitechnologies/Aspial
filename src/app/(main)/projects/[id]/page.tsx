@@ -10,6 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -362,24 +367,49 @@ export default function ProjectPage() {
                         {collaborators
                           .slice(0, 3)
                           .map((collaborator: any, index: number) => (
-                            <Avatar key={index} className="w-8 h-8">
-                              <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                                {collaborator.user.firstName.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <Tooltip key={index}>
+                              <TooltipTrigger asChild>
+                                <Avatar className="w-8 h-8 cursor-pointer">
+                                  <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
+                                    {collaborator.user.firstName.charAt(0)}{collaborator.user.lastName.charAt(0)}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{collaborator.user.firstName} {collaborator.user.lastName}</p>
+                              </TooltipContent>
+                            </Tooltip>
                           ))}
                         {collaborators.length > 3 && (
-                          <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-secondary-foreground text-xs font-bold">
-                            +{collaborators.length - 3}
-                          </div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center text-secondary-foreground text-xs font-bold cursor-pointer">
+                                +{collaborators.length - 3}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="flex flex-col gap-1">
+                                {collaborators.slice(3).map((collaborator: any, index: number) => (
+                                  <p key={index}>{collaborator.user.firstName} {collaborator.user.lastName}</p>
+                                ))}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                     ) : (
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
-                          {project.createdByUser.firstName.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Avatar className="w-8 h-8 cursor-pointer">
+                            <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
+                              {project.createdByUser.firstName.charAt(0)}{project.createdByUser.lastName.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{project.createdByUser.firstName} {project.createdByUser.lastName}</p>
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </div>
 
