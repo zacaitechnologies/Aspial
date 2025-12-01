@@ -391,6 +391,18 @@ export async function canModifyProject(userId: string, projectId: number): Promi
     return true;
   }
   
+  // Check if user is the creator of the project
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { createdBy: true },
+  });
+  
+  // Creator can always modify
+  if (project?.createdBy === userId) {
+    return true;
+  }
+  
+  // Check if user has edit or owner permission
   const permission = await prisma.projectPermission.findUnique({
     where: {
       userId_projectId: {
@@ -400,7 +412,12 @@ export async function canModifyProject(userId: string, projectId: number): Promi
     },
   });
   
-  return permission?.canEdit || permission?.isOwner || false;
+  // Owner or user with edit permission can modify
+  if (permission?.isOwner || permission?.canEdit) {
+    return true;
+  }
+  
+  return false;
 }
 
 export async function createProject(data: CreateProjectData) {
@@ -470,10 +487,43 @@ export async function updateProject(
   data: UpdateProjectData,
   userId: string
 ) {
-  // Check if user can modify project (includes cancelled check)
-  const canModify = await canModifyProject(userId, Number.parseInt(id));
-  if (!canModify) {
-    throw new Error("Cannot update cancelled projects or insufficient permissions");
+  // Get project details to check status and permissions
+  const project = await prisma.project.findUnique({
+    where: { id: Number.parseInt(id) },
+    select: { createdBy: true, status: true },
+  });
+  
+  if (!project) {
+    throw new Error("Project not found");
+  }
+  
+  const isCancelled = project.status === "cancelled";
+  const isAdmin = await isUserAdmin(userId);
+  const isCreator = project.createdBy === userId;
+  
+  // For cancelled projects, only admins, creators, and owners can update (to reactivate)
+  if (isCancelled) {
+    if (!isAdmin && !isCreator) {
+      // Check if user is owner
+      const permission = await prisma.projectPermission.findUnique({
+        where: {
+          userId_projectId: {
+            userId,
+            projectId: Number.parseInt(id),
+          },
+        },
+      });
+      
+      if (!permission?.isOwner) {
+        throw new Error("Only administrators, project creators, and project owners can update cancelled projects");
+      }
+    }
+  } else {
+    // For non-cancelled projects, use the standard permission check
+    const canModify = await canModifyProject(userId, Number.parseInt(id));
+    if (!canModify) {
+      throw new Error("You do not have permission to edit this project. Only admins, project creators, and users with edit permissions can modify projects.");
+    }
   }
   
   const result = await prisma.project.update({
@@ -518,22 +568,16 @@ export async function cancelProject(id: string, userId: string) {
   return result
 }
 
-// Reactivate: Change cancelled project back to active (admin only)
+// Reactivate: Change cancelled project back to active (admin, owner, or creator only)
 export async function reactivateProject(
   id: string, 
   userId: string,
   newStatus: "planning" | "in_progress" | "on_hold" = "in_progress"
 ) {
-  // Only admins can reactivate cancelled projects
-  const isAdmin = await isUserAdmin(userId);
-  
-  if (!isAdmin) {
-    throw new Error("Only administrators can reactivate cancelled projects");
-  }
-  
   // Verify the project is actually cancelled
   const project = await prisma.project.findUnique({
     where: { id: Number.parseInt(id) },
+    select: { createdBy: true, status: true },
   });
   
   if (!project) {
@@ -542,6 +586,26 @@ export async function reactivateProject(
   
   if (project.status !== "cancelled") {
     throw new Error("Only cancelled projects can be reactivated");
+  }
+  
+  // Check if user is admin, creator, or owner
+  const isAdmin = await isUserAdmin(userId);
+  const isCreator = project.createdBy === userId;
+  
+  if (!isAdmin && !isCreator) {
+    // Check if user is owner
+    const permission = await prisma.projectPermission.findUnique({
+      where: {
+        userId_projectId: {
+          userId,
+          projectId: Number.parseInt(id),
+        },
+      },
+    });
+    
+    if (!permission?.isOwner) {
+      throw new Error("Only administrators, project creators, and project owners can reactivate cancelled projects");
+    }
   }
   
   const result = await prisma.project.update({
