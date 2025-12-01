@@ -29,6 +29,7 @@ export function BookingDetailsDialog({
 }: BookingDetailsDialogProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState<Partial<CalendarBooking>>({})
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   if (!booking) return null
 
@@ -48,8 +49,6 @@ export function BookingDetailsDialog({
     setEditData({})
   }
 
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-
   const handleDelete = () => {
     setIsDeleteDialogOpen(true)
   }
@@ -61,15 +60,16 @@ export function BookingDetailsDialog({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle>
-              {isEditing ? "Edit Booking" : "Booking Details"}
-            </DialogTitle>
-          </div>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>
+                {isEditing ? "Edit Booking" : "Booking Details"}
+              </DialogTitle>
+            </div>
+          </DialogHeader>
 
         {isEditing ? (
           <div className="space-y-4">
@@ -198,5 +198,6 @@ export function BookingDetailsDialog({
         cancelText="Cancel"
         variant="danger"
       />
-    )
-  }
+    </>
+  )
+}

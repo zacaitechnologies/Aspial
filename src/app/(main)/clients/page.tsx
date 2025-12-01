@@ -30,6 +30,7 @@ import EditClientDialog from "./components/EditClientDialog"
 import DeleteClientDialog from "./components/DeleteClientDialog"
 import { usePaginatedData } from "@/hooks/use-paginated-data"
 import { ProjectPagination } from "../projects/components/ProjectPagination"
+import { toast } from "@/components/ui/use-toast"
 
 
 interface Client {
