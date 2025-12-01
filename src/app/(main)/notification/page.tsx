@@ -26,6 +26,8 @@ import { Label } from "@/components/ui/label";
 import { Bell, Check, X, Users, Eye, Edit, Crown, Shield, Trash2, Package, CheckCircle2, AlertCircle } from "lucide-react";
 import CustomServiceNotifications from "./components/CustomServiceNotifications";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "@/components/ui/use-toast";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 type ProjectInvitation = {
   id: number;
@@ -99,6 +101,7 @@ export default function NotificationPage() {
   const [allInvitations, setAllInvitations] = useState<ProjectInvitation[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<ProjectInvitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteInvitationId, setDeleteInvitationId] = useState<number | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -258,26 +261,28 @@ export default function NotificationPage() {
   const handleAdminDeleteInvitation = async (invitationId: number) => {
     setSuccessMessage("");
     setErrorMessage("");
-    
-    if (!confirm("Are you sure you want to delete this invitation? This action cannot be undone.")) {
-      return;
-    }
+    setDeleteInvitationId(invitationId);
+  };
+
+  const confirmDeleteInvitation = async () => {
+    if (!deleteInvitationId) return;
     
     try {
       // For now, we'll just decline it since we don't have a delete function
-      // You can add a delete function later if needed
-      await declineProjectInvitation(invitationId);
-      // Refresh all invitation lists
-      fetchInvitations();
-      setSuccessMessage("Invitation declined by admin!");
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
+      await declineProjectInvitation(deleteInvitationId);
+      setDeleteInvitationId(null);
+      await fetchInvitations();
+      toast({
+        title: "Success",
+        description: "Invitation deleted successfully.",
+      });
     } catch (error) {
-      console.error("Error declining invitation as admin:", error);
-      setErrorMessage("Failed to decline invitation. Please try again.");
+      console.error("Error deleting invitation:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete invitation. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -579,6 +584,17 @@ export default function NotificationPage() {
           </TabsContent>
         </Tabs>
       )}
+
+      <ConfirmationDialog
+        isOpen={deleteInvitationId !== null}
+        onClose={() => setDeleteInvitationId(null)}
+        onConfirm={confirmDeleteInvitation}
+        title="Delete Invitation"
+        description="Are you sure you want to delete this invitation? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }

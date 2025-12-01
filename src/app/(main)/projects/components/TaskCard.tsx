@@ -29,6 +29,8 @@ import {
 import { TaskWithAssignee, Milestone } from "../types";
 import { TaskForm } from "./TaskForm";
 import { deleteTask } from "../task-actions";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { toast } from "@/components/ui/use-toast";
 
 interface TaskCardProps {
   task: TaskWithAssignee;
@@ -57,16 +59,25 @@ export function TaskCard({
 }: TaskCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this task?")) return;
-
     setIsDeleting(true);
     try {
       await deleteTask(task.id);
       onTaskDeleted?.(task.id);
+      setIsDeleteDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Task deleted successfully.",
+      });
     } catch (error) {
       console.error("Error deleting task:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete task. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -133,12 +144,15 @@ export function TaskCard({
                   </DialogContent>
                 </Dialog>
                 <DropdownMenuItem
-                  onSelect={handleDelete}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setIsDeleteDialogOpen(true);
+                  }}
                   disabled={isDeleting}
                   className="text-red-600"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  {isDeleting ? "Deleting..." : "Delete"}
+                  Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -205,6 +219,17 @@ export function TaskCard({
           </div>
         )}
       </CardContent>
+      <ConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete Task"
+        description="Are you sure you want to delete this task? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </Card>
   );
 }

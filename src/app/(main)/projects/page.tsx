@@ -19,6 +19,7 @@ import Link from "next/link";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useProjectsPaginated } from "./hooks/useProjectsCache";
 import { ProjectPagination } from "./components/ProjectPagination";
+import { toast } from "@/components/ui/use-toast";
 
 export default function ProjectsPage() {
   const { enhancedUser } = useSession();
@@ -88,7 +89,11 @@ export default function ProjectsPage() {
       setProjectToDelete(null);
     } catch (error) {
       console.error("Error cancelling project:", error);
-      alert("Failed to cancel project. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to cancel project. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

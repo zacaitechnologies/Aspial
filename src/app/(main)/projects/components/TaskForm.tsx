@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -340,7 +341,10 @@ export function TaskForm({
       } else {
         const newTask = await createTask(taskData as CreateTaskData);
         onTaskCreated?.(newTask);
-        alert("Task created successfully!");
+        toast({
+          title: "Success",
+          description: "Task created successfully!",
+        });
       }
 
       setOpen(false);
@@ -349,7 +353,11 @@ export function TaskForm({
       console.error("Error saving task:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to save task. Please try again.";
       setError(errorMessage);
-      alert(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }

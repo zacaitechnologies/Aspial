@@ -31,6 +31,8 @@ import {
 } from "../service-actions"
 import { ServiceTag, CreateServiceTagData, UpdateServiceTagData } from "../types"
 import { useServicesCacheContext } from "../contexts/ServicesCacheContext"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { toast } from "@/components/ui/use-toast"
 
 export default function ServiceTagManager() {
   const { serviceTags, invalidateAllCaches } = useServicesCacheContext()
@@ -38,6 +40,8 @@ export default function ServiceTagManager() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingTag, setEditingTag] = useState<ServiceTag | null>(null)
+  const [deleteTagId, setDeleteTagId] = useState<number | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [formData, setFormData] = useState<CreateServiceTagData>({
     name: "",
     color: "#3B82F6"
@@ -75,14 +79,31 @@ export default function ServiceTagManager() {
   }
 
   const handleDeleteTag = async (tagId: number) => {
-    if (!confirm("Are you sure you want to delete this tag? This will remove it from all associated services.")) return
+    setDeleteTagId(tagId)
+  }
+
+  const confirmDeleteTag = async () => {
+    if (!deleteTagId) return
     
+    setIsDeleting(true)
     try {
-      await deleteServiceTag(tagId)
+      await deleteServiceTag(deleteTagId)
       invalidateAllCaches()
       await onRefresh()
+      setDeleteTagId(null)
+      toast({
+        title: "Success",
+        description: "Service tag deleted successfully.",
+      })
     } catch (error) {
       console.error("Error deleting tag:", error)
+      toast({
+        title: "Error",
+        description: "Failed to delete service tag. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -320,6 +341,18 @@ export default function ServiceTagManager() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        isOpen={deleteTagId !== null}
+        onClose={() => setDeleteTagId(null)}
+        onConfirm={confirmDeleteTag}
+        title="Delete Service Tag"
+        description="Are you sure you want to delete this tag? This will remove it from all associated services."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   )
 }

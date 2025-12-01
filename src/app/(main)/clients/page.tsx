@@ -128,7 +128,11 @@ export default function ClientsPage() {
       await refresh()
     } catch (error) {
       console.error("Failed to delete client:", error)
-      alert("Failed to delete client. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to delete client. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 

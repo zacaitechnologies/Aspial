@@ -86,7 +86,11 @@ export default function EditClientDialog({
       onSuccess()
     } catch (error) {
       console.error("Failed to update client:", error)
-      alert("Failed to update client. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to update client. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 

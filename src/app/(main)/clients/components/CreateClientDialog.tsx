@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus } from "lucide-react"
 import { createCustomerClient } from "../action"
+import { toast } from "@/components/ui/use-toast"
 
 interface CreateClientDialogProps {
   onSuccess: () => void
@@ -59,7 +60,11 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
       onSuccess()
     } catch (error) {
       console.error("Failed to create client:", error)
-      alert("Failed to create client. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to create client. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 

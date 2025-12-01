@@ -5,6 +5,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/AppSidebar";
 import { AppHeader } from "./components/AppHeader";
 import { prisma } from "@/lib/prisma";
+import { Toaster } from "@/components/ui/toaster";
 
 export default async function Layout({
   children,
@@ -98,6 +99,7 @@ export default async function Layout({
           <main className="flex-1 p-0">{children}</main>
         </div>
         </SidebarProvider>
+        <Toaster />
     </SessionProvider>
   );
 }

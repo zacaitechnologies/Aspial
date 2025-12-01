@@ -32,6 +32,7 @@ import { QuotationFormData } from "../types";
 import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
+import { toast } from "@/components/ui/use-toast";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -228,27 +229,41 @@ export default function CreateQuotationForm({
       !quotationForm.description ||
       selectedServiceIds.length === 0
     ) {
-      alert("Please fill all fields and select at least one service.");
+      toast({
+        title: "Validation Error",
+        description: "Please fill all fields and select at least one service.",
+        variant: "destructive",
+      });
       return false;
     }
 
     // Validate client information
     if (clientMode === "existing" && !quotationForm.clientId) {
-      alert("Please select a client.");
+      toast({
+        title: "Validation Error",
+        description: "Please select a client.",
+        variant: "destructive",
+      });
       return false;
     }
 
     if (clientMode === "new") {
       if (!quotationForm.newClient?.name || !quotationForm.newClient?.email) {
-        alert(
-          "Please fill in the required client information (name and email)."
-        );
+        toast({
+          title: "Validation Error",
+          description: "Please fill in the required client information (name and email).",
+          variant: "destructive",
+        });
         return false;
       }
     }
 
     if (!enhancedUser.id) {
-      alert("User not authenticated. Please try logging in again.");
+      toast({
+        title: "Authentication Error",
+        description: "User not authenticated. Please try logging in again.",
+        variant: "destructive",
+      });
       return false;
     }
 
@@ -268,7 +283,11 @@ export default function CreateQuotationForm({
         if (projectMode === "new") {
           // Create new project first
           if (!newProjectData.name) {
-            alert("Please enter a project name.");
+            toast({
+              title: "Validation Error",
+              description: "Please enter a project name.",
+              variant: "destructive",
+            });
             return;
           }
 
@@ -276,7 +295,11 @@ export default function CreateQuotationForm({
           const clientName = clientMode === "existing" ? quotationForm.selectedClientName : quotationForm.newClient?.name || "";
 
           if (!clientId) {
-            alert("Cannot create project: No client assigned. Please assign a client first.");
+            toast({
+              title: "Validation Error",
+              description: "Cannot create project: No client assigned. Please assign a client first.",
+              variant: "destructive",
+            });
             return;
           }
 
@@ -295,7 +318,11 @@ export default function CreateQuotationForm({
         } else {
           // Use selected existing project
           if (!selectedProjectId) {
-            alert("Please select a project.");
+            toast({
+              title: "Validation Error",
+              description: "Please select a project.",
+              variant: "destructive",
+            });
             return;
           }
           projectId = selectedProjectId;
@@ -335,13 +362,17 @@ export default function CreateQuotationForm({
       onSuccess();
       onOpenChange(false);
       setShowProjectSelectionDialog(false);
+      toast({
+        title: "Success",
+        description: "Quotation created successfully.",
+      });
     } catch (error) {
       console.error("Error creating quotation:", error);
-      alert("Failed to create quotation: " + (error as Error).message);
-      // If it was a final quotation that failed, user can try again or save as draft
-      if (workflowStatus === "final") {
-        alert("You can try again or save as draft instead.");
-      }
+      toast({
+        title: "Error",
+        description: "Failed to create quotation: " + (error as Error).message + (workflowStatus === "final" ? " You can try again or save as draft instead." : ""),
+        variant: "destructive",
+      });
     }
   };
 
@@ -570,13 +601,15 @@ export default function CreateQuotationForm({
                         : totalPrice;
 
                     if (value > maxValue) {
-                      alert(
-                        `Discount cannot exceed ${
+                      toast({
+                        title: "Validation Error",
+                        description: `Discount cannot exceed ${
                           quotationForm.discountType === "percentage"
                             ? "100%"
                             : `RM${totalPrice.toFixed(2)}`
-                        }`
-                      );
+                        }`,
+                        variant: "destructive",
+                      });
                       setQuotationForm((prev) => ({
                         ...prev,
                         discountValue: "",
@@ -789,11 +822,19 @@ export default function CreateQuotationForm({
           <Button
             onClick={() => {
               if (projectMode === "new" && !newProjectData.name) {
-                alert("Please enter a project name.");
+                toast({
+                  title: "Validation Error",
+                  description: "Please enter a project name.",
+                  variant: "destructive",
+                });
                 return;
               }
               if (projectMode === "existing" && !selectedProjectId) {
-                alert("Please select a project.");
+                toast({
+                  title: "Validation Error",
+                  description: "Please select a project.",
+                  variant: "destructive",
+                });
                 return;
               }
               setShowProjectSelectionDialog(false);

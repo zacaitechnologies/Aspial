@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, Clock, MapPin, Users, Edit, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 interface BookingDetailsDialogProps {
   booking: CalendarBooking | null
@@ -47,11 +48,16 @@ export function BookingDetailsDialog({
     setEditData({})
   }
 
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+
   const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this booking?")) {
-      onDelete(booking.id)
-      onClose()
-    }
+    setIsDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = () => {
+    onDelete(booking.id)
+    setIsDeleteDialogOpen(false)
+    onClose()
   }
 
   return (
@@ -179,7 +185,18 @@ export function BookingDetailsDialog({
             </div>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
-  )
-} 
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Booking"
+        description="Are you sure you want to delete this booking? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
+    )
+  }

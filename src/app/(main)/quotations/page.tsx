@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { usePaginatedData } from "@/hooks/use-paginated-data";
 import { ProjectPagination } from "../projects/components/ProjectPagination";
+import { toast } from "@/components/ui/use-toast";
 
 export default function QuotationsPage() {
   const { enhancedUser } = useSession();
@@ -62,7 +63,11 @@ export default function QuotationsPage() {
       await refresh();
     } catch (error) {
       console.error("Error deleting quotation:", error);
-      alert("Failed to delete quotation. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to delete quotation. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

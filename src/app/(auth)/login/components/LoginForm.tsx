@@ -25,6 +25,7 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { useTransition } from "react";
 import LoadingButton from "@/components/LoadingButton";
 import Link from "next/link";
+import { toast } from "@/components/ui/use-toast";
 
 export function LoginForm({
   className,
@@ -46,7 +47,11 @@ export function LoginForm({
     startTransition(async () => {
       const result = await login(values);
       if (result && !result.success) {
-        alert("Wrong credentials");
+        toast({
+          title: "Login failed",
+          description: "Wrong credentials. Please check your email and password.",
+          variant: "destructive",
+        });
       }
     });
   }

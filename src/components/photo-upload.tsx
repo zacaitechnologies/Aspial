@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Upload, X, User } from "lucide-react"
 import Image from "next/image"
+import { toast } from "@/components/ui/use-toast"
 
 interface PhotoUploadProps {
   currentPhoto?: string
@@ -25,13 +26,21 @@ export function PhotoUpload({ currentPhoto, onPhotoChange, className }: PhotoUpl
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      alert("Please select an image file")
+      toast({
+        title: "Validation Error",
+        description: "Please select an image file",
+        variant: "destructive",
+      })
       return
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert("File size must be less than 5MB")
+      toast({
+        title: "Validation Error",
+        description: "File size must be less than 5MB",
+        variant: "destructive",
+      })
       return
     }
 
@@ -48,7 +57,11 @@ export function PhotoUpload({ currentPhoto, onPhotoChange, className }: PhotoUpl
       reader.readAsDataURL(file)
     } catch (error) {
       console.error("Error uploading photo:", error)
-      alert("Error uploading photo. Please try again.")
+      toast({
+        title: "Error",
+        description: "Error uploading photo. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsUploading(false)
     }

@@ -18,6 +18,8 @@ import { Service } from "../types";
 import ServiceForm from "./ServiceForm";
 import React from "react";
 import { useServicesCacheContext } from "../contexts/ServicesCacheContext";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { toast } from "@/components/ui/use-toast";
 
 interface ServicesListProps {
   services: Service[];
@@ -39,6 +41,8 @@ export default function ServicesList({
   const [isSearching, setIsSearching] = useState(false);
   const [filteredServices, setFilteredServices] = useState<Service[]>(services);
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleteServiceId, setDeleteServiceId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 12;
 
   // Calculate pagination
@@ -113,16 +117,33 @@ export default function ServicesList({
   }, [services, selectedTagFilter, searchQuery]);
 
   const handleDeleteService = async (serviceId: number) => {
-    if (!confirm("Are you sure you want to delete this service?")) return;
+    setDeleteServiceId(serviceId);
+  };
 
+  const confirmDeleteService = async () => {
+    if (!deleteServiceId) return;
+    
+    setIsDeleting(true);
     try {
-      await deleteService(serviceId);
+      await deleteService(deleteServiceId);
       invalidateAllCaches();
       await onRefresh();
       // Clear search after deletion to show updated list
       setSearchQuery("");
+      setDeleteServiceId(null);
+      toast({
+        title: "Success",
+        description: "Service deleted successfully.",
+      });
     } catch (error) {
       console.error("Error deleting service:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete service. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -361,6 +382,18 @@ export default function ServicesList({
           onSuccess={handleServiceSuccess}
         />
       )}
+
+      <ConfirmationDialog
+        isOpen={deleteServiceId !== null}
+        onClose={() => setDeleteServiceId(null)}
+        onConfirm={confirmDeleteService}
+        title="Delete Service"
+        description="Are you sure you want to delete this service? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

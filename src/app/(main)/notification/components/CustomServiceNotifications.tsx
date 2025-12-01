@@ -27,6 +27,7 @@ import {
   approveCustomService,
   rejectCustomService,
 } from "../../quotations/action";
+import { toast } from "@/components/ui/use-toast";
 
 type CustomServiceRequest = {
   id: string;
@@ -130,16 +131,27 @@ export default function CustomServiceNotifications({
       setSelectedService(null);
       setApprovalComment("");
       fetchCustomServices();
-      alert("Custom service approved successfully!");
+      toast({
+        title: "Success",
+        description: "Custom service approved successfully!",
+      });
     } catch (error) {
       console.error("Error approving custom service:", error);
-      alert("Failed to approve custom service. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to approve custom service. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
   const confirmReject = async () => {
     if (!selectedService || !rejectionComment.trim()) {
-      alert("Rejection reason is required!");
+      toast({
+        title: "Validation Error",
+        description: "Rejection reason is required!",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -149,10 +161,17 @@ export default function CustomServiceNotifications({
       setSelectedService(null);
       setRejectionComment("");
       fetchCustomServices();
-      alert("Custom service rejected.");
+      toast({
+        title: "Success",
+        description: "Custom service rejected.",
+      });
     } catch (error) {
       console.error("Error rejecting custom service:", error);
-      alert("Failed to reject custom service. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to reject custom service. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

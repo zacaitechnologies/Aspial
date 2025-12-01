@@ -48,6 +48,7 @@ import EditComplaintDialog from "../components/EditComplaintDialog";
 import ProjectContracts from "../components/ProjectContracts";
 import { deleteComplaint } from "../action";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { toast } from "@/components/ui/use-toast";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -155,10 +156,17 @@ export default function ProjectPage() {
       await onRefresh();
       
       setIsReactivateDialogOpen(false);
-      alert("Project successfully reactivated!");
+      toast({
+        title: "Success",
+        description: "Project successfully reactivated!",
+      });
     } catch (error) {
       console.error("Error reactivating project:", error);
-      alert("Failed to reactivate project: " + (error as Error).message);
+      toast({
+        title: "Error",
+        description: "Failed to reactivate project: " + (error as Error).message,
+        variant: "destructive",
+      });
     }
   };
 

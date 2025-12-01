@@ -41,6 +41,8 @@ import { isUserAdmin } from "../projects/permissions"
 import { useSession } from "../contexts/SessionProvider"
 import { usePaginatedData } from "@/hooks/use-paginated-data"
 import { ProjectPagination } from "../projects/components/ProjectPagination"
+import { toast } from "@/components/ui/use-toast"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 
 export default function UserManagementPage() {
   const router = useRouter()
@@ -87,6 +89,12 @@ export default function UserManagementPage() {
   const [editRoleName, setEditRoleName] = useState("")
   const [roleError, setRoleError] = useState("")
   const [editRoleError, setEditRoleError] = useState("")
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
+  const [deleteUserName, setDeleteUserName] = useState<string>("")
+  const [deleteRoleId, setDeleteRoleId] = useState<string | null>(null)
+  const [deleteRoleName, setDeleteRoleName] = useState<string>("")
+  const [isDeletingUser, setIsDeletingUser] = useState(false)
+  const [isDeletingRole, setIsDeletingRole] = useState(false)
 
   // Pagination for users
   const {
@@ -296,25 +304,45 @@ export default function UserManagementPage() {
   }
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    if (!confirm(`Are you sure you want to delete ${userName}? This action cannot be undone.`)) {
-      return
-    }
+    setDeleteUserId(userId)
+    setDeleteUserName(userName)
+  }
 
+  const confirmDeleteUser = async () => {
+    if (!deleteUserId) return
+    
+    setIsDeletingUser(true)
     try {
-      const result = await deleteUserAccount(userId)
+      const result = await deleteUserAccount(deleteUserId)
       
       if (result.success) {
         invalidateCache()
         await refreshUsers()
+        setDeleteUserId(null)
+        setDeleteUserName("")
+        toast({
+          title: "Success",
+          description: "User deleted successfully.",
+        })
       } else {
-        alert(result.error || "Failed to delete user")
+        toast({
+          title: "Error",
+          description: result.error || "Failed to delete user",
+          variant: "destructive",
+        })
         // If unauthorized or forbidden, redirect to home
         if (result.error?.includes("Unauthorized") || result.error?.includes("Forbidden")) {
           router.push("/")
         }
       }
     } catch (error) {
-      alert("An unexpected error occurred")
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingUser(false)
     }
   }
 
@@ -388,22 +416,42 @@ export default function UserManagementPage() {
   }
 
   const handleDeleteRole = async (roleId: string, roleName: string) => {
-    if (!confirm(`Are you sure you want to delete the role "${roleName}"?`)) {
-      return
-    }
+    setDeleteRoleId(roleId)
+    setDeleteRoleName(roleName)
+  }
 
+  const confirmDeleteRole = async () => {
+    if (!deleteRoleId) return
+    
+    setIsDeletingRole(true)
     try {
-      const result = await deleteStaffRole(roleId)
+      const result = await deleteStaffRole(deleteRoleId)
       
       if (result.success) {
         await fetchStaffRoles()
         invalidateCache()
         await refreshUsers()
+        setDeleteRoleId(null)
+        setDeleteRoleName("")
+        toast({
+          title: "Success",
+          description: "Role deleted successfully.",
+        })
       } else {
-        alert(result.error || "Failed to delete role")
+        toast({
+          title: "Error",
+          description: result.error || "Failed to delete role",
+          variant: "destructive",
+        })
       }
     } catch (error) {
-      alert("An unexpected error occurred")
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingRole(false)
     }
   }
 
@@ -1024,6 +1072,30 @@ export default function UserManagementPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        isOpen={deleteUserId !== null}
+        onClose={() => setDeleteUserId(null)}
+        onConfirm={confirmDeleteUser}
+        title="Delete User"
+        description={`Are you sure you want to delete ${deleteUserName}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeletingUser}
+      />
+
+      <ConfirmationDialog
+        isOpen={deleteRoleId !== null}
+        onClose={() => setDeleteRoleId(null)}
+        onConfirm={confirmDeleteRole}
+        title="Delete Role"
+        description={`Are you sure you want to delete the role "${deleteRoleName}"?`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeletingRole}
+      />
     </div>
   )
 }

@@ -21,6 +21,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "../../contexts/SessionProvider";
 import { updateProject } from "../action";
 import { projectStatusOptions, ProjectFormData } from "../types";
+import { toast } from "@/components/ui/use-toast";
 
 interface EditProjectDialogProps {
   isOpen: boolean;
@@ -66,12 +67,20 @@ export default function EditProjectDialog({
 
   const handleSubmit = async () => {
     if (!project || !form.name) {
-      alert("Please fill all required fields.");
+      toast({
+        title: "Validation Error",
+        description: "Please fill all required fields.",
+        variant: "destructive",
+      });
       return;
     }
 
     if (!enhancedUser?.id) {
-      alert("You must be logged in to update a project.");
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to update a project.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -88,11 +97,19 @@ export default function EditProjectDialog({
         enhancedUser.id
       );
 
+      toast({
+        title: "Success",
+        description: "Project updated successfully.",
+      });
       onSuccess();
       onOpenChange(false);
     } catch (error) {
       console.error("Error updating project:", error);
-      alert("Failed to update project. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to update project. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

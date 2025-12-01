@@ -32,6 +32,8 @@ import {
 import { Milestone } from "../types";
 import { MilestoneForm } from "./MilestoneForm";
 import { deleteMilestone } from "../milestone-actions";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { toast } from "@/components/ui/use-toast";
 
 interface MilestoneCardProps {
   milestone: Milestone;
@@ -46,16 +48,25 @@ export function MilestoneCard({
 }: MilestoneCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this milestone?")) return;
-
     setIsDeleting(true);
     try {
       await deleteMilestone(milestone.id);
       onMilestoneDeleted?.(milestone.id);
+      setIsDeleteDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Milestone deleted successfully.",
+      });
     } catch (error) {
       console.error("Error deleting milestone:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete milestone. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -136,12 +147,15 @@ export function MilestoneCard({
                 </DialogContent>
               </Dialog>
               <DropdownMenuItem
-                onSelect={handleDelete}
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setIsDeleteDialogOpen(true);
+                }}
                 disabled={isDeleting}
                 className="text-red-600"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                {isDeleting ? "Deleting..." : "Delete"}
+                Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -204,6 +218,17 @@ export function MilestoneCard({
           </div>
         )}
       </CardContent>
+      <ConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete Milestone"
+        description="Are you sure you want to delete this milestone? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </Card>
   );
 }

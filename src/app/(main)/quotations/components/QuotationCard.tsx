@@ -41,6 +41,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 interface QuotationCardProps {
   quotation: QuotationWithServices;
@@ -143,24 +145,25 @@ export default function QuotationCard({
   const isFinalQuotation = quotation.workflowStatus === "final";
   const isEditableQuotation = quotation.workflowStatus === "draft" || quotation.workflowStatus === "accepted" || quotation.workflowStatus === "rejected";
   const isCreator = enhancedUser?.id === quotation.createdBy?.supabase_id;
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  
   const handleDelete = () => {
     // For final quotations, prevent deletion
     if (isFinalQuotation) {
-      alert("Cannot delete final quotations.");
+      toast({
+        title: "Cannot delete",
+        description: "Cannot delete final quotations.",
+        variant: "destructive",
+      });
       return;
     }
     
-    // For quotations with project, show confirmation
-    if (hasProject) {
-      const confirmed = confirm(
-        "This quotation has an associated project. Deleting the quotation will also delete the project and all its time entries. Are you sure you want to continue?"
-      );
-      if (confirmed) {
-        onDelete(quotation.id.toString());
-      }
-    } else {
-      onDelete(quotation.id.toString());
-    }
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    onDelete(quotation.id.toString());
+    setIsDeleteDialogOpen(false);
   };
 
   const handleCreateProject = () => {
@@ -185,7 +188,11 @@ export default function QuotationCard({
 
       // Validate that we have a valid clientId
       if (!quotation.clientId || quotation.clientId.trim() === "") {
-        alert("Cannot create project: Quotation does not have a valid client assigned.");
+        toast({
+          title: "Validation Error",
+          description: "Cannot create project: Quotation does not have a valid client assigned.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -204,13 +211,20 @@ export default function QuotationCard({
       await createProject(projectData);
 
       // Show success message
-      alert("Project created successfully!");
+      toast({
+        title: "Success",
+        description: "Project created successfully!",
+      });
 
       window.location.reload();
     } catch (error) {
       console.error("Error creating project:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to create project. Please try again.";
-      alert(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     }
   };
 
@@ -229,7 +243,11 @@ export default function QuotationCard({
       setClientData(null);
     } catch (error) {
       console.error("Error upgrading membership:", error);
-      alert("Failed to upgrade membership status. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to upgrade membership status. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -267,7 +285,11 @@ export default function QuotationCard({
       if (projectMode === "new") {
         // Create new project first
         if (!newProjectData.name) {
-          alert("Please enter a project name.");
+          toast({
+            title: "Validation Error",
+            description: "Please enter a project name.",
+            variant: "destructive",
+          });
           return;
         }
 
@@ -275,7 +297,11 @@ export default function QuotationCard({
         const clientId = quotation.clientId || quotation.Client?.id;
         
         if (!clientId) {
-          alert("Cannot create project: Quotation does not have a client assigned. Please assign a client to the quotation first.");
+          toast({
+            title: "Validation Error",
+            description: "Cannot create project: Quotation does not have a client assigned. Please assign a client to the quotation first.",
+            variant: "destructive",
+          });
           return;
         }
 
@@ -294,7 +320,11 @@ export default function QuotationCard({
       } else {
         // Use selected existing project
         if (!selectedProjectId) {
-          alert("Please select a project first.");
+          toast({
+            title: "Validation Error",
+            description: "Please select a project first.",
+            variant: "destructive",
+          });
           return;
         }
         projectId = parseInt(selectedProjectId);
@@ -304,7 +334,10 @@ export default function QuotationCard({
       const { linkProjectAndUpdateQuotationStatus } = await import("../action");
       await linkProjectAndUpdateQuotationStatus(quotation.id, projectId);
       
-      alert("Project linked successfully! Quotation status changed to final.");
+      toast({
+        title: "Success",
+        description: "Project linked successfully! Quotation status changed to final.",
+      });
       setIsProjectSelectionDialogOpen(false);
       
       // Refresh the page to show updated project status
@@ -315,7 +348,11 @@ export default function QuotationCard({
       }
     } catch (error) {
       console.error("Error linking project:", error);
-      alert("Failed to link project. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to link project. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -411,7 +448,7 @@ export default function QuotationCard({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={isFinalQuotation ? undefined : handleDelete}
+                onClick={isFinalQuotation ? undefined : () => handleDelete()}
                 disabled={isFinalQuotation}
                 className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : ""}
                 title={
@@ -560,11 +597,19 @@ export default function QuotationCard({
             <Button
               onClick={() => {
                 if (projectMode === "new" && !newProjectData.name) {
-                  alert("Please enter a project name.");
+                  toast({
+                    title: "Validation Error",
+                    description: "Please enter a project name.",
+                    variant: "destructive",
+                  });
                   return;
                 }
                 if (projectMode === "existing" && !selectedProjectId) {
-                  alert("Please select a project.");
+                  toast({
+                    title: "Validation Error",
+                    description: "Please select a project.",
+                    variant: "destructive",
+                  });
                   return;
                 }
                 handleLinkProject();
@@ -576,6 +621,22 @@ export default function QuotationCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Quotation"
+        description={
+          hasProject
+            ? "This quotation has an associated project. Deleting the quotation will also delete the project and all its time entries. Are you sure you want to continue?"
+            : "Are you sure you want to delete this quotation? This action cannot be undone."
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </Card>
   );
 }

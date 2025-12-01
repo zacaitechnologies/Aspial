@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus } from "lucide-react";
 import { createCustomService } from "../action";
 import type { CustomService } from "@prisma/client";
+import { toast } from "@/components/ui/use-toast";
 
 interface CustomServiceDialogProps {
   isOpen: boolean;
@@ -42,19 +43,31 @@ export default function CustomServiceDialog({
   const handleSubmit = async () => {
     // Validation
     if (!formData.name.trim() || !formData.description.trim() || !formData.price) {
-      alert("Please fill in all fields");
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
       return;
     }
 
     const price = parseFloat(formData.price);
     if (isNaN(price) || price < 0) {
-      alert("Please enter a valid price");
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid price",
+        variant: "destructive",
+      });
       return;
     }
 
     // Check if we have required data
     if (!quotationId || !createdById) {
-      alert("Cannot create custom service: Missing quotation or user information");
+      toast({
+        title: "Error",
+        description: "Cannot create custom service: Missing quotation or user information",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -68,6 +81,10 @@ export default function CustomServiceDialog({
         createdById: createdById,
       });
 
+      toast({
+        title: "Success",
+        description: "Custom service request created successfully.",
+      });
       onServiceCreated(newCustomService);
       onOpenChange(false);
       
@@ -79,7 +96,11 @@ export default function CustomServiceDialog({
       });
     } catch (error) {
       console.error("Error creating custom service:", error);
-      alert("Failed to create custom service. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to create custom service. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

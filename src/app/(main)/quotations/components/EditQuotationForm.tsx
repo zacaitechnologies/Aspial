@@ -33,6 +33,7 @@ import ProjectSelection from "./ProjectSelection";
 import CustomServiceDialog from "./CustomServiceDialog";
 import { Briefcase, Plus } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -250,21 +251,31 @@ export default function EditQuotationForm({
     if (!editingQuotation) return;
 
     if (!editForm.name || !editForm.description) {
-      alert("Please fill all required fields correctly.");
+      toast({
+        title: "Validation Error",
+        description: "Please fill all required fields correctly.",
+        variant: "destructive",
+      });
       return;
     }
 
     // Validate client information
     if (clientMode === "existing" && !editForm.clientId) {
-      alert("Please select a client.");
+      toast({
+        title: "Validation Error",
+        description: "Please select a client.",
+        variant: "destructive",
+      });
       return;
     }
 
     if (clientMode === "new") {
       if (!editForm.newClient?.name || !editForm.newClient?.email) {
-        alert(
-          "Please fill in the required client information (name and email)."
-        );
+        toast({
+          title: "Validation Error",
+          description: "Please fill in the required client information (name and email).",
+          variant: "destructive",
+        });
         return;
       }
     }
@@ -289,7 +300,11 @@ export default function EditQuotationForm({
         if (projectMode === "new") {
           // Create new project first
           if (!newProjectData.name) {
-            alert("Please enter a project name.");
+            toast({
+              title: "Validation Error",
+              description: "Please enter a project name.",
+              variant: "destructive",
+            });
             return;
           }
 
@@ -297,7 +312,11 @@ export default function EditQuotationForm({
           const clientName = clientMode === "existing" ? editingQuotation?.Client?.name : editForm.newClient?.name || "";
 
           if (!clientId) {
-            alert("Cannot create project: No client assigned. Please ensure quotation has a client.");
+            toast({
+              title: "Validation Error",
+              description: "Cannot create project: No client assigned. Please ensure quotation has a client.",
+              variant: "destructive",
+            });
             return;
           }
 
@@ -316,7 +335,11 @@ export default function EditQuotationForm({
         } else {
           // Use selected existing project
           if (!selectedProjectId && !editForm.projectId) {
-            alert("Please select a project for final quotation.");
+            toast({
+              title: "Validation Error",
+              description: "Please select a project for final quotation.",
+              variant: "destructive",
+            });
             return;
           }
           projectId = selectedProjectId || editForm.projectId;
@@ -324,7 +347,11 @@ export default function EditQuotationForm({
 
         // Validate that we have a project for final quotation
         if (!projectId) {
-          alert("A project is required for final quotations.");
+          toast({
+            title: "Validation Error",
+            description: "A project is required for final quotations.",
+            variant: "destructive",
+          });
           return;
         }
       }
@@ -360,9 +387,17 @@ export default function EditQuotationForm({
       onOpenChange(false);
       setShowProjectSelectionDialog(false);
       setShowConfirmationDialog(false);
+      toast({
+        title: "Success",
+        description: "Quotation updated successfully.",
+      });
     } catch (error) {
       console.error("Error updating quotation:", error);
-      alert("Failed to update quotation. " + (error as Error).message);
+      toast({
+        title: "Error",
+        description: "Failed to update quotation. " + (error as Error).message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -672,13 +707,15 @@ export default function EditQuotationForm({
                         : editTotalPrice;
 
                     if (value > maxValue) {
-                      alert(
-                        `Discount cannot exceed ${
+                      toast({
+                        title: "Validation Error",
+                        description: `Discount cannot exceed ${
                           editForm.discountType === "percentage"
                             ? "100%"
                             : `RM${editTotalPrice.toFixed(2)}`
-                        }`
-                      );
+                        }`,
+                        variant: "destructive",
+                      });
                       setEditForm((prev) => ({
                         ...prev,
                         discountValue: "",
