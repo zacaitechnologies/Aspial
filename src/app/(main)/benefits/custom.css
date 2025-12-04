@@ -3,7 +3,8 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
+  /* Benefits page specific background - scoped to .benefits-page-container */
+  .benefits-page-container {
     @apply bg-gray-950;
     background-image:
       radial-gradient(circle at 20% 50%, rgba(120, 0, 255, 0.15) 0%, transparent 50%),
