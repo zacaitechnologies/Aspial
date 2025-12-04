@@ -1,8 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 @import "tailwindcss";
 
-/* Removed global body styling - it was affecting all pages */
-/* The benefits page has its own background styling in the component */
+@layer base {
+  body {
+    @apply bg-gray-950;
+    background-image:
+      radial-gradient(circle at 20% 50%, rgba(120, 0, 255, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(255, 0, 128, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 40% 20%, rgba(0, 200, 255, 0.15) 0%, transparent 50%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+}
 
 @layer components {
   .retro-card {
@@ -30,18 +41,15 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar-track {
-    background-color: rgb(17 24 39); /* equivalent to bg-gray-900 */
-    border-radius: 9999px; /* rounded-full */
+    @apply bg-gray-900 rounded-full;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(to bottom, rgb(168 85 247), rgb(236 72 153)); /* from-purple-500 to-pink-500 */
-    border-radius: 9999px; /* rounded-full */
-    border: 2px solid rgb(17 24 39); /* border-gray-900 */
+    @apply bg-gradient-to-b from-purple-500 to-pink-500 rounded-full border-2 border-gray-900;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(to bottom, rgb(192 132 252), rgb(244 114 182)); /* from-purple-400 to-pink-400 */
+    @apply from-purple-400 to-pink-400;
   }
 }
 

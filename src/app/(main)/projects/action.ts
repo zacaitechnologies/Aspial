@@ -494,35 +494,36 @@ export async function updateProject(
   });
   
   if (!project) {
-    return { success: false, error: "Project not found" };
+    throw new Error("Project not found");
   }
   
   const isCancelled = project.status === "cancelled";
   const isAdmin = await isUserAdmin(userId);
   const isCreator = project.createdBy === userId;
   
-  // Check if user is owner
-  const permission = await prisma.projectPermission.findUnique({
-    where: {
-      userId_projectId: {
-        userId,
-        projectId: Number.parseInt(id),
-      },
-    },
-  });
-  
-  const isOwner = permission?.isOwner || false;
-  
-  // Only admins, creators, and owners can edit projects
-  if (!isAdmin && !isCreator && !isOwner) {
-    // Silently prevent edit - don't throw error
-    return { success: false, error: "You do not have permission to edit this project" };
-  }
-  
   // For cancelled projects, only admins, creators, and owners can update (to reactivate)
-  if (isCancelled && !isAdmin && !isCreator && !isOwner) {
-    // Silently prevent edit - don't throw error
-    return { success: false, error: "Only administrators, project creators, and project owners can update cancelled projects" };
+  if (isCancelled) {
+    if (!isAdmin && !isCreator) {
+      // Check if user is owner
+      const permission = await prisma.projectPermission.findUnique({
+        where: {
+          userId_projectId: {
+            userId,
+            projectId: Number.parseInt(id),
+          },
+        },
+      });
+      
+      if (!permission?.isOwner) {
+        throw new Error("Only administrators, project creators, and project owners can update cancelled projects");
+      }
+    }
+  } else {
+    // For non-cancelled projects, use the standard permission check
+    const canModify = await canModifyProject(userId, Number.parseInt(id));
+    if (!canModify) {
+      throw new Error("You do not have permission to edit this project. Only admins, project creators, and users with edit permissions can modify projects.");
+    }
   }
   
   const result = await prisma.project.update({
@@ -533,7 +534,7 @@ export async function updateProject(
   // Invalidate cache
   revalidateTag('projects', 'max')
 
-  return { success: true, project: result }
+  return result
 }
 
 // Soft delete: Cancel project (changes status to cancelled)
