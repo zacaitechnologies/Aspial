@@ -263,6 +263,12 @@ export async function createQuotation(data: {
     endDate.setMonth(endDate.getMonth() + data.duration);
   }
 
+  // Get current user for createdById
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to create a quotation")
+  }
+
   return await prisma.$transaction(async (tx) => {
     let finalClientId = data.clientId;
 
@@ -279,7 +285,8 @@ export async function createQuotation(data: {
           industry: data.newClient.industry,
           yearlyRevenue: data.newClient.yearlyRevenue ? parseFloat(data.newClient.yearlyRevenue) : null,
           membershipType: data.newClient.membershipType as "MEMBER" | "NON_MEMBER" || "NON_MEMBER",
-        }
+          createdById: user.id,
+        } as any
       });
       finalClientId = newClient.id;
     }
@@ -409,7 +416,8 @@ export async function editQuotationById(
           industry: data.newClient.industry,
           yearlyRevenue: data.newClient.yearlyRevenue ? parseFloat(data.newClient.yearlyRevenue) : null,
           membershipType: data.newClient.membershipType as "MEMBER" | "NON_MEMBER" || "NON_MEMBER",
-        }
+          createdById: user.id,
+        } as any
       });
       finalClientId = newClient.id;
     }

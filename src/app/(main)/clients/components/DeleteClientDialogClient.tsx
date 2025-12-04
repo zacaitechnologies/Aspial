@@ -10,7 +10,7 @@ const DeleteClientDialog = dynamic(() => import("./DeleteClientDialog"), {
 interface DeleteClientDialogClientProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: () => void
+  onConfirm: () => Promise<void>
   clientName: string
 }
 
