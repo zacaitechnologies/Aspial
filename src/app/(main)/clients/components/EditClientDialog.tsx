@@ -71,7 +71,7 @@ export default function EditClientDialog({
     if (!client) return
     
     try {
-      await updateClient(client.id, {
+      const result = await updateClient(client.id, {
         name: formData.name,
         email: formData.email,
         phone: formData.phone || undefined,
@@ -83,8 +83,20 @@ export default function EditClientDialog({
         membershipType: formData.membershipType as "MEMBER" | "NON_MEMBER",
       })
       
-      onOpenChange(false)
-      onSuccess()
+      if (result.success) {
+        onOpenChange(false)
+        onSuccess()
+        toast({
+          title: "Success",
+          description: "Client updated successfully.",
+        })
+      } else {
+        toast({
+          title: "Permission Denied",
+          description: result.error || "You do not have permission to edit this client.",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
       console.error("Failed to update client:", error)
       toast({

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import SessionProvider from "./contexts/SessionProvider";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/AppSidebar";
-import { AppHeader } from "./components/AppHeader";
+import AppHeaderClient from "./components/AppHeaderClient";
 import { prisma } from "@/lib/prisma";
 import { Toaster } from "@/components/ui/toaster";
 
@@ -95,7 +95,7 @@ export default async function Layout({
         <SidebarProvider defaultOpen={true}>
             <AppSidebar/>
             <div className="flex-1 flex flex-col">
-          <AppHeader />
+          <AppHeaderClient />
           <main className="flex-1 p-0">{children}</main>
         </div>
         </SidebarProvider>

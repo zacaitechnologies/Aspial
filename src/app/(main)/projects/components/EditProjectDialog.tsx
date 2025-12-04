@@ -85,7 +85,7 @@ export default function EditProjectDialog({
     }
 
     try {
-      await updateProject(
+      const result = await updateProject(
         project.id.toString(),
         {
           name: form.name,
@@ -97,12 +97,21 @@ export default function EditProjectDialog({
         enhancedUser.id
       );
 
-      toast({
-        title: "Success",
-        description: "Project updated successfully.",
-      });
-      onSuccess();
-      onOpenChange(false);
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Project updated successfully.",
+        });
+        onSuccess();
+        onOpenChange(false);
+      } else {
+        // Silently prevent edit - show error message
+        toast({
+          title: "Permission Denied",
+          description: result.error || "You do not have permission to edit this project.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Error updating project:", error);
       toast({

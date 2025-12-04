@@ -24,13 +24,16 @@ import {
   Crown,
 } from "lucide-react"
 import Link from "next/link"
-import { getClientsPaginated, deleteClient } from "./action"
-import CreateClientDialog from "./components/CreateClientDialog"
-import EditClientDialog from "./components/EditClientDialog"
-import DeleteClientDialog from "./components/DeleteClientDialog"
+import { getClientsPaginated, deleteClient, getUserDbId } from "./action"
+import CreateClientDialogClient from "./components/CreateClientDialogClient"
+import EditClientDialogClient from "./components/EditClientDialogClient"
+import DeleteClientDialogClient from "./components/DeleteClientDialogClient"
 import { usePaginatedData } from "@/hooks/use-paginated-data"
 import { ProjectPagination } from "../projects/components/ProjectPagination"
 import { toast } from "@/components/ui/use-toast"
+import { useSession } from "../contexts/SessionProvider"
+import { useState as useStateReact, useEffect } from "react"
+import { isUserAdmin } from "../projects/permissions"
 
 
 interface Client {
@@ -49,6 +52,7 @@ interface Client {
   quotationsCount: number
   totalValue: number
   created_at: string
+  createdById?: string
 }
 
 
@@ -57,6 +61,10 @@ type SortOption = "name" | "yearlyRevenue" | "totalValue" | "created_at"
 type SortDirection = "asc" | "desc"
 
 export default function ClientsPage() {
+  const { enhancedUser } = useSession()
+  const [isAdmin, setIsAdmin] = useStateReact(false)
+  const [userDbId, setUserDbId] = useStateReact<string | null>(null)
+  const [isMounted, setIsMounted] = useStateReact(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [industryFilter, setIndustryFilter] = useState<string>("all")
   const [membershipFilter, setMembershipFilter] = useState<"all" | "MEMBER" | "NON_MEMBER">("all")
@@ -66,6 +74,39 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
+
+  // Set mounted state to prevent hydration errors
+  useEffect(() => {
+    setIsMounted(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Check if user is admin and get user database id
+  useEffect(() => {
+    if (!isMounted) return
+    
+    async function checkAdminAndGetUserId() {
+      if (enhancedUser?.id) {
+        const admin = await isUserAdmin(enhancedUser.id)
+        setIsAdmin(admin)
+        
+        // Get user database id
+        const dbId = await getUserDbId(enhancedUser.id)
+        if (dbId) {
+          setUserDbId(dbId)
+        }
+      }
+    }
+    checkAdminAndGetUserId()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enhancedUser, isMounted])
+
+  // Check if user can edit/delete a client
+  const canModifyClient = (client: Client) => {
+    if (isAdmin) return true
+    if (!userDbId || !client.createdById) return false
+    return client.createdById === userDbId
+  }
 
   // Pagination with server-side filtering
   const {
@@ -124,9 +165,22 @@ export default function ClientsPage() {
     if (!deletingClient) return
     
     try {
-      await deleteClient(deletingClient.id)
-      invalidateCache()
-      await refresh()
+      const result = await deleteClient(deletingClient.id)
+      if (result.success) {
+        invalidateCache()
+        await refresh()
+        setIsDeleteDialogOpen(false)
+        toast({
+          title: "Success",
+          description: "Client deleted successfully.",
+        })
+      } else {
+        toast({
+          title: "Permission Denied",
+          description: result.error || "You do not have permission to delete this client.",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
       console.error("Failed to delete client:", error)
       toast({
@@ -161,7 +215,7 @@ export default function ClientsPage() {
               Manage your client relationships and track business opportunities
             </p>
           </div>
-                     <CreateClientDialog onSuccess={handleSuccess} />
+                     <CreateClientDialogClient onSuccess={handleSuccess} />
         </div>
 
         {/* Stats Cards */}
@@ -269,31 +323,40 @@ export default function ClientsPage() {
                 style={{ borderColor: "#BDC4A5" }}
               />
             </div>
-            <Select value={industryFilter} onValueChange={setIndustryFilter}>
-              <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-                <Building2 className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
-                <SelectValue placeholder="Filter by industry" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Industries</SelectItem>
-                {uniqueIndustries.map((industry) => (
-                  <SelectItem key={industry} value={industry}>
-                    {industry}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={membershipFilter} onValueChange={(value) => setMembershipFilter(value as "all" | "MEMBER" | "NON_MEMBER")}>
-              <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-                <User className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
-                <SelectValue placeholder="Filter by membership" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Members</SelectItem>
-                <SelectItem value="MEMBER">Members</SelectItem>
-                <SelectItem value="NON_MEMBER">Non-Members</SelectItem>
-              </SelectContent>
-            </Select>
+            {isMounted ? (
+              <>
+                <Select value={industryFilter} onValueChange={setIndustryFilter}>
+                  <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+                    <Building2 className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
+                    <SelectValue placeholder="Filter by industry" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Industries</SelectItem>
+                    {uniqueIndustries.map((industry) => (
+                      <SelectItem key={industry} value={industry}>
+                        {industry}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={membershipFilter} onValueChange={(value) => setMembershipFilter(value as "all" | "MEMBER" | "NON_MEMBER")}>
+                  <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+                    <User className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
+                    <SelectValue placeholder="Filter by membership" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Members</SelectItem>
+                    <SelectItem value="MEMBER">Members</SelectItem>
+                    <SelectItem value="NON_MEMBER">Non-Members</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            ) : (
+              <>
+                <div className="w-48 h-10 bg-white border-2 rounded-md" style={{ borderColor: "#BDC4A5" }} />
+                <div className="w-48 h-10 bg-white border-2 rounded-md" style={{ borderColor: "#BDC4A5" }} />
+              </>
+            )}
           </div>
 
           {/* Sorting Controls */}
@@ -362,7 +425,7 @@ export default function ClientsPage() {
                       >
                         {client.company || client.name}
                       </CardTitle>
-                      <div className="flex space-x-1 flex-shrink-0">
+                      <div className="flex space-x-1 shrink-0">
                         <Link href={`/clients/${client.id}`}>
                           <Button
                             variant="ghost"
@@ -372,23 +435,27 @@ export default function ClientsPage() {
                             <Eye className="w-4 h-4" />
                           </Button>
                         </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditClient(client)}
-                          title="Edit Client"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleDeleteClient(client)}
-                          title="Delete Client"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {canModifyClient(client) && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditClient(client)}
+                              title="Edit Client"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleDeleteClient(client)}
+                              title="Delete Client"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -485,7 +552,7 @@ export default function ClientsPage() {
         />
 
         {/* Edit Client Dialog */}
-        <EditClientDialog
+        <EditClientDialogClient
           client={editingClient}
           isOpen={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
@@ -493,7 +560,7 @@ export default function ClientsPage() {
         />
 
         {/* Delete Client Dialog */}
-        <DeleteClientDialog
+        <DeleteClientDialogClient
           isOpen={isDeleteDialogOpen}
           onOpenChange={setIsDeleteDialogOpen}
           onConfirm={confirmDeleteClient}

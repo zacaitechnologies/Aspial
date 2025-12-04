@@ -561,7 +561,7 @@ export async function acceptProjectInvitation(invitationId: number) {
   })
 
   // Invalidate project cache to reflect the new collaborator
-  revalidateTag('projects')
+  revalidateTag('projects', 'max')
 
   return permission
 }

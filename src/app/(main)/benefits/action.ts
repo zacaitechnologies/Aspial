@@ -505,13 +505,13 @@ export async function activateSuperPerformanceAward(userId: string, year?: numbe
     })
 
     // Invalidate all relevant caches
-    revalidateTag(`super-performance-award-${userId}`)
-    revalidateTag(`super-performance-award-${userId}-${currentYear}`)
-    revalidateTag('super-performance-award')
-    revalidateTag('benefits')
-    revalidateTag(`benefits-${currentYear}`)
+    revalidateTag(`super-performance-award-${userId}`, 'max')
+    revalidateTag(`super-performance-award-${userId}-${currentYear}`, 'max')
+    revalidateTag('super-performance-award', 'max')
+    revalidateTag('benefits', 'max')
+    revalidateTag(`benefits-${currentYear}`, 'max')
     // Also invalidate previous year in case viewing that
-    revalidateTag(`benefits-${currentYear - 1}`)
+    revalidateTag(`benefits-${currentYear - 1}`, 'max')
 
     return {
       success: true,
@@ -552,13 +552,13 @@ export async function terminateSuperPerformanceAward(userId: string, year?: numb
     })
 
     // Invalidate all relevant caches
-    revalidateTag(`super-performance-award-${userId}`)
-    revalidateTag(`super-performance-award-${userId}-${currentYear}`)
-    revalidateTag('super-performance-award')
-    revalidateTag('benefits')
-    revalidateTag(`benefits-${currentYear}`)
+    revalidateTag(`super-performance-award-${userId}`, 'max')
+    revalidateTag(`super-performance-award-${userId}-${currentYear}`, 'max')
+    revalidateTag('super-performance-award', 'max')
+    revalidateTag('benefits', 'max')
+    revalidateTag(`benefits-${currentYear}`, 'max')
     // Also invalidate previous year in case viewing that
-    revalidateTag(`benefits-${currentYear - 1}`)
+    revalidateTag(`benefits-${currentYear - 1}`, 'max')
 
     return {
       success: true,
@@ -591,13 +591,13 @@ export async function resetSuperPerformanceAward(userId: string, year?: number):
     })
 
     // Invalidate all relevant caches
-    revalidateTag(`super-performance-award-${userId}`)
-    revalidateTag(`super-performance-award-${userId}-${currentYear}`)
-    revalidateTag('super-performance-award')
-    revalidateTag('benefits')
-    revalidateTag(`benefits-${currentYear}`)
+    revalidateTag(`super-performance-award-${userId}`, 'max')
+    revalidateTag(`super-performance-award-${userId}-${currentYear}`, 'max')
+    revalidateTag('super-performance-award', 'max')
+    revalidateTag('benefits', 'max')
+    revalidateTag(`benefits-${currentYear}`, 'max')
     // Also invalidate previous year in case viewing that
-    revalidateTag(`benefits-${currentYear - 1}`)
+    revalidateTag(`benefits-${currentYear - 1}`, 'max')
 
     return {
       success: true,
@@ -697,10 +697,10 @@ export async function calculateAndCreateSuperPerformanceAwards(year?: number): P
     }
 
     // Invalidate all benefits caches
-    revalidateTag('super-performance-award')
-    revalidateTag('benefits')
-    revalidateTag(`benefits-${currentYear}`)
-    revalidateTag(`benefits-${previousYear}`)
+    revalidateTag('super-performance-award', 'max')
+    revalidateTag('benefits', 'max')
+    revalidateTag(`benefits-${currentYear}`, 'max')
+    revalidateTag(`benefits-${previousYear}`, 'max')
 
     return {
       success: true,

@@ -108,7 +108,7 @@ export async function uploadContract(
     })
 
     // Invalidate cache
-    revalidateTag('projects')
+    revalidateTag('projects', 'max')
 
     return { success: true, contract }
   } catch (error: any) {
@@ -222,7 +222,7 @@ export async function deleteContract(
     })
 
     // Invalidate cache
-    revalidateTag('projects')
+    revalidateTag('projects', 'max')
 
     return { success: true }
   } catch (error: any) {
