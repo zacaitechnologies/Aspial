@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { editQuotationById, getCustomServicesByQuotationId } from "../action";
 import { getAllServices } from "../../services/action";
 import { getAllProjects } from "../../projects/action";
@@ -49,6 +50,7 @@ export default function EditQuotationForm({
   editingQuotation,
 }: EditQuotationFormProps) {
   const { enhancedUser } = useSession();
+  const router = useRouter();
   
   // Check if quotation is final and cannot be edited
   const isFinalQuotation = editingQuotation?.workflowStatus === "final";
@@ -79,6 +81,7 @@ export default function EditQuotationForm({
     endDate: "",
     priority: "low"
   });
+  const [isSaving, setIsSaving] = useState(false);
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -292,6 +295,11 @@ export default function EditQuotationForm({
   const handleUpdateQuotation = async (workflowStatus?: string) => {
     if (!editingQuotation) return;
 
+    if (isSaving) {
+      return; // Prevent multiple submissions
+    }
+
+    setIsSaving(true);
     try {
       let projectId: number | undefined = editForm.projectId;
 
@@ -332,6 +340,18 @@ export default function EditQuotationForm({
             clientName: clientName,
           });
           projectId = newProject.id;
+          
+          // Refresh projects page cache - use setTimeout to ensure the project is fully created
+          setTimeout(() => {
+            router.refresh();
+            // Dispatch custom event to refresh projects page client-side cache
+            // Use a more specific event with detail to ensure it's received
+            const event = new CustomEvent('projectsCacheInvalidate', {
+              detail: { projectId: newProject.id, timestamp: Date.now() }
+            });
+            window.dispatchEvent(event);
+            console.log('Dispatched projectsCacheInvalidate event after project creation');
+          }, 200);
         } else {
           // Use selected existing project
           if (!selectedProjectId && !editForm.projectId) {
@@ -398,6 +418,8 @@ export default function EditQuotationForm({
         description: "Failed to update quotation. " + (error as Error).message,
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -406,7 +428,12 @@ export default function EditQuotationForm({
   // For final quotations, show limited editing form
   if (isFinalQuotation) {
     return (
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsSaving(false);
+        }
+        onOpenChange(open);
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Final Quotation</DialogTitle>
@@ -455,8 +482,9 @@ export default function EditQuotationForm({
                 handleUpdateQuotation();
                 onOpenChange(false);
               }}
+              disabled={isSaving}
             >
-              Update Payment Status
+              {isSaving ? "Updating..." : "Update Payment Status"}
             </Button>
           </div>
         </DialogContent>
@@ -466,7 +494,12 @@ export default function EditQuotationForm({
 
   return (
     <>
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        setIsSaving(false);
+      }
+      onOpenChange(open);
+    }}>
       <DialogContent
         className="w-[70vw] max-w-[70vw] max-h-[90vh] rounded-lg"
         showCloseButton={false}
@@ -811,18 +844,25 @@ export default function EditQuotationForm({
               <Button
                 variant="secondary"
                 onClick={() => handleUpdateQuotationClick("draft")}
+                disabled={isSaving}
               >
-                Save as Draft
+                {isSaving ? "Saving..." : "Save as Draft"}
               </Button>
             )}
             {editForm.workflowStatus === "draft" && (
-              <Button onClick={() => handleUpdateQuotationClick("final")}>
-                Finalize Quotation
+              <Button 
+                onClick={() => handleUpdateQuotationClick("final")}
+                disabled={isSaving}
+              >
+                {isSaving ? "Processing..." : "Finalize Quotation"}
               </Button>
             )}
             {editForm.workflowStatus !== "draft" && (
-              <Button onClick={() => handleUpdateQuotationClick(editForm.workflowStatus)}>
-                Update Quotation
+              <Button 
+                onClick={() => handleUpdateQuotationClick(editForm.workflowStatus)}
+                disabled={isSaving}
+              >
+                {isSaving ? "Updating..." : "Update Quotation"}
               </Button>
             )}
           </div>
@@ -885,6 +925,7 @@ export default function EditQuotationForm({
               setShowConfirmationDialog(false);
               setShowProjectSelectionDialog(true);
             }}
+            disabled={isSaving}
           >
             Continue to Project Selection
           </Button>
@@ -944,8 +985,13 @@ export default function EditQuotationForm({
           </Button>
           <Button
             onClick={() => handleUpdateQuotation("final")}
+            disabled={isSaving}
           >
-            {projectMode === "new" ? "Create Project & Finalize" : "Finalize Quotation"}
+            {isSaving 
+              ? "Processing..." 
+              : projectMode === "new" 
+                ? "Create Project & Finalize" 
+                : "Finalize Quotation"}
           </Button>
         </DialogFooter>
       </DialogContent>

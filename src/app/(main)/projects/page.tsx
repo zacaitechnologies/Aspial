@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, DollarSign, Clock } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { cancelProject } from "./action";
 import EditProjectDialog from "./components/EditProjectDialog";
 import ProjectSearchBar from "./components/ProjectSearchBar";
@@ -34,7 +34,8 @@ export default function ProjectsPage() {
     totalPages,
     onRefresh,
     goToPage,
-    setPageSize
+    setPageSize,
+    invalidateCache
   } = useProjectsPaginated(enhancedUser?.id, 1, 10, searchQuery, statusFilter);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingProject, setEditingProject] =
@@ -47,6 +48,27 @@ export default function ProjectsPage() {
   // Confirmation dialog state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+
+  // Listen for cache invalidation events from other pages (e.g., when project is created from quotations)
+  useEffect(() => {
+    const handleCacheInvalidate = async (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('Projects cache invalidation event received', customEvent.detail);
+      // Clear cache first
+      invalidateCache();
+      // Wait a bit to ensure cache is cleared and server has processed the change
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // Force refresh to get new data - this will bypass cache
+      await onRefresh();
+      console.log('Projects page refreshed after cache invalidation');
+    };
+
+    window.addEventListener('projectsCacheInvalidate', handleCacheInvalidate);
+
+    return () => {
+      window.removeEventListener('projectsCacheInvalidate', handleCacheInvalidate);
+    };
+  }, [invalidateCache, onRefresh]);
 
   const getLatestUpdatedTime = (projects: ProjectWithQuotation[]) => {
     if (projects.length === 0) return null;
