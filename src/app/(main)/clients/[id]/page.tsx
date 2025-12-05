@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, Mail, Phone, MapPin, Calendar, FileText, FolderOpen, Edit } from "lucide-react"
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Calendar, FileText, FolderOpen, Edit, User } from "lucide-react"
 import Link from "next/link"
-import { getClientById } from "../action"
+import { getClientById, checkIsAdmin, getCurrentUserId } from "../action"
+import { useSession } from "../../contexts/SessionProvider"
+import EditClientDialog from "../components/EditClientDialog"
 
 interface Client {
   id: string
@@ -23,6 +25,13 @@ interface Client {
   membershipType: "MEMBER" | "NON_MEMBER"
   created_at: Date
   updated_at: Date
+  createdById?: string
+  createdBy?: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string
+  }
   quotations: Quotation[]
   projects: Project[]
 }
@@ -51,9 +60,13 @@ const formatDate = (date: Date) => {
 export default function ClientDetailPage() {
   const params = useParams()
   const clientId = params.id as string
+  const { enhancedUser } = useSession()
 
   const [client, setClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
   const fetchClient = useCallback(async () => {
     try {
@@ -72,6 +85,33 @@ export default function ClientDetailPage() {
       fetchClient()
     }
   }, [fetchClient, clientId])
+
+  // Check admin status and get current user ID
+  useEffect(() => {
+    const checkAdminAndUser = async () => {
+      if (enhancedUser?.id) {
+        const [adminStatus, userId] = await Promise.all([
+          checkIsAdmin(enhancedUser.id),
+          getCurrentUserId()
+        ])
+        setIsAdmin(adminStatus)
+        setCurrentUserId(userId)
+      }
+    }
+    checkAdminAndUser()
+  }, [enhancedUser?.id])
+
+  // Check if user can edit this client
+  const canEditClient = () => {
+    if (!client) return false
+    if (isAdmin) return true
+    if (!currentUserId || !client.createdById) return false
+    return client.createdById === currentUserId
+  }
+
+  const handleSuccess = async () => {
+    await fetchClient()
+  }
 
   // Photo handling function
 
@@ -133,10 +173,16 @@ export default function ClientDetailPage() {
                 <Badge className="bg-green-100 text-green-800">Active</Badge>
               </div>
             </div>
-            <Button className="text-white" style={{ backgroundColor: "#202F21" }}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Client
-            </Button>
+            {canEditClient() && (
+              <Button 
+                className="text-white" 
+                style={{ backgroundColor: "#202F21" }}
+                onClick={() => setIsEditDialogOpen(true)}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Client
+              </Button>
+            )}
           </div>
         </div>
 
@@ -175,6 +221,14 @@ export default function ClientDetailPage() {
                       <FolderOpen className="h-4 w-4" />
                       <span>{client.projects.length} Projects</span>
                     </div>
+                    {client.createdBy && (
+                      <div className="flex items-center gap-3" style={{ color: "#898D74" }}>
+                        <User className="h-4 w-4" />
+                        <span>
+                          Created by: {client.createdBy.firstName || ''} {client.createdBy.lastName || ''} {client.createdBy.firstName || client.createdBy.lastName ? '' : client.createdBy.email}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {client.notes && (
@@ -301,6 +355,30 @@ export default function ClientDetailPage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Client Dialog */}
+        {client && (
+          <EditClientDialog
+            client={{
+              id: client.id,
+              name: client.name,
+              email: client.email,
+              phone: client.phone || undefined,
+              company: client.company || undefined,
+              address: client.address || undefined,
+              notes: client.notes || undefined,
+              industry: client.industry || undefined,
+              yearlyRevenue: client.yearlyRevenue || undefined,
+              membershipType: client.membershipType,
+              quotationsCount: client.quotations.length,
+              totalValue: 0,
+              created_at: client.created_at.toISOString(),
+            }}
+            isOpen={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            onSuccess={handleSuccess}
+          />
+        )}
       </div>
     </div>
   )

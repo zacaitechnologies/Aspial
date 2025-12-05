@@ -48,6 +48,14 @@ export async function getAllClients() {
           select: {
             id: true,
           }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
         }
       },
       orderBy: {
@@ -76,6 +84,13 @@ export async function getAllClients() {
       quotationsCount: client.quotations.length,
       totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
       created_at: client.created_at.toISOString(),
+      createdById: client.createdById,
+      createdBy: client.createdBy ? {
+        id: client.createdBy.id,
+        firstName: client.createdBy.firstName,
+        lastName: client.createdBy.lastName,
+        email: client.createdBy.email,
+      } : undefined,
     }))
   } catch (error: any) {
     // Handle redirect errors
@@ -156,6 +171,14 @@ async function _getClientsPaginatedInternal(
             id: true,
           },
         },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
+        }
       },
     })
     
@@ -174,6 +197,13 @@ async function _getClientsPaginatedInternal(
       quotationsCount: client.quotations.length,
       totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
       created_at: client.created_at.toISOString(),
+      createdById: client.createdById,
+      createdBy: client.createdBy ? {
+        id: client.createdBy.id,
+        firstName: client.createdBy.firstName,
+        lastName: client.createdBy.lastName,
+        email: client.createdBy.email,
+      } : undefined,
     }))
     
     // Sort by totalValue
@@ -202,6 +232,14 @@ async function _getClientsPaginatedInternal(
               id: true,
             },
           },
+          createdBy: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            }
+          }
         },
         skip,
         take: pageSize,
@@ -228,6 +266,13 @@ async function _getClientsPaginatedInternal(
     quotationsCount: client.quotations.length,
     totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
     created_at: client.created_at.toISOString(),
+    createdById: client.createdById,
+    createdBy: client.createdBy ? {
+      id: client.createdBy.id,
+      firstName: client.createdBy.firstName,
+      lastName: client.createdBy.lastName,
+      email: client.createdBy.email,
+    } : undefined,
   }))
 
   return {
@@ -291,6 +336,14 @@ export async function getClientById(id: string) {
             status: true,
             created_at: true,
           }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
         }
       }
     })
@@ -321,10 +374,20 @@ export async function createCustomerClient(data: {
 }) {
   try {
     const supabaseUser = await getCurrentUser() // Ensure user is authenticated
-    const user = await getCachedUser() // Get user with database ID
+    const user = await getCachedUser() // Get Supabase user
     
     if (!user) {
       throw new Error("User must be authenticated to create a client")
+    }
+    
+    // Get database user ID from Supabase ID
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true }
+    })
+    
+    if (!dbUser) {
+      throw new Error("User not found in database")
     }
     
     const client = await prisma.client.create({
@@ -338,7 +401,7 @@ export async function createCustomerClient(data: {
         industry: data.industry,
         yearlyRevenue: data.yearlyRevenue,
         membershipType: data.membershipType,
-        createdById: user.id,
+        createdById: dbUser.id,
       } as any
     })
     
@@ -364,9 +427,48 @@ export async function updateClient(id: string, data: {
   membershipType?: "MEMBER" | "NON_MEMBER"
 }) {
   try {
-    await getCurrentUser() // Ensure user is authenticated
+    const user = await getCurrentUser() // Ensure user is authenticated
     
-    const client = await prisma.client.update({
+    // Get database user ID from Supabase ID
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true }
+    })
+    
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+    
+    // Check if user is admin or created the client
+    const client = await prisma.client.findUnique({
+      where: { id },
+      select: { createdById: true }
+    })
+    
+    if (!client) {
+      throw new Error("Client not found")
+    }
+    
+    // Check if user is admin
+    const userWithRoles = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
+      }
+    })
+    
+    const isAdmin = userWithRoles?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
+    
+    // If not admin, check if user created the client
+    if (!isAdmin && client.createdById !== dbUser.id) {
+      throw new Error("You can only edit clients that you created")
+    }
+    
+    const updatedClient = await prisma.client.update({
       where: { id },
       data: {
         name: data.name,
@@ -384,7 +486,7 @@ export async function updateClient(id: string, data: {
     
     revalidatePath("/clients")
     revalidatePath(`/clients/${id}`)
-    return client
+    return updatedClient
   } catch (error: any) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
@@ -395,7 +497,46 @@ export async function updateClient(id: string, data: {
 
 export async function deleteClient(id: string) {
   try {
-    await getCurrentUser() // Ensure user is authenticated
+    const user = await getCurrentUser() // Ensure user is authenticated
+    
+    // Get database user ID from Supabase ID
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true }
+    })
+    
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+    
+    // Check if user is admin or created the client
+    const client = await prisma.client.findUnique({
+      where: { id },
+      select: { createdById: true }
+    })
+    
+    if (!client) {
+      throw new Error("Client not found")
+    }
+    
+    // Check if user is admin
+    const userWithRoles = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
+      }
+    })
+    
+    const isAdmin = userWithRoles?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
+    
+    // If not admin, check if user created the client
+    if (!isAdmin && client.createdById !== dbUser.id) {
+      throw new Error("You can only delete clients that you created")
+    }
     
     await prisma.client.delete({
       where: { id }
@@ -407,5 +548,49 @@ export async function deleteClient(id: string) {
     if (isRedirectError(error)) throw error;
     console.error("Error in deleteClient:", error)
     throw error
+  }
+}
+
+// Check if user is admin
+export async function checkIsAdmin(userId: string): Promise<boolean> {
+  try {
+    const userWithRoles = await prisma.user.findUnique({
+      where: { supabase_id: userId },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        }
+      }
+    })
+
+    if (!userWithRoles) {
+      return false
+    }
+
+    return userWithRoles.userRoles.some((userRole) => userRole.role.slug === 'admin')
+  } catch (error) {
+    console.error('Error checking admin status:', error)
+    return false
+  }
+}
+
+// Get current user's database ID
+export async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const user = await getCachedUser()
+    if (!user) return null
+    
+    // Get database user ID from Supabase ID
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true }
+    })
+    
+    return dbUser?.id || null
+  } catch (error) {
+    console.error('Error getting current user ID:', error)
+    return null
   }
 }
