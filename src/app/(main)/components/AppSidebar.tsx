@@ -196,7 +196,11 @@ export function AppSidebar() {
         <div className="mx-0 my-0 border-t border-[var(--color-accent)]" />
         <SidebarMenu>
           <SidebarMenuItem className="overflow-visible">
-            <SidebarMenuButton asChild className="hover:bg-sidebar-ring overflow-visible">
+            <SidebarMenuButton 
+              asChild 
+              isActive={pathname === "/notification" || pathname.startsWith("/notification/")}
+              className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border overflow-visible"
+            >
               <Link href="/notification" className="flex items-center gap-3 relative overflow-visible w-full">
                 <Bell className="w-5 h-5 flex-shrink-0" />
                 <span className="flex-1">Notifications</span>
@@ -213,7 +217,11 @@ export function AppSidebar() {
           </SidebarMenuItem>
           {isAdmin && (
             <SidebarMenuItem>
-              <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
+              <SidebarMenuButton 
+                asChild 
+                isActive={pathname === "/user-management" || pathname.startsWith("/user-management/")}
+                className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
+              >
                 <Link href="/user-management" className="flex items-center gap-3">
                   <Shield className="w-5 h-5" />
                   <span>User Management</span>
@@ -222,7 +230,11 @@ export function AppSidebar() {
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="hover:bg-sidebar-ring">
+            <SidebarMenuButton 
+              asChild 
+              isActive={pathname === "/settings" || pathname.startsWith("/settings/")}
+              className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
+            >
               <Link href="/settings" className="flex items-center gap-3">
                 <Settings className="w-5 h-5" />
                 <span>Settings</span>

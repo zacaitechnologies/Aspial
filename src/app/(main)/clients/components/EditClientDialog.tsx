@@ -85,11 +85,11 @@ export default function EditClientDialog({
       
       onOpenChange(false)
       onSuccess()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update client:", error)
       toast({
         title: "Error",
-        description: "Failed to update client. Please try again.",
+        description: error?.message || "Failed to update client. You can only edit clients that you created.",
         variant: "destructive",
       })
     }

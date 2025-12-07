@@ -60,6 +60,7 @@ model User {
   complaints                     Complaint[]
   superPerformanceAwards        SuperPerformanceAward[]
   contracts                      Contract[]
+  createdClients                 Client[]                  @relation("ClientCreator")
 
   @@map("user")
 }
@@ -232,6 +233,8 @@ model Client {
   industry       String?
   membershipType MembershipType @default(NON_MEMBER)
   yearlyRevenue  Float?
+  createdById    String
+  createdBy      User            @relation("ClientCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   projects       Project[]
   quotations     Quotation[]
 

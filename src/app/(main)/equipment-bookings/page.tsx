@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 import { Suspense } from "react"
-import { BookingDashboard } from "./equipment-dashboard"
+import { BookingDashboardWrapper } from "./booking-dashboard-wrapper"
 import { prisma } from "@/lib/prisma";
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore } from "next/cache"
@@ -160,7 +160,7 @@ export default async function AdminPage() {
 	return (
 		<div className="container mx-auto p-6">
 			<Suspense fallback={<div>Loading...</div>}>
-				<BookingDashboard 
+				<BookingDashboardWrapper 
 					studios={studios} 
 					equipment={equipment} 
 					isAdmin={userData.isAdmin}

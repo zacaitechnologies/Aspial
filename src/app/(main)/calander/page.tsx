@@ -149,16 +149,13 @@ export default function OrganizationCalendar() {
     setIsDetailsDialogOpen(true)
   }
 
-  const handleBookingEdit = (updatedBooking: CalendarBooking) => {
-    setBookings((prev) => 
-      prev.map((booking) => 
-        booking.id === updatedBooking.id ? updatedBooking : booking
-      )
-    )
+  // Edit and delete handlers disabled - calendar is read-only
+  const handleBookingEdit = () => {
+    // No-op - editing disabled
   }
 
-  const handleBookingDelete = (bookingId: string) => {
-    setBookings((prev) => prev.filter((booking) => booking.id !== bookingId))
+  const handleBookingDelete = () => {
+    // No-op - deletion disabled
   }
 
   const handleDateClick = (dateString: string) => {
@@ -399,7 +396,12 @@ export default function OrganizationCalendar() {
               <div className="space-y-3">
                 {bookings
                   .filter((booking) => {
-                    if (new Date(booking.date) < new Date()) return false
+                    // Compare dates without time - normalize to start of day
+                    const bookingDate = new Date(booking.date)
+                    bookingDate.setHours(0, 0, 0, 0)
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    if (bookingDate < today) return false
                     if (filterType !== "all" && booking.type !== filterType) return false
                     if (!isAdmin) {
                       if (bookmarkScope === "own" && !booking.isUserBooking) return false
@@ -467,7 +469,12 @@ export default function OrganizationCalendar() {
                     </div>
                   ))}
                 {!isLoading && bookings.filter((booking) => {
-                  if (new Date(booking.date) < new Date()) return false
+                  // Compare dates without time - normalize to start of day
+                  const bookingDate = new Date(booking.date)
+                  bookingDate.setHours(0, 0, 0, 0)
+                  const today = new Date()
+                  today.setHours(0, 0, 0, 0)
+                  if (bookingDate < today) return false
                   if (filterType !== "all" && booking.type !== filterType) return false
                   if (!isAdmin) {
                     if (bookmarkScope === "own" && !booking.isUserBooking) return false
@@ -476,6 +483,18 @@ export default function OrganizationCalendar() {
                   if (selectedProject && selectedProject !== "all") {
                     const projectId = parseInt(selectedProject)
                     if (booking.projectId !== projectId) return false
+                  }
+                  // Filter by task ownership (only for tasks)
+                  if (booking.type === "task" && taskOwnershipFilter !== "all") {
+                    if (taskOwnershipFilter === "my") {
+                      if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
+                        return false
+                      }
+                    } else if (taskOwnershipFilter === "teammate") {
+                      if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
+                        return false
+                      }
+                    }
                   }
                   return true
                 }).length === 0 && (

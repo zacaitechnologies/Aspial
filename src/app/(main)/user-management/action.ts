@@ -482,16 +482,25 @@ export async function deleteUserAccount(userId: string) {
       throw new Error("User not found")
     }
 
-    // Delete from Supabase Auth
+    // Delete from Supabase Auth (handle case where user might not exist in auth)
     const supabase = createAdminClient()
     const { error: authError } = await supabase.auth.admin.deleteUser(user.supabase_id)
 
     if (authError) {
-      console.error("Failed to delete from auth:", authError)
-      // Continue anyway to delete from database
+      // If user not found in auth, that's okay - continue to delete from database
+      // Only log other errors
+      if (authError.status !== 404) {
+        console.error("Failed to delete from auth:", authError)
+      }
     }
 
-    // Delete from database (cascade will handle userRoles)
+    // Delete related records that don't have cascade delete configured
+    // Delete userRole records first (foreign key constraint)
+    await prisma.userRole.deleteMany({
+      where: { userId: userId }
+    })
+
+    // Delete from database
     await prisma.user.delete({
       where: { id: userId }
     })

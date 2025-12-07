@@ -4,6 +4,53 @@ const prisma = new PrismaClient();
 async function clientMain() {
   console.log('Starting to seed clients...');
 
+  // Get the first available user to use as createdBy
+  // Prefer admin users, but use any user if no admin exists
+  // Note: createdById references user.id (not supabase_id)
+  let createdByUserId: string | null = null;
+  
+  try {
+    // Try to find an admin user first
+    const adminUser = await prisma.user.findFirst({
+      where: {
+        userRoles: {
+          some: {
+            role: {
+              slug: 'admin'
+            }
+          }
+        }
+      },
+      select: {
+        id: true,
+        email: true
+      }
+    });
+
+    if (adminUser?.id) {
+      createdByUserId = adminUser.id;
+      console.log(`Using admin user (${adminUser.email}, id: ${adminUser.id}) as createdBy`);
+    } else {
+      // If no admin, get any user
+      const anyUser = await prisma.user.findFirst({
+        select: {
+          id: true,
+          email: true
+        }
+      });
+
+      if (anyUser?.id) {
+        createdByUserId = anyUser.id;
+        console.log(`Using user (${anyUser.email}, id: ${anyUser.id}) as createdBy`);
+      } else {
+        throw new Error('No users found in database. Please seed users first.');
+      }
+    }
+  } catch (error: any) {
+    console.error('Error finding user for createdBy:', error.message);
+    throw new Error('Cannot proceed without a user. Please ensure users are seeded first.');
+  }
+
   // Define the clients to be created
   const clients = [
     {
@@ -15,7 +62,7 @@ async function clientMain() {
       notes: 'Large enterprise client with multiple ongoing projects',
       industry: 'Technology',
       membershipType: 'MEMBER',
-      yearlyRevenue: 5000000.00
+      yearlyRevenue: 5000000.00, 
     },
     {
       name: 'TechStart Inc',
@@ -26,7 +73,7 @@ async function clientMain() {
       notes: 'Startup company focused on AI and machine learning',
       industry: 'Technology',
       membershipType: 'NON_MEMBER',
-      yearlyRevenue: 500000.00
+      yearlyRevenue: 500000.00, 
     },
     {
       name: 'Global Manufacturing Ltd',
@@ -37,7 +84,7 @@ async function clientMain() {
       notes: 'Manufacturing company with international operations',
       industry: 'Manufacturing',
       membershipType: 'MEMBER',
-      yearlyRevenue: 15000000.00
+      yearlyRevenue: 15000000.00, 
     },
     {
       name: 'Creative Agency Co',
@@ -48,7 +95,7 @@ async function clientMain() {
       notes: 'Creative agency specializing in digital marketing',
       industry: 'Marketing',
       membershipType: 'NON_MEMBER',
-      yearlyRevenue: 2000000.00
+      yearlyRevenue: 2000000.00, 
     },
     {
       name: 'Healthcare Solutions',
@@ -59,7 +106,7 @@ async function clientMain() {
       notes: 'Healthcare technology company with HIPAA compliance requirements',
       industry: 'Healthcare',
       membershipType: 'MEMBER',
-      yearlyRevenue: 8000000.00
+      yearlyRevenue: 8000000.00, 
     },
     {
       name: 'Retail Chain Corp',
@@ -70,7 +117,7 @@ async function clientMain() {
       notes: 'National retail chain with 500+ locations',
       industry: 'Retail',
       membershipType: 'MEMBER',
-      yearlyRevenue: 25000000.00
+      yearlyRevenue: 25000000.00, 
     },
     {
       name: 'Green Energy Co',
@@ -81,7 +128,7 @@ async function clientMain() {
       notes: 'Renewable energy company focused on solar and wind',
       industry: 'Energy',
       membershipType: 'NON_MEMBER',
-      yearlyRevenue: 3000000.00
+      yearlyRevenue: 3000000.00, 
     },
     {
       name: 'Financial Services Group',
@@ -92,7 +139,7 @@ async function clientMain() {
       notes: 'Investment banking and financial advisory services',
       industry: 'Finance',
       membershipType: 'MEMBER',
-      yearlyRevenue: 50000000.00
+      yearlyRevenue: 50000000.00, 
     },
     {
       name: 'Education Tech',
@@ -103,7 +150,7 @@ async function clientMain() {
       notes: 'Educational technology platform for online learning',
       industry: 'Education',
       membershipType: 'NON_MEMBER',
-      yearlyRevenue: 1200000.00
+      yearlyRevenue: 1200000.00, 
     },
     {
       name: 'Logistics Pro',
@@ -114,7 +161,7 @@ async function clientMain() {
       notes: 'International logistics and supply chain management',
       industry: 'Logistics',
       membershipType: 'MEMBER',
-      yearlyRevenue: 12000000.00
+      yearlyRevenue: 12000000.00, 
     }
   ];
 
@@ -137,6 +184,7 @@ async function clientMain() {
           industry: client.industry,
           membershipType: client.membershipType,
           yearlyRevenue: client.yearlyRevenue,
+          createdById: createdByUserId,
         },
       });
       console.log(`Created client: "${client.name}"`);

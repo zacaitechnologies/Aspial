@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Briefcase } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createQuotation } from "../action";
 import { getAllServices } from "../../services/action";
 import type { Services } from "@prisma/client";
@@ -46,6 +47,7 @@ export default function CreateQuotationForm({
   onSuccess,
 }: CreateQuotationFormProps) {
   const { enhancedUser } = useSession();
+  const router = useRouter();
   const [services, setServices] = useState<Services[]>([]);
   const [quotationForm, setQuotationForm] = useState<QuotationFormData>({
     name: "",
@@ -92,6 +94,7 @@ export default function CreateQuotationForm({
       new Date(new Date(quotationForm.startDate).setMonth(new Date(quotationForm.startDate).getMonth() + parseInt(quotationForm.duration))).toISOString().split('T')[0] : "",
     priority: "low"
   });
+  const [isSaving, setIsSaving] = useState(false);
 
 
   useEffect(() => {
@@ -275,6 +278,11 @@ export default function CreateQuotationForm({
       return;
     }
 
+    if (isSaving) {
+      return; // Prevent multiple submissions
+    }
+
+    setIsSaving(true);
     try {
       let projectId: number | undefined;
 
@@ -315,6 +323,18 @@ export default function CreateQuotationForm({
             clientName: clientName,
           });
           projectId = newProject.id;
+          
+          // Refresh projects page cache - use setTimeout to ensure the project is fully created
+          setTimeout(() => {
+            router.refresh();
+            // Dispatch custom event to refresh projects page client-side cache
+            // Use a more specific event with detail to ensure it's received
+            const event = new CustomEvent('projectsCacheInvalidate', {
+              detail: { projectId: newProject.id, timestamp: Date.now() }
+            });
+            window.dispatchEvent(event);
+            console.log('Dispatched projectsCacheInvalidate event after project creation');
+          }, 200);
         } else {
           // Use selected existing project
           if (!selectedProjectId) {
@@ -373,6 +393,8 @@ export default function CreateQuotationForm({
         description: "Failed to create quotation: " + (error as Error).message + (workflowStatus === "final" ? " You can try again or save as draft instead." : ""),
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -419,11 +441,17 @@ export default function CreateQuotationForm({
       endDate: "",
       priority: "low"
     });
+    setIsSaving(false);
   };
 
   return (
     <>
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        resetForm();
+      }
+      onOpenChange(open);
+    }}>
       <DialogContent
         className="w-[70vw] max-w-[70vw] max-h-[90vh] rounded-lg"
         showCloseButton={false}
@@ -707,11 +735,15 @@ export default function CreateQuotationForm({
             <Button
               variant="secondary"
               onClick={() => handleCreateQuotation("draft")}
+              disabled={isSaving}
             >
-              Save as Draft
+              {isSaving ? "Saving..." : "Save as Draft"}
             </Button>
-            <Button onClick={handleCreateQuotationClick}>
-              Create Quotation
+            <Button 
+              onClick={handleCreateQuotationClick}
+              disabled={isSaving}
+            >
+              {isSaving ? "Processing..." : "Create Quotation"}
             </Button>
           </div>
         </div>
@@ -757,14 +789,16 @@ export default function CreateQuotationForm({
               setShowConfirmationDialog(false);
               handleCreateQuotation("draft");
             }}
+            disabled={isSaving}
           >
-            Save as Draft
+            {isSaving ? "Saving..." : "Save as Draft"}
           </Button>
           <Button
             onClick={() => {
               setShowConfirmationDialog(false);
               setShowProjectSelectionDialog(true);
             }}
+            disabled={isSaving}
           >
             Save as Final
           </Button>
@@ -840,9 +874,9 @@ export default function CreateQuotationForm({
               setShowProjectSelectionDialog(false);
               handleCreateQuotation("final");
             }}
-            disabled={projectMode === "existing" ? !selectedProjectId : !newProjectData.name}
+            disabled={isSaving || (projectMode === "existing" ? !selectedProjectId : !newProjectData.name)}
           >
-            Create Final Quotation
+            {isSaving ? "Creating..." : "Create Final Quotation"}
           </Button>
         </DialogFooter>
       </DialogContent>

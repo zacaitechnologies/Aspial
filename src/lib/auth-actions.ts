@@ -22,7 +22,8 @@ export async function login(formData: LoginValues) {
   }
 
   revalidatePath("/", "layout");
-  redirect("/");
+  revalidatePath("/projects", "layout");
+  redirect("/projects");
 }
 
 export async function signup(formData: SignUpValues) {

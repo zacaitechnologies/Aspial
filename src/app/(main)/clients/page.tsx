@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -24,13 +24,14 @@ import {
   Crown,
 } from "lucide-react"
 import Link from "next/link"
-import { getClientsPaginated, deleteClient } from "./action"
+import { getClientsPaginated, deleteClient, checkIsAdmin, getCurrentUserId } from "./action"
 import CreateClientDialog from "./components/CreateClientDialog"
 import EditClientDialog from "./components/EditClientDialog"
 import DeleteClientDialog from "./components/DeleteClientDialog"
 import { usePaginatedData } from "@/hooks/use-paginated-data"
 import { ProjectPagination } from "../projects/components/ProjectPagination"
 import { toast } from "@/components/ui/use-toast"
+import { useSession } from "../contexts/SessionProvider"
 
 
 interface Client {
@@ -49,6 +50,13 @@ interface Client {
   quotationsCount: number
   totalValue: number
   created_at: string
+  createdById?: string
+  createdBy?: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string
+  }
 }
 
 
@@ -57,6 +65,7 @@ type SortOption = "name" | "yearlyRevenue" | "totalValue" | "created_at"
 type SortDirection = "asc" | "desc"
 
 export default function ClientsPage() {
+  const { enhancedUser } = useSession()
   const [searchTerm, setSearchTerm] = useState("")
   const [industryFilter, setIndustryFilter] = useState<string>("all")
   const [membershipFilter, setMembershipFilter] = useState<"all" | "MEMBER" | "NON_MEMBER">("all")
@@ -66,6 +75,8 @@ export default function ClientsPage() {
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // Pagination with server-side filtering
   const {
@@ -94,11 +105,33 @@ export default function ClientsPage() {
     filters: { searchTerm, industryFilter, membershipFilter, sortBy, sortDirection },
   })
 
+  // Check admin status and get current user ID
+  useEffect(() => {
+    const checkAdminAndUser = async () => {
+      if (enhancedUser?.id) {
+        const [adminStatus, userId] = await Promise.all([
+          checkIsAdmin(enhancedUser.id),
+          getCurrentUserId()
+        ])
+        setIsAdmin(adminStatus)
+        setCurrentUserId(userId)
+      }
+    }
+    checkAdminAndUser()
+  }, [enhancedUser?.id])
+
   // Get unique industries (note: this is now from current page only)
   const uniqueIndustries = useMemo(
     () => Array.from(new Set(clients.filter(client => client.industry).map(client => client.industry!))).sort(),
     [clients]
   )
+
+  // Check if user can edit/delete a client
+  const canEditClient = (client: Client) => {
+    if (isAdmin) return true
+    if (!currentUserId || !client.createdById) return false
+    return client.createdById === currentUserId
+  }
 
   const handleSort = (option: SortOption) => {
     if (sortBy === option) {
@@ -362,7 +395,7 @@ export default function ClientsPage() {
                       >
                         {client.company || client.name}
                       </CardTitle>
-                      <div className="flex space-x-1 flex-shrink-0">
+                      <div className="flex space-x-1 shrink-0">
                         <Link href={`/clients/${client.id}`}>
                           <Button
                             variant="ghost"
@@ -372,23 +405,27 @@ export default function ClientsPage() {
                             <Eye className="w-4 h-4" />
                           </Button>
                         </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditClient(client)}
-                          title="Edit Client"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleDeleteClient(client)}
-                          title="Delete Client"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {canEditClient(client) && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditClient(client)}
+                              title="Edit Client"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleDeleteClient(client)}
+                              title="Delete Client"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -438,6 +475,14 @@ export default function ClientsPage() {
                       <MapPin className="w-4 h-4" style={{ color: "#898D74" }} />
                       <span style={{ color: "#202F21" }}>
                         {client.city}, {client.country}
+                      </span>
+                    </div>
+                  )}
+                  {client.createdBy && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="w-4 h-4" style={{ color: "#898D74" }} />
+                      <span style={{ color: "#202F21" }}>
+                        Created by: {client.createdBy.firstName || ''} {client.createdBy.lastName || ''} {client.createdBy.firstName || client.createdBy.lastName ? '' : client.createdBy.email}
                       </span>
                     </div>
                   )}
