@@ -852,7 +852,7 @@ export default function EditQuotationForm({
           <div className="p-4 border rounded-lg bg-amber-50 border-amber-200">
             <h4 className="font-semibold text-amber-800 mb-2">⚠️ Important</h4>
             <p className="text-sm text-amber-700">
-              Once finalized, this quotation will be marked as final and sent to the client. 
+              Once finalized, this quotation will be marked as final. 
               You will be prompted to select a project next. All final quotations must be linked to a project.
             </p>
           </div>

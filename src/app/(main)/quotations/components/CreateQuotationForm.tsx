@@ -731,7 +731,7 @@ export default function CreateQuotationForm({
           <div className="p-4 border rounded-lg">
             <h4 className="font-semibold text-green-600 mb-2">Final Quotation</h4>
             <p className="text-sm text-muted-foreground">
-              Save as final quotation. This will be sent to the client and cannot be edited further. You will be prompted to select a project next.
+              Save as final quotation cannot be edited further. You will be prompted to select a project next.
             </p>
           </div>
           <div className="p-4 border rounded-lg">
