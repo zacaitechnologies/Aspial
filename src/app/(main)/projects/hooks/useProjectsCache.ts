@@ -102,7 +102,7 @@ export function useProjectsPaginated(
       setIsLoading(false)
       isCurrentlyLoading = false
     }
-  }, [userId, page, pageSize, searchQuery, statusFilter])
+  }, [userId, page, pageSize, searchQuery, statusFilter, projects.length])
 
   const onRefresh = useCallback(async () => {
     console.log("PROJECTS: Force refresh requested")
