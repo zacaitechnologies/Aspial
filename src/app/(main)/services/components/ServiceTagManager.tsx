@@ -42,6 +42,8 @@ export default function ServiceTagManager() {
   const [editingTag, setEditingTag] = useState<ServiceTag | null>(null)
   const [deleteTagId, setDeleteTagId] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
   const [formData, setFormData] = useState<CreateServiceTagData>({
     name: "",
     color: "#3B82F6"
@@ -50,22 +52,35 @@ export default function ServiceTagManager() {
 
 
   const handleCreateTag = async () => {
-    if (!formData.name.trim()) return
+    if (!formData.name.trim() || isCreating) return
     
+    setIsCreating(true)
     try {
       await createServiceTag(formData)
       setFormData({ name: "", color: "#3B82F6" })
       setIsCreateDialogOpen(false)
       invalidateAllCaches()
       await onRefresh()
+      toast({
+        title: "Success",
+        description: "Service tag created successfully.",
+      })
     } catch (error) {
       console.error("Error creating tag:", error)
+      toast({
+        title: "Error",
+        description: "Failed to create service tag. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsCreating(false)
     }
   }
 
   const handleEditTag = async () => {
-    if (!editingTag || !formData.name.trim()) return
+    if (!editingTag || !formData.name.trim() || isUpdating) return
     
+    setIsUpdating(true)
     try {
       await updateServiceTag(editingTag.id, formData)
       setFormData({ name: "", color: "#3B82F6" })
@@ -73,8 +88,19 @@ export default function ServiceTagManager() {
       setIsEditDialogOpen(false)
       invalidateAllCaches()
       await onRefresh()
+      toast({
+        title: "Success",
+        description: "Service tag updated successfully.",
+      })
     } catch (error) {
       console.error("Error updating tag:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update service tag. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -192,9 +218,16 @@ export default function ServiceTagManager() {
                 onClick={handleCreateTag} 
                 className="w-full text-white"
                 style={{ backgroundColor: "#202F21" }}
-                disabled={!formData.name.trim()}
+                disabled={!formData.name.trim() || isCreating}
               >
-                Create Tag
+                {isCreating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Tag"
+                )}
               </Button>
             </div>
           </DialogContent>
@@ -334,9 +367,16 @@ export default function ServiceTagManager() {
               onClick={handleEditTag} 
               className="w-full text-white"
               style={{ backgroundColor: "#202F21" }}
-              disabled={!formData.name.trim()}
+              disabled={!formData.name.trim() || isUpdating}
             >
-              Update Tag
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Tag"
+              )}
             </Button>
           </div>
         </DialogContent>

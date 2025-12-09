@@ -22,6 +22,7 @@ import { useSession } from "../../contexts/SessionProvider";
 import { updateProject } from "../action";
 import { projectStatusOptions, ProjectFormData } from "../types";
 import { toast } from "@/components/ui/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface EditProjectDialogProps {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export default function EditProjectDialog({
   project,
 }: EditProjectDialogProps) {
   const { enhancedUser } = useSession();
+  const [isUpdating, setIsUpdating] = useState(false);
   
   const [form, setForm] = useState<ProjectFormData>({
     name: "",
@@ -84,7 +86,10 @@ export default function EditProjectDialog({
       return;
     }
 
+    if (isUpdating) return; // Prevent double submission
+
     try {
+      setIsUpdating(true);
       await updateProject(
         project.id.toString(),
         {
@@ -110,6 +115,8 @@ export default function EditProjectDialog({
         description: "Failed to update project. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -186,11 +193,18 @@ export default function EditProjectDialog({
         </div>
 
         <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isUpdating}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>
-            Update Project
+          <Button onClick={handleSubmit} disabled={isUpdating}>
+            {isUpdating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              "Update Project"
+            )}
           </Button>
         </div>
       </DialogContent>

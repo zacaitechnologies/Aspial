@@ -61,6 +61,8 @@ export default function CreateComplaintDialog({
 			return
 		}
 
+		if (loading) return; // Prevent double submission
+
 		setLoading(true)
 		try {
 			const result = await createProjectComplaint(
@@ -162,6 +164,7 @@ export default function CreateComplaintDialog({
 							type="button"
 							variant="outline"
 							onClick={() => setOpen(false)}
+							disabled={loading}
 						>
 							Cancel
 						</Button>

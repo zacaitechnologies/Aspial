@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2 } from "lucide-react"
 import { updateClient } from "../action"
 import { toast } from "@/components/ui/use-toast"
 
@@ -39,6 +40,7 @@ export default function EditClientDialog({
   onOpenChange, 
   onSuccess 
 }: EditClientDialogProps) {
+  const [isUpdating, setIsUpdating] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -69,8 +71,10 @@ export default function EditClientDialog({
 
   const handleUpdateClient = async () => {
     if (!client) return
+    if (isUpdating) return; // Prevent double submission
     
     try {
+      setIsUpdating(true)
       await updateClient(client.id, {
         name: formData.name,
         email: formData.email,
@@ -92,6 +96,8 @@ export default function EditClientDialog({
         description: error?.message || "Failed to update client. You can only edit clients that you created.",
         variant: "destructive",
       })
+    } finally {
+      setIsUpdating(false)
     }
   }
 
@@ -198,16 +204,23 @@ export default function EditClientDialog({
           </div>
 
           <div className="flex justify-end gap-2 sticky bottom-0 bg-background pt-4">
-            <Button variant="outline" onClick={handleCancel}>
+            <Button variant="outline" onClick={handleCancel} disabled={isUpdating}>
               Cancel
             </Button>
             <Button 
               style={{ backgroundColor: "#202F21" }} 
               className="text-white"
               onClick={handleUpdateClient}
-              disabled={!formData.name || !formData.email}
+              disabled={!formData.name || !formData.email || isUpdating}
             >
-              Update Client
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Client"
+              )}
             </Button>
           </div>
         </div>

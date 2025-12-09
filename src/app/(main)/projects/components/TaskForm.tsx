@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -270,12 +270,21 @@ const TaskFormContent = ({
 
       <div className="flex justify-end gap-2">
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
         )}
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : isEdit ? "Update Task" : "Create Task"}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : isEdit ? (
+            "Update Task"
+          ) : (
+            "Create Task"
+          )}
         </Button>
       </div>
     </form>
@@ -318,6 +327,8 @@ export function TaskForm({
       setError("You must be logged in to create tasks");
       return;
     }
+
+    if (isSubmitting) return; // Prevent double submission
 
     setError(null); // Clear any previous errors
     setIsSubmitting(true);

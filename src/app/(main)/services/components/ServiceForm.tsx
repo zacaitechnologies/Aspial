@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X, DollarSign, Tag, FileText } from "lucide-react"
+import { Plus, X, DollarSign, Tag, FileText, Loader2 } from "lucide-react"
 import { 
   createService, 
   updateService
@@ -30,6 +30,7 @@ interface ServiceFormProps {
 export default function ServiceForm({ service, onSuccess, trigger }: ServiceFormProps) {
   const { serviceTags } = useServicesCacheContext()
   const [isOpen, setIsOpen] = useState(!!service) // Auto-open if editing
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
   const [formData, setFormData] = useState<CreateServiceData>({
     name: "",
@@ -55,7 +56,9 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return; // Prevent double submission
     
+    setIsSubmitting(true)
     try {
       if (isEditing && service) {
         await updateService(service.id, {
@@ -74,6 +77,8 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
       onSuccess?.()
     } catch (error) {
       console.error("Error saving service:", error)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -261,6 +266,7 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
               type="button"
               variant="outline"
               onClick={() => setIsOpen(false)}
+              disabled={isSubmitting}
             >
               Cancel
             </Button>
@@ -268,9 +274,18 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
               type="submit" 
               className="text-white px-6"
               style={{ backgroundColor: "#202F21" }}
-              disabled={!formData.name.trim() || formData.basePrice <= 0}
+              disabled={!formData.name.trim() || formData.basePrice <= 0 || isSubmitting}
             >
-              {isEditing ? "Update Service" : "Create Service"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {isEditing ? "Updating..." : "Creating..."}
+                </>
+              ) : isEditing ? (
+                "Update Service"
+              ) : (
+                "Create Service"
+              )}
             </Button>
           </div>
         </form>

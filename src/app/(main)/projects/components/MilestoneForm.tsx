@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -253,6 +254,8 @@ export function MilestoneForm({
   }, [projectId]);
 
   const onSubmit = async (data: MilestoneFormData) => {
+    if (isSubmitting) return; // Prevent double submission
+    
     setIsSubmitting(true);
     try {
       const milestoneData = {
@@ -325,11 +328,16 @@ export function MilestoneForm({
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting
-              ? "Saving..."
-              : milestone
-              ? "Update Milestone"
-              : "Create Milestone"}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : milestone ? (
+              "Update Milestone"
+            ) : (
+              "Create Milestone"
+            )}
           </Button>
         </div>
       </form>

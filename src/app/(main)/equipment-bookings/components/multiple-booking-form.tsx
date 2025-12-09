@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -269,9 +270,16 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 
 				<div className="flex gap-2 pt-4">
 					<Button type="submit" disabled={isSubmitting} className="flex-1">
-						{isSubmitting ? "Creating..." : `Create ${slotGroups.length} Booking${slotGroups.length > 1 ? 's' : ''}`}
+						{isSubmitting ? (
+							<>
+								<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+								Creating...
+							</>
+						) : (
+							`Create ${slotGroups.length} Booking${slotGroups.length > 1 ? 's' : ''}`
+						)}
 					</Button>
-					<Button type="button" variant="outline" onClick={onClose}>
+					<Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
 						Cancel
 					</Button>
 				</div>

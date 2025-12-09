@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus } from "lucide-react"
+import { Plus, Loader2 } from "lucide-react"
 import { createCustomerClient } from "../action"
 import { toast } from "@/components/ui/use-toast"
 
@@ -17,6 +17,7 @@ interface CreateClientDialogProps {
 
 export default function CreateClientDialog({ onSuccess }: CreateClientDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -30,7 +31,10 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
   })
 
   const handleCreateClient = async () => {
+    if (isCreating) return; // Prevent double submission
+
     try {
+      setIsCreating(true)
       await createCustomerClient({
         name: formData.name,
         email: formData.email,
@@ -65,6 +69,8 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
         description: "Failed to create client. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -184,16 +190,23 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
           </div>
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handleCancel}>
+          <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
             Cancel
           </Button>
           <Button 
             style={{ backgroundColor: "#202F21" }} 
             className="text-white"
             onClick={handleCreateClient}
-            disabled={!formData.name || !formData.email}
+            disabled={!formData.name || !formData.email || isCreating}
           >
-            Add Client
+            {isCreating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              "Add Client"
+            )}
           </Button>
         </div>
       </DialogContent>

@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -30,17 +31,21 @@ export function EquipmentForm({ equipment, onClose, onSuccess }: EquipmentFormPr
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(formData: FormData) {
+    if (isSubmitting) return; // Prevent double submission
     setIsSubmitting(true)
 
-    const result = equipment ? await updateEquipment(equipment.id, formData) : await createEquipment(formData)
+    try {
+      const result = equipment ? await updateEquipment(equipment.id, formData) : await createEquipment(formData)
 
-    if (result.success) {
-      onSuccess?.()
-      onClose()
-    } else {
-      console.error("Form submission failed:", result.error)
+      if (result.success) {
+        onSuccess?.()
+        onClose()
+      } else {
+        console.error("Form submission failed:", result.error)
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
   }
 
   return (
@@ -98,9 +103,18 @@ export function EquipmentForm({ equipment, onClose, onSuccess }: EquipmentFormPr
 
           <div className="flex gap-2">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving..." : equipment ? "Update" : "Create"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : equipment ? (
+                "Update"
+              ) : (
+                "Create"
+              )}
             </Button>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
           </div>

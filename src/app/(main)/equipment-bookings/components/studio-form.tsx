@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,14 +28,18 @@ export function StudioForm({ studio, onClose }: StudioFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(formData: FormData) {
+    if (isSubmitting) return; // Prevent double submission
     setIsSubmitting(true)
 
-    const result = studio ? await updateStudio(studio.id, formData) : await createStudio(formData)
+    try {
+      const result = studio ? await updateStudio(studio.id, formData) : await createStudio(formData)
 
-    if (result.success) {
-      onClose()
+      if (result.success) {
+        onClose()
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
   }
 
   return (
@@ -70,9 +75,18 @@ export function StudioForm({ studio, onClose }: StudioFormProps) {
 
           <div className="flex gap-2">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving..." : studio ? "Update" : "Create"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : studio ? (
+                "Update"
+              ) : (
+                "Create"
+              )}
             </Button>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
           </div>
