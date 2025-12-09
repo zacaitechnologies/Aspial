@@ -3,6 +3,9 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { getClientsPaginated } from "./action"
 import ClientsClient from "./components/ClientsClient"
 
+// Force dynamic rendering since we use cookies for auth
+export const dynamic = 'force-dynamic'
+
 // Server Component - fetches data on server for fast initial load
 export default async function ClientsPage() {
   // Get user on server - this is cached

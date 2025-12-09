@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/utils/supabase/server"
-import { unstable_noStore } from "next/cache"
+import { unstable_cache, revalidateTag } from "next/cache"
 
 // Create admin client with service role key for admin operations
 function createAdminClient() {
@@ -203,6 +203,18 @@ async function _getUsersPaginatedInternal(
   }
 }
 
+// Cached version of getUsersPaginated
+const getCachedUsers = unstable_cache(
+  async (page: number, pageSize: number) => {
+    return await _getUsersPaginatedInternal(page, pageSize)
+  },
+  ["users-list"],
+  {
+    revalidate: 30, // Cache for 30 seconds
+    tags: ["users"]
+  }
+)
+
 export async function getUsersPaginated(
   page: number = 1,
   pageSize: number = 12
@@ -213,15 +225,16 @@ export async function getUsersPaginated(
   }
 
   try {
-    // Disable server-side caching for real-time data
-    unstable_noStore()
-
-    // Return fresh data without server-side caching
-    return await _getUsersPaginatedInternal(page, pageSize)
+    return await getCachedUsers(page, pageSize)
   } catch (error) {
     console.error("Error fetching paginated users:", error)
     throw error
   }
+}
+
+// Invalidate users cache after mutations
+export async function invalidateUsersCache() {
+  revalidateTag("users", { expire: 0 })
 }
 
 // Fetch all staff roles
@@ -318,6 +331,8 @@ export async function createUserAccount(data: {
       }
     })
 
+    revalidateTag("users", { expire: 0 })
+    
     return {
       success: true,
       user: {
@@ -396,6 +411,8 @@ export async function updateUserAccount(data: {
       }
     })
 
+    revalidateTag("users", { expire: 0 })
+    
     return {
       success: true,
       user: {
@@ -505,6 +522,8 @@ export async function deleteUserAccount(userId: string) {
       where: { id: userId }
     })
 
+    revalidateTag("users", { expire: 0 })
+    
     return { success: true }
   } catch (error: any) {
     console.error("Error deleting user:", error)
@@ -535,6 +554,8 @@ export async function createStaffRole(data: {
       }
     })
 
+    revalidateTag("users", { expire: 0 })
+    
     return {
       success: true,
       role
@@ -570,6 +591,8 @@ export async function updateStaffRole(data: {
       }
     })
 
+    revalidateTag("users", { expire: 0 })
+    
     return {
       success: true,
       role
@@ -611,6 +634,8 @@ export async function deleteStaffRole(roleId: string) {
       where: { id: roleId }
     })
 
+    revalidateTag("users", { expire: 0 })
+    
     return { success: true }
   } catch (error: any) {
     console.error("Error deleting staff role:", error)
