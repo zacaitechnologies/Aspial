@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_noStore } from "next/cache"
+import { unstable_noStore, unstable_cache, revalidateTag } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
 export async function getAllQuotations(userId?: string) {
@@ -96,6 +96,20 @@ async function _getQuotationsPaginatedInternal(
   }
 }
 
+// Server-side cached version for initial page load (30 second cache)
+const getCachedQuotationsPaginated = unstable_cache(
+  async (page: number, pageSize: number, statusFilter: string) => {
+    return await _getQuotationsPaginatedInternal(page, pageSize, {
+      statusFilter: statusFilter || undefined,
+    })
+  },
+  ["quotations-paginated"],
+  { 
+    revalidate: 30, // Cache for 30 seconds
+    tags: ["quotations"]
+  }
+)
+
 export async function getQuotationsPaginated(
   page: number = 1,
   pageSize: number = 10,
@@ -103,14 +117,33 @@ export async function getQuotationsPaginated(
     statusFilter?: string
   } = {}
 ) {
-  // Disable server-side caching for real-time data
-  unstable_noStore()
-
   // Use cached auth - deduplicates within same request
   await getCachedUser()
 
-  // Return fresh data without server-side caching
+  // Use server-side cache for faster initial loads
+  return await getCachedQuotationsPaginated(
+    page, 
+    pageSize, 
+    filters.statusFilter || "all"
+  )
+}
+
+// Force fresh data (bypasses cache) - use for mutations
+export async function getQuotationsPaginatedFresh(
+  page: number = 1,
+  pageSize: number = 10,
+  filters: {
+    statusFilter?: string
+  } = {}
+) {
+  unstable_noStore()
+  await getCachedUser()
   return await _getQuotationsPaginatedInternal(page, pageSize, filters)
+}
+
+// Invalidate quotations cache after mutations
+export async function invalidateQuotationsCache() {
+  revalidateTag("quotations", {expire: 0})
 }
 
 export async function getQuotationById(id: string) {
@@ -596,9 +629,9 @@ export async function getProjectsForQuotationOptimized(userId?: string) {
     orderBy: {
       project: { created_at: "desc" },
     },
-  });
+  }) as any;
 
-  return userPermissions.map((permission) => permission.project);
+  return userPermissions.map((permission: any) => permission.project);
 }
 
 // Optimized function for getting clients for quotations - shows clients immediately with minimal data

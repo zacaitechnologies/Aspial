@@ -1,13 +1,10 @@
-export default function Loading() {
-	return (
-		<div className="container mx-auto p-6">
-			<div className="flex items-center justify-center min-h-[60vh]">
-				<div className="text-center">
-					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-					<p className="text-muted-foreground">Loading notifications...</p>
-				</div>
-			</div>
-		</div>
-	)
+export default function NotificationLoading() {
+  return (
+    <div className="container mx-auto p-6">
+      <div className="flex flex-col items-center justify-center py-20 text-primary">
+        <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+        <p className="text-lg font-medium">Loading notifications…</p>
+      </div>
+    </div>
+  );
 }
-

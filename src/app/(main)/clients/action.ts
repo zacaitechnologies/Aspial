@@ -3,10 +3,10 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_noStore } from "next/cache"
+import { unstable_noStore, unstable_cache } from "next/cache"
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -284,6 +284,32 @@ async function _getClientsPaginatedInternal(
   }
 }
 
+// Server-side cached version for initial page load (30 second cache)
+const getCachedClientsPaginated = unstable_cache(
+  async (
+    page: number, 
+    pageSize: number, 
+    searchTerm: string,
+    industry: string,
+    membershipType: string,
+    sortBy: string,
+    sortDirection: string
+  ) => {
+    return await _getClientsPaginatedInternal(page, pageSize, {
+      searchTerm: searchTerm || undefined,
+      industry: industry || undefined,
+      membershipType: (membershipType || 'all') as 'all' | 'MEMBER' | 'NON_MEMBER',
+      sortBy: (sortBy || 'created_at') as 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at',
+      sortDirection: (sortDirection || 'desc') as 'asc' | 'desc',
+    })
+  },
+  ["clients-paginated"],
+  { 
+    revalidate: 30, // Cache for 30 seconds
+    tags: ["clients"]
+  }
+)
+
 export async function getClientsPaginated(
   page: number = 1,
   pageSize: number = 12,
@@ -296,19 +322,46 @@ export async function getClientsPaginated(
   } = {}
 ) {
   try {
-    // Disable server-side caching for real-time data
-    unstable_noStore()
-
     // Use cached auth - deduplicates within same request
     await getCachedUser()
 
-    // Return fresh data without server-side caching
-    return await _getClientsPaginatedInternal(page, pageSize, filters)
+    // Use server-side cache for faster initial loads
+    return await getCachedClientsPaginated(
+      page, 
+      pageSize, 
+      filters.searchTerm || "",
+      filters.industry || "all",
+      filters.membershipType || "all",
+      filters.sortBy || "created_at",
+      filters.sortDirection || "desc"
+    )
   } catch (error: any) {
     if (isRedirectError(error)) throw error
     console.error('Error in getClientsPaginated:', error)
     throw new Error(`Failed to fetch clients: ${error.message}`)
   }
+}
+
+// Force fresh data (bypasses cache) - use for mutations
+export async function getClientsPaginatedFresh(
+  page: number = 1,
+  pageSize: number = 12,
+  filters: {
+    searchTerm?: string
+    industry?: string
+    membershipType?: 'all' | 'MEMBER' | 'NON_MEMBER'
+    sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
+    sortDirection?: 'asc' | 'desc'
+  } = {}
+) {
+  unstable_noStore()
+  await getCachedUser()
+  return await _getClientsPaginatedInternal(page, pageSize, filters)
+}
+
+// Invalidate clients cache after mutations
+export async function invalidateClientsCache() {
+  revalidateTag("clients", {expire: 0})
 }
 
 export async function getClientById(id: string) {

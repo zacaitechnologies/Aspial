@@ -37,10 +37,10 @@ export async function GET(request: NextRequest) {
       orderBy: {
         name: "asc",
       },
-    })
+    }) as any;
 
     // Transform projects to include client information and generate colors
-    const transformedProjects = projects.map((project, index) => {
+    const transformedProjects = projects.map((project: any, index: number) => {
       const colors = [
         "#3B82F6", // Blue
         "#10B981", // Green

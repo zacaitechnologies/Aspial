@@ -204,9 +204,9 @@ export async function fetchUserProjects(supabaseId: string) {
         created_at: "desc"
       }
     }
-  })
+  }) as any;
   
-  return userPermissions.map((permission) => permission.project)
+  return userPermissions.map((permission: any) => permission.project);
 }
 
 // CRUD operations for time entries

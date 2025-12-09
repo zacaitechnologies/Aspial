@@ -57,31 +57,31 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
       ]
     },
     include: {
-              project: {
-          include: {
-            quotations: {
-              include: {
-                services: {
-                  include: { service: true },
-                },
-              },
-            },
-            createdByUser: true,
-            Client: true,
-            _count: {
-              select: {
-                tasks: true,
+      project: {
+        include: {
+          quotations: {
+            include: {
+              services: {
+                include: { service: true },
               },
             },
           },
+          createdByUser: true,
+          Client: true,
+          _count: {
+            select: {
+              tasks: true,
+            },
+          },
         },
+      },
     },
     orderBy: {
       project: { created_at: "desc" },
     },
-  })
+  }) as any
 
-  return userPermissions.map((permission) => ({
+  return userPermissions.map((permission: any) => ({
     ...permission.project,
     taskCount: permission.project._count.tasks,
   }))

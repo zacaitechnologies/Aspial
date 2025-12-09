@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getVisibleProjectsForUser, isUserAdmin } from "./permissions"
 import { CreateProjectData, UpdateProjectData } from "./types"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_noStore } from "next/cache"
+import { unstable_noStore, unstable_cache } from "next/cache"
 import { revalidateTag } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
@@ -134,9 +134,9 @@ export async function getAllProjectsOptimized(userId?: string) {
     orderBy: {
       project: { created_at: "desc" },
     },
-  });
+  }) as any;
 
-  return userPermissions.map((permission) => ({
+  return userPermissions.map((permission: any) => ({
     ...permission.project,
     taskCount: permission.project._count.tasks,
     isOwner: permission.isOwner || permission.canEdit
@@ -350,6 +350,18 @@ async function _getProjectsPaginatedInternal(
   }
 }
 
+// Server-side cached version for initial page load (30 second cache)
+const getCachedProjectsPaginated = unstable_cache(
+  async (userId: string, page: number, pageSize: number, searchQuery: string, statusFilter: string) => {
+    return await _getProjectsPaginatedInternal(userId, page, pageSize, searchQuery || undefined, statusFilter || undefined)
+  },
+  ["projects-paginated"],
+  { 
+    revalidate: 30, // Cache for 30 seconds
+    tags: ["projects"]
+  }
+)
+
 export async function getProjectsPaginated(
   userId?: string,
   page: number = 1,
@@ -357,9 +369,6 @@ export async function getProjectsPaginated(
   searchQuery?: string,
   statusFilter?: string
 ) {
-  // Disable server-side caching for real-time data
-  unstable_noStore()
-
   if (!userId) {
     return {
       projects: [],
@@ -373,8 +382,42 @@ export async function getProjectsPaginated(
   // Use cached auth - deduplicates within same request
   await getCachedUser()
 
-  // Return fresh data without server-side caching
+  // Use server-side cache for faster initial loads
+  return await getCachedProjectsPaginated(
+    userId, 
+    page, 
+    pageSize, 
+    searchQuery || "", 
+    statusFilter || "all"
+  )
+}
+
+// Force fresh data (bypasses cache) - use for mutations
+export async function getProjectsPaginatedFresh(
+  userId?: string,
+  page: number = 1,
+  pageSize: number = 10,
+  searchQuery?: string,
+  statusFilter?: string
+) {
+  unstable_noStore()
+  
+  if (!userId) {
+    return {
+      projects: [],
+      total: 0,
+      page,
+      pageSize,
+      totalPages: 0
+    }
+  }
+
   return await _getProjectsPaginatedInternal(userId, page, pageSize, searchQuery, statusFilter)
+}
+
+// Invalidate projects cache after mutations
+export async function invalidateProjectsCache() {
+  revalidateTag("projects", { expire: 0 })
 }
 
 // Helper function to check if project is cancelled
@@ -461,7 +504,7 @@ export async function createProject(data: CreateProjectData) {
   }
 
   // Invalidate cache
-  revalidateTag('projects', 'max')
+  revalidateTag('projects', { expire: 0 })
 
   return project
 }
@@ -485,7 +528,7 @@ export async function updateProjectStatus(
   });
 
   // Invalidate cache
-  revalidateTag('projects', 'max')
+  revalidateTag('projects', { expire: 0 })
 
   return result
 }
@@ -540,7 +583,7 @@ export async function updateProject(
   });
 
   // Invalidate cache
-  revalidateTag('projects', 'max')
+  revalidateTag('projects', { expire: 0 })
 
   return result
 }
@@ -571,7 +614,7 @@ export async function cancelProject(id: string, userId: string) {
   });
 
   // Invalidate cache
-  revalidateTag('projects', 'max')
+  revalidateTag('projects', { expire: 0 })
 
   return result
 }
@@ -622,7 +665,7 @@ export async function reactivateProject(
   });
 
   // Invalidate cache
-  revalidateTag('projects', 'max')
+  revalidateTag('projects', { expire: 0 })
 
   return result
 }
@@ -767,7 +810,7 @@ export async function getProjectById(userId: string, projectId: string) {
     _count: {
       status: true,
     },
-  });
+  }) as { status: string; _count: { status: number } }[];
 
   // Transform task stats
   const stats = {
