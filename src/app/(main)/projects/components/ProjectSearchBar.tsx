@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Search, Filter } from "lucide-react";
 import { projectStatusFilterOptions } from "../types";
+import { useState, useEffect } from "react";
 
 interface ProjectSearchBarProps {
   searchQuery: string;
@@ -25,6 +26,22 @@ export default function ProjectSearchBar({
   statusFilter,
   onStatusFilterChange,
 }: ProjectSearchBarProps) {
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onSearchChange(localSearchQuery);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timer);
+  }, [localSearchQuery, onSearchChange]);
+
+  // Sync with external changes
+  useEffect(() => {
+    setLocalSearchQuery(searchQuery);
+  }, [searchQuery]);
+
   return (
     <div className="flex flex-col sm:flex-row gap-4 py-4 w-min-300">
       <div className="flex-1 min-w-0">
@@ -36,8 +53,8 @@ export default function ProjectSearchBar({
           <Input
             id="project-search"
             placeholder="Search projects..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            value={localSearchQuery}
+            onChange={(e) => setLocalSearchQuery(e.target.value)}
             className="pl-10 bg-white border-2"
             style={{ borderColor: "#BDC4A5" }}
           />

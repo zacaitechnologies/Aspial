@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
-import { isUserAdmin } from "../projects/permissions"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -167,7 +167,7 @@ export async function fetchUserProjects(supabaseId: string) {
   }
   
   // Check if user is admin
-  const admin = await isUserAdmin(supabaseId)
+  const admin = await getCachedIsUserAdmin(supabaseId)
   
   if (admin) {
     // Admins can see all projects

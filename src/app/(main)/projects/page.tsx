@@ -82,6 +82,11 @@ export default function ProjectsPage() {
     return new Date(latestProject.updated_at);
   };
 
+  // Memoize latest updated time
+  const latestUpdatedTime = useMemo(() => {
+    return getLatestUpdatedTime(projects);
+  }, [projects]);
+
   // Memoize project statistics
   const projectStats = useMemo(() => {
     const newProjects = projects.filter((p) => p.status === "planning").length;
@@ -160,8 +165,8 @@ export default function ProjectsPage() {
       </p>
       <p className="text-sm font-light text-primary">
         Last Updated:{" "}
-        {getLatestUpdatedTime(projects)
-          ? getLatestUpdatedTime(projects)!.toLocaleString()
+        {latestUpdatedTime
+          ? latestUpdatedTime.toLocaleString()
           : "No projects"}
       </p>
 

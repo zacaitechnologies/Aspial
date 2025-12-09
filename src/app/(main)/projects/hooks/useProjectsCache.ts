@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { getProjectsPaginated } from "../action"
 import type { ProjectWithQuotation } from "../types"
 
@@ -42,7 +42,15 @@ export function useProjectsPaginated(
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   
+  // Use ref to store latest values for loadProjects to avoid recreating callback
+  const paramsRef = useRef({ userId, page, pageSize, searchQuery, statusFilter })
+  useEffect(() => {
+    paramsRef.current = { userId, page, pageSize, searchQuery, statusFilter }
+  }, [userId, page, pageSize, searchQuery, statusFilter])
+  
   const loadProjects = useCallback(async (forceRefresh = false) => {
+    const { userId, page, pageSize, searchQuery, statusFilter } = paramsRef.current
+    
     if (!userId) {
       setIsLoading(false)
       return
@@ -102,7 +110,7 @@ export function useProjectsPaginated(
       setIsLoading(false)
       isCurrentlyLoading = false
     }
-  }, [userId, page, pageSize, searchQuery, statusFilter, projects.length])
+  }, [projects.length]) // Only depend on projects.length to avoid recreating
 
   const onRefresh = useCallback(async () => {
     console.log("PROJECTS: Force refresh requested")
@@ -125,7 +133,7 @@ export function useProjectsPaginated(
 
   useEffect(() => {
     loadProjects()
-  }, [loadProjects])
+  }, [userId, page, pageSize, searchQuery, statusFilter, loadProjects])
 
   return {
     projects,

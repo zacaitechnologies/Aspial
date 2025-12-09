@@ -6,6 +6,7 @@ import { CreateProjectData, UpdateProjectData } from "./types"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore } from "next/cache"
 import { revalidateTag } from "next/cache"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
 export async function getAllProjects(userId?: string) {
   if (!userId) {
@@ -13,7 +14,7 @@ export async function getAllProjects(userId?: string) {
   }
 
   // Admins can see all projects
-  if (await isUserAdmin(userId)) {
+  if (await getCachedIsUserAdmin(userId)) {
     return await getVisibleProjectsForUser(userId)
   }
 
@@ -26,7 +27,7 @@ export async function getAllProjectsOptimized(userId?: string) {
     return []
   }
 
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await getCachedIsUserAdmin(userId);
   
   if (isAdmin) {
     // For admins: load only essential data for list view
@@ -161,7 +162,7 @@ async function _getProjectsPaginatedInternal(
   }
 
   const skip = (page - 1) * pageSize
-  const isAdmin = await isUserAdmin(userId)
+  const isAdmin = await getCachedIsUserAdmin(userId)
 
   // Build where clause for filtering
   const buildWhereClause = () => {
@@ -192,8 +193,8 @@ async function _getProjectsPaginatedInternal(
   if (isAdmin) {
     const whereClause = buildWhereClause()
     
-    // Execute count, findMany, and permissions in parallel for better performance
-    const [total, projects] = await Promise.all([
+    // Execute all queries in parallel for better performance
+    const [total, projects, userPermissions] = await Promise.all([
       prisma.project.count({ where: whereClause }),
       prisma.project.findMany({
         where: whereClause,
@@ -226,17 +227,11 @@ async function _getProjectsPaginatedInternal(
         orderBy: { created_at: "desc" },
         skip,
         take: pageSize,
-      })
-    ])
-
-    // Get ownership information (only if we have projects)
-    const ownershipMap: { [key: number]: boolean } = {}
-    if (projects.length > 0) {
-      const projectIds = projects.map(p => p.id)
-      const userPermissions = await prisma.projectPermission.findMany({
+      }),
+      // Pre-fetch permissions in parallel
+      prisma.projectPermission.findMany({
         where: {
           userId,
-          projectId: { in: projectIds },
           OR: [
             { isOwner: true },
             { canEdit: true }
@@ -248,17 +243,30 @@ async function _getProjectsPaginatedInternal(
           canEdit: true
         }
       })
+    ])
 
-      userPermissions.forEach(permission => {
-        ownershipMap[permission.projectId] = permission.isOwner || permission.canEdit
-      })
-    }
+    // Create ownership map
+    const ownershipMap: { [key: number]: boolean } = {}
+    const permissionProjectIds = new Set(userPermissions.map(p => p.projectId))
+    
+    userPermissions.forEach(permission => {
+      ownershipMap[permission.projectId] = permission.isOwner || permission.canEdit
+    })
+
+    // Filter permissions to only those in current page
+    const projectIds = projects.map(p => p.id)
+    const filteredOwnershipMap: { [key: number]: boolean } = {}
+    projectIds.forEach(id => {
+      if (permissionProjectIds.has(id)) {
+        filteredOwnershipMap[id] = ownershipMap[id]
+      }
+    })
 
     return {
       projects: projects.map(project => ({
         ...project,
         taskCount: project._count.tasks,
-        isOwner: ownershipMap[project.id] || false
+        isOwner: filteredOwnershipMap[project.id] || false
       })),
       total,
       page,
@@ -386,7 +394,7 @@ export async function canModifyProject(userId: string, projectId: number): Promi
     return false;
   }
   
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await getCachedIsUserAdmin(userId);
   if (isAdmin) {
     return true;
   }
@@ -498,7 +506,7 @@ export async function updateProject(
   }
   
   const isCancelled = project.status === "cancelled";
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await getCachedIsUserAdmin(userId);
   const isCreator = project.createdBy === userId;
   
   // For cancelled projects, only admins, creators, and owners can update (to reactivate)
@@ -540,7 +548,7 @@ export async function updateProject(
 // Soft delete: Cancel project (changes status to cancelled)
 export async function cancelProject(id: string, userId: string) {
   // Check if user is admin or project owner
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await getCachedIsUserAdmin(userId);
   
   if (!isAdmin) {
     const permission = await prisma.projectPermission.findUnique({
@@ -589,7 +597,7 @@ export async function reactivateProject(
   }
   
   // Check if user is admin, creator, or owner
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await getCachedIsUserAdmin(userId);
   const isCreator = project.createdBy === userId;
   
   if (!isAdmin && !isCreator) {
@@ -622,7 +630,7 @@ export async function reactivateProject(
 // Hard delete: Permanently delete project (only for admins)
 export async function deleteProject(id: string, userId: string) {
   // Only admins can hard delete projects
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await getCachedIsUserAdmin(userId);
   
   if (!isAdmin) {
     throw new Error("Only administrators can permanently delete projects");
@@ -638,7 +646,7 @@ export async function getProjectById(userId: string, projectId: string) {
     return null;
   }
 
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await getCachedIsUserAdmin(userId);
   
   // Check if user has access to this project
   const userPermission = await prisma.projectPermission.findUnique({

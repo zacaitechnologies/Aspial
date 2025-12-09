@@ -7,8 +7,8 @@ import {
   acceptProjectInvitation,
   declineProjectInvitation,
   getAllInvitationsForAdmin,
-  isUserAdmin,
 } from "../projects/permissions";
+import { checkIsAdmin } from "../actions/admin-actions";
 // Custom service functions imported in CustomServiceNotifications component
 import {
   Card,
@@ -118,7 +118,7 @@ export default function NotificationPage() {
       }
 
       // Check if user is admin
-      const adminStatus = await isUserAdmin(enhancedUser.id);
+      const adminStatus = await checkIsAdmin(enhancedUser.id);
       setIsAdmin(adminStatus);
       
       let data: any[] = [];

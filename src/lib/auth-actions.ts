@@ -158,6 +158,16 @@ export async function sendPasswordReset(email: string) {
 
 export async function signout() {
   const supabase = await createClient();
+  
+  // Get current user ID before signing out to clear their cache
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  // Clear admin cache for the current user
+  if (user?.id) {
+    const { clearAdminCache } = await import("@/lib/admin-cache");
+    await clearAdminCache(user.id);
+  }
+  
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.log(error);

@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore } from "next/cache"
-import { isUserAdmin } from "../projects/permissions"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
 export async function getAllQuotations(userId?: string) {
   // Everyone can see all quotations regardless of who created them
@@ -537,7 +537,7 @@ export async function getProjectsForQuotationOptimized(userId?: string) {
     return []
   }
 
-  const isAdmin = await isUserAdmin(userId);
+  const isAdmin = await getCachedIsUserAdmin(userId);
   
   if (isAdmin) {
     // For admins: load only essential data for quotation selection

@@ -19,7 +19,8 @@ import {
   Shield,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getAllPendingInvitations, getUserInvitations, isUserAdmin } from "../projects/permissions";
+import { getAllPendingInvitations, getUserInvitations } from "../projects/permissions";
+import { checkIsAdmin } from "../actions/admin-actions";
 
 import {
   Sidebar,
@@ -88,7 +89,7 @@ export function AppSidebar() {
       if (!enhancedUser?.id) return;
 
       try {
-        const adminStatus = await isUserAdmin(enhancedUser.id);
+        const adminStatus = await checkIsAdmin(enhancedUser.id);
         setIsAdmin(adminStatus);
 
         if (adminStatus) {

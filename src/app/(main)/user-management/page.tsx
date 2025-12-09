@@ -38,7 +38,7 @@ import {
   UserWithRole, 
   StaffRole 
 } from "./action"
-import { isUserAdmin } from "../projects/permissions"
+import { checkIsAdmin } from "../actions/admin-actions"
 import { useSession } from "../contexts/SessionProvider"
 import { usePaginatedData } from "@/hooks/use-paginated-data"
 import { ProjectPagination } from "../projects/components/ProjectPagination"
@@ -133,7 +133,7 @@ export default function UserManagementPage() {
     }
 
     try {
-      const adminStatus = await isUserAdmin(enhancedUser.id)
+      const adminStatus = await checkIsAdmin(enhancedUser.id)
       setIsAdmin(adminStatus)
 
       if (!adminStatus) {

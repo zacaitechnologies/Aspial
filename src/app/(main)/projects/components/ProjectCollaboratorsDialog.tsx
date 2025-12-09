@@ -26,8 +26,8 @@ import {
   getAvailableUsersForProject,
   createProjectInvitation,
   getProjectInvitations,
-  isUserAdmin
 } from "../permissions";
+import { checkIsAdmin } from "../../actions/admin-actions";
 import { User, Users, X, Crown, CheckCircle2, AlertCircle } from "lucide-react";
 import { useSession } from "../../contexts/SessionProvider";
 import { 
@@ -127,7 +127,7 @@ export default function ProjectCollaboratorsDialog({
       // Check if current user is admin
       if (enhancedUser?.id) {
         try {
-          const adminStatus = await isUserAdmin(enhancedUser.id);
+          const adminStatus = await checkIsAdmin(enhancedUser.id);
           console.log("User admin status:", adminStatus, "for user:", enhancedUser.id);
           setIsUserAdminRole(adminStatus);
         } catch (error) {

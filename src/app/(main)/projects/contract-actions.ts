@@ -190,9 +190,9 @@ export async function deleteContract(
       (p: { userId: string; isOwner: boolean }) => p.userId === userId && p.isOwner
     )
 
-    // Check if user is admin (you may need to import isUserAdmin)
-    const { isUserAdmin } = await import("./permissions")
-    const isAdmin = await isUserAdmin(userId)
+    // Check if user is admin
+    const { getCachedIsUserAdmin } = await import("@/lib/admin-cache")
+    const isAdmin = await getCachedIsUserAdmin(userId)
 
     if (!isOwner && !isAdmin) {
       return { success: false, error: "Insufficient permissions to delete contract" }
