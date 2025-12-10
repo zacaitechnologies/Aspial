@@ -180,7 +180,7 @@ export default function ClientSelection({
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="new-client-name">Full Name *</Label>
+                  <Label htmlFor="new-client-name">Full Name <span className="text-red-500">*</span></Label>
                   <Input
                     id="new-client-name"
                     value={newClientData?.name || ""}
@@ -193,7 +193,7 @@ export default function ClientSelection({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="new-client-email">Email *</Label>
+                  <Label htmlFor="new-client-email">Email <span className="text-red-500">*</span></Label>
                   <Input
                     id="new-client-email"
                     type="email"
@@ -291,7 +291,7 @@ export default function ClientSelection({
               <div className="space-y-2">
                 <Label htmlFor="new-client-membership-type">Membership Type</Label>
                 <Select
-                  value={newClientData?.membershipType || ""}
+                  value={newClientData?.membershipType || "NON_MEMBER"}
                   onValueChange={(value) =>
                     handleNewClientDataChange("membershipType", value)
                   }

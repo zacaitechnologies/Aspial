@@ -136,7 +136,7 @@ export default function EditQuotationForm({
           notes: "",
           industry: "",
           yearlyRevenue: "",
-          membershipType: "",
+          membershipType: "NON_MEMBER",
         },
         newProject: {
           name: "",
@@ -554,7 +554,7 @@ export default function EditQuotationForm({
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="edit-name">Quotation Name</Label>
+              <Label htmlFor="edit-name">Quotation Name <span className="text-red-500">*</span></Label>
               <Input
                 id="edit-name"
                 value={editForm.name}
@@ -565,21 +565,24 @@ export default function EditQuotationForm({
             </div>
 
             {/* Client Selection */}
-            <ClientSelection
-              selectedClientId={editForm.clientId}
-              newClientData={editForm.newClient}
-              onClientSelect={(clientId) =>
-                setEditForm((prev) => ({ ...prev, clientId }))
-              }
-              onNewClientDataChange={(newClientData) =>
-                setEditForm((prev) => ({ ...prev, newClient: newClientData }))
-              }
-              onModeChange={setClientMode}
-              mode={clientMode}
-            />
+            <div className="grid gap-2">
+              <Label>Client <span className="text-red-500">*</span></Label>
+              <ClientSelection
+                selectedClientId={editForm.clientId}
+                newClientData={editForm.newClient}
+                onClientSelect={(clientId) =>
+                  setEditForm((prev) => ({ ...prev, clientId }))
+                }
+                onNewClientDataChange={(newClientData) =>
+                  setEditForm((prev) => ({ ...prev, newClient: newClientData }))
+                }
+                onModeChange={setClientMode}
+                mode={clientMode}
+              />
+            </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="edit-description">Description</Label>
+              <Label htmlFor="edit-description">Description <span className="text-red-500">*</span></Label>
               <Textarea
                 id="edit-description"
                 value={editForm.description}
@@ -636,8 +639,8 @@ export default function EditQuotationForm({
             {/* Fixed Services Section */}
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
               <div>
-                <Label className="text-lg font-semibold">Services</Label>
-                <p className="text-xs text-muted-foreground mt-1">Select or deselect services for this quotation</p>
+                <Label className="text-lg font-semibold">Services <span className="text-red-500">*</span></Label>
+                <p className="text-xs text-muted-foreground mt-1">Select or deselect services for this quotation (at least one service required)</p>
               </div>
               {services.map((service) => (
                 <div
@@ -933,11 +936,26 @@ export default function EditQuotationForm({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="p-4 border rounded-lg bg-amber-50 border-amber-200">
-            <h4 className="font-semibold text-amber-800 mb-2">⚠️ Important</h4>
-            <p className="text-sm text-amber-700">
-              Once finalized, this quotation will be marked as final. 
-              You will be prompted to select a project next. All final quotations must be linked to a project.
+          <div className="p-4 border-2 border-red-300 rounded-lg bg-red-50">
+            <h4 className="font-semibold text-red-700 mb-2 flex items-center gap-2">
+              <span className="text-lg">⚠️</span> Important
+            </h4>
+            <div className="space-y-2 text-sm text-red-800">
+              <p>
+                Once finalized, this quotation will be marked as final. 
+                You will be prompted to select a project next. All final quotations must be linked to a project.
+              </p>
+              <p className="font-semibold text-red-900 border-t border-red-200 pt-2 mt-2">
+                ⚠️ Critical: Once finalized, you CANNOT add custom services anymore. Make sure to add all custom services before finalizing.
+              </p>
+            </div>
+          </div>
+          <div className="p-4 border-2 border-blue-300 rounded-lg bg-blue-50">
+            <h4 className="font-semibold text-blue-700 mb-2 flex items-center gap-2">
+              <span className="text-lg">ℹ️</span> Draft Quotations
+            </h4>
+            <p className="text-sm text-blue-800 font-semibold">
+              ✓ Draft quotations can still be edited and custom services can be added.
             </p>
           </div>
         </div>

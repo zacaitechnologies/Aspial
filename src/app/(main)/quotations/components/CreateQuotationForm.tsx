@@ -67,7 +67,7 @@ export default function CreateQuotationForm({
       notes: "",
       industry: "",
       yearlyRevenue: "",
-      membershipType: "",
+      membershipType: "NON_MEMBER",
     },
   });
 
@@ -466,7 +466,7 @@ export default function CreateQuotationForm({
         notes: "",
         industry: "",
         yearlyRevenue: "",
-        membershipType: "",
+        membershipType: "NON_MEMBER",
       },
     });
     setSelectedServiceIds([]);
@@ -504,7 +504,7 @@ export default function CreateQuotationForm({
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="quotation-name">Quotation Name</Label>
+              <Label htmlFor="quotation-name">Quotation Name <span className="text-red-500">*</span></Label>
               <Input
                 id="quotation-name"
                 value={quotationForm.name}
@@ -519,28 +519,31 @@ export default function CreateQuotationForm({
             </div>
 
             {/* Client Selection */}
-            <ClientSelection
-              selectedClientId={quotationForm.clientId}
-              newClientData={quotationForm.newClient}
-              onClientSelect={(clientId, clientName) =>
-                setQuotationForm((prev) => ({ 
-                  ...prev, 
-                  clientId,
-                  selectedClientName: clientName 
-                }))
-              }
-              onNewClientDataChange={(newClientData) =>
-                setQuotationForm((prev) => ({
-                  ...prev,
-                  newClient: newClientData,
-                }))
-              }
-              onModeChange={setClientMode}
-              mode={clientMode}
-            />
+            <div className="grid gap-2">
+              <Label>Client <span className="text-red-500">*</span></Label>
+              <ClientSelection
+                selectedClientId={quotationForm.clientId}
+                newClientData={quotationForm.newClient}
+                onClientSelect={(clientId, clientName) =>
+                  setQuotationForm((prev) => ({ 
+                    ...prev, 
+                    clientId,
+                    selectedClientName: clientName 
+                  }))
+                }
+                onNewClientDataChange={(newClientData) =>
+                  setQuotationForm((prev) => ({
+                    ...prev,
+                    newClient: newClientData,
+                  }))
+                }
+                onModeChange={setClientMode}
+                mode={clientMode}
+              />
+            </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="quotation-description">Description</Label>
+              <Label htmlFor="quotation-description">Description <span className="text-red-500">*</span></Label>
               <Textarea
                 className="text-black"
                 id="quotation-description"
@@ -599,7 +602,7 @@ export default function CreateQuotationForm({
 
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
               <div className="flex flex-col justify-between items-start">
-                <Label className="font-semibold">Select Services</Label>
+                <Label className="font-semibold">Select Services <span className="text-red-500">*</span></Label>
                 <div className="text-xs text-muted-foreground">
                   Note: Custom services can be added after creating the quotation
                 </div>
@@ -802,20 +805,34 @@ export default function CreateQuotationForm({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="p-4 border rounded-lg">
-            <h4 className="font-semibold text-green-600 mb-2">Final Quotation</h4>
-            <p className="text-sm text-muted-foreground">
-              Save as final quotation cannot be edited further. You will be prompted to select a project next.
-            </p>
+          <div className="p-4 border-2 border-red-300 rounded-lg bg-red-50">
+            <h4 className="font-semibold text-red-700 mb-2 flex items-center gap-2">
+              <span className="text-lg">⚠️</span> Final Quotation
+            </h4>
+            <div className="space-y-2 text-sm text-red-800">
+              <p className="font-medium">
+                Save as final quotation cannot be edited further. You will be prompted to select a project next.
+              </p>
+              <p className="font-semibold text-red-900 border-t border-red-200 pt-2 mt-2">
+                ⚠️ Important: Once finalized, you CANNOT add custom services anymore.
+              </p>
+            </div>
           </div>
-          <div className="p-4 border rounded-lg">
-            <h4 className="font-semibold text-blue-600 mb-2">Draft Quotation</h4>
-            <p className="text-sm text-muted-foreground">
-              Save as draft. You can continue editing this quotation later.
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Project linking is optional for draft quotations.
-            </p>
+          <div className="p-4 border-2 border-blue-300 rounded-lg bg-blue-50">
+            <h4 className="font-semibold text-blue-700 mb-2 flex items-center gap-2">
+              <span className="text-lg">ℹ️</span> Draft Quotation
+            </h4>
+            <div className="space-y-2 text-sm text-blue-800">
+              <p>
+                Save as draft. You can continue editing this quotation later.
+              </p>
+              <p className="font-semibold text-blue-900 border-t border-blue-200 pt-2 mt-2">
+                ✓ You can still add custom services to draft quotations.
+              </p>
+              <p className="text-xs text-blue-700 mt-1">
+                Project linking is optional for draft quotations.
+              </p>
+            </div>
           </div>
         </div>
         <DialogFooter className="flex gap-2">

@@ -103,7 +103,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
+            <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
             <Input 
               id="name" 
               placeholder="John Smith" 
@@ -112,7 +112,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
             <Input 
               id="email" 
               type="email" 
