@@ -307,6 +307,16 @@ export async function createQuotation(data: {
 
     // If creating a new client, create it first
     if (data.newClient && !data.clientId) {
+      // Get database user ID from Supabase ID (Client model references User.id, not supabase_id)
+      const dbUser = await tx.user.findUnique({
+        where: { supabase_id: user.id },
+        select: { id: true }
+      })
+      
+      if (!dbUser) {
+        throw new Error("User not found in database")
+      }
+
       const newClient = await tx.client.create({
         data: {
           name: data.newClient.name,
@@ -318,7 +328,7 @@ export async function createQuotation(data: {
           industry: data.newClient.industry,
           yearlyRevenue: data.newClient.yearlyRevenue ? parseFloat(data.newClient.yearlyRevenue) : null,
           membershipType: data.newClient.membershipType as "MEMBER" | "NON_MEMBER" || "NON_MEMBER",
-          createdById: user.id,
+          createdById: dbUser.id,
         } as any
       });
       finalClientId = newClient.id;
@@ -438,6 +448,16 @@ export async function editQuotationById(
 
     // If creating a new client, create it first
     if (data.newClient && !data.clientId) {
+      // Get database user ID from Supabase ID (Client model references User.id, not supabase_id)
+      const dbUser = await tx.user.findUnique({
+        where: { supabase_id: user.id },
+        select: { id: true }
+      })
+      
+      if (!dbUser) {
+        throw new Error("User not found in database")
+      }
+
       const newClient = await tx.client.create({
         data: {
           name: data.newClient.name,
@@ -449,7 +469,7 @@ export async function editQuotationById(
           industry: data.newClient.industry,
           yearlyRevenue: data.newClient.yearlyRevenue ? parseFloat(data.newClient.yearlyRevenue) : null,
           membershipType: data.newClient.membershipType as "MEMBER" | "NON_MEMBER" || "NON_MEMBER",
-          createdById: user.id,
+          createdById: dbUser.id,
         } as any
       });
       finalClientId = newClient.id;
