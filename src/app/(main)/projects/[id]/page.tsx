@@ -827,6 +827,7 @@ export default function ProjectPage() {
           <ProjectContracts
             projectId={project.id}
             userPermission={userPermission}
+            projectStatus={project.status}
           />
         )}
       </div>

@@ -35,11 +35,13 @@ interface ProjectContractsProps {
 		canView: boolean
 		isAdmin: boolean
 	}
+	projectStatus?: string
 }
 
 export default function ProjectContracts({
 	projectId,
 	userPermission,
+	projectStatus,
 }: ProjectContractsProps) {
 	const { enhancedUser } = useSession()
 	const [contracts, setContracts] = useState<ContractWithUploader[]>([])
@@ -52,8 +54,9 @@ export default function ProjectContracts({
 	const [deleteContractId, setDeleteContractId] = useState<string | null>(null)
 	const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
 
-	const canUpload = userPermission?.canEdit || userPermission?.isOwner || userPermission?.isAdmin
-	const canDelete = userPermission?.isOwner || userPermission?.isAdmin
+	const isProjectCancelled = projectStatus === "cancelled"
+	const canUpload = (userPermission?.canEdit || userPermission?.isOwner || userPermission?.isAdmin) && !isProjectCancelled
+	const canDelete = (userPermission?.isOwner || userPermission?.isAdmin) && !isProjectCancelled
 
 	useEffect(() => {
 		fetchContracts()
@@ -259,7 +262,9 @@ export default function ProjectContracts({
 				<div>
 					<h3 className="text-lg font-semibold">Contracts</h3>
 					<p className="text-sm text-muted-foreground">
-						Upload and manage project contracts
+						{isProjectCancelled 
+							? "View and download project contracts (upload/delete disabled for cancelled projects)"
+							: "Upload and manage project contracts"}
 					</p>
 				</div>
 				{canUpload && (
@@ -377,6 +382,11 @@ export default function ProjectContracts({
 						{canUpload && (
 							<p className="text-sm text-muted-foreground mt-2">
 								Upload your first contract to get started
+							</p>
+						)}
+						{isProjectCancelled && (
+							<p className="text-sm text-muted-foreground mt-2">
+								Contract upload is disabled for cancelled projects
 							</p>
 						)}
 					</CardContent>
