@@ -285,6 +285,8 @@ export default function CreateQuotationForm({
     setIsSaving(true);
     try {
       let projectId: number | undefined;
+      let finalClientId: string | undefined = clientMode === "existing" ? quotationForm.clientId : undefined;
+      let finalClientName: string = clientMode === "existing" ? (quotationForm.selectedClientName || "") : (quotationForm.newClient?.name || "");
 
       // For final quotations, handle project creation/linking
       if (workflowStatus === "final") {
@@ -296,18 +298,56 @@ export default function CreateQuotationForm({
               description: "Please enter a project name.",
               variant: "destructive",
             });
+            setIsSaving(false);
             return;
           }
 
-          const clientId = clientMode === "existing" ? quotationForm.clientId : undefined;
-          const clientName = clientMode === "existing" ? quotationForm.selectedClientName : quotationForm.newClient?.name || "";
+          // If creating a new client, create it first so we have a clientId for the project
+          if (clientMode === "new") {
+            if (!quotationForm.newClient?.name || !quotationForm.newClient?.email) {
+              toast({
+                title: "Validation Error",
+                description: "Please fill in the required client information (name and email).",
+                variant: "destructive",
+              });
+              setIsSaving(false);
+              return;
+            }
 
-          if (!clientId) {
+            try {
+              const { createCustomerClient } = await import("../../clients/action");
+              const newClient = await createCustomerClient({
+                name: quotationForm.newClient.name,
+                email: quotationForm.newClient.email,
+                phone: quotationForm.newClient.phone,
+                company: quotationForm.newClient.company,
+                address: quotationForm.newClient.address,
+                notes: quotationForm.newClient.notes,
+                industry: quotationForm.newClient.industry,
+                yearlyRevenue: quotationForm.newClient.yearlyRevenue ? parseFloat(quotationForm.newClient.yearlyRevenue) : undefined,
+                membershipType: (quotationForm.newClient.membershipType as "MEMBER" | "NON_MEMBER") || "NON_MEMBER",
+              });
+              finalClientId = newClient.id;
+              finalClientName = newClient.name;
+            } catch (error) {
+              console.error("Error creating client:", error);
+              toast({
+                title: "Error",
+                description: "Failed to create client: " + (error as Error).message,
+                variant: "destructive",
+              });
+              setIsSaving(false);
+              return;
+            }
+          }
+
+          if (!finalClientId) {
             toast({
               title: "Validation Error",
               description: "Cannot create project: No client assigned. Please assign a client first.",
               variant: "destructive",
             });
+            setIsSaving(false);
             return;
           }
 
@@ -319,8 +359,8 @@ export default function CreateQuotationForm({
             startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
             endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
             priority: newProjectData.priority,
-            clientId: clientId,
-            clientName: clientName,
+            clientId: finalClientId,
+            clientName: finalClientName,
           });
           projectId = newProject.id;
           
@@ -343,6 +383,7 @@ export default function CreateQuotationForm({
               description: "Please select a project.",
               variant: "destructive",
             });
+            setIsSaving(false);
             return;
           }
           projectId = selectedProjectId;
@@ -362,9 +403,10 @@ export default function CreateQuotationForm({
         createdById: enhancedUser.id,
         workflowStatus: workflowStatus, // Add workflow status parameter
         paymentStatus: "unpaid", // Default to unpaid for new quotations
-        clientId:
-          clientMode === "existing" ? quotationForm.clientId : undefined,
-        newClient: clientMode === "new" ? quotationForm.newClient : undefined,
+        // If we already created the client (for final quotations with new clients), use the clientId
+        // Otherwise, use the existing logic
+        clientId: finalClientId || (clientMode === "existing" ? quotationForm.clientId : undefined),
+        newClient: finalClientId ? undefined : (clientMode === "new" ? quotationForm.newClient : undefined),
         discountValue: quotationForm.discountValue
           ? parseFloat(quotationForm.discountValue)
           : undefined,
