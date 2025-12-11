@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -350,61 +350,67 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
         <div className="relative">
           <div className={`grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 ${loading ? "opacity-50 pointer-events-none" : ""}`}>
             {clients.map((client) => (
-              <Card key={client.id} className="card bg-white border-2 flex flex-col h-full" style={{ borderColor: "#BDC4A5" }}>
-                <CardHeader>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start gap-3 mb-2">
-                        <CardTitle className="text-xl font-semibold line-clamp-2" style={{ color: "#202F21" }} title={client.company || client.name}>
-                          {client.company || client.name}
-                        </CardTitle>
-                        <div className="flex space-x-1 shrink-0">
-                          <Link href={`/clients/${client.id}`}>
-                            <Button variant="ghost" size="sm" title="View Client">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </Link>
-                          {canEditClient(client) && (
-                            <>
-                              <Button variant="ghost" size="sm" onClick={() => handleEditClient(client)} title="Edit Client">
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleDeleteClient(client)}
-                                title="Delete Client"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge
-                          className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"}
-                          variant="outline"
-                        >
-                          <Crown className="w-3 h-3 mr-1" />
-                          {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
-                        </Badge>
-                        {client.industry && (
-                          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {client.industry}
-                          </Badge>
-                        )}
-                      </div>
+              <Card key={client.id} className="card bg-white border-2 flex flex-col h-full overflow-hidden" style={{ borderColor: "#BDC4A5" }}>
+                <CardHeader className="block!">
+                  <div className="flex items-center gap-2 mb-2 w-full">
+                    <h3 
+                      className="text-xl font-semibold truncate flex-1 min-w-0" 
+                      style={{ color: "#202F21" }} 
+                      title={client.company || client.name}
+                    >
+                      {client.company || client.name}
+                    </h3>
+                    <div className="flex shrink-0">
+                      <Link href={`/clients/${client.id}`}>
+                        <Button variant="ghost" size="sm" title="View Client">
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </Link>
+                      {canEditClient(client) && (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => handleEditClient(client)} title="Edit Client">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteClient(client)}
+                            title="Delete Client"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge
+                      className={client.membershipType === "MEMBER" ? "bg-yellow-600 hover:bg-yellow-700 text-white" : "bg-gray-100 text-gray-700"}
+                      variant="outline"
+                    >
+                      <Crown className="w-3 h-3 mr-1" />
+                      {client.membershipType === "MEMBER" ? "Member" : "Non-Member"}
+                    </Badge>
+                    {client.industry && (
+                      <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
+                        {client.industry}
+                      </Badge>
+                    )}
                   </div>
                 </CardHeader>
 
                 <CardContent className="flex-1 flex flex-col justify-between">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="w-4 h-4" style={{ color: "#898D74" }} />
-                      <span style={{ color: "#202F21" }}>{client.email}</span>
+                    <div className="flex items-center gap-2 text-sm min-w-0">
+                      <Mail className="w-4 h-4 shrink-0" style={{ color: "#898D74" }} />
+                      <span 
+                        className="truncate" 
+                        style={{ color: "#202F21" }} 
+                        title={client.email}
+                      >
+                        {client.email}
+                      </span>
                     </div>
                     {client.phone && (
                       <div className="flex items-center gap-2 text-sm">
@@ -413,9 +419,15 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
                       </div>
                     )}
                     {client.name && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="w-4 h-4" style={{ color: "#898D74" }} />
-                        <span style={{ color: "#202F21" }}>{client.name}</span>
+                      <div className="flex items-center gap-2 text-sm min-w-0">
+                        <User className="w-4 h-4 shrink-0" style={{ color: "#898D74" }} />
+                        <span 
+                          className="truncate" 
+                          style={{ color: "#202F21" }} 
+                          title={client.name}
+                        >
+                          {client.name}
+                        </span>
                       </div>
                     )}
                     {client.yearlyRevenue && (
@@ -431,9 +443,13 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
                       </div>
                     )}
                     {client.createdBy && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="w-4 h-4" style={{ color: "#898D74" }} />
-                        <span style={{ color: "#202F21" }}>
+                      <div className="flex items-center gap-2 text-sm min-w-0">
+                        <User className="w-4 h-4 shrink-0" style={{ color: "#898D74" }} />
+                        <span 
+                          className="truncate" 
+                          style={{ color: "#202F21" }}
+                          title={`Created by: ${client.createdBy.firstName || ""} ${client.createdBy.lastName || ""} ${client.createdBy.firstName || client.createdBy.lastName ? "" : client.createdBy.email}`.trim()}
+                        >
                           Created by: {client.createdBy.firstName || ""} {client.createdBy.lastName || ""}{" "}
                           {client.createdBy.firstName || client.createdBy.lastName ? "" : client.createdBy.email}
                         </span>

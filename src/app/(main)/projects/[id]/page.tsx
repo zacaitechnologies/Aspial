@@ -431,7 +431,7 @@ export default function ProjectPage() {
                       Add people
                     </Button>
                   )}
-                  {isProjectOwner && !isProjectCancelled && (
+                  {(isProjectOwner || isAdmin) && !isProjectCancelled && (
                     <CreateComplaintDialog
                       projectId={project.id}
                       projectName={project.name}

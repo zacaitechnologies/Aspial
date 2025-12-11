@@ -659,3 +659,87 @@ export async function getAllInvitations() {
     },
   })
 }
+
+/**
+ * Transfer creator role to another user
+ * Only the current creator can do this
+ * The old creator will be demoted to a regular owner
+ */
+export async function transferProjectCreator(
+  projectId: number,
+  currentCreatorId: string,
+  newCreatorId: string
+) {
+  // Verify the current user is the creator
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { createdBy: true }
+  })
+
+  if (!project) {
+    throw new Error("Project not found")
+  }
+
+  if (project.createdBy !== currentCreatorId) {
+    throw new Error("Only the current creator can transfer creator role")
+  }
+
+  if (currentCreatorId === newCreatorId) {
+    throw new Error("Cannot transfer creator role to yourself")
+  }
+
+  // Use a transaction to ensure atomicity
+  return await prisma.$transaction(async (tx) => {
+    // Update the project's createdBy field to the new creator
+    await tx.project.update({
+      where: { id: projectId },
+      data: { createdBy: newCreatorId }
+    })
+
+    // Ensure the new creator has owner permissions
+    await tx.projectPermission.upsert({
+      where: {
+        userId_projectId: {
+          userId: newCreatorId,
+          projectId: projectId
+        }
+      },
+      update: {
+        isOwner: true,
+        canView: true,
+        canEdit: true
+      },
+      create: {
+        userId: newCreatorId,
+        projectId: projectId,
+        isOwner: true,
+        canView: true,
+        canEdit: true
+      }
+    })
+
+    // Ensure the old creator still has owner permissions (but is no longer creator)
+    await tx.projectPermission.upsert({
+      where: {
+        userId_projectId: {
+          userId: currentCreatorId,
+          projectId: projectId
+        }
+      },
+      update: {
+        isOwner: true,
+        canView: true,
+        canEdit: true
+      },
+      create: {
+        userId: currentCreatorId,
+        projectId: projectId,
+        isOwner: true,
+        canView: true,
+        canEdit: true
+      }
+    })
+
+    return { success: true }
+  })
+}

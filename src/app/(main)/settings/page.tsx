@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "../contexts/SessionProvider"
 import { updateProfile, changePassword, uploadProfilePicture, deleteProfilePicture } from "./action"
 import { signout } from "@/lib/auth-actions"
+import { clearAllCachesOnLogout } from "@/lib/clear-all-cache"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -121,6 +122,7 @@ export default function SettingsPage() {
 	}
 
 	const handleLogout = () => {
+		clearAllCachesOnLogout()
 		startTransition(async () => {
 			await signout()
 		})

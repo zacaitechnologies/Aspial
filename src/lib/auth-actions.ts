@@ -174,5 +174,13 @@ export async function signout() {
     redirect("/error");
   }
 
+  // Revalidate all paths to ensure fresh data on next login
+  revalidatePath("/", "layout");
+  revalidatePath("/projects", "layout");
+  revalidatePath("/quotations", "layout");
+  revalidatePath("/clients", "layout");
+  revalidatePath("/services", "layout");
+  revalidatePath("/settings", "layout");
+  
   redirect("/logout");
 }

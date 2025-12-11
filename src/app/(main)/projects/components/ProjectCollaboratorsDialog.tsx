@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -19,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { 
   getProjectPermissions, 
   removeProjectCollaborator,
@@ -26,9 +29,10 @@ import {
   getAvailableUsersForProject,
   createProjectInvitation,
   getProjectInvitations,
+  transferProjectCreator,
 } from "../permissions";
 import { checkIsAdmin } from "../../actions/admin-actions";
-import { User, Users, X, Crown, CheckCircle2, AlertCircle } from "lucide-react";
+import { User, Users, X, Crown, CheckCircle2, AlertCircle, Loader2, ArrowRightLeft } from "lucide-react";
 import { useSession } from "../../contexts/SessionProvider";
 import { 
   ProjectPermission, 
@@ -36,6 +40,7 @@ import {
   ProjectInvitation 
 } from "../types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "@/components/ui/use-toast";
 
 interface ProjectCollaboratorsDialogProps {
   isOpen: boolean;
@@ -51,6 +56,7 @@ export default function ProjectCollaboratorsDialog({
   projectName,
 }: ProjectCollaboratorsDialogProps) {
   const { enhancedUser } = useSession();
+  const router = useRouter();
   const [permissions, setPermissions] = useState<ProjectPermission[]>([]);
   const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
@@ -62,6 +68,14 @@ export default function ProjectCollaboratorsDialog({
   const [isUserAdminRole, setIsUserAdminRole] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [isInviting, setIsInviting] = useState(false);
+  const [processingUserId, setProcessingUserId] = useState<string | null>(null);
+  const [processingAction, setProcessingAction] = useState<"promote" | "demote" | "remove" | "transfer" | null>(null);
+  
+  // Transfer creator confirmation dialog state
+  const [transferConfirmOpen, setTransferConfirmOpen] = useState(false);
+  const [transferTargetUser, setTransferTargetUser] = useState<{userId: string; name: string} | null>(null);
+  const [isTransferring, setIsTransferring] = useState(false);
 
 
 
@@ -165,15 +179,24 @@ export default function ProjectCollaboratorsDialog({
     setErrorMessage("");
     
     if (!selectedUserId) {
-      setErrorMessage("Please select a user to invite");
+      toast({
+        title: "Error",
+        description: "Please select a user to invite",
+        variant: "destructive",
+      });
       return;
     }
 
     if (!enhancedUser?.id) {
-      setErrorMessage("User not authenticated");
+      toast({
+        title: "Error",
+        description: "User not authenticated",
+        variant: "destructive",
+      });
       return;
     }
 
+    setIsInviting(true);
     try {
       const selectedUser = availableUsers.find(user => user.supabase_id === selectedUserId);
       const userName = selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName}` : 'User';
@@ -191,66 +214,146 @@ export default function ProjectCollaboratorsDialog({
       );
       
       console.log("Invitation created successfully:", result);
-      setSuccessMessage(`Invitation sent successfully to ${userName}!`);
       
       // Reset form
       setSelectedUserId("");
       setMakeOwner(false);
       
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
+      // Show success toast
+      toast({
+        title: "Invitation Sent",
+        description: `Invitation sent successfully to ${userName}!`,
+      });
       
-      // Refresh data
-      await fetchPermissions();
+      // Close dialog and refresh page
+      onOpenChange(false);
+      router.refresh();
     } catch (error) {
       console.error("Error sending invitation:", error);
-      setErrorMessage("Failed to send invitation: " + (error instanceof Error ? error.message : "Please try again."));
+      toast({
+        title: "Error",
+        description: "Failed to send invitation: " + (error instanceof Error ? error.message : "Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsInviting(false);
     }
   };
 
   const handleRemoveCollaborator = async (userId: string) => {
-    setSuccessMessage("");
-    setErrorMessage("");
-    
     if (!enhancedUser?.id) {
-      setErrorMessage("User not authenticated");
+      toast({
+        title: "Error",
+        description: "User not authenticated",
+        variant: "destructive",
+      });
       return;
     }
 
+    setProcessingUserId(userId);
+    setProcessingAction("remove");
     try {
+      const removedUser = permissions.find(p => p.userId === userId);
+      const userName = removedUser ? `${removedUser.user.firstName} ${removedUser.user.lastName}` : 'Collaborator';
+      
       await removeProjectCollaborator(projectId, userId, enhancedUser.id);
-      await fetchPermissions();
-      setSuccessMessage("Collaborator removed successfully!");
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
+      
+      // Show success toast
+      toast({
+        title: "Collaborator Removed",
+        description: `${userName} has been removed from the project.`,
+      });
+      
+      // Close dialog and refresh page
+      onOpenChange(false);
+      router.refresh();
     } catch (error) {
       console.error("Error removing collaborator:", error);
-      setErrorMessage("Failed to remove collaborator: " + (error instanceof Error ? error.message : "Please try again."));
+      toast({
+        title: "Error",
+        description: "Failed to remove collaborator: " + (error instanceof Error ? error.message : "Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingUserId(null);
+      setProcessingAction(null);
     }
   };
 
   const handleToggleOwner = async (userId: string, currentIsOwner: boolean) => {
-    setSuccessMessage("");
-    setErrorMessage("");
-    
     if (!enhancedUser?.id) {
-      setErrorMessage("User not authenticated");
+      toast({
+        title: "Error",
+        description: "User not authenticated",
+        variant: "destructive",
+      });
       return;
     }
 
+    setProcessingUserId(userId);
+    setProcessingAction(currentIsOwner ? "demote" : "promote");
     try {
+      const targetUser = permissions.find(p => p.userId === userId);
+      const userName = targetUser ? `${targetUser.user.firstName} ${targetUser.user.lastName}` : 'Collaborator';
+      
       await updateProjectPermission(projectId, userId, enhancedUser.id, !currentIsOwner);
-      await fetchPermissions();
-      setSuccessMessage(`Collaborator ${!currentIsOwner ? 'promoted to' : 'demoted from'} owner successfully!`);
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
+      
+      // Show success toast
+      toast({
+        title: !currentIsOwner ? "Promoted to Owner" : "Demoted from Owner",
+        description: `${userName} has been ${!currentIsOwner ? 'promoted to owner' : 'demoted from owner'}.`,
+      });
+      
+      // Close dialog and refresh page
+      onOpenChange(false);
+      router.refresh();
     } catch (error) {
       console.error("Error updating permission:", error);
-      setErrorMessage("Failed to update permission: " + (error instanceof Error ? error.message : "Please try again."));
+      toast({
+        title: "Error",
+        description: "Failed to update permission: " + (error instanceof Error ? error.message : "Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingUserId(null);
+      setProcessingAction(null);
+    }
+  };
+
+  // Open transfer confirmation dialog
+  const handleOpenTransferConfirm = (userId: string, userName: string) => {
+    setTransferTargetUser({ userId, name: userName });
+    setTransferConfirmOpen(true);
+  };
+
+  // Execute the transfer
+  const handleConfirmTransfer = async () => {
+    if (!transferTargetUser || !enhancedUser?.id) {
+      return;
+    }
+
+    setIsTransferring(true);
+    try {
+      await transferProjectCreator(projectId, enhancedUser.id, transferTargetUser.userId);
+      
+      toast({
+        title: "Creator Role Transferred",
+        description: `${transferTargetUser.name} is now the project creator. You have been demoted to owner.`,
+      });
+      
+      setTransferConfirmOpen(false);
+      setTransferTargetUser(null);
+      onOpenChange(false);
+      router.refresh();
+    } catch (error) {
+      console.error("Error transferring creator role:", error);
+      toast({
+        title: "Error",
+        description: "Failed to transfer creator role: " + (error instanceof Error ? error.message : "Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsTransferring(false);
     }
   };
 
@@ -362,10 +465,19 @@ export default function ProjectCollaboratorsDialog({
             <Button 
               onClick={handleInviteCollaborator} 
               className="w-full"
-              disabled={!selectedUserId || availableUsers.length === 0}
+              disabled={!selectedUserId || availableUsers.length === 0 || isInviting}
             >
-              <User className="w-4 h-4 mr-2" />
-              Send Invitation
+              {isInviting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <User className="w-4 h-4 mr-2" />
+                  Send Invitation
+                </>
+              )}
             </Button>
           </div>
 
@@ -418,59 +530,108 @@ export default function ProjectCollaboratorsDialog({
             <div className="space-y-3">
               {permissions.map((permission) => {
                 const isCreator = permission.userId === projectCreatorId;
+                const currentUserIsCreator = enhancedUser?.id === projectCreatorId;
                 const currentUserIsOwner = permissions.find(p => p.userId === enhancedUser?.id)?.isOwner;
-                const canManage = isUserAdminRole || (currentUserIsOwner && !isCreator);
+                
+                // Only creator or admin can promote/demote
+                const canPromoteDemote = isUserAdminRole || currentUserIsCreator;
+                
+                // Owners can remove non-owners, but only creator/admin can remove owners
+                const canRemove = isUserAdminRole || currentUserIsCreator || (currentUserIsOwner && !permission.isOwner);
                 
                 return (
                   <div
                     key={permission.id}
-                    className="flex items-center justify-between p-3 border rounded-lg"
+                    className="p-3 border rounded-lg space-y-2"
                   >
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <p className="font-medium">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">
                           {permission.user.firstName} {permission.user.lastName}
                         </p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground truncate">
                           {permission.user.email}
                         </p>
                       </div>
+                      
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isCreator && (
+                          <Badge variant="secondary" className="flex items-center gap-1 bg-blue-100 text-blue-800">
+                            <Crown className="w-3 h-3" />
+                            Creator
+                          </Badge>
+                        )}
+                        {permission.isOwner && !isCreator && (
+                          <Badge variant="default" className="flex items-center gap-1">
+                            <Crown className="w-3 h-3" />
+                            Owner
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      {isCreator && (
-                        <Badge variant="secondary" className="flex items-center gap-1 bg-blue-100 text-blue-800">
-                          <Crown className="w-3 h-3" />
-                          Creator
-                        </Badge>
-                      )}
-                      {permission.isOwner && !isCreator && (
-                        <Badge variant="default" className="flex items-center gap-1">
-                          <Crown className="w-3 h-3" />
-                          Owner
-                        </Badge>
-                      )}
-                      
-                      {/* Show controls if current user is admin or owner (and target is not the creator) */}
-                      {canManage && !isCreator && (
-                        <>
+                    {/* Action buttons - shown on separate row when there are actions */}
+                    {((currentUserIsCreator && !isCreator && permission.isOwner) || 
+                      (canPromoteDemote && !isCreator) || 
+                      (canRemove && !isCreator)) && (
+                      <div className="flex items-center gap-2 flex-wrap pt-1 border-t">
+                        {/* Make Creator button - only current creator can transfer role */}
+                        {currentUserIsCreator && !isCreator && permission.isOwner && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                            onClick={() => handleOpenTransferConfirm(
+                              permission.userId, 
+                              `${permission.user.firstName} ${permission.user.lastName}`
+                            )}
+                            disabled={processingUserId === permission.userId}
+                          >
+                            <ArrowRightLeft className="w-3 h-3 mr-1" />
+                            Make Creator
+                          </Button>
+                        )}
+                        
+                        {/* Promote/Demote button - only creator or admin can use this */}
+                        {canPromoteDemote && !isCreator && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleToggleOwner(permission.userId, permission.isOwner)}
+                            disabled={processingUserId === permission.userId}
                           >
-                            {permission.isOwner ? 'Demote' : 'Promote'}
+                            {processingUserId === permission.userId && (processingAction === "promote" || processingAction === "demote") ? (
+                              <>
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                {processingAction === "promote" ? "Promoting..." : "Demoting..."}
+                              </>
+                            ) : (
+                              permission.isOwner ? 'Demote' : 'Promote'
+                            )}
                           </Button>
+                        )}
+                        
+                        {/* Remove button - owners can remove non-owners, creator/admin can remove anyone */}
+                        {canRemove && !isCreator && (
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             onClick={() => handleRemoveCollaborator(permission.userId)}
+                            disabled={processingUserId === permission.userId}
                           >
-                            <X className="w-4 h-4" />
+                            {processingUserId === permission.userId && processingAction === "remove" ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <X className="w-4 h-4 mr-1" />
+                                Remove
+                              </>
+                            )}
                           </Button>
-                        </>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -490,6 +651,66 @@ export default function ProjectCollaboratorsDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* Transfer Creator Confirmation Dialog */}
+      <Dialog open={transferConfirmOpen} onOpenChange={setTransferConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <ArrowRightLeft className="w-5 h-5" />
+              Transfer Creator Role
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to transfer the creator role to <strong>{transferTargetUser?.name}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <Alert className="bg-amber-50 border-amber-200">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800">Warning: This action cannot be undone by you</AlertTitle>
+              <AlertDescription className="text-amber-700">
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li><strong>{transferTargetUser?.name}</strong> will become the new project creator</li>
+                  <li>You will be demoted to a project owner</li>
+                  <li>Only the new creator or an admin can transfer the role back to you</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTransferConfirmOpen(false);
+                setTransferTargetUser(null);
+              }}
+              disabled={isTransferring}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={handleConfirmTransfer}
+              disabled={isTransferring}
+            >
+              {isTransferring ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Transferring...
+                </>
+              ) : (
+                <>
+                  <ArrowRightLeft className="w-4 h-4 mr-2" />
+                  Transfer Creator Role
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 } 

@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Bell, Check, X, Package } from "lucide-react";
+import { Bell, Check, X, Package, Loader2 } from "lucide-react";
 import {
   getAllCustomServices,
   getUserCustomServices,
@@ -74,6 +74,8 @@ export default function CustomServiceNotifications({
   const [selectedService, setSelectedService] = useState<CustomServiceRequest | null>(null);
   const [rejectionComment, setRejectionComment] = useState("");
   const [approvalComment, setApprovalComment] = useState("");
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRejecting, setIsRejecting] = useState(false);
 
   const fetchCustomServices = async () => {
     try {
@@ -121,6 +123,7 @@ export default function CustomServiceNotifications({
   const confirmApprove = async () => {
     if (!selectedService) return;
 
+    setIsApproving(true);
     try {
       await approveCustomService(
         selectedService.id,
@@ -142,6 +145,8 @@ export default function CustomServiceNotifications({
         description: "Failed to approve custom service. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -155,6 +160,7 @@ export default function CustomServiceNotifications({
       return;
     }
 
+    setIsRejecting(true);
     try {
       await rejectCustomService(selectedService.id, userId, rejectionComment);
       setIsRejectDialogOpen(false);
@@ -172,6 +178,8 @@ export default function CustomServiceNotifications({
         description: "Failed to reject custom service. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsRejecting(false);
     }
   };
 
@@ -358,14 +366,23 @@ export default function CustomServiceNotifications({
             <Button
               variant="outline"
               onClick={() => setIsApproveDialogOpen(false)}
+              disabled={isApproving}
             >
               Cancel
             </Button>
             <Button
               onClick={confirmApprove}
               className="bg-green-600 hover:bg-green-700"
+              disabled={isApproving}
             >
-              Approve Service
+              {isApproving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                "Approve Service"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -399,15 +416,23 @@ export default function CustomServiceNotifications({
             <Button
               variant="outline"
               onClick={() => setIsRejectDialogOpen(false)}
+              disabled={isRejecting}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={confirmReject}
-              disabled={!rejectionComment.trim()}
+              disabled={!rejectionComment.trim() || isRejecting}
             >
-              Reject Service
+              {isRejecting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Rejecting...
+                </>
+              ) : (
+                "Reject Service"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

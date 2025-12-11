@@ -4,6 +4,7 @@ import { Button } from "./ui/button";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { signout } from "@/lib/auth-actions";
+import { clearAllCachesOnLogout } from "@/lib/clear-all-cache";
 import { User } from "@supabase/supabase-js";
 
 const LoginButton = () => {
@@ -23,6 +24,7 @@ const LoginButton = () => {
     return (
       <Button
         onClick={() => {
+          clearAllCachesOnLogout();
           signout();
           setUser(null);
         }}

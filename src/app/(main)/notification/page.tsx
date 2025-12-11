@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Bell, Check, X, Users, Eye, Edit, Crown, Shield, Trash2, Package, CheckCircle2, AlertCircle } from "lucide-react";
+import { Bell, Check, X, Users, Eye, Edit, Crown, Shield, Trash2, Package, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import CustomServiceNotifications from "./components/CustomServiceNotifications";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/components/ui/use-toast";
@@ -105,6 +105,8 @@ export default function NotificationPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [processingInvitationId, setProcessingInvitationId] = useState<number | null>(null);
+  const [processingAction, setProcessingAction] = useState<"accept" | "decline" | null>(null);
 
   const fetchInvitations = useCallback(async () => {
     try {
@@ -172,6 +174,8 @@ export default function NotificationPage() {
   const handleAcceptInvitation = async (invitationId: number) => {
     setSuccessMessage("");
     setErrorMessage("");
+    setProcessingInvitationId(invitationId);
+    setProcessingAction("accept");
     
     try {
       console.log("Accepting invitation:", invitationId);
@@ -190,12 +194,17 @@ export default function NotificationPage() {
     } catch (error) {
       console.error("Error accepting invitation:", error);
       setErrorMessage("Failed to accept invitation. Please try again.");
+    } finally {
+      setProcessingInvitationId(null);
+      setProcessingAction(null);
     }
   };
 
   const handleDeclineInvitation = async (invitationId: number) => {
     setSuccessMessage("");
     setErrorMessage("");
+    setProcessingInvitationId(invitationId);
+    setProcessingAction("decline");
     
     try {
       console.log("Declining invitation:", invitationId);
@@ -214,6 +223,9 @@ export default function NotificationPage() {
     } catch (error) {
       console.error("Error declining invitation:", error);
       setErrorMessage("Failed to decline invitation. Please try again.");
+    } finally {
+      setProcessingInvitationId(null);
+      setProcessingAction(null);
     }
   };
 
@@ -221,11 +233,13 @@ export default function NotificationPage() {
   const handleAdminAcceptInvitation = async (invitationId: number) => {
     setSuccessMessage("");
     setErrorMessage("");
+    setProcessingInvitationId(invitationId);
+    setProcessingAction("accept");
     
     try {
       await acceptProjectInvitation(invitationId);
       // Refresh all invitation lists
-      fetchInvitations();
+      await fetchInvitations();
       setSuccessMessage("Invitation accepted by admin!");
       
       // Clear success message after 3 seconds
@@ -235,17 +249,22 @@ export default function NotificationPage() {
     } catch (error) {
       console.error("Error accepting invitation as admin:", error);
       setErrorMessage("Failed to accept invitation. Please try again.");
+    } finally {
+      setProcessingInvitationId(null);
+      setProcessingAction(null);
     }
   };
 
   const handleAdminDeclineInvitation = async (invitationId: number) => {
     setSuccessMessage("");
     setErrorMessage("");
+    setProcessingInvitationId(invitationId);
+    setProcessingAction("decline");
     
     try {
       await declineProjectInvitation(invitationId);
       // Refresh all invitation lists
-      fetchInvitations();
+      await fetchInvitations();
       setSuccessMessage("Invitation declined by admin!");
       
       // Clear success message after 3 seconds
@@ -255,6 +274,9 @@ export default function NotificationPage() {
     } catch (error) {
       console.error("Error declining invitation as admin:", error);
       setErrorMessage("Failed to decline invitation. Please try again.");
+    } finally {
+      setProcessingInvitationId(null);
+      setProcessingAction(null);
     }
   };
 
@@ -438,22 +460,33 @@ export default function NotificationPage() {
                         <Button
                           onClick={() => handleAdminAcceptInvitation(invitation.id)}
                           className="flex-1"
+                          disabled={processingInvitationId === invitation.id}
                         >
-                          <Check className="w-4 h-4 mr-2" />
-                          Accept as Admin
+                          {processingInvitationId === invitation.id && processingAction === "accept" ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4 mr-2" />
+                          )}
+                          {processingInvitationId === invitation.id && processingAction === "accept" ? "Accepting..." : "Accept as Admin"}
                         </Button>
-                          <Button
+                        <Button
                           variant="outline"
                           onClick={() => handleAdminDeclineInvitation(invitation.id)}
                           className="flex-1"
+                          disabled={processingInvitationId === invitation.id}
                         >
-                          <X className="w-4 h-4 mr-2" />
-                          Decline as Admin
+                          {processingInvitationId === invitation.id && processingAction === "decline" ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <X className="w-4 h-4 mr-2" />
+                          )}
+                          {processingInvitationId === invitation.id && processingAction === "decline" ? "Declining..." : "Decline as Admin"}
                         </Button>
                         <Button
                           variant="destructive"
                           onClick={() => handleAdminDeleteInvitation(invitation.id)}
                           size="sm"
+                          disabled={processingInvitationId === invitation.id}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -559,17 +592,27 @@ export default function NotificationPage() {
                         <Button
                           onClick={() => handleAcceptInvitation(invitation.id)}
                           className="flex-1"
+                          disabled={processingInvitationId === invitation.id}
                         >
-                          <Check className="w-4 h-4 mr-2" />
-                          Accept
+                          {processingInvitationId === invitation.id && processingAction === "accept" ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4 mr-2" />
+                          )}
+                          {processingInvitationId === invitation.id && processingAction === "accept" ? "Accepting..." : "Accept"}
                         </Button>
                         <Button
                           variant="outline"
                           onClick={() => handleDeclineInvitation(invitation.id)}
                           className="flex-1"
+                          disabled={processingInvitationId === invitation.id}
                         >
-                          <X className="w-4 h-4 mr-2" />
-                          Decline
+                          {processingInvitationId === invitation.id && processingAction === "decline" ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <X className="w-4 h-4 mr-2" />
+                          )}
+                          {processingInvitationId === invitation.id && processingAction === "decline" ? "Declining..." : "Decline"}
                         </Button>
                       </div>
                     )}

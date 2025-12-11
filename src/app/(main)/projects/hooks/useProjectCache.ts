@@ -13,8 +13,8 @@ interface UseProjectCacheReturn {
   invalidateCache: () => void
 }
 
-const MEMORY_CACHE_DURATION = 2 * 60 * 1000 // 2 minutes for active session
-const LOCALSTORAGE_MAX_AGE = 30 * 60 * 1000 // 30 minutes max for localStorage
+const MEMORY_CACHE_DURATION = 30 * 1000 // 30 seconds for active session (permissions can change)
+const LOCALSTORAGE_MAX_AGE = 2 * 60 * 1000 // 2 minutes max for localStorage (reduced for permission freshness)
 
 // ✅ MODULE-LEVEL MEMORY CACHE (fast access during session) - per project
 const memoryProjectCache: { [key: string]: {
@@ -49,8 +49,40 @@ const saveToLocalStorage = (cacheKey: string, data: any) => {
   }
 }
 
+// Track if this is the first mount for each cache key (to force fresh data on login)
+const mountedKeys: { [key: string]: boolean } = {}
+
+/**
+ * Clear all project caches (memory + localStorage) and reset mount tracking
+ * Should be called on logout to ensure fresh data on next login
+ */
+export function clearAllProjectCaches() {
+  // Clear memory caches
+  Object.keys(memoryProjectCache).forEach(key => delete memoryProjectCache[key])
+  Object.keys(loadingStates).forEach(key => delete loadingStates[key])
+  Object.keys(mountedKeys).forEach(key => delete mountedKeys[key])
+  
+  // Clear localStorage project caches
+  try {
+    const keysToRemove: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key?.startsWith('project-cache-')) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key))
+    console.log(`🧹 Cleared ${keysToRemove.length} project caches and reset mount tracking`)
+  } catch (error) {
+    console.error('Error clearing project caches from localStorage:', error)
+  }
+}
+
 export function useProjectCache(userId: string | undefined, projectId: string | undefined): UseProjectCacheReturn {
   const cacheKey = `${userId}-${projectId}`
+  
+  // Check if this is the first time mounting with this cache key
+  const isFirstMount = !mountedKeys[cacheKey]
   
   const [project, setProject] = useState<any | null>(() => {
     // Try localStorage first, then memory cache
@@ -90,8 +122,18 @@ export function useProjectCache(userId: string | undefined, projectId: string | 
 
     const now = Date.now()
     
-    // STALE-WHILE-REVALIDATE PATTERN
-    if (!forceRefresh) {
+    // Check if this is first mount - always fetch fresh data on first mount
+    // This ensures fresh permissions when user logs in or switches accounts
+    const needsFreshData = isFirstMount || forceRefresh
+    
+    // Mark as mounted after first load
+    if (isFirstMount) {
+      mountedKeys[cacheKey] = true
+      console.log(`🔑 FIRST MOUNT [${projectId}]: Will fetch fresh permissions`)
+    }
+    
+    // STALE-WHILE-REVALIDATE PATTERN (but bypass cache on first mount)
+    if (!needsFreshData) {
       // Check memory cache first (fastest)
       const memCached = memoryProjectCache[cacheKey]
       if (memCached && now - memCached.timestamp < MEMORY_CACHE_DURATION) {
