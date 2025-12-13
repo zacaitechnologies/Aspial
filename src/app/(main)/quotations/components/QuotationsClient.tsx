@@ -64,16 +64,9 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
 
   // Refetch when filters/pagination change
   useEffect(() => {
-    // Skip initial load since we have initialData
-    if (
-      page === initialData.page &&
-      pageSize === initialData.pageSize &&
-      statusFilter === "all"
-    ) {
-      return;
-    }
     fetchQuotations();
-  }, [page, pageSize, statusFilter, fetchQuotations, initialData.page, initialData.pageSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, statusFilter]);
 
   const handleEditQuotation = (quotation: QuotationWithServices) => {
     setEditingQuotation(quotation);

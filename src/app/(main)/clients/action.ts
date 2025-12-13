@@ -647,3 +647,186 @@ export async function getCurrentUserId(): Promise<string | null> {
     return null
   }
 }
+
+// Get all advisors (users who have created quotations)
+export async function getAllAdvisors() {
+  try {
+    await getCachedUser()
+    
+    const users = await prisma.user.findMany({
+      where: {
+        quotations: {
+          some: {}
+        }
+      },
+      select: {
+        id: true,
+        supabase_id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+      orderBy: {
+        firstName: 'asc'
+      }
+    })
+    
+    return users.map(user => ({
+      id: user.supabase_id,
+      name: `${user.firstName} ${user.lastName}`,
+      email: user.email,
+    }))
+  } catch (error) {
+    console.error('Error getting advisors:', error)
+    return []
+  }
+}
+
+// Get sales data by time period and advisor
+export async function getSalesData(filters: {
+  year?: number
+  month?: number
+  advisorId?: string
+  viewMode?: 'monthly' | 'yearly'
+}) {
+  try {
+    await getCachedUser()
+    
+    const { year, month, advisorId, viewMode = 'yearly' } = filters
+    
+    // Build where clause for quotations
+    const where: any = {
+      paymentStatus: {
+        in: ['fully_paid', 'deposit_paid', 'partially_paid']
+      }
+    }
+    
+    // Filter by created date
+    if (year) {
+      const startDate = new Date(year, month !== undefined ? month : 0, 1)
+      const endDate = month !== undefined 
+        ? new Date(year, month + 1, 0, 23, 59, 59, 999)
+        : new Date(year, 11, 31, 23, 59, 59, 999)
+      
+      where.created_at = {
+        gte: startDate,
+        lte: endDate,
+      }
+    }
+    
+    // Filter by advisor (creator of quotation)
+    if (advisorId && advisorId !== 'all') {
+      where.createdById = advisorId
+    }
+    
+    // Get quotations with client info
+    const quotations = await prisma.quotation.findMany({
+      where,
+      include: {
+        Client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            company: true,
+            membershipType: true,
+          }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
+        }
+      },
+      orderBy: {
+        created_at: 'desc'
+      }
+    })
+    
+    // Calculate totals
+    const totalSales = quotations.reduce((sum, q) => sum + q.totalPrice, 0)
+    const totalClients = new Set(quotations.map(q => q.clientId)).size
+    const totalQuotations = quotations.length
+    
+    // Group by advisor
+    const salesByAdvisor: Record<string, {
+      advisorId: string
+      advisorName: string
+      totalSales: number
+      quotationsCount: number
+      clientsCount: number
+    }> = {}
+    
+    quotations.forEach(q => {
+      const advisorId = q.createdById
+      const advisorName = `${q.createdBy.firstName} ${q.createdBy.lastName}`
+      
+      if (!salesByAdvisor[advisorId]) {
+        salesByAdvisor[advisorId] = {
+          advisorId,
+          advisorName,
+          totalSales: 0,
+          quotationsCount: 0,
+          clientsCount: 0
+        }
+      }
+      
+      salesByAdvisor[advisorId].totalSales += q.totalPrice
+      salesByAdvisor[advisorId].quotationsCount += 1
+    })
+    
+    // Calculate unique clients per advisor
+    Object.keys(salesByAdvisor).forEach(advisorId => {
+      const advisorQuotations = quotations.filter(q => q.createdById === advisorId)
+      salesByAdvisor[advisorId].clientsCount = new Set(advisorQuotations.map(q => q.clientId)).size
+    })
+    
+    // If yearly view, group by month
+    let monthlyBreakdown: any[] = []
+    if (viewMode === 'yearly' && year) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      monthlyBreakdown = months.map((monthName, monthIndex) => {
+        const monthQuotations = quotations.filter(q => {
+          const qDate = new Date(q.created_at)
+          return qDate.getMonth() === monthIndex
+        })
+        
+        return {
+          month: monthName,
+          monthIndex,
+          sales: monthQuotations.reduce((sum, q) => sum + q.totalPrice, 0),
+          quotations: monthQuotations.length,
+          clients: new Set(monthQuotations.map(q => q.clientId)).size
+        }
+      })
+    }
+    
+    return {
+      totalSales,
+      totalClients,
+      totalQuotations,
+      monthlyBreakdown,
+      quotations: quotations.map(q => ({
+        id: q.id,
+        name: q.name,
+        totalPrice: q.totalPrice,
+        paymentStatus: q.paymentStatus,
+        workflowStatus: q.workflowStatus,
+        created_at: q.created_at.toISOString(),
+        client: q.Client,
+        createdBy: {
+          id: q.createdBy.id,
+          name: `${q.createdBy.firstName} ${q.createdBy.lastName}`,
+          email: q.createdBy.email,
+        }
+      })),
+      salesByAdvisor: Object.values(salesByAdvisor).sort((a, b) => b.totalSales - a.totalSales),
+    }
+  } catch (error) {
+    console.error('Error getting sales data:', error)
+    throw error
+  }
+}

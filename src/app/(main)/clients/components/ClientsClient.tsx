@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Search,
   DollarSign,
@@ -22,12 +23,14 @@ import {
   ArrowUp,
   ArrowDown,
   Crown,
+  TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
 import { deleteClient, checkIsAdmin, getCurrentUserId, getClientsPaginatedFresh, invalidateClientsCache } from "../action"
 import CreateClientDialog from "./CreateClientDialog"
 import EditClientDialog from "./EditClientDialog"
 import DeleteClientDialog from "./DeleteClientDialog"
+import SalesAnalytics from "./SalesAnalytics"
 import { ProjectPagination } from "../../projects/components/ProjectPagination"
 import { toast } from "@/components/ui/use-toast"
 import { useSession } from "../../contexts/SessionProvider"
@@ -116,20 +119,9 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
 
   // Refetch when filters/pagination change
   useEffect(() => {
-    // Skip initial load since we have initialData
-    if (
-      page === initialData.page &&
-      pageSize === initialData.pageSize &&
-      searchTerm === "" &&
-      industryFilter === "all" &&
-      membershipFilter === "all" &&
-      sortBy === "created_at" &&
-      sortDirection === "desc"
-    ) {
-      return
-    }
     fetchClients()
-  }, [page, pageSize, searchTerm, industryFilter, membershipFilter, sortBy, sortDirection, fetchClients, initialData.page, initialData.pageSize])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, searchTerm, industryFilter, membershipFilter, sortBy, sortDirection])
 
   // Check admin status and get current user ID
   useEffect(() => {
@@ -229,8 +221,22 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
           <CreateClientDialog onSuccess={handleSuccess} />
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        {/* Tabs */}
+        <Tabs defaultValue="clients" className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="clients" className="flex items-center gap-2">
+              <Building2 className="w-4 h-4" />
+              Client List
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Sales Analytics
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="clients" className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -254,34 +260,6 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
                 </div>
                 <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#898D74" }}>
                   <Building2 className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium" style={{ color: "#898D74" }}>Total Value</p>
-                  <p className="text-3xl font-bold" style={{ color: "#202F21" }}>RM {totalValue.toLocaleString()}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#202F21" }}>
-                  <Building2 className="w-6 h-6 text-white" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium" style={{ color: "#898D74" }}>Avg. Value</p>
-                  <p className="text-3xl font-bold" style={{ color: "#202F21" }}>RM {avgValue.toLocaleString()}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#BDC4A5" }}>
-                  <Building2 className="w-6 h-6" style={{ color: "#202F21" }} />
                 </div>
               </div>
             </CardContent>
@@ -495,6 +473,12 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
           onPageChange={goToPage}
           onPageSizeChange={setPageSize}
         />
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <SalesAnalytics />
+          </TabsContent>
+        </Tabs>
 
         {/* Edit Client Dialog */}
         <EditClientDialog client={editingClient} isOpen={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} onSuccess={handleSuccess} />

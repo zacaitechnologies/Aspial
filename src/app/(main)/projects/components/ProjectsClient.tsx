@@ -73,15 +73,9 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
 
   // Refetch when filters/pagination change
   useEffect(() => {
-    // Skip initial load since we have initialData
-    if (page === initialData.page && 
-        pageSize === initialData.pageSize && 
-        searchQuery === "" && 
-        statusFilter === "all") {
-      return;
-    }
     fetchProjects();
-  }, [page, pageSize, searchQuery, statusFilter, fetchProjects, initialData.page, initialData.pageSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, searchQuery, statusFilter]);
 
   // Listen for cache invalidation events
   useEffect(() => {
