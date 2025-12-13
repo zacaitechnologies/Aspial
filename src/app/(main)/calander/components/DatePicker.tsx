@@ -1,36 +1,24 @@
 "use client"
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { CalendarView, getPreviousWeek, getNextWeek, getPreviousDay, getNextDay, formatDateRange, getWeekStart, getWeekEnd } from "../utils/calendar-utils"
+import { useState } from "react"
 
 interface DatePickerProps {
   currentDate: Date
   onDateChange: (date: Date) => void
+  viewMode?: CalendarView
 }
 
-export function DatePicker({ currentDate, onDateChange }: DatePickerProps) {
-  const currentYear = new Date().getFullYear()
-  // Generate years from 2020 to 5 years in the future
-  const startYear = 2020
-  const endYear = currentYear + 5
-  const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i)
+export function DatePicker({ currentDate, onDateChange, viewMode = 'month' }: DatePickerProps) {
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const months = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ]
-
-  const handleYearChange = (year: string) => {
-    const newDate = new Date(currentDate)
-    newDate.setFullYear(parseInt(year))
-    onDateChange(newDate)
-  }
-
-  const handleMonthChange = (month: string) => {
-    const newDate = new Date(currentDate)
-    newDate.setMonth(months.indexOf(month))
-    onDateChange(newDate)
-  }
 
   const navigateMonth = (direction: "prev" | "next") => {
     const currentDay = currentDate.getDate()
@@ -74,48 +62,70 @@ export function DatePicker({ currentDate, onDateChange }: DatePickerProps) {
     onDateChange(new Date())
   }
 
+  const navigate = (direction: "prev" | "next") => {
+    if (viewMode === 'week') {
+      onDateChange(direction === "prev" ? getPreviousWeek(currentDate) : getNextWeek(currentDate))
+    } else if (viewMode === 'day') {
+      onDateChange(direction === "prev" ? getPreviousDay(currentDate) : getNextDay(currentDate))
+    } else {
+      navigateMonth(direction)
+    }
+  }
+
+  const getDisplayText = () => {
+    if (viewMode === 'week') {
+      const weekStart = getWeekStart(currentDate)
+      const weekEnd = getWeekEnd(currentDate)
+      return formatDateRange(weekStart, weekEnd)
+    } else if (viewMode === 'day') {
+      return currentDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    } else {
+      return `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+    }
+  }
+
+  const handleCalendarSelect = (date: Date | undefined) => {
+    if (date) {
+      onDateChange(date)
+      setCalendarOpen(false)
+    }
+  }
+
   return (
     <div className="flex items-center gap-2">
       <Button
         variant="outline"
         size="sm"
-        onClick={() => navigateMonth("prev")}
+        onClick={() => navigate("prev")}
       >
         <ChevronLeft className="w-4 h-4" />
       </Button>
 
       <div className="flex items-center gap-2">
-        <Select
-          value={months[currentDate.getMonth()]}
-          onValueChange={handleMonthChange}
-        >
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {months.map((month, index) => (
-              <SelectItem key={month} value={month}>
-                {month}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={currentDate.getFullYear().toString()}
-          onValueChange={handleYearChange}
-        >
-          <SelectTrigger className="w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((year) => (
-              <SelectItem key={year} value={year.toString()}>
-                {year}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="justify-start text-left font-normal min-w-[240px]"
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {getDisplayText()}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={currentDate}
+              onSelect={handleCalendarSelect}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       <Button
@@ -129,7 +139,7 @@ export function DatePicker({ currentDate, onDateChange }: DatePickerProps) {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => navigateMonth("next")}
+        onClick={() => navigate("next")}
       >
         <ChevronRight className="w-4 h-4" />
       </Button>

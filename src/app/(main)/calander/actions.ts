@@ -59,8 +59,8 @@ export interface CalendarBooking {
 }
 
 const bookingTypes = {
-	equipment: { color: "bg-[var(--color-primary)]", label: "Equipment" },
-	studio: { color: "bg-[var(--color-accent)]", label: "Studio" },
+	equipment: { color: "bg-(--color-primary)]", label: "Equipment" },
+	studio: { color: "bg-(--color-accent)]", label: "Studio" },
 	task: { color: "bg-yellow-500", label: "Task" },
 }
 

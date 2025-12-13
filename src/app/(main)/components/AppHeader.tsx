@@ -55,7 +55,7 @@ export function AppHeader() {
     };
 
   return (
-    <header className="border-b border-[var(--color-sidebar-border)] bg-sidebar px-6 py-4">
+    <header className="border-b border-(--color-sidebar-border) bg-sidebar px-6 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <SidebarTrigger className="hover:bg-slate-100" />

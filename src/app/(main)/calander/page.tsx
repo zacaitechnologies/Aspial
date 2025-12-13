@@ -10,21 +10,26 @@ import { BookingDetailsDialog } from "./components/BookingDetailsDialog"
 import { DateEventsDialog } from "./components/DateEventsDialog"
 import { DatePicker } from "./components/DatePicker"
 import { ExportCalendarDialog } from "./components/ExportCalendarDialog"
+import { ViewSwitcher } from "./components/ViewSwitcher"
+import { WeekView } from "./components/WeekView"
+import { DayView } from "./components/DayView"
 import { useSession } from "../contexts/SessionProvider"
 import { fetchAllBookings, CalendarBooking, getUserProjects, checkIsAdmin } from "./actions"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
+import { CalendarView, getWeekDays } from "./utils/calendar-utils"
 
 
 const bookingTypes = {
-	equipment: { color: "bg-[var(--color-primary)]", label: "Equipment" },
-	studio: { color: "bg-[var(--color-accent)]", label: "Studio" },
+	equipment: { color: "bg-(--color-primary)]", label: "Equipment" },
+	studio: { color: "bg-(--color-accent)]", label: "Studio" },
 	task: { color: "bg-yellow-500", label: "Task" },
 }
 
 export default function OrganizationCalendar() {
 	const { enhancedUser } = useSession()
 	const [currentDate, setCurrentDate] = useState(new Date())
+	const [viewMode, setViewMode] = useState<CalendarView>('month')
 	const [bookings, setBookings] = useState<CalendarBooking[]>([])
 	const [filterType, setFilterType] = useState<string>("all")
 	const [bookmarkScope, setBookmarkScope] = useState<string>("all")
@@ -38,11 +43,17 @@ export default function OrganizationCalendar() {
 	const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
 	const [isLoading, setIsLoading] = useState(true)
 	const [isAdmin, setIsAdmin] = useState(false)
+	const [isMounted, setIsMounted] = useState(false)
 
 	// Get user name for filtering bookings
 	const userName = enhancedUser?.profile 
 		? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim()
 		: enhancedUser?.email || ''
+
+	// Handle client-side mounting
+	useEffect(() => {
+		setIsMounted(true)
+	}, [])
 
 	// Load all bookings on component mount
 	useEffect(() => {
@@ -144,6 +155,72 @@ export default function OrganizationCalendar() {
     setCurrentDate(newDate)
   }
 
+  const handleViewChange = (newView: CalendarView) => {
+    setViewMode(newView)
+  }
+
+  // Get filtered bookings for the selected time period
+  const getFilteredUpcomingBookings = () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    return bookings.filter((booking) => {
+      const bookingDate = new Date(booking.date)
+      bookingDate.setHours(0, 0, 0, 0)
+
+      // Apply date range filter based on view mode
+      if (viewMode === 'month') {
+        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+        monthStart.setHours(0, 0, 0, 0)
+        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+        monthEnd.setHours(23, 59, 59, 999)
+        
+        if (bookingDate < monthStart || bookingDate > monthEnd) return false
+      } else if (viewMode === 'week') {
+        const weekDays = getWeekDays(currentDate)
+        const weekStart = new Date(weekDays[0])
+        weekStart.setHours(0, 0, 0, 0)
+        const weekEnd = new Date(weekDays[6])
+        weekEnd.setHours(23, 59, 59, 999)
+        
+        if (bookingDate < weekStart || bookingDate > weekEnd) return false
+      } else if (viewMode === 'day') {
+        const dayStart = new Date(currentDate)
+        dayStart.setHours(0, 0, 0, 0)
+        const dayEnd = new Date(currentDate)
+        dayEnd.setHours(23, 59, 59, 999)
+        
+        if (bookingDate.getTime() !== dayStart.getTime()) return false
+      }
+
+      // Don't show past bookings
+      if (bookingDate < today) return false
+      
+      // Apply other filters
+      if (filterType !== "all" && booking.type !== filterType) return false
+      if (!isAdmin) {
+        if (bookmarkScope === "own" && !booking.isUserBooking) return false
+        if (bookmarkScope === "team" && !booking.isTeamBooking) return false
+      }
+      if (selectedProject && selectedProject !== "all") {
+        const projectId = parseInt(selectedProject)
+        if (booking.projectId !== projectId) return false
+      }
+      if (booking.type === "task" && taskOwnershipFilter !== "all") {
+        if (taskOwnershipFilter === "my") {
+          if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
+            return false
+          }
+        } else if (taskOwnershipFilter === "teammate") {
+          if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
+            return false
+          }
+        }
+      }
+      return true
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  }
+
   const handleBookingClick = (booking: CalendarBooking) => {
     setSelectedBooking(booking)
     setIsDetailsDialogOpen(true)
@@ -170,7 +247,7 @@ export default function OrganizationCalendar() {
 
     // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-24 border border-[var(--color-border)]"></div>)
+      days.push(<div key={`empty-${i}`} className="h-24 border border-(--color-border)]"></div>)
     }
 
     // Days of the month
@@ -198,70 +275,72 @@ export default function OrganizationCalendar() {
   }
 
   return (
-    <div className="calendar-page min-h-screen bg-[var(--color-background)] p-6">
+    <div className="calendar-page min-h-screen bg-(--color-background)] p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-[var(--color-muted-foreground)]">Manage your team&apos;s bookings and events</p>
+              <p className="text-(--color-muted-foreground)]">Manage your team&apos;s bookings and events</p>
             </div>
-            <div className="flex items-center gap-4">
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-40">
-                  <Filter className="w-4 h-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="equipment">Equipment</SelectItem>
-                  <SelectItem value="studio">Studio</SelectItem>
-                  <SelectItem value="task">Tasks</SelectItem>
-                </SelectContent>
-              </Select>
+            {isMounted && (
+              <div className="flex items-center gap-4">
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="w-40">
+                    <Filter className="w-4 h-4 mr-2" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="equipment">Equipment</SelectItem>
+                    <SelectItem value="studio">Studio</SelectItem>
+                    <SelectItem value="task">Tasks</SelectItem>
+                  </SelectContent>
+                </Select>
 
-              <Select value={taskOwnershipFilter} onValueChange={setTaskOwnershipFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Tasks</SelectItem>
-                  <SelectItem value="my">My Tasks</SelectItem>
-                  <SelectItem value="teammate">Teammate Tasks</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              {!isAdmin && (
-                <>
-                  <Select value={bookmarkScope} onValueChange={setBookmarkScope}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Bookings</SelectItem>
-                      <SelectItem value="own">My Bookings</SelectItem>
-                      <SelectItem value="team">Team Bookings</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  {projects.length > 0 && (
-                    <Select value={selectedProject} onValueChange={setSelectedProject}>
+                <Select value={taskOwnershipFilter} onValueChange={setTaskOwnershipFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Tasks</SelectItem>
+                    <SelectItem value="my">My Tasks</SelectItem>
+                    <SelectItem value="teammate">Teammate Tasks</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                {!isAdmin && (
+                  <>
+                    <Select value={bookmarkScope} onValueChange={setBookmarkScope}>
                       <SelectTrigger className="w-40">
-                        <SelectValue placeholder="Filter by project" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Projects</SelectItem>
-                        {projects.map((project) => (
-                          <SelectItem key={project.id} value={String(project.id)}>
-                            {project.name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="all">All Bookings</SelectItem>
+                        <SelectItem value="own">My Bookings</SelectItem>
+                        <SelectItem value="team">Team Bookings</SelectItem>
                       </SelectContent>
                     </Select>
-                  )}
-                </>
-              )}
-            </div>
+                    
+                    {projects.length > 0 && (
+                      <Select value={selectedProject} onValueChange={setSelectedProject}>
+                        <SelectTrigger className="w-40">
+                          <SelectValue placeholder="Filter by project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Projects</SelectItem>
+                          {projects.map((project) => (
+                            <SelectItem key={project.id} value={String(project.id)}>
+                              {project.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Stats Cards */}
@@ -294,13 +373,13 @@ export default function OrganizationCalendar() {
               return (
                 <Card
                   key={type}
-                  className="bg-[var(--color-card)] border-[var(--color-border)]"
+                  className="bg-(--color-card)] border-(--color-border)]"
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-[var(--color-muted-foreground)]">{config.label}s</p>
-                        <p className={`text-2xl font-bold text-[var(--color-foreground)] ${isLoading ? 'animate-pulse' : ''}`}>
+                        <p className="text-sm text-(--color-muted-foreground)]">{config.label}s</p>
+                        <p className={`text-2xl font-bold text-(--color-foreground)] ${isLoading ? 'animate-pulse' : ''}`}>
                           {isLoading ? '...' : count}
                         </p>
                       </div>
@@ -314,59 +393,153 @@ export default function OrganizationCalendar() {
         </div>
 
         {/* Calendar */}
-        <Card className="bg-[var(--color-card)] border-[var(--color-border)]">
+        <Card className="bg-(--color-card)] border-(--color-border)]">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-xl font-semibold text-[var(--color-foreground)]">
+              <CardTitle className="text-xl font-semibold text-(--color-foreground)]">
                 Calendar
               </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsExportDialogOpen(true)}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Export
-                </Button>
-                <DatePicker 
-                  currentDate={currentDate}
-                  onDateChange={handleDateChange}
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {/* Calendar Header */}
-            <div className="grid grid-cols-7 gap-0 mb-2">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                <div key={day} className="p-2 text-center text-sm font-medium text-[var(--color-muted-foreground)] border-b border-[var(--color-border)]">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-0 border-l border-t border-[var(--color-border)] relative">
-              {renderCalendarDays()}
-              {isLoading && (
-                <div className="absolute inset-0 bg-[var(--color-background)]/50 backdrop-blur-sm flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)] mx-auto mb-2"></div>
-                    <p className="text-sm text-[var(--color-muted-foreground)]">Loading events...</p>
-                  </div>
+              {isMounted && (
+                <div className="flex items-center gap-4">
+                  <ViewSwitcher
+                    currentView={viewMode}
+                    onViewChange={handleViewChange}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsExportDialogOpen(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export
+                  </Button>
+                  <DatePicker 
+                    currentDate={currentDate}
+                    onDateChange={handleDateChange}
+                    viewMode={viewMode}
+                  />
                 </div>
               )}
             </div>
+          </CardHeader>
+          <CardContent>
+            {viewMode === 'month' && (
+              <>
+                {/* Calendar Header */}
+                <div className="grid grid-cols-7 gap-0 mb-2">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                    <div key={day} className="p-2 text-center text-sm font-medium text-(--color-muted-foreground)] border-b border-(--color-border)]">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar Grid */}
+                <div className="grid grid-cols-7 gap-0 border-l border-t border-(--color-border)] relative">
+                  {renderCalendarDays()}
+                  {isLoading && (
+                    <div className="absolute inset-0 bg-(--color-background)]/50 backdrop-blur-sm flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-(--color-primary)] mx-auto mb-2"></div>
+                        <p className="text-sm text-(--color-muted-foreground)]">Loading events...</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            
+            {viewMode === 'week' && (
+              <div className="h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-(--color-primary)] mx-auto mb-2"></div>
+                      <p className="text-sm text-(--color-muted-foreground)]">Loading events...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <WeekView
+                    currentDate={currentDate}
+                    bookings={bookings.filter((booking) => {
+                      if (filterType !== "all" && booking.type !== filterType) return false
+                      if (!isAdmin) {
+                        if (bookmarkScope === "own" && !booking.isUserBooking) return false
+                        if (bookmarkScope === "team" && !booking.isTeamBooking) return false
+                      }
+                      if (selectedProject !== "all") {
+                        const projectId = parseInt(selectedProject)
+                        if (booking.projectId !== projectId) return false
+                      }
+                      if (booking.type === "task" && taskOwnershipFilter !== "all") {
+                        if (taskOwnershipFilter === "my") {
+                          if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
+                            return false
+                          }
+                        } else if (taskOwnershipFilter === "teammate") {
+                          if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
+                            return false
+                          }
+                        }
+                      }
+                      return true
+                    })}
+                    onEventClick={handleBookingClick}
+                    onDateClick={handleDateClick}
+                  />
+                )}
+              </div>
+            )}
+            
+            {viewMode === 'day' && (
+              <div className="h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-(--color-primary)] mx-auto mb-2"></div>
+                      <p className="text-sm text-(--color-muted-foreground)]">Loading events...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <DayView
+                    currentDate={currentDate}
+                    bookings={bookings.filter((booking) => {
+                      if (filterType !== "all" && booking.type !== filterType) return false
+                      if (!isAdmin) {
+                        if (bookmarkScope === "own" && !booking.isUserBooking) return false
+                        if (bookmarkScope === "team" && !booking.isTeamBooking) return false
+                      }
+                      if (selectedProject !== "all") {
+                        const projectId = parseInt(selectedProject)
+                        if (booking.projectId !== projectId) return false
+                      }
+                      if (booking.type === "task" && taskOwnershipFilter !== "all") {
+                        if (taskOwnershipFilter === "my") {
+                          if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
+                            return false
+                          }
+                        } else if (taskOwnershipFilter === "teammate") {
+                          if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
+                            return false
+                          }
+                        }
+                      }
+                      return true
+                    })}
+                    onEventClick={handleBookingClick}
+                  />
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Upcoming Bookings */}
-        <Card className="mt-6 bg-[var(--color-card)] border-[var(--color-border)]">
+        {/* Upcoming Appointments */}
+        <Card className="mt-6 bg-(--color-card) border-(--color-border)">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-[var(--color-foreground)]">
+            <CardTitle className="flex items-center gap-2 text-(--color-foreground)">
               <Calendar className="w-5 h-5" />
-              Upcoming Bookings
+              Upcoming Appointments
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -375,71 +548,40 @@ export default function OrganizationCalendar() {
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="p-4 rounded-lg border-l-4 bg-[var(--color-muted)] border-[var(--color-border)] animate-pulse"
+                    className="p-4 rounded-lg border-l-4 bg-(--color-muted)] border-(--color-border)] animate-pulse"
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="h-5 bg-[var(--color-border)] rounded w-1/3 mb-2"></div>
-                        <div className="h-4 bg-[var(--color-border)] rounded w-2/3 mb-2"></div>
+                        <div className="h-5 bg-(--color-border)] rounded w-1/3 mb-2"></div>
+                        <div className="h-4 bg-(--color-border)] rounded w-2/3 mb-2"></div>
                         <div className="flex items-center gap-4 mt-2">
-                          <div className="h-3 bg-[var(--color-border)] rounded w-20"></div>
-                          <div className="h-3 bg-[var(--color-border)] rounded w-24"></div>
-                          <div className="h-3 bg-[var(--color-border)] rounded w-20"></div>
+                          <div className="h-3 bg-(--color-border)] rounded w-20"></div>
+                          <div className="h-3 bg-(--color-border)] rounded w-24"></div>
+                          <div className="h-3 bg-(--color-border)] rounded w-20"></div>
                         </div>
                       </div>
-                      <div className="h-6 bg-[var(--color-border)] rounded w-16"></div>
+                      <div className="h-6 bg-(--color-border)] rounded w-16"></div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="space-y-3">
-                {bookings
-                  .filter((booking) => {
-                    // Compare dates without time - normalize to start of day
-                    const bookingDate = new Date(booking.date)
-                    bookingDate.setHours(0, 0, 0, 0)
-                    const today = new Date()
-                    today.setHours(0, 0, 0, 0)
-                    if (bookingDate < today) return false
-                    if (filterType !== "all" && booking.type !== filterType) return false
-                    if (!isAdmin) {
-                      if (bookmarkScope === "own" && !booking.isUserBooking) return false
-                      if (bookmarkScope === "team" && !booking.isTeamBooking) return false
-                    }
-                    if (selectedProject && selectedProject !== "all") {
-                      const projectId = parseInt(selectedProject)
-                      if (booking.projectId !== projectId) return false
-                    }
-                    // Filter by task ownership (only for tasks)
-                    if (booking.type === "task" && taskOwnershipFilter !== "all") {
-                      if (taskOwnershipFilter === "my") {
-                        if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
-                          return false
-                        }
-                      } else if (taskOwnershipFilter === "teammate") {
-                        if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
-                          return false
-                        }
-                      }
-                    }
-                    return true
-                  })
-                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                {getFilteredUpcomingBookings()
                   .slice(0, 5)
                   .map((booking) => (
                     <div
                       key={booking.id}
-                      className="p-4 rounded-lg border-l-4 bg-[var(--color-muted)] border-[var(--color-border)]"
+                      className="p-4 rounded-lg border-l-4 bg-(--color-muted)] border-(--color-border)]"
                       style={{
                         borderLeftColor: booking.color.includes("primary") ? "var(--color-primary)" : "var(--color-accent)",
                       }}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h4 className="font-semibold text-[var(--color-foreground)]">{booking.title}</h4>
-                          <p className="text-sm text-[var(--color-muted-foreground)] mt-1">{booking.description}</p>
-                          <div className="flex items-center gap-4 mt-2 text-xs text-[var(--color-muted-foreground)]">
+                          <h4 className="font-semibold text-(--color-foreground)]">{booking.title}</h4>
+                          <p className="text-sm text-(--color-muted-foreground)] mt-1">{booking.description}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-(--color-muted-foreground)]">
                             <div className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
                               {new Date(booking.date).toLocaleDateString()}
@@ -468,38 +610,9 @@ export default function OrganizationCalendar() {
                       </div>
                     </div>
                   ))}
-                {!isLoading && bookings.filter((booking) => {
-                  // Compare dates without time - normalize to start of day
-                  const bookingDate = new Date(booking.date)
-                  bookingDate.setHours(0, 0, 0, 0)
-                  const today = new Date()
-                  today.setHours(0, 0, 0, 0)
-                  if (bookingDate < today) return false
-                  if (filterType !== "all" && booking.type !== filterType) return false
-                  if (!isAdmin) {
-                    if (bookmarkScope === "own" && !booking.isUserBooking) return false
-                    if (bookmarkScope === "team" && !booking.isTeamBooking) return false
-                  }
-                  if (selectedProject && selectedProject !== "all") {
-                    const projectId = parseInt(selectedProject)
-                    if (booking.projectId !== projectId) return false
-                  }
-                  // Filter by task ownership (only for tasks)
-                  if (booking.type === "task" && taskOwnershipFilter !== "all") {
-                    if (taskOwnershipFilter === "my") {
-                      if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
-                        return false
-                      }
-                    } else if (taskOwnershipFilter === "teammate") {
-                      if (booking.assigneeId === enhancedUser?.id || booking.creatorId === enhancedUser?.id) {
-                        return false
-                      }
-                    }
-                  }
-                  return true
-                }).length === 0 && (
-                  <div className="text-center py-8 text-[var(--color-muted-foreground)]">
-                    No upcoming bookings
+                {getFilteredUpcomingBookings().length === 0 && (
+                  <div className="text-center py-8 text-(--color-muted-foreground)]">
+                    No upcoming appointments
                   </div>
                 )}
               </div>
