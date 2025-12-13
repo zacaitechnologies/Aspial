@@ -6,12 +6,13 @@ import { MarioProgressBar } from "./components/mario-progress-bar"
 import { RewardCard } from "./components/reward-card"
 import { MonthlyPerformance } from "./components/monthly-performance"
 import { ComplaintsTracker } from "./components/complaints-tracker"
-import { SuperPerformanceBenefits } from "./components/super-performance-benefits"
+import { TierSelectionModal } from "./components/tier-selection-modal"
 import { AdminBenefitsView } from "./components/admin-benefits-view"
 import { Plane, Award, Trophy, Car, Loader2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/components/ui/use-toast"
 import {
   Select,
   SelectContent,
@@ -22,7 +23,8 @@ import {
 import { 
 	getEmployeeSalesData, 
 	getEmployeeComplaints, 
-	checkSuperPerformanceAward, 
+	getUserTierSelection,
+	selectUserTier,
 	checkIsAdmin, 
 	getAllUsersBenefits,
 	type EmployeeSalesData,
@@ -32,15 +34,18 @@ import { useSession } from "../contexts/SessionProvider"
 
 export default function EmployeeBenefitsPage() {
   const { enhancedUser } = useSession()
+  const { toast } = useToast()
   const [viewMode, setViewMode] = useState<"monthly" | "yearly">("yearly")
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().getMonth().toString())
   const [salesData, setSalesData] = useState<EmployeeSalesData | null>(null)
   const [complaints, setComplaints] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [hasSuperPerformanceAward, setHasSuperPerformanceAward] = useState(false)
-  const [previousYearStars, setPreviousYearStars] = useState(0)
+  const [selectedTier, setSelectedTier] = useState<string | null>(null)
+  const [customTierTarget, setCustomTierTarget] = useState<number | null>(null)
+  const [showTierModal, setShowTierModal] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isAdminCheckComplete, setIsAdminCheckComplete] = useState(false)
   const [allUsersBenefits, setAllUsersBenefits] = useState<UserBenefitsSummary[]>([])
   const [adminLoading, setAdminLoading] = useState(false)
 
@@ -50,6 +55,7 @@ export default function EmployeeBenefitsPage() {
       if (enhancedUser?.id) {
         const adminStatus = await checkIsAdmin(enhancedUser.id)
         setIsAdmin(adminStatus)
+        setIsAdminCheckComplete(true)
       }
     }
     checkAdmin()
@@ -58,6 +64,11 @@ export default function EmployeeBenefitsPage() {
   // Fetch staff view data (only for non-admin users)
   useEffect(() => {
     async function fetchData() {
+      // Wait for admin check to complete
+      if (!isAdminCheckComplete) {
+        return
+      }
+
       if (!enhancedUser?.profile?.id || isAdmin) {
         setLoading(false)
         return
@@ -67,15 +78,21 @@ export default function EmployeeBenefitsPage() {
         const year = parseInt(selectedYear)
         const month = viewMode === "monthly" ? parseInt(selectedMonth) : undefined
 
-        const [salesResult, complaintsResult, awardResult] = await Promise.all([
+        const [salesResult, complaintsResult, tierSelection] = await Promise.all([
           getEmployeeSalesData(enhancedUser.profile.id, year, month),
           getEmployeeComplaints(enhancedUser.profile.id),
-          checkSuperPerformanceAward(enhancedUser.profile.id),
+          getUserTierSelection(enhancedUser.profile.id, year),
         ])
         setSalesData(salesResult)
         setComplaints(complaintsResult)
-        setHasSuperPerformanceAward(awardResult.hasSuperPerformanceAward)
-        setPreviousYearStars(awardResult.previousYearStars)
+        setSelectedTier(tierSelection.tier)
+        setCustomTierTarget(tierSelection.customTarget)
+        
+        // Show tier selection modal if no tier selected for current year
+        // Only for non-admin users
+        if (tierSelection.needsSelection && year === new Date().getFullYear() && !isAdmin) {
+          setShowTierModal(true)
+        }
       } catch (error) {
         console.error("Error fetching benefits data:", error)
       } finally {
@@ -84,7 +101,7 @@ export default function EmployeeBenefitsPage() {
     }
 
     fetchData()
-  }, [enhancedUser?.profile?.id, isAdmin, selectedYear, selectedMonth, viewMode])
+  }, [enhancedUser?.profile?.id, isAdmin, isAdminCheckComplete, selectedYear, selectedMonth, viewMode])
 
   // Fetch admin view data
   useEffect(() => {
@@ -119,74 +136,104 @@ export default function EmployeeBenefitsPage() {
     }
   }
 
+  const handleTierSelection = async (tier: string, customTarget?: number) => {
+    if (!enhancedUser?.profile?.id) return
+
+    try {
+      const result = await selectUserTier(enhancedUser.profile.id, tier, customTarget)
+      if (result.success) {
+        toast({
+          title: 'Success',
+          description: result.message,
+        })
+        setSelectedTier(tier)
+        setShowTierModal(false)
+        // Refresh data
+        const tierSelection = await getUserTierSelection(enhancedUser.profile.id)
+        setSelectedTier(tierSelection.tier)
+        setCustomTierTarget(tierSelection.customTarget)
+      } else {
+        toast({
+          title: 'Error',
+          description: result.message,
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error selecting tier:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to select tier',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  // Tier monthly targets based on new policy
+  const tierMonthlyTargets: Record<string, number> = {
+    TIER_1: 60000, // Middle of range (50k-70k)
+    TIER_2: 80000,
+    TIER_3: 120000,
+    TIER_4: 150000,
+  }
+
+  // Get current tier target (with custom target support for Tier 1)
+  const getCurrentTierTarget = (): number => {
+    if (selectedTier === 'TIER_1' && customTierTarget) {
+      return customTierTarget
+    }
+    if (selectedTier && tierMonthlyTargets[selectedTier]) {
+      return tierMonthlyTargets[selectedTier]
+    }
+    return 60000 // Default to Tier 1 middle
+  }
+
   const currentYearlySales = salesData?.currentYearlySales || 0
   const currentMonthlySales = salesData?.currentMonthlySales || 0
   const monthlyData = salesData?.monthlyData || []
 
   const totalStars = monthlyData.reduce((sum, month) => sum + month.stars, 0)
-  const starsAfterComplaints = totalStars - complaints.length
 
-  // Sales targets based on company policy
-  const salesTargets = {
-    level1: 720000, // 720K yearly / 60K monthly
-    level2: 1200000, // 1.20M yearly / 100K monthly
-    level3: 2100000, // 2.10M yearly / 175K monthly
-    level4: 3360000, // 3.36M yearly / 280K monthly
+  // Updated tier targets for progress calculation
+  const tierTargetsForProgress = {
+    level1: getCurrentTierTarget(),
+    level2: getCurrentTierTarget() * 1.33,
+    level3: getCurrentTierTarget() * 2,
+    level4: getCurrentTierTarget() * 2.5,
   }
 
-  const monthlySalesTargets = {
-    level1: 60000,
-    level2: 100000,
-    level3: 175000,
-    level4: 280000,
+  const yearlyTierTargets = {
+    level1: getCurrentTierTarget() * 12,
+    level2: getCurrentTierTarget() * 12 * 1.33,
+    level3: getCurrentTierTarget() * 12 * 2,
+    level4: getCurrentTierTarget() * 12 * 2.5,
   }
 
   const calculateProgress = () => {
     const sales = viewMode === "yearly" ? currentYearlySales : currentMonthlySales
-    const targets = viewMode === "yearly" ? salesTargets : monthlySalesTargets
+    const currentTarget = getCurrentTierTarget()
 
-    if (sales >= targets.level4) return 100
-    if (sales >= targets.level3) {
-      const range = targets.level4 - targets.level3
-      const progress = sales - targets.level3
-      return 75 + (progress / range) * 25
+    // Progress based on selected tier target
+    if (viewMode === "monthly") {
+      return Math.min((sales / currentTarget) * 100, 100)
+    } else {
+      const yearlyTarget = currentTarget * 12
+      return Math.min((sales / yearlyTarget) * 100, 100)
     }
-    if (sales >= targets.level2) {
-      const range = targets.level3 - targets.level2
-      const progress = sales - targets.level2
-      return 50 + (progress / range) * 25
-    }
-    if (sales >= targets.level1) {
-      const range = targets.level2 - targets.level1
-      const progress = sales - targets.level1
-      return 25 + (progress / range) * 25
-    }
-    return (sales / targets.level1) * 25
   }
 
   const currentProgress = calculateProgress()
 
-  // Determine current level
+  // Determine current level (legacy, kept for compatibility)
   const getCurrentLevel = () => {
-    const sales = viewMode === "yearly" ? currentYearlySales : currentMonthlySales
-    const targets = viewMode === "yearly" ? salesTargets : monthlySalesTargets
-
-    if (sales >= targets.level4) return 4
-    if (sales >= targets.level3) return 3
-    if (sales >= targets.level2) return 2
-    if (sales >= targets.level1) return 1
-    return 0
+    return 1 // Default level since we're using tiers now
   }
 
   const currentLevel = getCurrentLevel()
 
-  // Get commission rate based on level
+  // Get commission rate based on level (legacy, all tiers now 3%)
   const getCommissionRate = () => {
-    if (currentLevel >= 4) return "12%"
-    if (currentLevel >= 3) return "10%"
-    if (currentLevel >= 2) return "8%"
-    if (currentLevel >= 1) return "5%"
-    return "0%"
+    return "3%"
   }
 
   // Employee data from database
@@ -201,76 +248,74 @@ export default function EmployeeBenefitsPage() {
   const rewards = [
     {
       level: 1,
-      title: "Bronze Level",
-      target: salesTargets.level1,
-      monthlySales: 60000,
-      commissionRate: "5%",
-      prizes: ["🧧 RED PACKET", "Badge Award", "Year-End Banquet Award"],
+      title: "Tier 1 - 自主成长层",
+      target: tierMonthlyTargets.TIER_1 * 12,
+      monthlySales: tierMonthlyTargets.TIER_1,
+      commissionRate: "3%",
+      prizes: [
+        "Target Range: RM50k-70k (you choose)",
+        "Benefit Fund: Calculated by Finance",
+        "Travel Fund: Discussed during goal setting",
+      ],
       icon: Award,
-      color: "from-amber-600 to-amber-800",
-      unlocked: currentProgress >= 25,
+      color: "from-blue-400 to-blue-600",
+      unlocked: selectedTier === 'TIER_1',
     },
     {
       level: 2,
-      title: "Silver Level",
-      target: salesTargets.level2,
-      monthlySales: 100000,
-      commissionRate: "8%",
+      title: "Tier 2 - 成就跃升层",
+      target: tierMonthlyTargets.TIER_2 * 12,
+      monthlySales: tierMonthlyTargets.TIER_2,
+      commissionRate: "3%",
       prizes: [
-        "🧧 1 MONTH CNY BONUS",
-        "RM 2,000 Travel Allowance",
-        "RM 2,000 Course Allowance",
-        "Badge Award",
-        "Year-End Banquet Award",
-        "RM 5,000 Watch/Car Downpayment*",
-        "RM 4,000 Cash Bonus*",
-        "RM 1,000 Parents Bonus*",
+        "Continuous Bonus: RM500/RM1,000/RM3,000",
+        "Travel Fund: RM5,000",
+        "Health & Family Fund: RM1,600",
+        "Course Fund: RM3,000",
+        "Team Building & Travel",
+        "Annual Dinner & Badge",
       ],
       icon: Plane,
       color: "from-gray-400 to-gray-600",
-      unlocked: currentProgress >= 50,
+      unlocked: selectedTier === 'TIER_2',
     },
     {
       level: 3,
-      title: "Gold Level",
-      target: salesTargets.level3,
-      monthlySales: 175000,
-      commissionRate: "10%",
+      title: "Tier 3 - 精英领航层",
+      target: tierMonthlyTargets.TIER_3 * 12,
+      monthlySales: tierMonthlyTargets.TIER_3,
+      commissionRate: "3%",
       prizes: [
-        "🧧 2 MONTHS CNY BONUS",
-        "RM 4,000 Travel Allowance",
-        "RM 4,000 Course Allowance",
-        "Badge Award",
-        "Year-End Banquet Award",
-        "RM 15,000 Watch/Car Downpayment*",
-        "RM 6,000 Cash Bonus*",
-        "Apex Away Ticket*",
-        "RM 2,000 Parents Bonus*",
+        "Continuous Bonus: RM1,000/RM2,000/RM5,000",
+        "Travel Fund: RM9,000",
+        "Health & Family Fund: RM2,000",
+        "Course Fund: RM4,000",
+        "Secret Surprise by Aspial",
+        "Team Building & Travel",
+        "Annual Dinner & Badge",
       ],
       icon: Trophy,
       color: "from-yellow-400 to-yellow-600",
-      unlocked: currentProgress >= 75,
+      unlocked: selectedTier === 'TIER_3',
     },
     {
       level: 4,
-      title: "Platinum Level",
-      target: salesTargets.level4,
-      monthlySales: 280000,
-      commissionRate: "12%",
+      title: "Tier 4 - 巅峰领导层",
+      target: tierMonthlyTargets.TIER_4 * 12,
+      monthlySales: tierMonthlyTargets.TIER_4,
+      commissionRate: "3%",
       prizes: [
-        "🧧 3 MONTHS CNY BONUS",
-        "RM 6,000 Travel Allowance",
-        "RM 6,000 Course Allowance",
-        "Badge Award",
-        "Year-End Banquet Award",
-        "RM 20,000 Watch/Car Downpayment*",
-        "RM 10,000 Cash Bonus*",
-        "Apex Away Ticket*",
-        "RM 3,000 Parents Bonus*",
+        "Continuous Bonus: RM2,000/RM4,000/RM8,000",
+        "Travel Fund: RM15,000",
+        "Health & Family Fund: RM3,000",
+        "Course Fund: RM5,000",
+        "Secret Surprise by Aspial",
+        "Team Building & Travel",
+        "Annual Dinner & Badge",
       ],
       icon: Car,
       color: "from-purple-500 to-pink-500",
-      unlocked: currentProgress >= 100,
+      unlocked: selectedTier === 'TIER_4',
     },
   ]
 
@@ -289,11 +334,11 @@ export default function EmployeeBenefitsPage() {
           </p>
         </div>
 
-        {/* Super Performance Award Status */}
+        {/* Selected Tier Status */}
         <Card className={`mb-8 p-6 border-4 shadow-xl text-center ${
-          hasSuperPerformanceAward
-            ? "bg-yellow-50 border-yellow-500"
-            : "bg-gray-50 border-gray-300"
+          selectedTier
+            ? "bg-green-50 border-green-500"
+            : "bg-yellow-50 border-yellow-500"
         }`}>
           {loading ? (
             <div className="flex items-center justify-center gap-3 mb-2">
@@ -306,20 +351,22 @@ export default function EmployeeBenefitsPage() {
           ) : (
             <div className="flex items-center justify-center gap-3 mb-2">
               <div className="text-5xl">
-                {hasSuperPerformanceAward ? "🏆" : "⭐"}
+                {selectedTier ? "🎯" : "⚠️"}
               </div>
               <div>
                 <h3 className="text-2xl font-black text-foreground mb-1">
-                  {hasSuperPerformanceAward ? "SUPER PERFORMANCE AWARD ACTIVE" : "No Super Performance Award"}
+                  {selectedTier 
+                    ? `Your Challenge: Tier ${selectedTier.replace('TIER_', '')}` 
+                    : "Tier Selection Required"}
                 </h3>
                 <p className={`text-sm font-bold ${
-                  hasSuperPerformanceAward
-                    ? "text-yellow-800"
-                    : "text-gray-600"
+                  selectedTier
+                    ? "text-green-800"
+                    : "text-yellow-800"
                 }`}>
-                  {hasSuperPerformanceAward 
-                    ? `You earned ${previousYearStars} ⭐ last year! Your award is active this year!`
-                    : "Earn 12 ⭐ next year to unlock the Super Performance Award!"}
+                  {selectedTier 
+                    ? `Monthly Target: RM${(getCurrentTierTarget() / 1000).toFixed(0)}K | Yearly Target: RM${(getCurrentTierTarget() * 12 / 1000).toFixed(0)}K`
+                    : "Please select your challenge tier for this year"}
                 </p>
               </div>
             </div>
@@ -438,8 +485,10 @@ export default function EmployeeBenefitsPage() {
         <div className="mb-12 relative">
           <MarioProgressBar
             progress={currentProgress}
-            targets={viewMode === "yearly" ? salesTargets : monthlySalesTargets}
+            targets={tierTargetsForProgress}
             viewMode={viewMode}
+            selectedTier={selectedTier}
+            tierTarget={getCurrentTierTarget()}
           />
           {loading && (
             <div className="absolute inset-0 bg-white/50 backdrop-blur-sm rounded-lg flex items-center justify-center">
@@ -452,9 +501,8 @@ export default function EmployeeBenefitsPage() {
           <MonthlyPerformance
             monthlyData={monthlyData}
             totalStars={totalStars}
-            starsAfterComplaints={starsAfterComplaints}
-            hasSuperPerformanceAward={hasSuperPerformanceAward}
-            previousYearStars={previousYearStars}
+            selectedTier={selectedTier}
+            tierMonthlyTarget={getCurrentTierTarget()}
           />
           {loading && (
             <div className="absolute inset-0 bg-white/50 backdrop-blur-sm rounded-lg flex items-center justify-center">
@@ -464,7 +512,7 @@ export default function EmployeeBenefitsPage() {
         </div>
 
         <div className="mb-12 relative">
-          <ComplaintsTracker complaints={complaints} starsDeducted={complaints.length} />
+          <ComplaintsTracker complaints={complaints} />
           {loading && (
             <div className="absolute inset-0 bg-white/50 backdrop-blur-sm rounded-lg flex items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -472,18 +520,13 @@ export default function EmployeeBenefitsPage() {
           )}
         </div>
 
-        {/* Super Performance Award Benefits */}
-        <div className="mb-8">
-          <SuperPerformanceBenefits />
-        </div>
-
         {/* Rewards Grid */}
         <div className="mb-8">
           <h2 className="text-4xl font-black text-center mb-4 text-white drop-shadow-[0_3px_0_rgba(0,0,0,0.3)]">
-            UNLOCK AMAZING PRIZES!
+            YOUR TIER BENEFITS
           </h2>
           <p className="text-center text-lg font-bold text-foreground/80 mb-8">
-            * Super Performance Awards based on 12 months achievements
+            Selected Tier: {selectedTier ? `Tier ${selectedTier.replace('TIER_', '')}` : 'Not selected'}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {rewards.map((reward) => (
@@ -492,69 +535,33 @@ export default function EmployeeBenefitsPage() {
           </div>
         </div>
 
-        {/* Motivational Message */}
-        <Card className="p-8 bg-gradient-to-r from-primary to-destructive text-white border-4 border-foreground/30 shadow-2xl">
-          {loading ? (
-            <div className="text-center">
-              <div className="text-6xl mb-4">🌟</div>
-              <div className="h-9 w-48 bg-white/30 animate-pulse rounded mx-auto mb-3"></div>
-              <div className="h-7 w-96 bg-white/30 animate-pulse rounded mx-auto mb-2"></div>
-              <div className="h-6 w-80 bg-white/30 animate-pulse rounded mx-auto"></div>
-            </div>
-          ) : (
-            <div className="text-center">
-              <div className="text-6xl mb-4">🌟</div>
-              <h3 className="text-3xl font-black mb-3 drop-shadow-md">KEEP GOING!</h3>
-              {currentLevel < 4 ? (
-                <>
-                  <p className="text-xl font-bold mb-2">
-                    You're only RM{" "}
-                    {(
-                      (Object.values(viewMode === "yearly" ? salesTargets : monthlySalesTargets)[currentLevel] -
-                        employeeData.currentSales) /
-                      1000
-                    ).toFixed(0)}
-                    K away from Level {currentLevel + 1}!
-                  </p>
-                  <p className="text-lg opacity-90">Every sale brings you closer to amazing rewards!</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-xl font-bold mb-2">You've reached the PLATINUM level!</p>
-                  <p className="text-lg opacity-90">Keep up the excellent work to maintain your status!</p>
-                </>
-              )}
-            </div>
-          )}
-        </Card>
-
         {/* Policy Notes */}
         <Card className="mt-8 p-6 bg-white/95 border-4 border-foreground/20 shadow-xl">
           <h3 className="text-2xl font-black mb-4 text-foreground">Important Notes</h3>
           <ul className="space-y-2 text-sm font-bold text-muted-foreground">
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>
-              <span>Team progresses from L1 to L4 based on annual sales performance</span>
+              <span>Select your challenge tier at the start of each year</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>
-              <span>Failure to maintain performance results in a level downgrade</span>
+              <span>Once selected, tier cannot be changed (except by admin)</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>
-              <span>Higher levels receive higher commission rates</span>
+              <span>Progress tracked monthly towards your selected tier target</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>
-              <span>Level Up Benefits presented at year-end banquet</span>
+              <span>All tier benefits presented at year-end</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary">•</span>
-              <span>Super Performance Awards require 12 stars (RM 100K/month = 1 star)</span>
+              <span>Commission rate: 3% across all tiers</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-destructive">•</span>
-              <span>Penalty: 1 star deducted per complaint; 3+ complaints cancels the award</span>
+              <span>Continuous bonuses for 3, 6, and 12 months achievement</span>
             </li>
           </ul>
         </Card>
@@ -562,7 +569,13 @@ export default function EmployeeBenefitsPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 relative overflow-hidden">
+    <div className="min-h-screen bg-linear-to-b from-sky-400 via-sky-300 to-sky-200 relative overflow-hidden">
+      {/* Tier Selection Modal */}
+      <TierSelectionModal
+        open={showTierModal}
+        onClose={() => setShowTierModal(false)}
+        onSelect={handleTierSelection}
+      />
       {/* Floating clouds */}
       <div className="absolute inset-0 pointer-events-none">
         <div
@@ -641,7 +654,7 @@ export default function EmployeeBenefitsPage() {
       </div>
 
       {/* Grass at bottom */}
-      <div className="fixed bottom-0 left-0 right-0 h-24 bg-gradient-to-b from-green-600 to-green-800 border-t-4 border-green-900 pointer-events-none z-0" suppressHydrationWarning>
+      <div className="fixed bottom-0 left-0 right-0 h-24 bg-linear-to-b from-green-600 to-green-800 border-t-4 border-green-900 pointer-events-none z-0" suppressHydrationWarning>
         <div className="absolute inset-0 opacity-30" suppressHydrationWarning>
           {[...Array(20)].map((_, i) => (
             <div

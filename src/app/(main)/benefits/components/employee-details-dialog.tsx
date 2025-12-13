@@ -10,9 +10,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Loader2, TrendingUp, Star, AlertCircle } from 'lucide-react'
-import { getEmployeeSalesData, getEmployeeComplaints, type EmployeeSalesData } from '../action'
+import { Loader2, TrendingUp, AlertCircle } from 'lucide-react'
+import { getEmployeeSalesData, getEmployeeComplaints, getUserTierSelection, type EmployeeSalesData } from '../action'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import Image from 'next/image'
+import { MonthlyPerformance } from './monthly-performance'
+import { ComplaintsTracker } from './complaints-tracker'
 import '../custom.css'
 
 interface EmployeeDetailsDialogProps {
@@ -36,6 +39,8 @@ export function EmployeeDetailsDialog({
 	const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
 	const [salesData, setSalesData] = useState<EmployeeSalesData | null>(null)
 	const [complaints, setComplaints] = useState<any[]>([])
+	const [selectedTier, setSelectedTier] = useState<string | null>(null)
+	const [customTierTarget, setCustomTierTarget] = useState<number | null>(null)
 
 	useEffect(() => {
 		async function fetchEmployeeDetails() {
@@ -43,12 +48,15 @@ export function EmployeeDetailsDialog({
 				setLoading(true)
 				try {
 					const year = parseInt(selectedYear)
-					const [salesResult, complaintsResult] = await Promise.all([
+					const [salesResult, complaintsResult, tierSelection] = await Promise.all([
 						getEmployeeSalesData(userId, year),
 						getEmployeeComplaints(userId),
+						getUserTierSelection(userId, year),
 					])
 					setSalesData(salesResult)
 					setComplaints(complaintsResult)
+					setSelectedTier(tierSelection.tier)
+					setCustomTierTarget(tierSelection.customTarget)
 				} catch (error) {
 					console.error('Error fetching employee details:', error)
 				} finally {
@@ -81,7 +89,23 @@ export function EmployeeDetailsDialog({
 	}
 
 	const totalStars = salesData?.monthlyData.reduce((sum, month) => sum + month.stars, 0) || 0
-	const starsAfterComplaints = totalStars - complaints.length
+
+	// Tier monthly targets
+	const tierMonthlyTargets: Record<string, number> = {
+		TIER_1: customTierTarget || 60000,
+		TIER_2: 80000,
+		TIER_3: 120000,
+		TIER_4: 150000,
+	}
+
+	const getCurrentTierTarget = (): number => {
+		if (selectedTier && tierMonthlyTargets[selectedTier]) {
+			return tierMonthlyTargets[selectedTier]
+		}
+		return 60000
+	}
+
+	const tierMonthlyTarget = getCurrentTierTarget()
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
@@ -115,7 +139,7 @@ export function EmployeeDetailsDialog({
 					) : salesData ? (
 						<div className="space-y-8 py-4">
 						{/* Year Selector */}
-						<div className="flex items-center justify-between bg-gradient-to-r from-primary to-accent p-4 rounded-lg border-2 border-primary/20 shadow-md">
+						<div className="flex items-center justify-between bg-linear-to-r from-primary to-accent p-4 rounded-lg border-2 border-primary/20 shadow-md">
 							<h3 className="text-2xl font-black flex items-center gap-2 text-white">
 								<TrendingUp className="w-6 h-6 text-white" />
 								Performance Details
@@ -142,8 +166,25 @@ export function EmployeeDetailsDialog({
 							</Select>
 						</div>
 
+						{/* Selected Tier Status */}
+						{selectedTier && (
+							<Card className="p-6 border-4 shadow-xl text-center bg-green-50 border-green-500">
+								<div className="flex items-center justify-center gap-3 mb-2">
+									<div className="text-5xl">🎯</div>
+									<div>
+										<h3 className="text-2xl font-black text-foreground mb-1">
+											Challenge: Tier {selectedTier.replace('TIER_', '')}
+										</h3>
+										<p className="text-sm font-bold text-green-800">
+											Monthly Target: RM{(tierMonthlyTarget / 1000).toFixed(0)}K | Yearly Target: RM{(tierMonthlyTarget * 12 / 1000).toFixed(0)}K
+										</p>
+									</div>
+								</div>
+							</Card>
+						)}
+
 						{/* Summary Stats */}
-						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 							<Card className="border-2 hover:shadow-lg transition-shadow">
 								<CardContent className="p-6">
 									<div className="text-center space-y-2">
@@ -160,21 +201,8 @@ export function EmployeeDetailsDialog({
 							<Card className="border-2 hover:shadow-lg transition-shadow">
 								<CardContent className="p-6">
 									<div className="text-center space-y-2">
-										<Badge className={`${getLevelColor(salesData.currentLevel)} text-white text-lg px-4 py-2`}>
-											Level {salesData.currentLevel} - {getLevelName(salesData.currentLevel)}
-										</Badge>
-										<div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">
-											Current Level
-										</div>
-									</div>
-								</CardContent>
-							</Card>
-
-							<Card className="border-2 hover:shadow-lg transition-shadow">
-								<CardContent className="p-6">
-									<div className="text-center space-y-2">
 										<div className="text-4xl font-black text-green-600">
-											{salesData.commissionRate}
+											3%
 										</div>
 										<div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">
 											Commission Rate
@@ -186,11 +214,18 @@ export function EmployeeDetailsDialog({
 							<Card className="border-2 hover:shadow-lg transition-shadow">
 								<CardContent className="p-6">
 									<div className="text-center space-y-2">
-										<div className="text-4xl font-black text-yellow-600">
-											{starsAfterComplaints} ⭐
+										<div className="flex items-center justify-center gap-2">
+											<span className="text-4xl font-black text-amber-700">{totalStars}</span>
+											<Image 
+												src="/images/brick.png" 
+												alt="Brick" 
+												width={32} 
+												height={32} 
+												className="pixelated" 
+											/>
 										</div>
 										<div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">
-											Net Stars
+											Total Bricks
 										</div>
 									</div>
 								</CardContent>
@@ -198,121 +233,15 @@ export function EmployeeDetailsDialog({
 						</div>
 
 						{/* Monthly Performance */}
-						<Card className="border-2 shadow-lg overflow-hidden !py-0 !gap-0">
-							<CardHeader className="bg-gradient-to-r from-blue-500 to-purple-600 border-b-2 pt-6 px-6 pb-4 rounded-t-xl">
-								<CardTitle className="flex items-center gap-3 text-2xl text-white">
-									<TrendingUp className="w-7 h-7 text-white" />
-									Monthly Performance ({selectedYear})
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="p-6">
-								<div className="grid grid-cols-12 gap-3">
-									{salesData.monthlyData.map((month) => (
-										<Card 
-											key={month.month} 
-											className="bg-gradient-to-br from-white to-gray-50 border-2 hover:shadow-md transition-all hover:scale-105"
-										>
-											<CardContent className="p-3">
-												<div className="font-black text-base mb-1 text-center">{month.month}</div>
-												<div className="text-muted-foreground mb-2 text-center font-bold text-sm">
-													RM {(month.sales / 1000).toFixed(1)}K
-												</div>
-												<div className="flex flex-col items-center gap-1">
-													<Badge
-														variant="outline"
-														className={`${getLevelColor(month.level)} text-white border-0 px-2 py-0.5 font-bold text-xs`}
-													>
-														L{month.level}
-													</Badge>
-													{month.stars > 0 && (
-														<span className="text-yellow-600 font-black text-sm">
-															{month.stars} ⭐
-														</span>
-													)}
-												</div>
-											</CardContent>
-										</Card>
-									))}
-								</div>
-
-								<div className="mt-6 p-6 bg-gradient-to-r from-yellow-400 to-orange-400 border-2 border-yellow-500 rounded-xl shadow-md">
-									<div className="flex items-center justify-between">
-										<div>
-											<div className="text-xl font-black text-white">Total Stars Earned</div>
-											<div className="text-white/90 font-bold">
-												{selectedYear} Performance
-											</div>
-										</div>
-										<div className="text-5xl font-black text-white drop-shadow-md">{totalStars} ⭐</div>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
+						<MonthlyPerformance 
+							monthlyData={salesData.monthlyData}
+							totalStars={totalStars}
+							selectedTier={selectedTier}
+							tierMonthlyTarget={tierMonthlyTarget}
+						/>
 
 						{/* Complaints */}
-						<Card className="border-2 shadow-lg overflow-hidden !py-0 !gap-0">
-							<CardHeader className="bg-gradient-to-r from-red-500 to-orange-500 border-b-2 pt-6 px-6 pb-4 rounded-t-xl">
-								<CardTitle className="flex items-center gap-3 text-2xl text-white">
-									<AlertCircle className="w-7 h-7 text-white" />
-									Complaints ({complaints.filter((c) => new Date(c.date).getFullYear().toString() === selectedYear).length})
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="p-6">
-								{complaints.length > 0 ? (
-									<div className="space-y-4">
-										{complaints
-											.filter((complaint) => {
-												const complaintYear = new Date(complaint.date).getFullYear()
-												return complaintYear.toString() === selectedYear
-											})
-											.map((complaint, index) => (
-												<div
-													key={index}
-													className="p-5 border-2 border-red-300 bg-gradient-to-r from-red-50 to-red-100 rounded-xl shadow-sm hover:shadow-md transition-shadow"
-												>
-													<div className="flex items-start justify-between gap-4">
-														<div className="flex-1">
-															<div className="font-black text-lg mb-2">{complaint.customer}</div>
-															<div className="text-muted-foreground font-medium">
-																{complaint.reason}
-															</div>
-														</div>
-														<Badge variant="destructive" className="ml-2 px-4 py-2 text-sm font-bold">
-															{new Date(complaint.date).toLocaleDateString()}
-														</Badge>
-													</div>
-												</div>
-											))}
-										
-										{complaints.filter((c) => new Date(c.date).getFullYear().toString() === selectedYear).length === 0 && (
-											<div className="text-center py-12 text-muted-foreground text-lg">
-												🎉 No complaints in {selectedYear}
-											</div>
-										)}
-
-										{complaints.filter((c) => new Date(c.date).getFullYear().toString() === selectedYear).length > 0 && (
-											<div className="mt-6 p-6 bg-gradient-to-r from-red-500 to-red-600 border-2 border-red-600 rounded-xl shadow-md">
-												<div className="flex items-center justify-between">
-													<div>
-														<div className="text-xl font-black text-white">Stars After Deduction</div>
-														<div className="text-white/90 font-bold">
-															{totalStars} ⭐ - {complaints.filter((c) => new Date(c.date).getFullYear().toString() === selectedYear).length} complaints
-														</div>
-													</div>
-													<div className="text-5xl font-black text-white drop-shadow-md">
-														{totalStars - complaints.filter((c) => new Date(c.date).getFullYear().toString() === selectedYear).length} ⭐
-													</div>
-												</div>
-											</div>
-										)}
-									</div>
-								) : (
-									<div className="text-center py-12 text-muted-foreground text-lg">
-										🎉 No complaints recorded
-									</div>
-								)}
-							</CardContent>
-						</Card>
+						<ComplaintsTracker complaints={complaints} />
 					</div>
 					) : (
 						<div className="text-center py-8 text-muted-foreground">

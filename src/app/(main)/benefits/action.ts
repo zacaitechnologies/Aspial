@@ -22,7 +22,15 @@ export interface EmployeeSalesData {
   commissionRate: string
 }
 
-// Sales targets based on company policy
+// Tier targets based on new company policy (monthly targets)
+const tierTargets = {
+  TIER_1: { min: 50000, max: 70000 }, // User fills in their own target within range
+  TIER_2: 80000,
+  TIER_3: 120000,
+  TIER_4: 150000,
+}
+
+// Legacy sales targets (kept for backwards compatibility if needed)
 const salesTargets = {
   level1: 720000, // 720K yearly / 60K monthly
   level2: 1200000, // 1.20M yearly / 100K monthly
@@ -57,9 +65,25 @@ function getCommissionRate(level: number): string {
   return "0%"
 }
 
-// Calculate stars: 1 star if monthly sales >= 100K
+// Calculate stars: 1 star if monthly sales >= 100K (legacy, not used in new tier system)
 function calculateStars(monthlySales: number): number {
   return monthlySales >= 100000 ? 1 : 0
+}
+
+// Get tier monthly target (with custom target support for Tier 1)
+function getTierMonthlyTarget(tier: string, customTarget?: number): number {
+  switch (tier) {
+    case 'TIER_1':
+      return customTarget || 60000 // Use custom target if provided, otherwise default
+    case 'TIER_2':
+      return tierTargets.TIER_2
+    case 'TIER_3':
+      return tierTargets.TIER_3
+    case 'TIER_4':
+      return tierTargets.TIER_4
+    default:
+      return 60000
+  }
 }
 
 // Internal function - not cached, used by cached version
@@ -271,74 +295,182 @@ export async function calculateFinalStars(userId: string): Promise<{ totalStars:
   }
 }
 
-// Internal function - not cached, used by cached version
-// year parameter: the year to check the award for (award is based on previous year's performance)
-async function _checkSuperPerformanceAwardInternal(userId: string, year?: number): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number; manualOverride: boolean }> {
-  const currentYear = year || new Date().getFullYear()
-  const previousYear = currentYear - 1
-  
-  // Check if there's a record in the new table for this year
-  const awardRecord = await prisma.superPerformanceAward.findUnique({
-    where: {
-      userId_year: {
-        userId,
-        year: currentYear,
+// ===== NEW TIER SELECTION SYSTEM =====
+
+// Get user's tier selection for a specific year
+export async function getUserTierSelection(
+  userId: string, 
+  year?: number
+): Promise<{ tier: string | null; customTarget: number | null; needsSelection: boolean; selectedAt: Date | null }> {
+  try {
+    unstable_noStore()
+    const currentYear = year || new Date().getFullYear()
+    
+    const selection = await prisma.tierSelection.findUnique({
+      where: {
+        userId_year: {
+          userId,
+          year: currentYear,
+        },
       },
-    },
-  })
+    })
 
-  // Calculate previous year stars for display (needed regardless of whether record exists)
-  const [previousYearSalesData, previousYearComplaints] = await Promise.all([
-    getEmployeeSalesData(userId, previousYear),
-    getEmployeeComplaints(userId),
-  ])
-  
-  const totalStars = previousYearSalesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
-  
-  const previousYearStart = new Date(previousYear, 0, 1)
-  const previousYearEnd = new Date(previousYear, 11, 31, 23, 59, 59)
-  
-  const previousYearComplaintsCount = previousYearComplaints.filter(complaint => {
-    const complaintDate = new Date(complaint.date)
-    return complaintDate >= previousYearStart && complaintDate <= previousYearEnd
-  }).length
-  
-  const previousYearStars = totalStars - previousYearComplaintsCount
-
-  // If there's a record (manual override or previously set), use that
-  if (awardRecord) {
     return {
-      hasSuperPerformanceAward: awardRecord.hasAward,
-      previousYearStars,
-      manualOverride: awardRecord.manualOverride,
+      tier: selection?.tier || null,
+      customTarget: selection?.customTarget || null,
+      needsSelection: !selection,
+      selectedAt: selection?.selectedAt || null,
     }
-  }
-
-  // No record exists - show as having no award
-  return {
-    hasSuperPerformanceAward: false,
-    previousYearStars,
-    manualOverride: false,
+  } catch (error) {
+    console.error('Error getting user tier selection:', error)
+    return {
+      tier: null,
+      customTarget: null,
+      needsSelection: true,
+      selectedAt: null,
+    }
   }
 }
 
-// Check if user has super performance award (based on previous year)
-// year parameter: the year to check the award for (defaults to current year)
-export async function checkSuperPerformanceAward(userId: string, year?: number): Promise<{ hasSuperPerformanceAward: boolean; previousYearStars: number; manualOverride: boolean }> {
+// User: Select tier for the year (can only be done once unless admin overrides)
+export async function selectUserTier(
+  userId: string, 
+  tier: string, 
+  customTarget?: number,
+  year?: number
+): Promise<{ success: boolean; message: string }> {
   try {
-    // Disable server-side caching for real-time data
-    unstable_noStore()
-
     const currentYear = year || new Date().getFullYear()
     
-    // Return fresh data without server-side caching
-    return await _checkSuperPerformanceAwardInternal(userId, currentYear)
-  } catch (error) {
-    console.error("Error checking super performance award:", error)
+    // Check if selection already exists
+    const existing = await prisma.tierSelection.findUnique({
+      where: {
+        userId_year: {
+          userId,
+          year: currentYear,
+        },
+      },
+    })
+
+    if (existing) {
+      return {
+        success: false,
+        message: 'Tier selection already exists for this year. Contact admin to change.',
+      }
+    }
+
+    // Validate tier
+    if (!['TIER_1', 'TIER_2', 'TIER_3', 'TIER_4'].includes(tier)) {
+      return {
+        success: false,
+        message: 'Invalid tier selected',
+      }
+    }
+
+    // Validate custom target for Tier 1
+    if (tier === 'TIER_1') {
+      if (!customTarget || customTarget < 50000 || customTarget > 70000) {
+        return {
+          success: false,
+          message: 'Tier 1 requires a custom target between RM50,000 and RM70,000',
+        }
+      }
+    }
+
+    // Create selection
+    await prisma.tierSelection.create({
+      data: {
+        userId,
+        year: currentYear,
+        tier: tier as any,
+        customTarget: tier === 'TIER_1' ? customTarget : null,
+        adminOverride: false,
+      },
+    })
+
+    revalidateTag(`tier-selection-${userId}`, 'max')
+    revalidateTag(`tier-selection-${userId}-${currentYear}`, 'max')
+    revalidateTag('benefits', 'max')
+
     return {
-      hasSuperPerformanceAward: false,
-      previousYearStars: 0,
-      manualOverride: false,
+      success: true,
+      message: `Tier ${tier.replace('TIER_', '')} selected successfully for ${currentYear}`,
+    }
+  } catch (error) {
+    console.error('Error selecting user tier:', error)
+    return {
+      success: false,
+      message: 'Failed to select tier',
+    }
+  }
+}
+
+// Admin: Change user's tier selection
+export async function adminChangeTierSelection(
+  userId: string, 
+  tier: string, 
+  adminNote: string, 
+  customTarget?: number,
+  year?: number
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const currentYear = year || new Date().getFullYear()
+    
+    // Validate tier
+    if (!['TIER_1', 'TIER_2', 'TIER_3', 'TIER_4'].includes(tier)) {
+      return {
+        success: false,
+        message: 'Invalid tier selected',
+      }
+    }
+
+    // Validate custom target for Tier 1
+    if (tier === 'TIER_1') {
+      if (!customTarget || customTarget < 50000 || customTarget > 70000) {
+        return {
+          success: false,
+          message: 'Tier 1 requires a custom target between RM50,000 and RM70,000',
+        }
+      }
+    }
+
+    // Upsert selection with admin override
+    await prisma.tierSelection.upsert({
+      where: {
+        userId_year: {
+          userId,
+          year: currentYear,
+        },
+      },
+      create: {
+        userId,
+        year: currentYear,
+        tier: tier as any,
+        customTarget: tier === 'TIER_1' ? customTarget : null,
+        adminOverride: true,
+        adminNote,
+      },
+      update: {
+        tier: tier as any,
+        customTarget: tier === 'TIER_1' ? customTarget : null,
+        adminOverride: true,
+        adminNote,
+      },
+    })
+
+    revalidateTag(`tier-selection-${userId}`, 'max')
+    revalidateTag(`tier-selection-${userId}-${currentYear}`, 'max')
+    revalidateTag('benefits', 'max')
+
+    return {
+      success: true,
+      message: `Tier changed to ${tier.replace('TIER_', '')} for ${currentYear}`,
+    }
+  } catch (error) {
+    console.error('Error changing tier selection:', error)
+    return {
+      success: false,
+      message: 'Failed to change tier',
     }
   }
 }
@@ -368,7 +500,7 @@ export async function checkIsAdmin(userId: string): Promise<boolean> {
   }
 }
 
-// Admin: Get all users' sales data and award status
+// Admin: Get all users' sales data and tier selection status
 export interface UserBenefitsSummary {
   userId: string
   userName: string
@@ -380,9 +512,10 @@ export interface UserBenefitsSummary {
   totalStars: number
   complaintsCount: number
   starsAfterComplaints: number
-  hasSuperPerformanceAward: boolean
-  previousYearStars: number
-  manualOverride: boolean
+  selectedTier: string | null
+  customTarget: number | null
+  tierMonthlyTarget: number
+  needsTierSelection: boolean
 }
 
 // Internal function - not cached, used by cached version
@@ -415,15 +548,17 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
   const usersBenefitsPromises = users.map(async (user) => {
     try {
       // Execute all three calls in parallel for each user
-      // Note: Award for a year is based on previous year's performance
-      const [salesData, complaints, awardStatus] = await Promise.all([
+      const [salesData, complaints, tierSelection] = await Promise.all([
         getEmployeeSalesData(user.id, year),
         getEmployeeComplaints(user.id),
-        checkSuperPerformanceAward(user.id, year),
+        getUserTierSelection(user.id, year),
       ])
 
       const totalStars = salesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
       const starsAfterComplaints = totalStars - complaints.length
+      
+      // Calculate tier monthly target
+      const tierMonthlyTarget = getTierMonthlyTarget(tierSelection.tier || 'TIER_1', tierSelection.customTarget || undefined)
 
       return {
         userId: user.id,
@@ -436,9 +571,10 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
         totalStars,
         complaintsCount: complaints.length,
         starsAfterComplaints,
-        hasSuperPerformanceAward: awardStatus.hasSuperPerformanceAward,
-        previousYearStars: awardStatus.previousYearStars,
-        manualOverride: awardStatus.manualOverride,
+        selectedTier: tierSelection.tier,
+        customTarget: tierSelection.customTarget,
+        tierMonthlyTarget,
+        needsTierSelection: tierSelection.needsSelection,
       }
     } catch (error) {
       console.error(`Error fetching benefits for user ${user.id}:`, error)
@@ -453,9 +589,10 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
         totalStars: 0,
         complaintsCount: 0,
         starsAfterComplaints: 0,
-        hasSuperPerformanceAward: false,
-        previousYearStars: 0,
-        manualOverride: false,
+        selectedTier: null,
+        customTarget: null,
+        tierMonthlyTarget: 60000,
+        needsTierSelection: true,
       }
     }
   })
@@ -476,245 +613,5 @@ export async function getAllUsersBenefits(year: number = new Date().getFullYear(
   } catch (error) {
     console.error('Error fetching all users benefits:', error)
     return []
-  }
-}
-
-// Admin: Manually activate super performance award for a specific year
-export async function activateSuperPerformanceAward(userId: string, year?: number): Promise<{ success: boolean; message: string }> {
-  try {
-    const currentYear = year || new Date().getFullYear()
-    
-    // Upsert the award record for this year
-    await prisma.superPerformanceAward.upsert({
-      where: {
-        userId_year: {
-          userId,
-          year: currentYear,
-        },
-      },
-      create: {
-        userId,
-        year: currentYear,
-        hasAward: true,
-        manualOverride: true,
-      },
-      update: {
-        hasAward: true,
-        manualOverride: true,
-      },
-    })
-
-    // Invalidate all relevant caches
-    revalidateTag(`super-performance-award-${userId}`, 'max')
-    revalidateTag(`super-performance-award-${userId}-${currentYear}`, 'max')
-    revalidateTag('super-performance-award', 'max')
-    revalidateTag('benefits', 'max')
-    revalidateTag(`benefits-${currentYear}`, 'max')
-    // Also invalidate previous year in case viewing that
-    revalidateTag(`benefits-${currentYear - 1}`, 'max')
-
-    return {
-      success: true,
-      message: `Super Performance Award activated successfully for ${currentYear}`,
-    }
-  } catch (error) {
-    console.error('Error activating super performance award:', error)
-    return {
-      success: false,
-      message: 'Failed to activate Super Performance Award',
-    }
-  }
-}
-
-// Admin: Manually terminate super performance award for a specific year
-export async function terminateSuperPerformanceAward(userId: string, year?: number): Promise<{ success: boolean; message: string }> {
-  try {
-    const currentYear = year || new Date().getFullYear()
-    
-    // Upsert the award record for this year
-    await prisma.superPerformanceAward.upsert({
-      where: {
-        userId_year: {
-          userId,
-          year: currentYear,
-        },
-      },
-      create: {
-        userId,
-        year: currentYear,
-        hasAward: false,
-        manualOverride: true,
-      },
-      update: {
-        hasAward: false,
-        manualOverride: true,
-      },
-    })
-
-    // Invalidate all relevant caches
-    revalidateTag(`super-performance-award-${userId}`, 'max')
-    revalidateTag(`super-performance-award-${userId}-${currentYear}`, 'max')
-    revalidateTag('super-performance-award', 'max')
-    revalidateTag('benefits', 'max')
-    revalidateTag(`benefits-${currentYear}`, 'max')
-    // Also invalidate previous year in case viewing that
-    revalidateTag(`benefits-${currentYear - 1}`, 'max')
-
-    return {
-      success: true,
-      message: `Super Performance Award terminated successfully for ${currentYear}`,
-    }
-  }  catch (error) {
-    console.error('Error terminating super performance award:', error)
-    return {
-      success: false,
-      message: 'Failed to terminate Super Performance Award',
-    }
-  }
-}
-
-// Admin: Reset super performance award to auto (based on performance) for a specific year
-export async function resetSuperPerformanceAward(userId: string, year?: number): Promise<{ success: boolean; message: string }> {
-  try {
-    const currentYear = year || new Date().getFullYear()
-    
-    // Delete the record to remove manual override - user will show as having no award
-    await prisma.superPerformanceAward.delete({
-      where: {
-        userId_year: {
-          userId,
-          year: currentYear,
-        },
-      },
-    }).catch(() => {
-      // If record doesn't exist, that's fine - user already shows as having no award
-    })
-
-    // Invalidate all relevant caches
-    revalidateTag(`super-performance-award-${userId}`, 'max')
-    revalidateTag(`super-performance-award-${userId}-${currentYear}`, 'max')
-    revalidateTag('super-performance-award', 'max')
-    revalidateTag('benefits', 'max')
-    revalidateTag(`benefits-${currentYear}`, 'max')
-    // Also invalidate previous year in case viewing that
-    revalidateTag(`benefits-${currentYear - 1}`, 'max')
-
-    return {
-      success: true,
-      message: `Super Performance Award reset to automatic for ${currentYear}`,
-    }
-  } catch (error) {
-    console.error('Error resetting super performance award:', error)
-    return {
-      success: false,
-      message: 'Failed to reset Super Performance Award',
-    }
-  }
-}
-
-// Auto-calculate and create super performance awards for all users based on previous year's performance
-// This should be called on January 1st of each year
-export async function calculateAndCreateSuperPerformanceAwards(year?: number): Promise<{ success: boolean; message: string; awardsCreated: number; awardsActivated: number }> {
-  try {
-    const currentYear = year || new Date().getFullYear()
-    const previousYear = currentYear - 1
-    
-    // Get all non-admin users
-    const users = await prisma.user.findMany({
-      where: {
-        userRoles: {
-          none: {
-            role: {
-              slug: 'admin',
-            },
-          },
-        },
-      },
-      select: {
-        id: true,
-      },
-    })
-
-    let awardsCreated = 0
-    let awardsActivated = 0
-
-    // Process each user
-    for (const user of users) {
-      try {
-        // Check if award record already exists for this year
-        const existingAward = await prisma.superPerformanceAward.findUnique({
-          where: {
-            userId_year: {
-              userId: user.id,
-              year: currentYear,
-            },
-          },
-        })
-
-        // Skip if record exists (to preserve manual overrides)
-        if (existingAward) {
-          continue
-        }
-
-        // Calculate previous year's performance
-        const [previousYearSalesData, previousYearComplaints] = await Promise.all([
-          getEmployeeSalesData(user.id, previousYear),
-          getEmployeeComplaints(user.id),
-        ])
-
-        const totalStars = previousYearSalesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
-
-        const previousYearStart = new Date(previousYear, 0, 1)
-        const previousYearEnd = new Date(previousYear, 11, 31, 23, 59, 59)
-
-        const previousYearComplaintsCount = previousYearComplaints.filter(complaint => {
-          const complaintDate = new Date(complaint.date)
-          return complaintDate >= previousYearStart && complaintDate <= previousYearEnd
-        }).length
-
-        const previousYearStars = totalStars - previousYearComplaintsCount
-
-        // Create award record - hasAward is true if 12+ stars, false otherwise
-        const hasAward = previousYearStars >= 12
-
-        await prisma.superPerformanceAward.create({
-          data: {
-            userId: user.id,
-            year: currentYear,
-            hasAward,
-            manualOverride: false, // Auto-calculated, not manual
-          },
-        })
-
-        awardsCreated++
-        if (hasAward) {
-          awardsActivated++
-        }
-      } catch (error) {
-        console.error(`Error processing award for user ${user.id}:`, error)
-        // Continue with next user
-      }
-    }
-
-    // Invalidate all benefits caches
-    revalidateTag('super-performance-award', 'max')
-    revalidateTag('benefits', 'max')
-    revalidateTag(`benefits-${currentYear}`, 'max')
-    revalidateTag(`benefits-${previousYear}`, 'max')
-
-    return {
-      success: true,
-      message: `Super Performance Awards calculated for ${currentYear}. Created ${awardsCreated} records, ${awardsActivated} awards activated.`,
-      awardsCreated,
-      awardsActivated,
-    }
-  } catch (error) {
-    console.error('Error calculating super performance awards:', error)
-    return {
-      success: false,
-      message: 'Failed to calculate Super Performance Awards',
-      awardsCreated: 0,
-      awardsActivated: 0,
-    }
   }
 }

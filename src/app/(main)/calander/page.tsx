@@ -21,8 +21,8 @@ import { CalendarView, getWeekDays } from "./utils/calendar-utils"
 
 
 const bookingTypes = {
-	equipment: { color: "bg-(--color-primary)]", label: "Equipment" },
-	studio: { color: "bg-(--color-accent)]", label: "Studio" },
+	equipment: { color: "bg-blue-500", label: "Equipment" },
+	studio: { color: "bg-purple-500", label: "Studio" },
 	task: { color: "bg-yellow-500", label: "Task" },
 }
 
@@ -60,7 +60,10 @@ export default function OrganizationCalendar() {
 		const loadBookings = async () => {
 			try {
 				if (enhancedUser?.id && userName) {
+					console.log('Loading bookings for user:', enhancedUser.id, userName)
 					const fetchedBookings = await fetchAllBookings(enhancedUser.id, userName)
+					console.log('Fetched bookings count:', fetchedBookings.length)
+					console.log('Sample booking:', fetchedBookings[0])
 					setBookings(fetchedBookings)
 					
 					// Check if admin and fetch projects if not
@@ -113,7 +116,7 @@ export default function OrganizationCalendar() {
   }
 
   const getBookingsForDate = (date: string) => {
-    return bookings.filter((booking) => {
+    const filtered = bookings.filter((booking) => {
       // Filter by date
       if (booking.date !== date) return false
       
@@ -149,6 +152,8 @@ export default function OrganizationCalendar() {
       
       return true
     })
+    console.log(`Bookings for ${date}:`, filtered.length)
+    return filtered
   }
 
   const handleDateChange = (newDate: Date) => {

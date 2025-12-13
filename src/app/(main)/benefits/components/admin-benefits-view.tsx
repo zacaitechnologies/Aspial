@@ -21,13 +21,20 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog'
-import { Trophy, Ban, RotateCcw, Loader2, Eye } from 'lucide-react'
-import type { UserBenefitsSummary } from '../action'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
-	activateSuperPerformanceAward,
-	terminateSuperPerformanceAward,
-	resetSuperPerformanceAward,
-} from '../action'
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select'
+import { Settings, Loader2, Eye } from 'lucide-react'
+import Image from 'next/image'
+import type { UserBenefitsSummary } from '../action'
+import { adminChangeTierSelection } from '../action'
 import { toast } from '@/components/ui/use-toast'
 import { EmployeeDetailsDialog } from './employee-details-dialog'
 
@@ -38,18 +45,26 @@ interface AdminBenefitsViewProps {
 
 export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsViewProps) {
 	const [selectedUser, setSelectedUser] = useState<UserBenefitsSummary | null>(null)
-	const [actionType, setActionType] = useState<'activate' | 'terminate' | 'reset' | null>(null)
 	const [isDialogOpen, setIsDialogOpen] = useState(false)
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [detailsUser, setDetailsUser] = useState<UserBenefitsSummary | null>(null)
 	const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
+	const [selectedTier, setSelectedTier] = useState<string>('TIER_1')
+	const [customTarget, setCustomTarget] = useState<string>('60')
+	const [targetError, setTargetError] = useState<string>('')
+	const [adminNote, setAdminNote] = useState('')
 
-	const handleOpenDialog = (
-		user: UserBenefitsSummary,
-		action: 'activate' | 'terminate' | 'reset'
-	) => {
+	const handleOpenDialog = (user: UserBenefitsSummary) => {
 		setSelectedUser(user)
-		setActionType(action)
+		setSelectedTier(user.selectedTier || 'TIER_1')
+		// Set custom target if user has one for Tier 1
+		if (user.selectedTier === 'TIER_1' && user.customTarget) {
+			setCustomTarget((user.customTarget / 1000).toString())
+		} else {
+			setCustomTarget('60')
+		}
+		setTargetError('')
+		setAdminNote('')
 		setIsDialogOpen(true)
 	}
 
@@ -59,22 +74,26 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 	}
 
 	const handleConfirmAction = async () => {
-		if (!selectedUser || !actionType) return
+		if (!selectedUser) return
+
+		// Validate custom target for Tier 1
+		if (selectedTier === 'TIER_1') {
+			const target = parseInt(customTarget)
+			if (isNaN(target) || target < 50 || target > 70) {
+				setTargetError('Please enter a target between 50K and 70K')
+				return
+			}
+		}
 
 		setIsProcessing(true)
 		try {
-			let result
-			switch (actionType) {
-				case 'activate':
-					result = await activateSuperPerformanceAward(selectedUser.userId)
-					break
-				case 'terminate':
-					result = await terminateSuperPerformanceAward(selectedUser.userId)
-					break
-				case 'reset':
-					result = await resetSuperPerformanceAward(selectedUser.userId)
-					break
-			}
+			const target = selectedTier === 'TIER_1' ? parseInt(customTarget) * 1000 : undefined
+			const result = await adminChangeTierSelection(
+				selectedUser.userId,
+				selectedTier,
+				adminNote,
+				target
+			)
 
 			if (result.success) {
 				toast({
@@ -99,7 +118,6 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 			setIsProcessing(false)
 			setIsDialogOpen(false)
 			setSelectedUser(null)
-			setActionType(null)
 		}
 	}
 
@@ -136,7 +154,7 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 	return (
 		<div className="space-y-6">
 			{/* Summary Cards */}
-			<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 				<Card className="bg-white/95 border-4 border-foreground/20">
 					<CardContent className="p-4">
 						<div className="text-center">
@@ -148,16 +166,16 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 					</CardContent>
 				</Card>
 
-				<Card className="bg-white/95 border-4 border-foreground/20">
-					<CardContent className="p-4">
-						<div className="text-center">
-							<div className="text-3xl font-black text-green-600 mb-1">
-								{usersBenefits.filter((u) => u.hasSuperPerformanceAward).length}
-							</div>
-							<div className="text-sm font-bold text-muted-foreground">Active Awards</div>
+			<Card className="bg-white/95 border-4 border-foreground/20">
+				<CardContent className="p-4">
+					<div className="text-center">
+						<div className="text-3xl font-black text-green-600 mb-1">
+							{usersBenefits.filter((u) => u.selectedTier).length}
 						</div>
-					</CardContent>
-				</Card>
+						<div className="text-sm font-bold text-muted-foreground">Tiers Selected</div>
+					</div>
+				</CardContent>
+			</Card>
 
 				<Card className="bg-white/95 border-4 border-foreground/20">
 					<CardContent className="p-4">
@@ -170,17 +188,6 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 								M
 							</div>
 							<div className="text-sm font-bold text-muted-foreground">Total Sales</div>
-						</div>
-					</CardContent>
-				</Card>
-
-				<Card className="bg-white/95 border-4 border-foreground/20">
-					<CardContent className="p-4">
-						<div className="text-center">
-							<div className="text-3xl font-black text-secondary mb-1">
-								{usersBenefits.reduce((sum, u) => sum + u.totalStars, 0)}
-							</div>
-							<div className="text-sm font-bold text-muted-foreground">Total Stars</div>
 						</div>
 					</CardContent>
 				</Card>
@@ -200,9 +207,10 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 									<TableHead>Level</TableHead>
 									<TableHead className="text-right">Yearly Sales</TableHead>
 									<TableHead className="text-center">Commission</TableHead>
-									<TableHead className="text-center">Stars</TableHead>
+									<TableHead className="text-center">Bricks</TableHead>
 									<TableHead className="text-center">Complaints</TableHead>
-									<TableHead className="text-center">Super Award</TableHead>
+									<TableHead className="text-center">Selected Tier</TableHead>
+									<TableHead className="text-center">Monthly Target</TableHead>
 									<TableHead className="text-center">Actions</TableHead>
 								</TableRow>
 							</TableHeader>
@@ -240,16 +248,20 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 											</Badge>
 										</TableCell>
 										<TableCell className="text-center">
-											<div className="font-bold">
-												{user.totalStars} ⭐
+											<div className="flex items-center justify-center gap-2 font-bold">
+												<span>{user.totalStars}</span>
+												<Image 
+													src="/images/brick.png" 
+													alt="Brick" 
+													width={20} 
+													height={20} 
+													className="pixelated" 
+												/>
 												{user.complaintsCount > 0 && (
 													<span className="text-red-500 ml-1">
 														(-{user.complaintsCount})
 													</span>
 												)}
-											</div>
-											<div className="text-xs text-muted-foreground">
-												Net: {user.starsAfterComplaints} ⭐
 											</div>
 										</TableCell>
 										<TableCell className="text-center">
@@ -259,80 +271,57 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 												{user.complaintsCount}
 											</Badge>
 										</TableCell>
-										<TableCell className="text-center">
+									<TableCell className="text-center">
+										<div className="flex flex-col items-center gap-1">
+											{user.selectedTier ? (
+												<Badge className="bg-blue-500 text-white">
+													Tier {user.selectedTier.replace('TIER_', '')}
+												</Badge>
+											) : (
+												<Badge variant="outline" className="text-yellow-600 border-yellow-600">
+													Not Selected
+												</Badge>
+											)}
+										</div>
+									</TableCell>
+									<TableCell className="text-center">
+										{user.selectedTier ? (
 											<div className="flex flex-col items-center gap-1">
-												{user.hasSuperPerformanceAward ? (
-													<>
-														<Badge className="bg-yellow-500 text-white">
-															🏆 Active
-														</Badge>
-														{user.manualOverride && (
-															<span className="text-xs text-blue-600 font-bold">
-																(Manual)
-															</span>
-														)}
-													</>
-												) : (
-													<>
-														<Badge variant="secondary">Inactive</Badge>
-														{user.manualOverride && (
-															<span className="text-xs text-red-600 font-bold">
-																(Terminated)
-															</span>
-														)}
-													</>
-												)}
-												<div className="text-xs text-muted-foreground">
-													{user.previousYearStars} ⭐ last year
+												<div className="font-bold">
+													RM {(user.tierMonthlyTarget / 1000).toFixed(0)}K
 												</div>
-											</div>
-										</TableCell>
-										<TableCell>
-											<div className="flex flex-col gap-1">
-												<Button
-													size="sm"
-													variant="default"
-													className="w-full text-xs"
-													onClick={() => handleViewDetails(user)}
-												>
-													<Eye className="w-3 h-3 mr-1" />
-													View Details
-												</Button>
-												{!user.hasSuperPerformanceAward && (
-													<Button
-														size="sm"
-														variant="outline"
-														className="w-full text-xs"
-														onClick={() => handleOpenDialog(user, 'activate')}
-													>
-														<Trophy className="w-3 h-3 mr-1" />
-														Activate
-													</Button>
-												)}
-												{user.hasSuperPerformanceAward && (
-													<Button
-														size="sm"
-														variant="outline"
-														className="w-full text-xs text-red-600"
-														onClick={() => handleOpenDialog(user, 'terminate')}
-													>
-														<Ban className="w-3 h-3 mr-1" />
-														Terminate
-													</Button>
-												)}
-												{user.manualOverride && (
-													<Button
-														size="sm"
-														variant="outline"
-														className="w-full text-xs text-blue-600"
-														onClick={() => handleOpenDialog(user, 'reset')}
-													>
-														<RotateCcw className="w-3 h-3 mr-1" />
-														Reset
-													</Button>
+												{user.selectedTier === 'TIER_1' && user.customTarget && (
+													<Badge variant="secondary" className="text-xs">
+														Custom
+													</Badge>
 												)}
 											</div>
-										</TableCell>
+										) : (
+											<span className="text-muted-foreground">—</span>
+										)}
+									</TableCell>
+									<TableCell>
+										<div className="flex flex-col gap-1">
+											<Button
+												size="sm"
+												variant="default"
+												className="w-full text-xs"
+												onClick={() => handleViewDetails(user)}
+											>
+												<Eye className="w-3 h-3 mr-1" />
+												View Details
+											</Button>
+											<Button
+												size="sm"
+												variant="outline"
+												className="w-full text-xs"
+												onClick={() => handleOpenDialog(user)}
+											>
+												<Settings className="w-3 h-3 mr-1" />
+												Change Tier
+											</Button>
+										</div>
+									</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
@@ -345,20 +334,85 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 			<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>
-							{actionType === 'activate' && 'Activate Super Performance Award'}
-							{actionType === 'terminate' && 'Terminate Super Performance Award'}
-							{actionType === 'reset' && 'Reset Super Performance Award'}
-						</DialogTitle>
+						<DialogTitle>Change Tier Selection</DialogTitle>
 						<DialogDescription>
-							{actionType === 'activate' &&
-								`Are you sure you want to manually activate the Super Performance Award for ${selectedUser?.userName}? This will override the automatic calculation.`}
-							{actionType === 'terminate' &&
-								`Are you sure you want to terminate the Super Performance Award for ${selectedUser?.userName}? This will override the automatic calculation.`}
-							{actionType === 'reset' &&
-								`Are you sure you want to reset the Super Performance Award for ${selectedUser?.userName}? This will return it to automatic calculation based on performance.`}
+							Change the selected tier for {selectedUser?.userName}
 						</DialogDescription>
 					</DialogHeader>
+					<div className="space-y-4 py-4">
+						<div className="space-y-2">
+							<Label htmlFor="tier">Select Tier</Label>
+							<Select 
+								value={selectedTier} 
+								onValueChange={(value) => {
+									setSelectedTier(value)
+									setTargetError('')
+								}}
+							>
+								<SelectTrigger id="tier">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="TIER_1">Tier 1 - 自主成长层 (RM50k-70k)</SelectItem>
+									<SelectItem value="TIER_2">Tier 2 - 成就跃升层 (RM80k)</SelectItem>
+									<SelectItem value="TIER_3">Tier 3 - 精英领航层 (RM120k)</SelectItem>
+									<SelectItem value="TIER_4">Tier 4 - 巅峰领导层 (RM150k)</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						
+						{/* Custom Target Input for Tier 1 */}
+						{selectedTier === 'TIER_1' && (
+							<div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-lg space-y-3">
+								<Label htmlFor="customTarget" className="text-base font-black text-blue-900">
+									Set Monthly Target (RM)
+								</Label>
+								<p className="text-sm font-bold text-blue-800">
+									Enter monthly sales target between RM50,000 and RM70,000
+								</p>
+								<div className="flex items-center gap-4">
+									<div className="flex-1">
+										<div className="flex items-center gap-2">
+											<span className="text-lg font-bold">RM</span>
+											<Input
+												id="customTarget"
+												type="number"
+												min="50"
+												max="70"
+												value={customTarget}
+												onChange={(e) => {
+													setCustomTarget(e.target.value)
+													setTargetError('')
+												}}
+												className="text-xl font-bold"
+												placeholder="60"
+											/>
+											<span className="text-lg font-bold">K</span>
+										</div>
+										{targetError && (
+											<p className="text-sm font-bold text-red-600 mt-2">{targetError}</p>
+										)}
+									</div>
+									<div className="text-right">
+										<div className="text-xs font-bold text-muted-foreground">Yearly Target</div>
+										<div className="text-xl font-black text-primary">
+											RM {(parseInt(customTarget || '0') * 12).toFixed(0)}K
+										</div>
+									</div>
+								</div>
+							</div>
+						)}
+						
+						<div className="space-y-2">
+							<Label htmlFor="note">Admin Note (Optional)</Label>
+							<Textarea
+								id="note"
+								placeholder="Reason for tier change..."
+								value={adminNote}
+								onChange={(e) => setAdminNote(e.target.value)}
+							/>
+						</div>
+					</div>
 					<DialogFooter>
 						<Button
 							variant="outline"
@@ -369,7 +423,7 @@ export function AdminBenefitsView({ usersBenefits, onRefresh }: AdminBenefitsVie
 						</Button>
 						<Button onClick={handleConfirmAction} disabled={isProcessing}>
 							{isProcessing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-							Confirm
+							Confirm Change
 						</Button>
 					</DialogFooter>
 				</DialogContent>

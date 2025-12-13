@@ -58,7 +58,7 @@ model User {
   timeEntries                    TimeEntry[]
   userRoles                      UserRole[]
   complaints                     Complaint[]
-  superPerformanceAwards        SuperPerformanceAward[]
+  tierSelections                 TierSelection[]
   contracts                      Contract[]
   createdClients                 Client[]                  @relation("ClientCreator")
 
@@ -453,18 +453,28 @@ enum CustomServiceStatus {
   REJECTED
 }
 
-model SuperPerformanceAward {
-  id             String   @id @default(cuid())
+enum BenefitTier {
+  TIER_1
+  TIER_2
+  TIER_3
+  TIER_4
+}
+
+model TierSelection {
+  id             String      @id @default(cuid())
   userId         String
   year           Int
-  hasAward       Boolean  @default(false)
-  manualOverride Boolean  @default(false)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier           BenefitTier
+  customTarget   Int?        // Custom monthly target for Tier 1 (50k-70k)
+  selectedAt     DateTime    @default(now())
+  adminOverride  Boolean     @default(false)
+  adminNote      String?
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, year])
-  @@map("super_performance_awards")
+  @@map("tier_selections")
 }
 
 model Contract {

@@ -7,6 +7,7 @@ async function roleMain() {
   // Define the roles to be created
   const roles = [
     { slug: 'admin' },
+    { slug: 'co-admin' },
     { slug: 'staff' }
   ];
 

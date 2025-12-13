@@ -29,19 +29,19 @@ export function RewardCard({
 }: RewardCardProps) {
   return (
     <Card
-      className={`relative overflow-hidden transition-all duration-300 border-4 min-h-96 flex flex-col ${
+      className={`relative overflow-hidden border-4 min-h-96 flex flex-col ${
         unlocked
-          ? "border-green-500 shadow-2xl scale-105 animate-[pulse-glow_2s_ease-in-out_infinite]"
-          : "border-foreground/20 shadow-lg hover:scale-105 hover:shadow-xl"
+          ? "border-green-500 shadow-2xl"
+          : "border-foreground/20 shadow-lg"
       }`}
     >
       {/* Background gradient */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-${unlocked ? "20" : "10"}`} />
+      <div className={`absolute inset-0 bg-linear-to-br ${color} opacity-${unlocked ? "20" : "10"}`} />
 
       {/* Unlocked badge */}
       {unlocked && (
         <div className="absolute top-3 right-3 z-10">
-          <Badge className="bg-green-600 text-white font-black text-xs px-3 py-1 shadow-lg animate-[bounce_1s_ease-in-out_infinite]">
+          <Badge className="bg-green-600 text-white font-black text-xs px-3 py-1 shadow-lg">
             ✓ UNLOCKED!
           </Badge>
         </div>
@@ -54,7 +54,7 @@ export function RewardCard({
             Level {level}
           </Badge>
           <div
-            className={`p-3 rounded-full bg-gradient-to-br ${color} ${unlocked ? "animate-[grow-transform_2s_ease-in-out_infinite]" : ""}`}
+            className={`p-3 rounded-full bg-linear-to-br ${color}`}
           >
             <Icon className="w-6 h-6 text-white" />
           </div>
@@ -79,7 +79,7 @@ export function RewardCard({
           <ul className="space-y-1.5 flex-1 overflow-y-auto">
             {prizes.map((prize, index) => (
               <li key={index} className="flex items-start gap-2">
-                <span className="text-accent text-sm mt-0.5 flex-shrink-0">🎁</span>
+                <span className="text-accent text-sm mt-0.5 shrink-0">🎁</span>
                 <span
                   className={`text-xs font-bold leading-tight ${unlocked ? "text-foreground" : "text-muted-foreground"}`}
                 >
