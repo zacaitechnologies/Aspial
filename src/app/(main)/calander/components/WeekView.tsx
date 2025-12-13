@@ -55,8 +55,8 @@ export function WeekView({
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
 			{/* Header row with day names - fixed position */}
-			<div className="flex border-b-2 border-(--color-border)] flex-shrink-0">
-				<div className="w-16 flex-shrink-0 border-r border-(--color-border)]"></div>
+			<div className="flex border-b-2 border-(--color-border)] shrink-0">
+				<div className="w-16 shrink-0 border-r border-(--color-border)]"></div>
 				<div className="flex-1 grid grid-cols-7">
 					{weekDays.map((date, index) => {
 						const dateString = formatDate(date)
@@ -96,7 +96,7 @@ export function WeekView({
 					return (
 						<div key={slot} className="flex border-b border-(--color-border)] min-h-[60px]">
 							{/* Time label */}
-							<div className="w-16 flex-shrink-0 p-2 text-xs text-(--color-muted-foreground)] font-medium border-r border-(--color-border)] bg-(--color-background)]">
+							<div className="w-16 shrink-0 p-2 text-xs text-(--color-muted-foreground)] font-medium border-r border-(--color-border)] bg-(--color-background)]">
 								{slot}
 							</div>
 							

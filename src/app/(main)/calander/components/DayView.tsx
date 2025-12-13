@@ -147,7 +147,7 @@ export function DayView({
 							className={`flex ${isHourMark ? 'border-t border-(--color-border)]' : 'border-t border-(--color-border)]/30'} min-h-[60px] relative`}
 						>
 							{/* Time Label */}
-							<div className={`w-20 flex-shrink-0 p-2 text-xs ${isHourMark ? 'font-medium' : ''} text-(--color-muted-foreground)] border-r border-(--color-border)]`}>
+							<div className={`w-20 shrink-0 p-2 text-xs ${isHourMark ? 'font-medium' : ''} text-(--color-muted-foreground)] border-r border-(--color-border)]`}>
 								{isHourMark ? slot : ''}
 							</div>
 							
