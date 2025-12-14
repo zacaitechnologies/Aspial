@@ -229,7 +229,7 @@ export async function fetchAllBookings(
 			const isUserBooking = booking.bookedBy === userName
 			const isProjectBooking = bookingWithProject.project && 
 				userProjectIds.includes(bookingWithProject.project.id)
-			
+
 			// Map appointmentType from database to our constant keys
 			const appointmentType = (booking.appointmentType as AppointmentType) || 'OTHERS'
 			const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS

@@ -87,6 +87,7 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(userId || null)
+  const [activeTab, setActiveTab] = useState("clients")
 
   // State from initial data
   const [clients, setClients] = useState<Client[]>(initialData.data)
@@ -222,17 +223,32 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="clients" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="clients" className="flex items-center gap-2">
-              <Building2 className="w-4 h-4" />
-              Client List
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Sales Analytics
-            </TabsTrigger>
-          </TabsList>
+        <Tabs defaultValue="clients" className="w-full" onValueChange={setActiveTab}>
+          <div className="relative">
+            <TabsList className="grid w-full grid-cols-2 bg-transparent border-primary border transition-all duration-300 ease-in-out">
+              <TabsTrigger 
+                value="clients" 
+                className="flex items-center gap-2 transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              >
+                <Building2 className="w-4 h-4" />
+                Client List
+              </TabsTrigger>
+              <TabsTrigger 
+                value="analytics" 
+                className="flex items-center gap-2 transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              >
+                <TrendingUp className="w-4 h-4" />
+                Sales Analytics
+              </TabsTrigger>
+            </TabsList>
+            {/* Sliding indicator */}
+            <div 
+              className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
+                activeTab === "clients" ? "left-1 w-[calc(50%-4px)]" : "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+              }`}
+              style={{ backgroundColor: "#202F21" }}
+            />
+          </div>
 
           <TabsContent value="clients" className="space-y-6">
             {/* Stats Cards */}

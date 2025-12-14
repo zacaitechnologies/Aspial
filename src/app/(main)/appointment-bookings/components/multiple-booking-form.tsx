@@ -121,8 +121,8 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				formData.append("attendees", attendees || "1")
 				
 				// Add project ID
-				if (selectedProject) {
-					formData.append("projectId", selectedProject)
+					if (selectedProject) {
+						formData.append("projectId", selectedProject)
 				}
 
 				formData.append("bookedBy", userName)
@@ -198,27 +198,27 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				</div>
 
 				{/* Project dropdown */}
-				<div className="space-y-2">
-					<Label htmlFor="project">Project (Optional)</Label>
-					{isLoadingProjects ? (
-						<div className="text-sm text-muted-foreground">Loading projects...</div>
-					) : projects.length > 0 ? (
-						<Select value={selectedProject} onValueChange={setSelectedProject}>
-							<SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-								<SelectValue placeholder="Select a project (optional)" />
-							</SelectTrigger>
-							<SelectContent>
-								{projects.map((project) => (
-									<SelectItem key={project.id} value={project.id.toString()}>
-										{project.name}{project.clientName ? ` (${project.clientName})` : ''}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					) : (
-						<div className="text-sm text-muted-foreground">No projects available</div>
-					)}
-				</div>
+					<div className="space-y-2">
+						<Label htmlFor="project">Project (Optional)</Label>
+						{isLoadingProjects ? (
+							<div className="text-sm text-muted-foreground">Loading projects...</div>
+						) : projects.length > 0 ? (
+							<Select value={selectedProject} onValueChange={setSelectedProject}>
+								<SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+									<SelectValue placeholder="Select a project (optional)" />
+								</SelectTrigger>
+								<SelectContent>
+									{projects.map((project) => (
+										<SelectItem key={project.id} value={project.id.toString()}>
+											{project.name}{project.clientName ? ` (${project.clientName})` : ''}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						) : (
+							<div className="text-sm text-muted-foreground">No projects available</div>
+						)}
+					</div>
 
 				<div className="space-y-2">
 					<Label htmlFor="purpose">Purpose</Label>
@@ -231,18 +231,18 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 					/>
 				</div>
 
-				<div className="space-y-2">
-					<Label htmlFor="attendees">Number of Attendees</Label>
-					<Input
-						id="attendees"
-						type="number"
-						value={attendees}
-						onChange={(e) => setAttendees(e.target.value)}
-						required
-						min="1"
+					<div className="space-y-2">
+						<Label htmlFor="attendees">Number of Attendees</Label>
+						<Input
+							id="attendees"
+							type="number"
+							value={attendees}
+							onChange={(e) => setAttendees(e.target.value)}
+							required
+							min="1"
 						placeholder="Number of attendees"
-					/>
-				</div>
+						/>
+					</div>
 
 				<div className="space-y-2">
 					<Label>Selected Time Slots</Label>

@@ -140,27 +140,27 @@ export async function createAppointmentBooking(formData: FormData) {
 		// Check for overlapping bookings if appointment is specified
 		if (appointmentId) {
 			const overlappingBookings = await prisma.appointmentBooking.findMany({
-				where: {
+			where: {
 					appointmentId,
-					status: 'active',
-					AND: [
+				status: 'active',
+				AND: [
 						{ startDate: { lt: endDate } },
 						{ endDate: { gt: startDate } },
-					],
-				},
-				include: {
+				],
+			},
+			include: {
 					appointment: {
 						select: { name: true },
-					},
 				},
-			})
+			},
+		})
 
-			if (overlappingBookings.length > 0) {
-				const booking = overlappingBookings[0]
-				const bookingStart = new Date(booking.startDate).toLocaleString()
-				const bookingEnd = new Date(booking.endDate).toLocaleString()
-				return {
-					success: false,
+		if (overlappingBookings.length > 0) {
+			const booking = overlappingBookings[0]
+			const bookingStart = new Date(booking.startDate).toLocaleString()
+			const bookingEnd = new Date(booking.endDate).toLocaleString()
+			return {
+				success: false,
 					error: `This appointment is already booked from ${bookingStart} to ${bookingEnd} by ${booking.bookedBy}`,
 				}
 			}
@@ -192,18 +192,18 @@ export async function cancelAppointmentBooking(id: number) {
     await prisma.appointmentBooking.update({
       where: { id },
       data: { status: "cancelled" },
-    })
+		})
 
     revalidatePath("/appointment-bookings")
-    return { success: true }
-  } catch (error) {
-    console.error(error)
+		return { success: true }
+	} catch (error) {
+		console.error(error)
     return { success: false, error: "Failed to cancel appointment booking" }
-  }
+	}
 }
-
+  
 export async function getAllAppointments() {
-	try {
+  try {
 		return await prisma.appointmentBooking.findMany({
 			where: {
 				status: 'active'
@@ -215,7 +215,7 @@ export async function getAllAppointments() {
 						name: true,
 						location: true,
 						brand: true
-					}
+  }
 				},
 				project: {
 					select: {
@@ -229,8 +229,35 @@ export async function getAllAppointments() {
 				startDate: 'desc'
 			}
 		})
-	} catch (error) {
+  } catch (error) {
 		console.error('Error fetching appointments:', error)
+		return []
+  }
+}
+
+export async function getAppointmentBookings(appointmentId: number, startDate: Date, endDate: Date) {
+	try {
+		return await prisma.appointmentBooking.findMany({
+			where: {
+				appointmentId,
+				status: 'active',
+				AND: [
+					{ startDate: { lte: endDate } },
+					{ endDate: { gte: startDate } },
+				],
+			},
+			select: {
+				id: true,
+				startDate: true,
+				endDate: true,
+				bookedBy: true,
+			},
+			orderBy: {
+				startDate: 'asc',
+			},
+		})
+	} catch (error) {
+		console.error('Error fetching appointment bookings:', error)
 		return []
 	}
 }

@@ -32,10 +32,10 @@ interface AppointmentBooking {
 	appointmentId: number | null
 	attendees: number | null
 	appointment?: {
-		id: number
-		name: string
+	id: number
+	name: string
 		location: string | null
-		brand: string | null
+	brand: string | null
 	} | null
 	project?: {
 		id: number

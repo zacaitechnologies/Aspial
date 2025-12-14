@@ -84,7 +84,7 @@ export function AppointmentGrid({ appointments, selectedDate, onBookingComplete 
 			</div>
 
 			<Dialog open={!!selectedAppointment} onOpenChange={(open) => !open && setSelectedAppointment(null)}>
-				<DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+				<DialogContent className="!max-w-[98vw] sm:!max-w-[98vw] !w-[98vw] max-h-[90vh] overflow-y-auto p-6">
 					<DialogTitle>
 						Book {selectedAppointment?.name}
 					</DialogTitle>

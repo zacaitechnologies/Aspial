@@ -1,17 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react"
-import { format, addDays, startOfWeek, addHours, startOfDay, isBefore, isSameDay } from "date-fns"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { Loader2, ChevronLeft, ChevronRight, CalendarIcon } from "lucide-react"
+import { format, addDays, startOfWeek, addHours, startOfDay, isBefore, isSameDay, endOfWeek } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
-import { createAppointmentBooking, getUserProjects } from "@/app/(main)/appointment-bookings/actions"
-import { useEffect } from "react"
+import { createAppointmentBooking, getUserProjects, getAppointmentBookings } from "@/app/(main)/appointment-bookings/actions"
 
 interface Appointment {
 	id: number
@@ -30,6 +31,13 @@ interface WeeklyCalendarBookingProps {
 	onSuccess: () => void
 }
 
+interface BookingSlot {
+	id: number
+	startDate: Date
+	endDate: Date
+	bookedBy: string
+}
+
 export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuccess }: WeeklyCalendarBookingProps) {
 	const { enhancedUser } = useSession()
 	const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(initialDate, { weekStartsOn: 1 }))
@@ -41,6 +49,9 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 	const [selectedProject, setSelectedProject] = useState<string>("none")
 	const [isLoadingProjects, setIsLoadingProjects] = useState(true)
 	const [error, setError] = useState<string | null>(null)
+	const [existingBookings, setExistingBookings] = useState<BookingSlot[]>([])
+	const [isLoadingBookings, setIsLoadingBookings] = useState(false)
+	const [calendarOpen, setCalendarOpen] = useState(false)
 
 	useEffect(() => {
 		const fetchProjects = async () => {
@@ -55,6 +66,28 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 		}
 		fetchProjects()
 	}, [enhancedUser?.id])
+
+	// Fetch bookings when week changes
+	useEffect(() => {
+		const fetchBookings = async () => {
+			if (appointment.id) {
+				setIsLoadingBookings(true)
+				const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+				const bookings = await getAppointmentBookings(
+					appointment.id,
+					currentWeekStart,
+					weekEnd
+				)
+				setExistingBookings(bookings.map(b => ({
+					...b,
+					startDate: new Date(b.startDate),
+					endDate: new Date(b.endDate),
+				})))
+				setIsLoadingBookings(false)
+			}
+		}
+		fetchBookings()
+	}, [appointment.id, currentWeekStart])
 
 	const userName = enhancedUser.profile 
 		? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim() 
@@ -90,11 +123,42 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 		return isBefore(slotStart, new Date())
 	}
 
+	const isSlotBooked = (day: Date, hour: number) => {
+		const slotStart = addHours(startOfDay(day), hour)
+		const slotEnd = addHours(slotStart, 1)
+		
+		return existingBookings.some(booking => {
+			const bookingStart = new Date(booking.startDate)
+			const bookingEnd = new Date(booking.endDate)
+			// Check if slot overlaps with booking
+			return slotStart < bookingEnd && slotEnd > bookingStart
+		})
+	}
+
+	const getSlotBookingOwner = (day: Date, hour: number): string | null => {
+		const slotStart = addHours(startOfDay(day), hour)
+		const slotEnd = addHours(slotStart, 1)
+		
+		const booking = existingBookings.find(booking => {
+			const bookingStart = new Date(booking.startDate)
+			const bookingEnd = new Date(booking.endDate)
+			// Check if slot overlaps with booking
+			return slotStart < bookingEnd && slotEnd > bookingStart
+		})
+		
+		return booking ? booking.bookedBy : null
+	}
+
+	const isSlotBookedByUser = (day: Date, hour: number) => {
+		const owner = getSlotBookingOwner(day, hour)
+		return owner === userName
+	}
+
 	const toggleSlot = (day: Date, hour: number) => {
 		const slotStart = addHours(startOfDay(day), hour)
 		const slotEnd = addHours(slotStart, 1)
 
-		if (isSlotPast(day, hour)) return
+		if (isSlotPast(day, hour) || isSlotBooked(day, hour)) return
 
 		setSelectedSlots(prev => {
 			const exists = prev.some(slot => slot.start.getTime() === slotStart.getTime())
@@ -182,7 +246,7 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 			)}
 
 			{/* Week Navigation */}
-			<div className="flex items-center justify-between">
+			<div className="flex items-center justify-between flex-wrap gap-2">
 				<Button
 					variant="outline"
 					size="sm"
@@ -191,9 +255,42 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 					<ChevronLeft className="w-4 h-4" />
 					Previous Week
 				</Button>
-				<div className="text-sm font-medium">
-					{format(weekDays[0], "MMM d")} - {format(weekDays[6], "MMM d, yyyy")}
+				
+				<div className="flex items-center gap-2">
+					<Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+						<PopoverTrigger asChild>
+							<Button
+								variant="outline"
+								className="justify-start text-left font-normal min-w-[240px]"
+							>
+								<CalendarIcon className="mr-2 h-4 w-4" />
+								{format(weekDays[0], "MMM d")} - {format(weekDays[6], "MMM d, yyyy")}
+							</Button>
+						</PopoverTrigger>
+						<PopoverContent className="w-auto p-0" align="start">
+							<Calendar
+								mode="single"
+								selected={currentWeekStart}
+								onSelect={(date) => {
+									if (date) {
+										setCurrentWeekStart(startOfWeek(date, { weekStartsOn: 1 }))
+										setCalendarOpen(false)
+									}
+								}}
+								initialFocus
+							/>
+						</PopoverContent>
+					</Popover>
+					
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+					>
+						Today
+					</Button>
 				</div>
+				
 				<Button
 					variant="outline"
 					size="sm"
@@ -204,17 +301,47 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 				</Button>
 			</div>
 
+			{/* Legend */}
+			<div className="flex items-center gap-4 text-xs bg-gray-50 p-3 rounded-md border flex-wrap">
+				{isLoadingBookings && (
+					<div className="flex items-center gap-2 text-muted-foreground">
+						<Loader2 className="w-3 h-3 animate-spin" />
+						<span>Loading bookings...</span>
+					</div>
+				)}
+				<div className="flex items-center gap-2">
+					<div className="w-4 h-4 bg-primary rounded"></div>
+					<span>Selected</span>
+				</div>
+				<div className="flex items-center gap-2">
+					<div className="w-4 h-4 bg-green-500 rounded"></div>
+					<span>Your Booking</span>
+				</div>
+				<div className="flex items-center gap-2">
+					<div className="w-4 h-4 bg-red-500 rounded"></div>
+					<span>Booked by Others</span>
+				</div>
+				<div className="flex items-center gap-2">
+					<div className="w-4 h-4 bg-gray-300 border border-gray-400 rounded opacity-60"></div>
+					<span>Past</span>
+				</div>
+				<div className="flex items-center gap-2">
+					<div className="w-4 h-4 bg-white border-2 border-gray-400 rounded"></div>
+					<span>Available</span>
+				</div>
+			</div>
+
 			{/* Weekly Calendar Grid */}
 			<div className="border rounded-lg overflow-x-auto">
-				<div className="min-w-[800px]">
+				<div className="min-w-full">
 					{/* Header - Days of Week */}
 					<div className="grid grid-cols-8 border-b">
-						<div className="p-2 text-sm font-medium text-center">Time</div>
+						<div className="p-3 text-sm font-medium text-center border-r">Time</div>
 						{weekDays.map((day, idx) => (
 							<div
 								key={idx}
 								className={cn(
-									"p-2 text-sm font-medium text-center",
+									"p-3 text-sm font-medium text-center border-r last:border-r-0",
 									isSameDay(day, new Date()) && "bg-primary/10"
 								)}
 							>
@@ -227,25 +354,38 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 					{/* Time Slots */}
 					{timeSlots.map((hour) => (
 						<div key={hour} className="grid grid-cols-8 border-b last:border-b-0">
-							<div className="p-2 text-xs text-center border-r font-medium">
+							<div className="p-3 text-xs text-center border-r font-medium bg-gray-50">
 								{`${hour}:00`}
 							</div>
 							{weekDays.map((day, idx) => {
 								const isSelected = isSlotSelected(day, hour)
 								const isPast = isSlotPast(day, hour)
+								const isBooked = isSlotBooked(day, hour)
+								const isBookedByUser = isSlotBookedByUser(day, hour)
 
 								return (
 									<button
 										key={idx}
 										type="button"
-										disabled={isPast}
+										disabled={isPast || (isBooked && !isBookedByUser)}
 										onClick={() => toggleSlot(day, hour)}
 										className={cn(
-											"p-2 text-xs border-r last:border-r-0 transition-colors",
-											isSelected && "bg-primary text-white",
-											!isSelected && !isPast && "hover:bg-muted",
-											isPast && "opacity-30 cursor-not-allowed bg-gray-50"
+											"p-3 text-xs border-r last:border-r-0 transition-colors min-h-[40px]",
+											isSelected && "bg-primary text-white hover:bg-primary/90",
+											!isSelected && !isPast && !isBooked && "hover:bg-muted bg-white border-2 border-gray-200",
+											isPast && "opacity-60 cursor-not-allowed bg-gray-300 border border-gray-400",
+											isBookedByUser && "bg-green-500 text-white cursor-not-allowed",
+											isBooked && !isBookedByUser && "bg-red-500 cursor-not-allowed opacity-80"
 										)}
+										title={
+											isBookedByUser 
+												? `Booked by you (${getSlotBookingOwner(day, hour)})`
+												: isBooked 
+													? `Booked by ${getSlotBookingOwner(day, hour)}`
+													: isPast
+														? "Past time slot"
+														: "Available"
+										}
 									>
 										{isSelected && "✓"}
 									</button>
