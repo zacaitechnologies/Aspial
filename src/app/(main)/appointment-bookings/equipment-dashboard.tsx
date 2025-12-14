@@ -220,7 +220,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
   return (
     <Tabs defaultValue="appointment-booking" className="w-full" onValueChange={setActiveTab}>
       <div className="relative">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} bg-transparent border-primary border-1 transition-all duration-300 ease-in-out`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} bg-transparent border-primary border transition-all duration-300 ease-in-out`}>
           <TabsTrigger 
             value="appointment-booking" 
             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"

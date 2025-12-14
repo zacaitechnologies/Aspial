@@ -267,7 +267,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
                       </CardTitle>
                       <div className="flex items-center gap-2">{getStatusBadge(project.status)}</div>
                     </div>
-                    <div className="flex space-x-1 flex-shrink-0">
+                    <div className="flex space-x-1 shrink-0">
                       <Link href={`/projects/${project.id}`}>
                         <Button variant="ghost" size="sm" title="View Project">
                           <Info className="w-4 h-4" />
