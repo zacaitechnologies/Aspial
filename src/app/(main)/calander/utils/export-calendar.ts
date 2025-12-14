@@ -1,5 +1,6 @@
 import * as XLSX from '@e965/xlsx'
 import { CalendarBooking } from '../actions'
+import { APPOINTMENT_TYPES } from '../constants'
 
 interface ExportOptions {
 	bookings: CalendarBooking[]
@@ -55,6 +56,8 @@ export function exportCalendarToExcel(options: ExportOptions): void {
 		// Prepare data for Excel
 		const excelData = sortedBookings.map((booking) => {
 			const bookingDate = new Date(booking.date)
+			const appointmentTypeLabel = APPOINTMENT_TYPES[booking.appointmentType]?.label || 'Others'
+			
 			return {
 				'Date': bookingDate.toLocaleDateString('en-US', {
 					year: 'numeric',
@@ -62,7 +65,7 @@ export function exportCalendarToExcel(options: ExportOptions): void {
 					day: 'numeric',
 				}),
 				'Day': bookingDate.toLocaleDateString('en-US', { weekday: 'short' }),
-				'Type': booking.type.charAt(0).toUpperCase() + booking.type.slice(1),
+				'Appointment Type': appointmentTypeLabel,
 				'Title': booking.title,
 				'Description': booking.description || '',
 				'Start Time': booking.startTime,
@@ -97,7 +100,7 @@ export function exportCalendarToExcel(options: ExportOptions): void {
 		worksheet['!cols'] = [
 			{ wch: 12 }, // Date
 			{ wch: 8 },  // Day
-			{ wch: 12 }, // Type
+			{ wch: 18 }, // Appointment Type
 			{ wch: 30 }, // Title
 			{ wch: 40 }, // Description
 			{ wch: 12 }, // Start Time

@@ -52,8 +52,8 @@ const mainNavItems = [
     icon: Receipt,
   },
   {
-    title: "Equipment Bookings",
-    url: "/equipment-bookings",
+    title: "Appointment Bookings",
+    url: "/appointment-bookings",
     icon: CalendarClockIcon,
   },
   {
@@ -117,12 +117,12 @@ export function AppSidebar() {
   }, [enhancedUser?.id]);
 
   return (
-    <Sidebar className="border-r border-[var(--color-sidebar-border)] bg-[#f0e8d8]">
+    <Sidebar className="border-r border-(--color-sidebar-border) bg-[#f0e8d8]">
       <SidebarHeader className="p-0 bg-[#f0e8d8]">
         <div className="flex items-center w-full h-18 px-4 pt-0 pb-0">
           {" "}
           {/* px-4 to match nav items */}
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             {" "}
             {/* Prevent logo from shrinking */}
             <Image
@@ -139,7 +139,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="overflow-hidden bg-[#f0e8d8]">
-        <div className="mx-2 my-0 border-t border-[var(--color-accent)]" />
+        <div className="mx-2 my-0 border-t border-(--color-accent)" />
         <SidebarGroup className="pt-0">
           <SidebarGroupLabel className="text-slate-600 font-medium">
             CRM
@@ -194,7 +194,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-slate-200 overflow-visible bg-[#f0e8d8]">
-        <div className="mx-0 my-0 border-t border-[var(--color-accent)]" />
+        <div className="mx-0 my-0 border-t border-(--color-accent)" />
         <SidebarMenu>
           <SidebarMenuItem className="overflow-visible">
             <SidebarMenuButton 
@@ -203,12 +203,12 @@ export function AppSidebar() {
               className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border overflow-visible"
             >
               <Link href="/notification" className="flex items-center gap-3 relative overflow-visible w-full">
-                <Bell className="w-5 h-5 flex-shrink-0" />
+                <Bell className="w-5 h-5 shrink-0" />
                 <span className="flex-1">Notifications</span>
                 {pendingInvitationsCount > 0 && (
                   <Badge 
                     variant="destructive" 
-                    className="h-5 min-w-[1.25rem] rounded-full px-1.5 flex items-center justify-center text-xs flex-shrink-0"
+                    className="h-5 min-w-5 rounded-full px-1.5 flex items-center justify-center text-xs shrink-0"
                   >
                     {pendingInvitationsCount > 99 ? '99+' : pendingInvitationsCount}
                   </Badge>

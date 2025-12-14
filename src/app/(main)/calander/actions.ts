@@ -3,34 +3,23 @@
 import { unstable_noStore } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { getAllUserTasks } from "../projects/task-actions"
+import { APPOINTMENT_TYPES, type AppointmentType } from "./constants"
 
-interface EquipmentBooking {
+interface AppointmentBooking {
 	id: number
-	equipmentId: number
-	equipment: {
+	appointmentId: number | null
+	appointment: {
 		name: string
-		type: string
-	}
+		location: string | null
+		brand: string | null
+	} | null
 	bookedBy: string
 	startDate: Date
 	endDate: Date
 	purpose: string | null
+	attendees: number | null
 	status: string
-}
-
-interface StudioBooking {
-	id: number
-	studioId: number
-	studio: {
-		name: string
-		location: string
-	}
-	bookedBy: string
-	startDate: Date
-	endDate: Date
-	purpose: string | null
-	attendees: number
-	status: string
+	appointmentType: string
 }
 
 export interface CalendarBooking {
@@ -40,7 +29,8 @@ export interface CalendarBooking {
 	date: string
 	startTime: string
 	endTime: string
-	type: "equipment" | "studio" | "task"
+	type: "appointment" | "task"
+	appointmentType: AppointmentType
 	location: string
 	attendees: number
 	color: string
@@ -59,8 +49,7 @@ export interface CalendarBooking {
 }
 
 const bookingTypes = {
-	equipment: { color: "bg-blue-500", label: "Equipment" },
-	studio: { color: "bg-purple-500", label: "Studio" },
+	appointment: { color: "bg-blue-500", label: "Appointment" },
 	task: { color: "bg-yellow-500", label: "Task" },
 }
 
@@ -177,7 +166,7 @@ export async function fetchAllBookings(
 	userId: string,
 	userName: string
 ): Promise<CalendarBooking[]> {
-	// Prevent caching to ensure real-time equipment booking data
+	// Prevent caching to ensure real-time appointment booking data
 	unstable_noStore()
 	
 	try {
@@ -194,104 +183,33 @@ export async function fetchAllBookings(
 		const userProjectIds = await getUserProjectIds(userId)
 		console.log('User project IDs:', userProjectIds)
 
-		// Fetch equipment bookings with project info - always fetch fresh data
-		const equipmentBookings = await prisma.booking.findMany({
-			where: {
-				status: 'active'
-			},
-			include: {
-				equipment: {
-					select: {
-						name: true,
-						type: true
-					}
-				},
-				project: {
-					select: {
-						id: true,
-						name: true,
-						clientName: true
-					}
-				}
-			}
-		}) as unknown as (EquipmentBooking & { project?: { id: number; name: string; clientName: string | null } })[]
-
-		// Fetch studio bookings with project info
-		const studioBookings = await prisma.studioBooking.findMany({
-			where: {
-				status: 'active'
-			},
-			include: {
-				studio: {
-					select: {
-						name: true,
-						location: true
-					}
-				},
-				project: {
-					select: {
-						id: true,
-						name: true,
-						clientName: true
-					}
-				}
-			}
-		}) as unknown as (StudioBooking & { project?: { id: number; name: string; clientName: string | null } })[]
-
 		const calendarBookings: CalendarBooking[] = []
 
-		// Transform equipment bookings - Filter for staff users
-		equipmentBookings.forEach((booking) => {
-			const bookingWithProject = booking as any
-			// If user is staff (not admin), only show:
-			// 1. Their own bookings, OR
-			// 2. Bookings for projects they're part of
-			if (!isAdmin) {
-				const isUserBooking = booking.bookedBy === userName
-				const isProjectBooking = bookingWithProject.project && 
-					userProjectIds.includes(bookingWithProject.project.id)
-				
-				if (!isUserBooking && !isProjectBooking) {
-					return
+		// Fetch unified appointment bookings with project info
+		const appointmentBookings = await prisma.appointmentBooking.findMany({
+			where: {
+				status: 'active'
+			},
+			include: {
+				appointment: {
+					select: {
+						name: true,
+						location: true,
+						brand: true
+					}
+				},
+				project: {
+					select: {
+						id: true,
+						name: true,
+						clientName: true
+					}
 				}
 			}
-
-			const startDate = new Date(booking.startDate)
-			const endDate = new Date(booking.endDate)
-			const isUserBooking = booking.bookedBy === userName
-			const isProjectBooking = bookingWithProject.project && 
-				userProjectIds.includes(bookingWithProject.project.id)
-
-			calendarBookings.push({
-				id: `equipment-${booking.id}`,
-				title: `${booking.equipment.name} - ${booking.bookedBy}`,
-				description: booking.purpose || `Equipment booking by ${booking.bookedBy}`,
-				date: startDate.toISOString().split('T')[0],
-				startTime: startDate.toTimeString().slice(0, 5),
-				endTime: endDate.toTimeString().slice(0, 5),
-				type: "equipment",
-				location: `${booking.equipment.type} Equipment`,
-				attendees: 1,
-				color: bookingTypes.equipment.color,
-				projectId: bookingWithProject.project?.id,
-				projectName: bookingWithProject.project?.name || null,
-				clientName: bookingWithProject.project?.clientName || null,
-				creatorName: booking.bookedBy || null,
-				assigneeName: null,
-				taskStartDate: null,
-				taskDueDate: null,
-				isUserBooking: isUserBooking,
-				isTeamBooking: isProjectBooking && !isUserBooking,
-				originalData: {
-					...booking,
-					startDate: startDate.toISOString(),
-					endDate: endDate.toISOString()
-				}
-			})
 		})
 
-		// Transform studio bookings - Filter for staff users
-		studioBookings.forEach((booking) => {
+		// Transform unified appointment bookings - Filter for staff users
+		appointmentBookings.forEach((booking) => {
 			const bookingWithProject = booking as any
 			// If user is staff (not admin), only show:
 			// 1. Their own bookings, OR
@@ -311,18 +229,32 @@ export async function fetchAllBookings(
 			const isUserBooking = booking.bookedBy === userName
 			const isProjectBooking = bookingWithProject.project && 
 				userProjectIds.includes(bookingWithProject.project.id)
+			
+			// Map appointmentType from database to our constant keys
+			const appointmentType = (booking.appointmentType as AppointmentType) || 'OTHERS'
+			const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS
+
+			// Determine the title and location based on what's attached
+			let title = `Appointment - ${booking.bookedBy}`
+			let location = 'Unspecified'
+			
+			if (booking.appointment) {
+				title = `${booking.appointment.name} - ${booking.bookedBy}`
+				location = booking.appointment.location || booking.appointment.brand || 'Appointment'
+			}
 
 			calendarBookings.push({
-				id: `studio-${booking.id}`,
-				title: `${booking.studio.name} - ${booking.bookedBy}`,
-				description: booking.purpose || `Studio booking by ${booking.bookedBy}`,
+				id: `appointment-${booking.id}`,
+				title: title,
+				description: booking.purpose || `Appointment by ${booking.bookedBy}`,
 				date: startDate.toISOString().split('T')[0],
 				startTime: startDate.toTimeString().slice(0, 5),
 				endTime: endDate.toTimeString().slice(0, 5),
-				type: "studio",
-				location: booking.studio.location,
-				attendees: booking.attendees,
-				color: bookingTypes.studio.color,
+				type: "appointment",
+				appointmentType: appointmentType,
+				location: location,
+				attendees: booking.attendees || 1,
+				color: appointmentConfig.color,
 				projectId: bookingWithProject.project?.id,
 				projectName: bookingWithProject.project?.name || null,
 				clientName: bookingWithProject.project?.clientName || null,
@@ -394,9 +326,10 @@ export async function fetchAllBookings(
 						startTime: "00:00",
 						endTime: "23:59",
 						type: "task",
+						appointmentType: 'OTHERS', // Tasks map to OTHERS appointment type
 						location: task.project?.name || 'Unknown Project',
 						attendees: 1,
-						color: isOverdue ? "bg-red-600" : bookingTypes.task.color,
+						color: isOverdue ? "bg-red-600" : APPOINTMENT_TYPES.OTHERS.color,
 						projectId: task.project?.id,
 						projectName: task.project?.name || null,
 						clientName: clientName,
@@ -426,9 +359,10 @@ export async function fetchAllBookings(
 							startTime: "00:00",
 							endTime: "23:59",
 							type: "task",
+							appointmentType: 'OTHERS', // Tasks map to OTHERS appointment type
 							location: task.project?.name || 'Unknown Project',
 							attendees: 1,
-							color: isOverdue ? "bg-red-600" : bookingTypes.task.color,
+							color: isOverdue ? "bg-red-600" : APPOINTMENT_TYPES.OTHERS.color,
 							projectId: task.project?.id,
 							projectName: task.project?.name || null,
 							clientName: clientName,

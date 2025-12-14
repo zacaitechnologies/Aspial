@@ -1,6 +1,7 @@
 "use client"
 
 import { CalendarBooking } from "@/app/(main)/calander/actions"
+import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
@@ -21,12 +22,7 @@ export function BookingDetailsDialog({
 }: BookingDetailsDialogProps) {
   if (!booking) return null
 
-  const getTypeLabel = () => {
-    if (booking.type === "equipment") return "Equipment"
-    if (booking.type === "studio") return "Studio"
-    if (booking.type === "task") return "Task"
-    return "Booking"
-  }
+  const appointmentTypeLabel = APPOINTMENT_TYPES[booking.appointmentType]?.label || 'Others'
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -40,7 +36,7 @@ export function BookingDetailsDialog({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <Badge variant="secondary" className={booking.color}>
-              {getTypeLabel()}
+              {appointmentTypeLabel}
             </Badge>
           </div>
 

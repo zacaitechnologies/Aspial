@@ -13,8 +13,7 @@ interface DayViewProps {
 }
 
 const bookingTypeLabels = {
-	equipment: 'Equipment',
-	studio: 'Studio',
+	appointment: 'Appointment',
 	task: 'Task'
 }
 

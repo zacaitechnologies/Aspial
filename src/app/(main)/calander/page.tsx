@@ -15,16 +15,11 @@ import { WeekView } from "./components/WeekView"
 import { DayView } from "./components/DayView"
 import { useSession } from "../contexts/SessionProvider"
 import { fetchAllBookings, CalendarBooking, getUserProjects, checkIsAdmin } from "./actions"
+import { APPOINTMENT_TYPES } from "./constants"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { CalendarView, getWeekDays } from "./utils/calendar-utils"
-
-
-const bookingTypes = {
-	equipment: { color: "bg-blue-500", label: "Equipment" },
-	studio: { color: "bg-purple-500", label: "Studio" },
-	task: { color: "bg-yellow-500", label: "Task" },
-}
+import type { AppointmentType } from "./constants"
 
 export default function OrganizationCalendar() {
 	const { enhancedUser } = useSession()
@@ -120,8 +115,8 @@ export default function OrganizationCalendar() {
       // Filter by date
       if (booking.date !== date) return false
       
-      // Filter by type
-      if (filterType !== "all" && booking.type !== filterType) return false
+      // Filter by appointment type
+      if (filterType !== "all" && booking.appointmentType !== filterType) return false
       
       // Filter by bookmark scope (only for non-admin users)
       if (!isAdmin) {
@@ -135,8 +130,8 @@ export default function OrganizationCalendar() {
         if (booking.projectId !== projectId) return false
       }
       
-      // Filter by task ownership (only for tasks)
-      if (booking.type === "task" && taskOwnershipFilter !== "all") {
+      // Filter by task ownership (only for tasks mapped to OTHERS)
+      if (booking.appointmentType === "OTHERS" && booking.type === "task" && taskOwnershipFilter !== "all") {
         if (taskOwnershipFilter === "my") {
           // Show tasks assigned to the current user or created by them
           if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
@@ -201,8 +196,8 @@ export default function OrganizationCalendar() {
       // Don't show past bookings
       if (bookingDate < today) return false
       
-      // Apply other filters
-      if (filterType !== "all" && booking.type !== filterType) return false
+      // Apply other filters using appointment type
+      if (filterType !== "all" && booking.appointmentType !== filterType) return false
       if (!isAdmin) {
         if (bookmarkScope === "own" && !booking.isUserBooking) return false
         if (bookmarkScope === "team" && !booking.isTeamBooking) return false
@@ -211,7 +206,7 @@ export default function OrganizationCalendar() {
         const projectId = parseInt(selectedProject)
         if (booking.projectId !== projectId) return false
       }
-      if (booking.type === "task" && taskOwnershipFilter !== "all") {
+      if (booking.appointmentType === "OTHERS" && booking.type === "task" && taskOwnershipFilter !== "all") {
         if (taskOwnershipFilter === "my") {
           if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
             return false
@@ -291,15 +286,17 @@ export default function OrganizationCalendar() {
             {isMounted && (
               <div className="flex items-center gap-4">
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-48">
                     <Filter className="w-4 h-4 mr-2" />
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="equipment">Equipment</SelectItem>
-                    <SelectItem value="studio">Studio</SelectItem>
-                    <SelectItem value="task">Tasks</SelectItem>
+                    <SelectItem value="all">All Appointments</SelectItem>
+                    {Object.entries(APPOINTMENT_TYPES).map(([key, config]) => (
+                      <SelectItem key={key} value={key}>
+                        {config.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
@@ -349,10 +346,10 @@ export default function OrganizationCalendar() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            {Object.entries(bookingTypes).map(([type, config]) => {
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            {Object.entries(APPOINTMENT_TYPES).map(([appointmentKey, config]) => {
               const count = isLoading ? 0 : bookings.filter((b) => {
-                if (b.type !== type) return false
+                if (b.appointmentType !== appointmentKey) return false
                 if (!isAdmin) {
                   if (bookmarkScope === "own" && !b.isUserBooking) return false
                   if (bookmarkScope === "team" && !b.isTeamBooking) return false
@@ -361,8 +358,8 @@ export default function OrganizationCalendar() {
                   const projectId = parseInt(selectedProject)
                   if (b.projectId !== projectId) return false
                 }
-                // Filter by task ownership (only for tasks)
-                if (b.type === "task" && taskOwnershipFilter !== "all") {
+                // Filter by task ownership (only for OTHERS/tasks)
+                if (b.appointmentType === "OTHERS" && b.type === "task" && taskOwnershipFilter !== "all") {
                   if (taskOwnershipFilter === "my") {
                     if (b.assigneeId !== enhancedUser?.id && b.creatorId !== enhancedUser?.id) {
                       return false
@@ -377,13 +374,13 @@ export default function OrganizationCalendar() {
               }).length
               return (
                 <Card
-                  key={type}
+                  key={appointmentKey}
                   className="bg-(--color-card)] border-(--color-border)]"
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-(--color-muted-foreground)]">{config.label}s</p>
+                        <p className="text-sm text-(--color-muted-foreground)]">{config.label}</p>
                         <p className={`text-2xl font-bold text-(--color-foreground)] ${isLoading ? 'animate-pulse' : ''}`}>
                           {isLoading ? '...' : count}
                         </p>
@@ -467,7 +464,7 @@ export default function OrganizationCalendar() {
                   <WeekView
                     currentDate={currentDate}
                     bookings={bookings.filter((booking) => {
-                      if (filterType !== "all" && booking.type !== filterType) return false
+                      if (filterType !== "all" && booking.appointmentType !== filterType) return false
                       if (!isAdmin) {
                         if (bookmarkScope === "own" && !booking.isUserBooking) return false
                         if (bookmarkScope === "team" && !booking.isTeamBooking) return false
@@ -476,7 +473,7 @@ export default function OrganizationCalendar() {
                         const projectId = parseInt(selectedProject)
                         if (booking.projectId !== projectId) return false
                       }
-                      if (booking.type === "task" && taskOwnershipFilter !== "all") {
+                      if (booking.appointmentType === "OTHERS" && booking.type === "task" && taskOwnershipFilter !== "all") {
                         if (taskOwnershipFilter === "my") {
                           if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
                             return false
@@ -509,7 +506,7 @@ export default function OrganizationCalendar() {
                   <DayView
                     currentDate={currentDate}
                     bookings={bookings.filter((booking) => {
-                      if (filterType !== "all" && booking.type !== filterType) return false
+                      if (filterType !== "all" && booking.appointmentType !== filterType) return false
                       if (!isAdmin) {
                         if (bookmarkScope === "own" && !booking.isUserBooking) return false
                         if (bookmarkScope === "team" && !booking.isTeamBooking) return false
@@ -518,7 +515,7 @@ export default function OrganizationCalendar() {
                         const projectId = parseInt(selectedProject)
                         if (booking.projectId !== projectId) return false
                       }
-                      if (booking.type === "task" && taskOwnershipFilter !== "all") {
+                      if (booking.appointmentType === "OTHERS" && booking.type === "task" && taskOwnershipFilter !== "all") {
                         if (taskOwnershipFilter === "my") {
                           if (booking.assigneeId !== enhancedUser?.id && booking.creatorId !== enhancedUser?.id) {
                             return false
@@ -610,7 +607,7 @@ export default function OrganizationCalendar() {
                           </div>
                         </div>
                         <Badge variant="secondary" className={`${booking.color} text-white`}>
-                          {bookingTypes[booking.type].label}
+                          {APPOINTMENT_TYPES[booking.appointmentType]?.label || 'Others'}
                         </Badge>
                       </div>
                     </div>

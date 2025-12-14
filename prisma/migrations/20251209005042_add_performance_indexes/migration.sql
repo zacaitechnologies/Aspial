@@ -4,7 +4,7 @@
   - Added the required column `createdById` to the `clients` table without a default value. This is not possible if the table is not empty.
 
 */
-image.png-- AlterTable: Add createdById as nullable first
+-- AlterTable: Add createdById as nullable first
 ALTER TABLE "clients" ADD COLUMN     "createdById" TEXT;
 
 -- Set default value for existing rows (use first user's id)

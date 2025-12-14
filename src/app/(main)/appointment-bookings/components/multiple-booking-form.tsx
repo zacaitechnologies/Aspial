@@ -7,28 +7,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createBooking, createStudioBooking, getUserProjects } from "@/app/(main)/equipment-bookings/actions"
+import { createAppointmentBooking, getUserProjects } from "@/app/(main)/appointment-bookings/actions"
+import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
 import { format } from "date-fns"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 
-interface Equipment {
+interface Appointment {
   id: number
   name: string
-  type: string
+  location: string | null
   brand: string | null
-  model: string | null
-  serialNumber: string | null
-  condition: string
-  isAvailable: boolean
-}
-
-interface Studio {
-  id: number
-  name: string
-  location: string
-  capacity: number
   description: string | null
-  isActive: boolean
+  appointmentType: string
+  isAvailable: boolean
 }
 
 interface Project {
@@ -39,27 +30,27 @@ interface Project {
 }
 
 interface MultipleBookingFormProps {
-	item: Equipment | Studio
+	item: Appointment
 	slots: { start: Date; end: Date }[]
-	isStudio: boolean
 	onClose: () => void
 	onSuccess?: () => void
 }
 
-export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess }: MultipleBookingFormProps) {
+export function MultipleBookingForm({ item, slots, onClose, onSuccess }: MultipleBookingFormProps) {
 	const { enhancedUser } = useSession()
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [purpose, setPurpose] = useState("")
 	const [attendees, setAttendees] = useState("")
 	const [projects, setProjects] = useState<Project[]>([])
 	const [selectedProject, setSelectedProject] = useState<string>("")
+	const [appointmentType, setAppointmentType] = useState<string>("OTHERS")
 	const [isLoadingProjects, setIsLoadingProjects] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 
-	// Fetch user's accessible projects (only for equipment bookings)
+	// Fetch user's accessible projects
 	useEffect(() => {
 		const fetchProjects = async () => {
-			if (enhancedUser?.id && !isStudio) {
+			if (enhancedUser?.id) {
 				setIsLoadingProjects(true)
 				const userProjects = await getUserProjects(enhancedUser.id)
 				setProjects(userProjects as Project[])
@@ -69,7 +60,7 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 			}
 		}
 		fetchProjects()
-	}, [enhancedUser?.id, isStudio])
+	}, [enhancedUser?.id])
 
   // Get user name from session
   const userName = enhancedUser.profile 
@@ -126,15 +117,12 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 			for (const group of slotGroups) {
 				const formData = new FormData()
 
-				if (isStudio) {
-					formData.append("studioId", item.id.toString())
-					formData.append("attendees", attendees)
-				} else {
-					formData.append("equipmentId", item.id.toString())
-					// Add project ID for equipment bookings
-					if (selectedProject) {
-						formData.append("projectId", selectedProject)
-					}
+				formData.append("appointmentId", item.id.toString())
+				formData.append("attendees", attendees || "1")
+				
+				// Add project ID
+				if (selectedProject) {
+					formData.append("projectId", selectedProject)
 				}
 
 				formData.append("bookedBy", userName)
@@ -142,13 +130,9 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 				formData.append("startDate", group[0].start.toISOString())
 				formData.append("endDate", group[group.length - 1].end.toISOString())
 				formData.append("purpose", purpose)
+				formData.append("appointmentType", appointmentType)
 
-				let result
-				if (isStudio) {
-					result = await createStudioBooking(formData)
-				} else {
-					result = await createBooking(formData)
-				}
+				const result = await createAppointmentBooking(formData)
 
 				// Check if booking creation failed
 				if (!result.success) {
@@ -172,7 +156,7 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
     <div className="w-full max-w-md border rounded-lg p-6">
       <div className="mb-4">
         <h3 className="text-lg font-semibold">
-          Book {isStudio ? 'Studio' : 'Equipment'}: {item.name}
+          Book Appointment: {item.name}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           {slots.length} slot{slots.length > 1 ? 's' : ''} selected ({durationText}) - {slotGroups.length} booking{slotGroups.length > 1 ? 's' : ''} will be created
@@ -196,30 +180,45 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 					/>
 				</div>
 
-				{/* Project dropdown - only for equipment bookings */}
-				{!isStudio && (
-					<div className="space-y-2">
-						<Label htmlFor="project">Project (Optional)</Label>
-						{isLoadingProjects ? (
-							<div className="text-sm text-muted-foreground">Loading projects...</div>
-						) : projects.length > 0 ? (
-							<Select value={selectedProject} onValueChange={setSelectedProject}>
-								<SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-									<SelectValue placeholder="Select a project (optional)" />
-								</SelectTrigger>
-								<SelectContent>
-									{projects.map((project) => (
-										<SelectItem key={project.id} value={project.id.toString()}>
-											{project.name}{project.clientName ? ` (${project.clientName})` : ''}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						) : (
-							<div className="text-sm text-muted-foreground">No projects available</div>
-						)}
-					</div>
-				)}
+				{/* Appointment Type selector */}
+				<div className="space-y-2">
+					<Label htmlFor="appointmentType">Appointment Type</Label>
+					<Select value={appointmentType} onValueChange={setAppointmentType}>
+						<SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+							<SelectValue placeholder="Select appointment type" />
+						</SelectTrigger>
+						<SelectContent>
+							{Object.entries(APPOINTMENT_TYPES).map(([key, config]) => (
+								<SelectItem key={key} value={key}>
+									{config.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+
+				{/* Project dropdown */}
+				<div className="space-y-2">
+					<Label htmlFor="project">Project (Optional)</Label>
+					{isLoadingProjects ? (
+						<div className="text-sm text-muted-foreground">Loading projects...</div>
+					) : projects.length > 0 ? (
+						<Select value={selectedProject} onValueChange={setSelectedProject}>
+							<SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+								<SelectValue placeholder="Select a project (optional)" />
+							</SelectTrigger>
+							<SelectContent>
+								{projects.map((project) => (
+									<SelectItem key={project.id} value={project.id.toString()}>
+										{project.name}{project.clientName ? ` (${project.clientName})` : ''}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					) : (
+						<div className="text-sm text-muted-foreground">No projects available</div>
+					)}
+				</div>
 
 				<div className="space-y-2">
 					<Label htmlFor="purpose">Purpose</Label>
@@ -232,21 +231,18 @@ export function MultipleBookingForm({ item, slots, isStudio, onClose, onSuccess 
 					/>
 				</div>
 
-				{isStudio && (
-					<div className="space-y-2">
-						<Label htmlFor="attendees">Number of Attendees</Label>
-						<Input
-							id="attendees"
-							type="number"
-							value={attendees}
-							onChange={(e) => setAttendees(e.target.value)}
-							required
-							min="1"
-							max={(item as Studio).capacity}
-							placeholder={`Max: ${(item as Studio).capacity}`}
-						/>
-					</div>
-				)}
+				<div className="space-y-2">
+					<Label htmlFor="attendees">Number of Attendees</Label>
+					<Input
+						id="attendees"
+						type="number"
+						value={attendees}
+						onChange={(e) => setAttendees(e.target.value)}
+						required
+						min="1"
+						placeholder="Number of attendees"
+					/>
+				</div>
 
 				<div className="space-y-2">
 					<Label>Selected Time Slots</Label>

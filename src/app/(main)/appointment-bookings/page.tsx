@@ -9,33 +9,18 @@ import { unstable_noStore } from "next/cache"
 import { redirect } from "next/navigation"
 
 // Internal functions - not cached, used by cached versions
-async function _getStudiosInternal() {
-	return await prisma.studio.findMany({
-		include: {
-			bookings: {
-				where: {
-					status: "active"
-				},
-				include: {
-					project: {
-						select: {
-							id: true,
-							name: true,
-							clientName: true,
-						}
-					}
-				}
-			}
-		},
-		orderBy: {
-			createdAt: "desc",
-		},
-	})
-}
-
-async function _getEquipmentInternal() {
-	return await prisma.equipment.findMany({
-		include: {
+async function _getAppointmentsInternal() {
+	return await prisma.appointment.findMany({
+		select: {
+			id: true,
+			name: true,
+			location: true,
+			brand: true,
+			description: true,
+			appointmentType: true,
+			isAvailable: true,
+			createdAt: true,
+			updatedAt: true,
 			bookings: {
 				where: {
 					status: "active"
@@ -91,17 +76,45 @@ async function _getUserProjectIdsInternal(userId: string) {
 	return uniqueProjectIds
 }
 
-// Cached versions
-async function getStudios() {
-	// Disable server-side caching for real-time data
-	unstable_noStore()
-	return await _getStudiosInternal()
+async function _getBookingsInternal() {
+	return await prisma.appointmentBooking.findMany({
+		where: {
+			status: "active"
+		},
+		include: {
+			appointment: {
+				select: {
+					id: true,
+					name: true,
+					location: true,
+					brand: true
+				}
+			},
+			project: {
+				select: {
+					id: true,
+					name: true,
+					clientName: true,
+				}
+			}
+		},
+		orderBy: {
+			createdAt: "desc",
+		},
+	})
 }
 
-async function getEquipment() {
+// Cached versions
+async function getAppointments() {
 	// Disable server-side caching for real-time data
 	unstable_noStore()
-	return await _getEquipmentInternal()
+	return await _getAppointmentsInternal()
+}
+
+async function getBookings() {
+	// Disable server-side caching for real-time data
+	unstable_noStore()
+	return await _getBookingsInternal()
 }
 
 // Cannot cache this - it uses cookies/auth which is dynamic
@@ -149,9 +162,9 @@ async function getUserProjectIds(userId: string) {
 }
 
 export default async function AdminPage() {
-	const [studios, equipment, userData] = await Promise.all([
-		getStudios(), 
-		getEquipment(), 
+	const [appointments, bookings, userData] = await Promise.all([
+		getAppointments(), 
+		getBookings(),
 		getUserWithRole()
 	])
 
@@ -161,8 +174,8 @@ export default async function AdminPage() {
 		<div className="container mx-auto p-6">
 			<Suspense fallback={<div>Loading...</div>}>
 				<BookingDashboardWrapper 
-					studios={studios} 
-					equipment={equipment} 
+					appointments={appointments}
+					bookings={bookings}
 					isAdmin={userData.isAdmin}
 					userProjectIds={userProjectIds}
 				/>

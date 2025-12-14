@@ -15,14 +15,12 @@ interface DateEventsDialogProps {
 }
 
 const eventTypeColors = {
-  equipment: "bg-blue-500",
-  studio: "bg-purple-500", 
+  appointment: "bg-blue-500",
   task: "bg-red-500"
 }
 
 const eventTypeLabels = {
-  equipment: "Equipment",
-  studio: "Studio",
+  appointment: "Appointment",
   task: "Task"
 }
 

@@ -35,7 +35,7 @@ export function AppHeader() {
         { path: "/services", title: "Services" },
         { path: "/quotations", title: "Quotations" },
         { path: "/projects", title: "Projects" },
-        { path: "/equipment-bookings", title: "Equipment Bookings" },
+        { path: "/appointment-bookings", title: "Appointment Bookings" },
         { path: "/calander", title: "Calendar" },
         { path: "/time-tracking", title: "Time Tracking" },
         { path: "/clients", title: "Clients" },
