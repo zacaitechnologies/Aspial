@@ -170,11 +170,22 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
 
   const showEmptyState = !projects.length && loading;
 
+  // Determine role display text
+  const getRoleText = () => {
+    const isAdmin = enhancedUser?.profile?.userRoles?.some(ur => ur.role.slug === 'admin');
+    if (isAdmin) {
+      return ', our Admin';
+    } else if (enhancedUser?.profile?.staffRole?.roleName) {
+      return `, our ${enhancedUser.profile.staffRole.roleName}`;
+    }
+    return '';
+  };
+
   return (
     <div className="relative">
       <div className="container mx-auto p-4">
         <p className="text-primary text-xl font-semibold">
-          Hi, {enhancedUser?.profile?.firstName}. Welcome Back!
+          Hi, {enhancedUser?.profile?.firstName}{getRoleText()}! Welcome Back!
         </p>
         <p className="text-sm font-light text-primary">
           Last Updated: {latestUpdatedTime ? format(latestUpdatedTime, "dd/MM/yyyy, h:mm:ss a") : "No projects"}

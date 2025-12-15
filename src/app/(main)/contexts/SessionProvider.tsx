@@ -16,6 +16,15 @@ interface UserProfile {
   profilePicture: string | null;
   created_at: Date;
   updated_at: Date;
+  staffRole?: {
+    id: string;
+    roleName: string;
+  } | null;
+  userRoles?: {
+    role: {
+      slug: string;
+    };
+  }[];
 }
 
 interface EnhancedUser extends User {

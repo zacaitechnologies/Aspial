@@ -63,7 +63,22 @@ export default async function Layout({
         supabase_id: true,
         profilePicture: true,
         created_at: true,
-        updated_at: true
+        updated_at: true,
+        staffRole: {
+          select: {
+            id: true,
+            roleName: true
+          }
+        },
+        userRoles: {
+          select: {
+            role: {
+              select: {
+                slug: true
+              }
+            }
+          }
+        }
       }
     });
   } catch (profileError) {
