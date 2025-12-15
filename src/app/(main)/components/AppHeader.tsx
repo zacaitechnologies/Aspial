@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Bell } from "lucide-react"
+import { useState, useEffect, useTransition } from "react"
+import { Bell, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { usePathname, useRouter } from "next/navigation"
@@ -23,6 +23,7 @@ export function AppHeader() {
     const pathname = usePathname();
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
+    const [isPending, startTransition] = useTransition();
 
     // Prevent hydration mismatch by only rendering dropdown after mount
     useEffect(() => {
@@ -97,10 +98,19 @@ export function AppHeader() {
                   Profile
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => {
-                  clearAllCachesOnLogout()
-                  signout()
-                }}>Log out</DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    clearAllCachesOnLogout()
+                    startTransition(async () => {
+                      await signout()
+                    })
+                  }}
+                  disabled={isPending}
+                  className="flex items-center gap-2"
+                >
+                  {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Log out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
