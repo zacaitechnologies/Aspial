@@ -18,6 +18,15 @@ export async function getProjectTasks(projectId: number): Promise<TaskWithAssign
           supabase_id: true,
         },
       },
+      assignee: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+        },
+      },
       milestone: {
         select: {
           id: true,
@@ -39,6 +48,15 @@ export async function getTask(taskId: number): Promise<TaskWithAssignee | null> 
     where: { id: taskId },
     include: {
       creator: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+        },
+      },
+      assignee: {
         select: {
           id: true,
           firstName: true,
@@ -179,6 +197,15 @@ export async function updateTaskStatus(taskId: number, status: string): Promise<
           supabase_id: true,
         },
       },
+      assignee: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+        },
+      },
       milestone: {
         select: {
           id: true,
@@ -218,6 +245,15 @@ export async function getTasksByStatus(projectId: number, status: string): Promi
     },
     include: {
       creator: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+        },
+      },
+      assignee: {
         select: {
           id: true,
           firstName: true,

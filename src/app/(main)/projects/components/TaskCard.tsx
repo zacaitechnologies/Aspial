@@ -107,6 +107,11 @@ export function TaskCard({
                 {task.description}
               </p>
             )}
+            {task.assignee && (
+              <p className="text-sm text-muted-foreground">
+                Assigned to: {task.assignee.firstName} {task.assignee.lastName}
+              </p>
+            )}
           </div>
           {!isProjectCancelled ? (
             <DropdownMenu>
@@ -207,6 +212,9 @@ export function TaskCard({
 
         {task.creator && (
           <div className="flex items-center gap-2 pt-1">
+            <span className="text-xs text-muted-foreground">
+              Created by:
+            </span>
             <Avatar className="w-6 h-6">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                 {task.creator.firstName.charAt(0)}

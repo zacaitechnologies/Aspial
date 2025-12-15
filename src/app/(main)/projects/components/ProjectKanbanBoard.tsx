@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, User, Target, ChevronDown, ClipboardList } from "lucide-react";
@@ -35,6 +35,7 @@ interface KanbanBoardProps {
   isProjectCancelled?: boolean;
   taskFilter?: "all" | "my";
   userId?: string;
+  onTasksUpdated?: () => void; // Callback to refresh taskStats in parent
 }
 
 export function KanbanBoard({
@@ -46,33 +47,59 @@ export function KanbanBoard({
   isProjectCancelled = false,
   taskFilter = "all",
   userId,
+  onTasksUpdated,
 }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TaskWithAssignee[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Always fetch fresh tasks (no caching) - real-time data
+  const fetchData = useCallback(async () => {
+    try {
+      const [projectTasks, collaborators, projectMilestones] =
+        await Promise.all([
+          getProjectTasks(parseInt(projectId)),
+          getProjectCollaborators(parseInt(projectId)),
+          getProjectMilestones(parseInt(projectId)),
+        ]);
+      setTasks(projectTasks);
+      setUsers(collaborators);
+      setMilestones(projectMilestones);
+      // Notify parent to refresh taskStats
+      onTasksUpdated?.();
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, onTasksUpdated]);
+
+  // Fetch fresh data on mount
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [projectTasks, collaborators, projectMilestones] =
-          await Promise.all([
-            getProjectTasks(parseInt(projectId)),
-            getProjectCollaborators(parseInt(projectId)),
-            getProjectMilestones(parseInt(projectId)),
-          ]);
-        setTasks(projectTasks);
-        setUsers(collaborators);
-        setMilestones(projectMilestones);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
+    fetchData();
+  }, [fetchData]);
+
+  // Refresh tasks when tab becomes visible (real-time updates)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData();
       }
     };
 
-    fetchData();
-  }, [projectId]);
+    const handleFocus = () => {
+      fetchData();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchData]);
 
   // Refresh all data function
   const refreshData = async () => {
@@ -86,6 +113,8 @@ export function KanbanBoard({
       setTasks(projectTasks);
       setUsers(collaborators);
       setMilestones(projectMilestones);
+      // Notify parent to refresh taskStats
+      onTasksUpdated?.();
     } catch (error) {
       console.error("Error fetching data:", error);
     }

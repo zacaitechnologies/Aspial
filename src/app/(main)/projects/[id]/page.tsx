@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { ProjectWithQuotation } from "../types";
 import { getProjectComplaints, reactivateProject } from "../action";
@@ -118,6 +118,16 @@ export default function ProjectPage() {
         setActiveTab(tabFromUrl);
       }
     }, [searchParams]);
+
+  // Refresh project data (including taskStats) when tasks tab becomes active - always show real-time data
+  const prevActiveTabRef = useRef<"overview" | "tasks" | "complaints" | "contracts" | null>(null);
+  useEffect(() => {
+    // Only refresh when switching TO the tasks tab (not when already on tasks tab)
+    if (activeTab === "tasks" && prevActiveTabRef.current !== "tasks" && project?.id) {
+      onRefresh();
+    }
+    prevActiveTabRef.current = activeTab;
+  }, [activeTab, project?.id, onRefresh]);
 
   const handleManageCollaborators = () => {
     setIsCollaboratorsOpen(true);
@@ -468,7 +478,6 @@ export default function ProjectPage() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm">
                       <User className="w-4 h-4 text-black" />
-                      <span>hahahaha</span>
                       <span className="text-black">
                         Client Name:
                       </span>
@@ -756,6 +765,7 @@ export default function ProjectPage() {
               isProjectCancelled={isProjectCancelled}
               taskFilter={taskFilter}
               userId={enhancedUser?.id}
+              onTasksUpdated={onRefresh}
             />
           </>
         )}

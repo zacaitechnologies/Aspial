@@ -312,7 +312,7 @@ export function TaskForm({
       description: task?.description || "",
       priority: task?.priority || "low",
       milestoneId: task?.milestoneId?.toString() || "none",
-      assigneeId: task?.assigneeId || "unassigned",
+      assigneeId: task?.assigneeId ?? "unassigned",
       startDate: task?.startDate
         ? new Date(task.startDate).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0],
@@ -341,7 +341,7 @@ export function TaskForm({
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
         creatorId: enhancedUser.id,
-        assigneeId: data.assigneeId === "unassigned" ? undefined : data.assigneeId,
+        assigneeId: data.assigneeId === "unassigned" ? null : data.assigneeId,
         milestoneId: data.milestoneId === "none" ? null : data.milestoneId ? parseInt(data.milestoneId) : null,
       };
 
