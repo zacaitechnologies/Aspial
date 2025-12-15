@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Trash2, Search, Plus, Loader2, Filter } from "lucide-react";
+import { Edit, Trash2, Search, Plus, Loader2, Filter, Image as ImageIcon, Download, FileText, ExternalLink } from "lucide-react";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -165,6 +166,48 @@ export default function ServicesList({
     setFilteredServices(services);
   };
 
+  const handleDownloadImage = async (fileUrl: string, serviceName: string) => {
+    try {
+      // Fetch the file as a blob
+      const response = await fetch(fileUrl)
+      if (!response.ok) {
+        throw new Error("Failed to fetch file")
+      }
+      
+      const blob = await response.blob()
+      
+      // Get file extension from URL or default to jpg
+      const urlParts = fileUrl.split('.')
+      const extension = urlParts.length > 1 ? urlParts[urlParts.length - 1].split('?')[0] : 'jpg'
+      
+      // Create a temporary URL for the blob
+      const blobUrl = window.URL.createObjectURL(blob)
+      
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = `${serviceName.replace(/\s+/g, '-')}-file.${extension}`
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(blobUrl)
+      
+      toast({
+        title: "Success",
+        description: "File downloaded successfully",
+      })
+    } catch (error) {
+      console.error("Error downloading file:", error)
+      toast({
+        title: "Error",
+        description: "Failed to download file. Please try again.",
+        variant: "destructive",
+      })
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Section */}
@@ -269,31 +312,84 @@ export default function ServicesList({
                       </Badge>
                     </div>
                   </div>
-                  {isAdmin && (
-                    <div className="flex space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditService(service)}
-                        title="Edit Service"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteService(service.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        title="Delete Service"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {/* Document/Image buttons - shown to all users if file exists */}
+                    {service.imageUrl && (
+                      <>
+                        {service.imageUrl.toLowerCase().endsWith('.pdf') ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => window.open(service.imageUrl!, '_blank')}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              title="View PDF"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadImage(service.imageUrl!, service.name)}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              title="Download PDF"
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownloadImage(service.imageUrl!, service.name)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="Download image"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </>
+                    )}
+                    {/* Admin buttons */}
+                    {isAdmin && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditService(service)}
+                          title="Edit Service"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteService(service.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          title="Delete Service"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
 
               <CardContent>
+                {/* Service Image - only show images, not PDFs */}
+                {service.imageUrl && !service.imageUrl.toLowerCase().endsWith('.pdf') && (
+                  <div className="mb-4 rounded-lg overflow-hidden border border-gray-200 relative group">
+                    <Image
+                      src={service.imageUrl}
+                      alt={service.name}
+                      width={600}
+                      height={300}
+                      className="w-full h-48 object-cover"
+                    />
+                  </div>
+                )}
+
                 <p className="text-sm text-muted-foreground mb-3">
                   {service.description}
                 </p>

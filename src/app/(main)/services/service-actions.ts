@@ -2,7 +2,10 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
+import { createClient } from "@/utils/supabase/server"
 import { CreateServiceData, UpdateServiceData, CreateServiceTagData, UpdateServiceTagData, Service, ServiceTag } from "./types"
+
+const SERVICE_IMAGES_BUCKET = "service"
 
 // Helper function to transform Prisma service data to match our Service type
 function transformService(service: any): Service {
@@ -113,11 +116,12 @@ export async function createService(data: CreateServiceData): Promise<Service> {
     throw new Error("Unauthorized: Admin access required")
   }
 
-  const { tagIds, ...serviceData } = data
+  const { tagIds, imageUrl, ...serviceData } = data
   
   const service = await prisma.services.create({
     data: {
       ...serviceData,
+      imageUrl: imageUrl || null,
       ServiceToTag: tagIds && tagIds.length > 0 ? {
         create: tagIds.map(tagId => ({
           A: tagId  // A is the ServiceTag id in the join table
@@ -172,7 +176,7 @@ export async function updateService(id: number, data: UpdateServiceData): Promis
     throw new Error("Unauthorized: Admin access required")
   }
 
-  const { tagIds, ...serviceData } = data
+  const { tagIds, imageUrl, ...serviceData } = data
   
   // Update the service with new tags
   // First delete all existing tag relations, then create new ones
@@ -180,6 +184,7 @@ export async function updateService(id: number, data: UpdateServiceData): Promis
     where: { id },
     data: {
       ...serviceData,
+      ...(imageUrl !== undefined && { imageUrl: imageUrl || null }),
       ServiceToTag: {
         deleteMany: {}, // Delete all existing tag relations for this service
         create: tagIds && tagIds.length > 0 
@@ -281,5 +286,116 @@ export async function checkIsAdmin(): Promise<boolean> {
   } catch (error) {
     console.error("Error checking admin status:", error)
     return false
+  }
+}
+
+/**
+ * Upload a service image to Supabase storage
+ */
+export async function uploadServiceImage(
+  serviceId: number,
+  formData: FormData
+): Promise<{ success: boolean; error?: string; imageUrl?: string }> {
+  try {
+    const isAdmin = await checkIsAdmin()
+    if (!isAdmin) {
+      return { success: false, error: "Unauthorized: Admin access required" }
+    }
+
+    const supabase = await createClient()
+    const { data: { user: supabaseUser }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !supabaseUser) {
+      return { success: false, error: "User not authenticated. Please log in again." }
+    }
+
+    const user = await getCachedUser()
+    if (!user) {
+      return { success: false, error: "User not found in database" }
+    }
+
+    if (user.id !== supabaseUser.id) {
+      return { success: false, error: "User ID mismatch" }
+    }
+
+    const file = formData.get("file") as File
+    if (!file) {
+      return { success: false, error: "No file provided" }
+    }
+
+    // Validate file type - accept images and PDFs
+    const allowedImageTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    const isImage = allowedImageTypes.includes(file.type)
+    const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+    
+    if (!isImage && !isPDF) {
+      return { success: false, error: "Invalid file type. Only JPEG, PNG, GIF, WebP images, or PDF files are allowed." }
+    }
+
+    // Validate file size (5MB limit)
+    const maxSize = 5 * 1024 * 1024 // 5MB
+    if (file.size > maxSize) {
+      return { success: false, error: "File size exceeds 5MB limit" }
+    }
+
+    // Generate unique filename: service-{serviceId}-{timestamp}.{ext}
+    const fileExtension = file.name.split('.').pop() || (file.type === "application/pdf" ? "pdf" : "jpg")
+    const timestamp = Date.now()
+    const fileName = `service-${serviceId}-${timestamp}.${fileExtension}`
+
+    // Upload file to Supabase storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(SERVICE_IMAGES_BUCKET)
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      })
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError)
+      if (uploadError.message.includes("Bucket not found")) {
+        return {
+          success: false,
+          error: `Bucket '${SERVICE_IMAGES_BUCKET}' not found. Please create it in Supabase Dashboard > Storage.`
+        }
+      }
+      return { success: false, error: `Failed to upload image: ${uploadError.message}` }
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from(SERVICE_IMAGES_BUCKET)
+      .getPublicUrl(fileName)
+
+    const publicUrl = urlData.publicUrl
+
+    // If service already has an image, delete the old one
+    const existingService = await prisma.services.findUnique({
+      where: { id: serviceId },
+      select: { imageUrl: true }
+    })
+
+    if (existingService?.imageUrl) {
+      // Extract filename from URL
+      const oldFileName = existingService.imageUrl.split('/').pop()?.split('?')[0]
+      if (oldFileName) {
+        // Delete old file (best effort, don't fail if it doesn't exist)
+        await supabase.storage
+          .from(SERVICE_IMAGES_BUCKET)
+          .remove([oldFileName])
+          .catch(err => console.warn("Failed to delete old image:", err))
+      }
+    }
+
+    // Update service with new image URL
+    await prisma.services.update({
+      where: { id: serviceId },
+      data: { imageUrl: publicUrl }
+    })
+
+    return { success: true, imageUrl: publicUrl }
+  } catch (error: any) {
+    console.error("Error uploading service image:", error)
+    return { success: false, error: error.message || "Failed to upload image" }
   }
 }

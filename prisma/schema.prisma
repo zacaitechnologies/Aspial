@@ -86,6 +86,7 @@ model Services {
   name         String
   description  String
   basePrice    Float
+  imageUrl     String?
   created_at   DateTime           @default(now())
   updated_at   DateTime           @default(now())
   ServiceToTag ServiceToTag[]

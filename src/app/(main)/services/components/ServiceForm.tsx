@@ -8,10 +8,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X, DollarSign, Tag, FileText, Loader2 } from "lucide-react"
+import { Plus, X, DollarSign, Tag, FileText, Loader2, Image as ImageIcon, Upload } from "lucide-react"
+import Image from "next/image"
 import { 
   createService, 
-  updateService
+  updateService,
+  uploadServiceImage
 } from "../service-actions"
 import { 
   Service, 
@@ -31,11 +33,16 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
   const { serviceTags } = useServicesCacheContext()
   const [isOpen, setIsOpen] = useState(!!service) // Auto-open if editing
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [formData, setFormData] = useState<CreateServiceData>({
     name: "",
     description: "",
     basePrice: 0,
+    imageUrl: null,
     tagIds: []
   })
 
@@ -48,9 +55,11 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
         name: service.name,
         description: service.description,
         basePrice: service.basePrice,
+        imageUrl: service.imageUrl || null,
         tagIds: service.tags?.map(tag => tag.id) || []
       })
       setSelectedTagIds(service.tags?.map(tag => tag.id) || [])
+      setImagePreview(service.imageUrl || null)
     }
   }, [service])
 
@@ -60,16 +69,34 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
     
     setIsSubmitting(true)
     try {
+      let serviceId: number
+      
       if (isEditing && service) {
-        await updateService(service.id, {
+        const updated = await updateService(service.id, {
           ...formData,
           tagIds: selectedTagIds
         })
+        serviceId = updated.id
       } else {
-        await createService({
+        const created = await createService({
           ...formData,
           tagIds: selectedTagIds
         })
+        serviceId = created.id
+      }
+
+      // Upload image if a new file was selected
+      if (imageFile && serviceId) {
+        setIsUploadingImage(true)
+        const uploadFormData = new FormData()
+        uploadFormData.append("file", imageFile)
+        
+        const uploadResult = await uploadServiceImage(serviceId, uploadFormData)
+        if (!uploadResult.success) {
+          console.error("Error uploading image:", uploadResult.error)
+          // Don't fail the whole operation, just log the error
+        }
+        setIsUploadingImage(false)
       }
       
       setIsOpen(false)
@@ -79,7 +106,76 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
       console.error("Error saving service:", error)
     } finally {
       setIsSubmitting(false)
+      setIsUploadingImage(false)
     }
+  }
+
+  const validateAndSetImage = (file: File) => {
+    // Validate file type - accept images and PDFs
+    const isImage = file.type.startsWith("image/")
+    const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+    
+    if (!isImage && !isPDF) {
+      alert("Please select an image file or PDF")
+      return false
+    }
+    
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size must be less than 5MB")
+      return false
+    }
+
+    setImageFile(file)
+    
+    // Create preview only for images
+    if (isImage) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      // For PDFs, show a placeholder preview
+      setImagePreview(null)
+    }
+    return true
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      validateAndSetImage(file)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      validateAndSetImage(file)
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setImageFile(null)
+    setImagePreview(null)
+    setFormData({ ...formData, imageUrl: null })
   }
 
   const resetForm = () => {
@@ -87,9 +183,12 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
       name: "",
       description: "",
       basePrice: 0,
+      imageUrl: null,
       tagIds: []
     })
     setSelectedTagIds([])
+    setImagePreview(null)
+    setImageFile(null)
   }
 
   const toggleTag = (tagId: number) => {
@@ -194,6 +293,94 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
                 className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 resize-none"
               />
             </div>
+
+            {/* Image/File Upload Section */}
+            <div className="space-y-2">
+              <Label htmlFor="serviceImage" className="text-sm font-medium flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-gray-500" />
+                Service Image / Document
+              </Label>
+              <div className="space-y-3">
+                {imagePreview ? (
+                  <div className="relative inline-block w-full">
+                    <Image
+                      src={imagePreview}
+                      alt="Service preview"
+                      width={600}
+                      height={192}
+                      className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-colors shadow-md"
+                      title="Remove file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : imageFile ? (
+                  <div className="relative inline-block w-full">
+                    <div className="w-full h-48 flex items-center justify-center rounded-lg border border-gray-300 bg-gray-50">
+                      <div className="text-center space-y-2">
+                        <FileText className="w-12 h-12 text-gray-400 mx-auto" />
+                        <p className="text-sm font-medium text-gray-700">{imageFile.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {(imageFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 hover:bg-red-600 transition-colors shadow-md"
+                      title="Remove file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`
+                      border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200
+                      ${isDragging 
+                        ? 'border-blue-500 bg-blue-50 scale-[1.02]' 
+                        : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                      }
+                      cursor-pointer
+                    `}
+                    onClick={() => document.getElementById('serviceImage')?.click()}
+                  >
+                    <input
+                      id="serviceImage"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                    <div className="flex flex-col items-center gap-3">
+                      <div className={`
+                        w-16 h-16 rounded-full flex items-center justify-center transition-colors
+                        ${isDragging ? 'bg-blue-100' : 'bg-gray-100'}
+                      `}>
+                        <Upload className={`w-8 h-8 ${isDragging ? 'text-blue-600' : 'text-gray-400'}`} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className={`text-sm font-medium ${isDragging ? 'text-blue-600' : 'text-gray-700'}`}>
+                          {isDragging ? 'Drop file here' : 'Click to upload or drag and drop'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          PNG, JPG, GIF, WebP or PDF (max 5MB)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Tags Section */}
@@ -274,12 +461,12 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
               type="submit" 
               className="text-white px-6"
               style={{ backgroundColor: "#202F21" }}
-              disabled={!formData.name.trim() || formData.basePrice <= 0 || isSubmitting}
+              disabled={!formData.name.trim() || formData.basePrice <= 0 || isSubmitting || isUploadingImage}
             >
-              {isSubmitting ? (
+              {(isSubmitting || isUploadingImage) ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {isEditing ? "Updating..." : "Creating..."}
+                  {isUploadingImage ? "Uploading image..." : isEditing ? "Updating..." : "Creating..."}
                 </>
               ) : isEditing ? (
                 "Update Service"

@@ -12,6 +12,7 @@ export type Service = {
   name: string;
   description: string;
   basePrice: number;
+  imageUrl?: string | null;
   created_at: Date;
   updated_at: Date;
   tags?: ServiceTag[];
@@ -21,6 +22,7 @@ export type CreateServiceData = {
   name: string;
   description: string;
   basePrice: number;
+  imageUrl?: string | null;
   tagIds?: number[];
 };
 
@@ -28,6 +30,7 @@ export type UpdateServiceData = {
   name?: string;
   description?: string;
   basePrice?: number;
+  imageUrl?: string | null;
   tagIds?: number[];
 };
 
