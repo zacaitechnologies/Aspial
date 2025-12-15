@@ -36,8 +36,8 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, di
                 <div className="w-4 h-4 rounded-full bg-blue-500" />
                 <div className="text-left">
                   <div className="font-medium">{selectedProject.name}</div>
-                  {selectedProject.description && (
-                    <div className="text-xs text-muted-foreground">{selectedProject.description}</div>
+                  {selectedProject.clientName && (
+                    <div className="text-xs text-muted-foreground">{selectedProject.clientName}</div>
                   )}
                 </div>
               </div>
@@ -63,7 +63,7 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, di
                 }}
               >
                 <div className="flex items-center gap-3 w-full">
-                  <div className="w-4 h-4 rounded-full flex-shrink-0 bg-blue-500" />
+                  <div className="w-4 h-4 rounded-full shrink-0 bg-blue-500" />
                   <div className="text-left flex-1">
                     <div className="font-medium">{project.name}</div>
                     {project.description && (
