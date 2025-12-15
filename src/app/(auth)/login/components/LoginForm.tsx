@@ -66,17 +66,14 @@ export function LoginForm({
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-medium text-gray-700">
-                    Email
-                  </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Enter your email"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                      placeholder="Username"
+                      className="w-full px-4 py-3 bg-white/95 text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white placeholder:text-gray-500"
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage />
+                  <FormMessage className="text-white/90" />
                 </FormItem>
               )}
             />
@@ -86,33 +83,32 @@ export function LoginForm({
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-medium text-gray-700">
-                    Password
-                  </FormLabel>
                   <FormControl>
                     <PasswordInput
-                      placeholder="Enter your password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                      placeholder="Password"
+                      className="w-full px-4 py-3 bg-white/95 text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white placeholder:text-gray-500"
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage />
+                  <FormMessage className="text-white/90" />
                 </FormItem>
               )}
             />
 
-            <LoadingButton 
-              loading={isPending} 
-              type="submit"
-              className="w-full text-white py-2 px-4 rounded-md font-medium"
-            >
-              Sign In
-            </LoadingButton>
+            <div className="flex justify-center">
+              <LoadingButton 
+                loading={isPending} 
+                type="submit"
+                className="px-10 py-6 text-lg font-semibold bg-white/95 text-gray-900 hover:bg-white transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-gray-200 uppercase"
+              >
+                LOGIN
+              </LoadingButton>
+            </div>
 
             <div className="text-center">
               <Link
                 href="/forgot-password"
-                className="text-sm text-gray-600 hover:text-gray-800 underline"
+                className="text-sm text-white/80 hover:text-white underline transition-colors"
               >
                 Forgot password?
               </Link>

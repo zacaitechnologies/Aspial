@@ -4,6 +4,8 @@ import Image from "next/image"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
+import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
 
 import { LoginForm } from "./LoginForm"
 
@@ -13,6 +15,7 @@ export default function LoginPageContent() {
   const code = searchParams.get("code")
   const message = searchParams.get("message")
   const [showMessage, setShowMessage] = useState(false)
+  const [showLogin, setShowLogin] = useState(false)
 
   useEffect(() => {
     if (code) {
@@ -28,69 +31,111 @@ export default function LoginPageContent() {
     }
   }, [code, message, router])
 
+  const handleGetStarted = () => {
+    setShowLogin(true)
+  }
+
+  const handleBack = () => {
+    setShowLogin(false)
+  }
+
   return (
     <div 
-      className="min-h-screen relative"
+      className="min-h-screen relative flex items-center justify-center"
       style={{
-        backgroundImage: "url('/images/LoginBackground.png')",
+        backgroundImage: "url('/images/homebackground.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat"
       }}
     >
-      {/* Login Form - Left Side */}
-      <div className="absolute left-0 top-5 bottom-5 w-1/3 flex items-center justify-center p-0">
-        <div className="w-full max-w-sm space-y-8 rounded-lg p-8">
-          {showMessage && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-6">
-              <p className="text-green-800 text-sm">{message}</p>
-            </div>
-          )}
-
-          {/* Welcome Text */}
-          <div className="text-center">
-            <h1 className="text-4xl font-bold mb-8 text-brand">
-              Welcome back!
-            </h1>
-          </div>
-
+      {/* Landing Page */}
+      {!showLogin && (
+        <div className="flex flex-col items-center justify-center space-y-8 opacity-0 animate-fade-in-up">
           {/* Logo */}
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-6 opacity-0 animate-fade-in" style={{ animationDelay: '0.1s' }}>
             <Image
-              src="/images/logoPng.png"
-              alt="Aspial Production"
-              width={200}
-              height={60}
+              src="/images/mainlogo.png"
+              alt="ASPIAL SINCE 2003"
+              width={400}
+              height={150}
               className="object-contain"
+              priority
             />
           </div>
 
-          {/* Login Form */}
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold text-brand mb-2">
-                Log In
-              </h2>
-              <p className="text-brand-light text-sm font-bold">
-                Please enter your details.
+          {/* Slogan */}
+          <div className="text-center space-y-6 px-4">
+            <p className="text-2xl md:text-3xl text-white font-medium max-w-3xl opacity-0 animate-fade-in-down" style={{ animationDelay: '0.2s' }}>
+              We don't build brands. We build futures together.
+            </p>
+          </div>
+
+          {/* Start Now Button */}
+          <div className="opacity-0 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+            <Button
+              onClick={handleGetStarted}
+              size="lg"
+              className="px-10 py-6 text-lg font-semibold bg-white/95 text-gray-900 hover:bg-white transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-gray-200"
+            >
+              START NOW
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Login Form */}
+      {showLogin && (
+        <div className="w-full max-w-md px-6 opacity-0 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          {/* Back Button */}
+          <div className="mb-4 opacity-0 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+            <Button
+              onClick={handleBack}
+              variant="ghost"
+              size="sm"
+              className="text-white hover:text-white/80 hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          </div>
+
+          {/* Login Content - No Card Background */}
+          <div className="space-y-8">
+            {showMessage && (
+              <div className="bg-green-50/90 border border-green-200 rounded-md p-4 mb-6 opacity-0 animate-fade-in backdrop-blur-sm">
+                <p className="text-green-800 text-sm">{message}</p>
+              </div>
+            )}
+
+            {/* Logo */}
+            <div className="flex justify-center mb-6 opacity-0 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+              <Image
+                src="/images/mainlogo.png"
+                alt="ASPIAL SINCE 2003"
+                width={300}
+                height={112}
+                className="object-contain"
+              />
+            </div>
+
+            {/* Welcome Text */}
+            <div className="text-center opacity-0 animate-fade-in-down" style={{ animationDelay: '0.3s' }}>
+              <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">
+                Welcome Back!
+              </h1>
+              <p className="text-lg text-white/90">
+                Let's Login to Your Account
               </p>
             </div>
 
-            <LoginForm />
+            {/* Login Form */}
+            <div className="space-y-6 opacity-0 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+              <LoginForm />
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Studio Image - Floating on Right Side */}
-      <div className="absolute right-5 top-5 bottom-5 rounded-3xl overflow-hidden w-2/3">
-        <Image
-          src="/images/LoginImage-1.png"
-          alt="Photography Studio"
-          fill
-          className="object-cover"
-          priority
-        />
-      </div>
+      )}
     </div>
   )
 } 

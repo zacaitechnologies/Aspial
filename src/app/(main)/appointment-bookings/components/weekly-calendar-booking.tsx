@@ -367,7 +367,7 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 									<button
 										key={idx}
 										type="button"
-										disabled={isPast || (isBooked && !isBookedByUser)}
+										disabled={isPast || isBooked}
 										onClick={() => toggleSlot(day, hour)}
 										className={cn(
 											"p-3 text-xs border-r last:border-r-0 transition-colors min-h-[40px]",
