@@ -541,7 +541,7 @@ export default function EditQuotationForm({
       onOpenChange(open);
     }}>
       <DialogContent
-        className="!w-[85vw] !max-w-[85vw] sm:!max-w-[85vw] max-h-[90vh] rounded-lg overflow-hidden"
+        className="w-[85vw]! max-w-[85vw]! sm:max-w-[85vw]! max-h-[90vh] rounded-lg overflow-hidden"
         showCloseButton={false}
       >
         <div className="custom-scrollbar overflow-y-auto overflow-x-hidden max-h-[calc(90vh-4rem)] pr-2 min-w-0">

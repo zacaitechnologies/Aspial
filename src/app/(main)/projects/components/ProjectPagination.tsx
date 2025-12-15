@@ -82,7 +82,7 @@ export function ProjectPagination({
 				<p className="text-sm text-muted-foreground">
 					Showing <span className="font-medium">{startItem}</span> to{' '}
 					<span className="font-medium">{endItem}</span> of{' '}
-					<span className="font-medium">{total}</span> projects
+					<span className="font-medium">{total}</span> items
 				</p>
 				<div className="flex items-center gap-2">
 					<span className="text-sm text-muted-foreground">Items per page:</span>

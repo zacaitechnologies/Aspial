@@ -152,9 +152,9 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
           </span>
         </div>
 
-        {/* Quotations Grid with Loading Overlay */}
+        {/* Quotations List with Loading Overlay */}
         <div className="relative">
-          <div className={`grid grid-cols-1 lg:grid-cols-2 justify-start gap-6 ${loading ? "opacity-50 pointer-events-none" : ""}`}>
+          <div className={`space-y-2 ${loading ? "opacity-50 pointer-events-none" : ""}`}>
             {quotations.map((quotation) => (
               <QuotationCard
                 key={quotation.id}

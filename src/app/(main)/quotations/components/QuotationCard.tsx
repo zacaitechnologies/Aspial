@@ -18,9 +18,9 @@ import {
   Mail,
   Building2,
   Plus,
-  Info,
   Briefcase,
   Download,
+  MoreVertical,
 } from "lucide-react";
 import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
@@ -43,6 +43,13 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface QuotationCardProps {
   quotation: QuotationWithServices;
@@ -357,185 +364,190 @@ export default function QuotationCard({
   };
 
   return (
-    <Card className="card flex flex-col h-full">
-      <CardHeader>
-        <div className="flex justify-between items-start gap-3">
+    <Card 
+      className="hover:shadow-md transition-shadow duration-200 border-l-2 pt-0 pb-0 cursor-pointer"
+      style={{ borderLeftColor: isFinalQuotation ? '#10b981' : '#3b82f6' }}
+      onClick={() => router.push(`/quotations/${quotation.id}`)}
+    >
+      <CardContent className="p-3">
+        <div className="flex items-center gap-3">
+          {/* Left Section - Main Info */}
           <div className="flex-1 min-w-0">
-            <CardTitle 
-              className={`text-lg line-clamp-2 mb-2 ${isFinalQuotation ? 'text-gray-700' : ''}`}
-              title={quotation.name}
-            >
-              {quotation.name}
-            </CardTitle>
-            <div className="flex items-center gap-2 flex-wrap">
-              {getWorkflowStatusBadge(quotation.workflowStatus)}
-              {getPaymentStatusBadge(quotation.paymentStatus)}
-              {isProjectCancelled && (
-                <Badge variant="destructive" className="bg-red-600">
-                  <AlertTriangle className="w-3 h-3 mr-1" />
-                  Project Cancelled
-                </Badge>
-              )}
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                Grand Total: RM{calculateGrandTotal().toFixed(2)}
-              </Badge>
-            </div>
-          </div>
-          <div className="flex space-x-1 flex-shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push(`/quotations/${quotation.id}`)}
-              className="text-purple-600 hover:text-purple-700"
-              title="View Details"
-            >
-              <Info className="w-4 h-4" />
-            </Button>
-            {isCreator && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={isFinalQuotation ? undefined : () => setIsCustomServiceDialogOpen(true)}
-                disabled={isFinalQuotation}
-                className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : "text-blue-600 hover:text-blue-700"}
-                title={isFinalQuotation ? "Cannot add custom services to final quotations" : "Add Custom Service"}
+            <div className="flex items-center gap-2 mb-1">
+              <CardTitle 
+                className={`text-base font-semibold truncate ${isFinalQuotation ? 'text-gray-700' : 'text-gray-900'}`}
+                title={quotation.name}
               >
-                <Plus className="w-4 h-4" />
-              </Button>
-            )}
-            {isCreator && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onEdit(quotation)}
-                title={
-                  isFinalQuotation
-                    ? "Edit final quotation (limited to payment status only)"
-                    : "Edit Quotation"
-                }
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
-            )}
-
-            {/* Create Project Button - Show for accepted/rejected quotations without project */}
-            {isEditableQuotation && !hasProject && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCreateProject}
-                className="text-green-600 hover:text-green-700"
-                title="Create Project"
-              >
-                <Briefcase className="w-4 h-4" />
-              </Button>
-            )}
-
-            {/* Export PDF Button - Show only for final quotations */}
-            {quotation.workflowStatus === "final" && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => await generateQuotationPDF(quotation)}
-                className="text-blue-600 hover:text-blue-700"
-                title="Export as PDF"
-              >
-                <Download className="w-4 h-4" />
-              </Button>
-            )}
-
-            {isCreator && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={isFinalQuotation ? undefined : () => handleDelete()}
-                disabled={isFinalQuotation}
-                className={isFinalQuotation ? "text-gray-400 cursor-not-allowed" : ""}
-                title={
-                  isFinalQuotation
-                    ? "Cannot delete final quotations"
-                    : hasProject
-                    ? "Delete quotation (will also delete associated project)"
-                    : "Delete quotation"
-                }
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1">
-        {/* Client Information */}
-        {quotation.Client && (
-          <div className="mb-3 p-3 bg-muted/50 rounded-lg">
-            <p className="text-sm font-medium mb-2 flex items-center gap-2">
-              <User className="w-4 h-4" />
-              Client Information
-            </p>
-            <div className="space-y-1 text-sm">
-              <p className="font-medium">{quotation.Client.name}</p>
-              <div className="flex items-center gap-4 text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Mail className="w-3 h-3" />
-                  {quotation.Client.email}
-                </span>
-                {quotation.Client.company && (
-                  <span className="flex items-center gap-1">
-                    <Building2 className="w-3 h-3" />
-                    {quotation.Client.company}
-                  </span>
+                {quotation.name}
+              </CardTitle>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {getWorkflowStatusBadge(quotation.workflowStatus)}
+                {getPaymentStatusBadge(quotation.paymentStatus)}
+                {isProjectCancelled && (
+                  <Badge variant="destructive" className="bg-red-600 text-xs px-1.5 py-0">
+                    <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                    Cancelled
+                  </Badge>
                 )}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Custom Service Status Badges */}
-        {customServices.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Custom Service:</p>
-            <div className="flex flex-wrap gap-2">
-              {customServices.some((cs) => cs.status === "PENDING") && (
-                <Badge className="bg-yellow-500 text-white hover:bg-yellow-600">
-                  {customServices.filter((cs) => cs.status === "PENDING").length}{" "}
-                  Pending
-                </Badge>
+            
+            {/* Client and Metadata - Single Line */}
+            <div className="flex items-center gap-3 text-xs text-gray-600">
+              {quotation.Client && (
+                <>
+                  <div className="flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    <span className="font-medium text-gray-900">{quotation.Client.name}</span>
+                  </div>
+                  <span className="text-gray-400">•</span>
+                </>
               )}
-              {customServices.some((cs) => cs.status === "APPROVED") && (
-                <Badge className="bg-green-600 text-white hover:bg-green-700">
-                  {customServices.filter((cs) => cs.status === "APPROVED").length}{" "}
-                  Approved
-                </Badge>
+              {quotation.discountValue && (
+                <>
+                  <span>Disc: <span className="font-medium">{quotation.discountValue}{quotation.discountType === "percentage" ? "%" : "RM"}</span></span>
+                  <span className="text-gray-400">•</span>
+                </>
               )}
-              {customServices.some((cs) => cs.status === "REJECTED") && (
-                <Badge variant="destructive">
-                  {customServices.filter((cs) => cs.status === "REJECTED").length}{" "}
-                  Rejected
-                </Badge>
+              <span>{new Date(quotation.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+              {quotation.createdBy && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span>By {quotation.createdBy.firstName} {quotation.createdBy.lastName}</span>
+                </>
+              )}
+              {customServices.length > 0 && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <div className="flex items-center gap-1">
+                    {customServices.some((cs) => cs.status === "PENDING") && (
+                      <Badge className="bg-yellow-500 text-white text-xs px-1 py-0 h-4">
+                        {customServices.filter((cs) => cs.status === "PENDING").length}P
+                      </Badge>
+                    )}
+                    {customServices.some((cs) => cs.status === "APPROVED") && (
+                      <Badge className="bg-green-600 text-white text-xs px-1 py-0 h-4">
+                        {customServices.filter((cs) => cs.status === "APPROVED").length}A
+                      </Badge>
+                    )}
+                    {customServices.some((cs) => cs.status === "REJECTED") && (
+                      <Badge variant="destructive" className="text-xs px-1 py-0 h-4">
+                        {customServices.filter((cs) => cs.status === "REJECTED").length}R
+                      </Badge>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
-        )}
 
-        {quotation.discountValue && (
-          <div className="mt-2">
-            <p className="text-sm text-black">
-              Discount: {quotation.discountValue}
-              {quotation.discountType === "percentage" ? "%" : "RM"}
-            </p>
+          {/* Right Section - Fixed Width for Alignment */}
+          <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+            {/* Grand Total - Compact */}
+            <div className="text-right">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
+                <p className="text-[10px] text-gray-600 mb-0.5">Total</p>
+                <p className="text-lg font-bold text-blue-700">
+                  RM{calculateGrandTotal().toFixed(2)}
+                </p>
+              </div>
+            </div>
+
+            {/* Three Dot Dropdown Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 hover:bg-gray-100 cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="w-4 h-4 text-gray-600" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {isCreator && !isFinalQuotation && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsCustomServiceDialogOpen(true);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Custom Service
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(quotation);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Quotation
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {isCreator && isFinalQuotation && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(quotation);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Payment Status
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {isEditableQuotation && !hasProject && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCreateProject();
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Briefcase className="w-4 h-4 mr-2" />
+                    Link Project
+                  </DropdownMenuItem>
+                )}
+                {quotation.workflowStatus === "final" && (
+                  <DropdownMenuItem
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      await generateQuotationPDF(quotation);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export as PDF
+                  </DropdownMenuItem>
+                )}
+                {isCreator && !isFinalQuotation && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete();
+                      }}
+                      className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Quotation
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        )}
-
-        <div className="mt-3 space-y-1">
-          <p className="text-xs text-black">
-            Created on {new Date(quotation.created_at).toLocaleDateString()}
-          </p>
-          {quotation.createdBy && (
-            <p className="text-xs text-black flex items-center gap-1">
-              Created by {quotation.createdBy.firstName} {quotation.createdBy.lastName}
-            </p>
-          )}
         </div>
       </CardContent>
 
