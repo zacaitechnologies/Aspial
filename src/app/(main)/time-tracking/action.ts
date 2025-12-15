@@ -209,6 +209,48 @@ export async function fetchUserProjects(supabaseId: string) {
   return userPermissions.map((permission: any) => permission.project);
 }
 
+// Get active time entry for current user
+export async function getActiveTimeEntry() {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id }
+    })
+
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+
+    const activeEntry = await prisma.timeEntry.findFirst({
+      where: {
+        userId: dbUser.id,
+        isActive: true,
+      },
+      include: {
+        project: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    })
+
+    return activeEntry
+  } catch (error: any) {
+    // Handle redirect errors
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      throw error
+    }
+    console.error("Error in getActiveTimeEntry:", error)
+    throw error
+  }
+}
+
 // CRUD operations for time entries
 export async function createTimeEntry(data: {
   projectId: number
@@ -233,6 +275,18 @@ export async function createTimeEntry(data: {
       throw new Error("User not found")
     }
 
+    // Check if user already has an active time entry
+    const activeEntry = await prisma.timeEntry.findFirst({
+      where: {
+        userId: dbUser.id,
+        isActive: true,
+      },
+    })
+
+    if (activeEntry) {
+      throw new Error("User already has an active time entry")
+    }
+
     // Verify project exists
     const project = await prisma.project.findUnique({
       where: { id: data.projectId },
@@ -250,6 +304,8 @@ export async function createTimeEntry(data: {
         endTime: data.endTime,
         duration: data.duration,
         description: data.description,
+        isActive: true,
+        isPause: false,
       },
       include: {
         project: true,
@@ -326,6 +382,158 @@ export async function updateTimeEntry(id: number, data: {
       throw error
     }
     console.error("Error in updateTimeEntry:", error)
+    throw error
+  }
+}
+
+// Pause active time entry
+export async function pauseTimeEntry(id: number, duration: number) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id }
+    })
+
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+
+    // Verify the time entry belongs to the user and is active
+    const existingEntry = await prisma.timeEntry.findFirst({
+      where: { id, userId: dbUser.id, isActive: true },
+    })
+
+    if (!existingEntry) {
+      throw new Error("Active time entry not found")
+    }
+
+    const timeEntry = await prisma.timeEntry.update({
+      where: { id },
+      data: {
+        isPause: true,
+        duration: duration,
+      },
+      include: {
+        project: true,
+      },
+    })
+
+    revalidatePath("/time-tracking")
+    return timeEntry
+  } catch (error: any) {
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      throw error
+    }
+    console.error("Error in pauseTimeEntry:", error)
+    throw error
+  }
+}
+
+// Resume paused time entry
+export async function resumeTimeEntry(id: number) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id }
+    })
+
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+
+    // Verify the time entry belongs to the user and is active but paused
+    const existingEntry = await prisma.timeEntry.findFirst({
+      where: { id, userId: dbUser.id, isActive: true, isPause: true },
+    })
+
+    if (!existingEntry) {
+      throw new Error("Paused time entry not found")
+    }
+
+    // Update startTime to now so elapsed time calculation works from resume point
+    const timeEntry = await prisma.timeEntry.update({
+      where: { id },
+      data: {
+        isPause: false,
+        startTime: new Date(), // Update start time to now for resume calculation
+      },
+      include: {
+        project: true,
+      },
+    })
+
+    revalidatePath("/time-tracking")
+    return timeEntry
+  } catch (error: any) {
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      throw error
+    }
+    console.error("Error in resumeTimeEntry:", error)
+    throw error
+  }
+}
+
+// Stop active time entry
+export async function stopTimeEntry(id: number, duration: number) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id }
+    })
+
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+
+    // Verify the time entry belongs to the user and is active
+    const existingEntry = await prisma.timeEntry.findFirst({
+      where: { id, userId: dbUser.id, isActive: true },
+    })
+
+    if (!existingEntry) {
+      throw new Error("Active time entry not found")
+    }
+
+    const endTime = new Date()
+
+    const timeEntry = await prisma.timeEntry.update({
+      where: { id },
+      data: {
+        isActive: false,
+        isPause: false,
+        endTime: endTime,
+        duration: duration,
+      },
+      include: {
+        project: true,
+      },
+    })
+
+    revalidatePath("/time-tracking")
+    return timeEntry
+  } catch (error: any) {
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      throw error
+    }
+    console.error("Error in stopTimeEntry:", error)
     throw error
   }
 }

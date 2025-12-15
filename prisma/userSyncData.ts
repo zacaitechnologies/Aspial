@@ -74,8 +74,8 @@ async function userMain() {
   await prisma.project.deleteMany({});
   await prisma.client.deleteMany({});
   // await prisma.complaint.deleteMany({}); // Commented out due to permission issues
-  await prisma.booking.deleteMany({});
-  await prisma.studioBooking.deleteMany({});
+  await prisma.appointmentBooking.deleteMany({});
+  await prisma.appointment.deleteMany({});
   
   // Now delete users and user roles
   await prisma.userRole.deleteMany({});

@@ -290,7 +290,8 @@ model TimeEntry {
   endTime     DateTime?
   duration    Int
   description String?
-  isActive    Boolean   @default(true)
+  isActive    Boolean   @default(false)
+  isPause     Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)

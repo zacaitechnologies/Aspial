@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { FolderOpen, Building2, ChevronDown } from "lucide-react"
+import { FolderOpen, ChevronDown } from "lucide-react"
 import { Project } from "@prisma/client"
 
 interface ProjectSelectorProps {
@@ -66,10 +66,9 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, di
                   <div className="w-4 h-4 rounded-full shrink-0 bg-blue-500" />
                   <div className="text-left flex-1">
                     <div className="font-medium">{project.name}</div>
-                    {project.description && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Building2 className="h-3 w-3" />
-                        {project.description}
+                    {project.clientName && (
+                      <div className="text-xs text-muted-foreground">
+                        {project.clientName}
                       </div>
                     )}
                   </div>

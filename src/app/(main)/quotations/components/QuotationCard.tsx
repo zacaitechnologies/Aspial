@@ -21,6 +21,7 @@ import {
   Briefcase,
   Download,
   MoreVertical,
+  Loader2,
 } from "lucide-react";
 import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
@@ -80,6 +81,7 @@ export default function QuotationCard({
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedProjectName, setSelectedProjectName] = useState<string>("");
   const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
+  const [isLinkingProject, setIsLinkingProject] = useState(false);
   const [newProjectData, setNewProjectData] = useState<{
     name: string;
     description?: string;
@@ -286,6 +288,7 @@ export default function QuotationCard({
   };
 
   const handleLinkProject = async () => {
+    setIsLinkingProject(true);
     try {
       let projectId: number;
 
@@ -297,6 +300,7 @@ export default function QuotationCard({
             description: "Please enter a project name.",
             variant: "destructive",
           });
+          setIsLinkingProject(false);
           return;
         }
 
@@ -309,6 +313,7 @@ export default function QuotationCard({
             description: "Cannot create project: Quotation does not have a client assigned. Please assign a client to the quotation first.",
             variant: "destructive",
           });
+          setIsLinkingProject(false);
           return;
         }
 
@@ -332,6 +337,7 @@ export default function QuotationCard({
             description: "Please select a project first.",
             variant: "destructive",
           });
+          setIsLinkingProject(false);
           return;
         }
         projectId = parseInt(selectedProjectId);
@@ -360,6 +366,8 @@ export default function QuotationCard({
         description: "Failed to link project. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsLinkingProject(false);
     }
   };
 
@@ -445,7 +453,7 @@ export default function QuotationCard({
           <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
             {/* Grand Total - Compact */}
             <div className="text-right">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
+              <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
                 <p className="text-[10px] text-gray-600 mb-0.5">Total</p>
                 <p className="text-lg font-bold text-blue-700">
                   RM{calculateGrandTotal().toFixed(2)}
@@ -626,9 +634,16 @@ export default function QuotationCard({
                 }
                 handleLinkProject();
               }}
-              disabled={projectMode === "existing" ? !selectedProjectId : !newProjectData.name}
+              disabled={isLinkingProject || (projectMode === "existing" ? !selectedProjectId : !newProjectData.name)}
             >
-              Link Project
+              {isLinkingProject ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Linking...
+                </>
+              ) : (
+                "Link Project"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -14,11 +14,12 @@
     "seed:services": "ts-node prisma/serviceMockData.ts",
     "seed:roles": "ts-node prisma/roleMockData.ts",
     "seed:users": "ts-node prisma/userSyncData.ts",
-    "seed:studios": "ts-node prisma/studioMockData.ts",
-    "seed:equipment": "ts-node prisma/equipmentMockData.ts",
+    "seed:appointments": "ts-node prisma/appointmentMockData.ts",
+    "seed:appointmentBookings": "ts-node prisma/appointmentBookingMockData.ts",
+    "seed:quotations": "ts-node prisma/quotationMockData.ts",
     "seed:staffRoles": "ts-node prisma/staffRoleMockData.ts",
     "seed:clients": "ts-node prisma/clientMockData.ts",
-    "seed": "npm run seed:roles && npm run seed:users && npm run seed:clients && npm run seed:studios && npm run seed:equipment && npm run seed:services && npm run seed:staffRoles",
+    "seed": "npm run seed:roles && npm run seed:users && npm run seed:clients && npm run seed:appointments && npm run seed:appointmentBookings && npm run seed:quotations && npm run seed:services && npm run seed:staffRoles",
     "setup:storage": "tsx scripts/setup-storage.ts"
   },
   "dependencies": {
