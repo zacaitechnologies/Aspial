@@ -30,7 +30,6 @@ import { getAllServices } from "../../services/action";
 import type { Services } from "@prisma/client";
 import { useSession } from "../../contexts/SessionProvider";
 import { QuotationFormData } from "../types";
-import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import { toast } from "@/components/ui/use-toast";
@@ -390,15 +389,11 @@ export default function CreateQuotationForm({
         }
       }
 
-      // Calculate grand total (monthly price × duration)
-      const grandTotal = quotationForm.duration
-        ? calculateGrandTotal(discountedTotal, parseInt(quotationForm.duration))
-        : discountedTotal;
-
+      // Total price is just the sum of services with discount applied (no duration multiplication)
       await createQuotation({
         name: quotationForm.name,
         description: quotationForm.description,
-        totalPrice: grandTotal, // Store grand total in totalPrice
+        totalPrice: discountedTotal, // Store discounted total (sum of services with discount)
         serviceIds: selectedServiceIds,
         createdById: enhancedUser.id,
         workflowStatus: workflowStatus, // Add workflow status parameter
@@ -495,14 +490,14 @@ export default function CreateQuotationForm({
       onOpenChange(open);
     }}>
       <DialogContent
-        className="w-[70vw] max-w-[70vw] max-h-[90vh] rounded-lg"
+        className="!w-[85vw] !max-w-[85vw] sm:!max-w-[85vw] max-h-[90vh] rounded-lg overflow-hidden"
         showCloseButton={false}
       >
-        <div className="custom-scrollbar overflow-y-auto max-h-[calc(90vh-4rem)] pr-2">
+        <div className="custom-scrollbar overflow-y-auto overflow-x-hidden max-h-[calc(90vh-4rem)] pr-2 min-w-0">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
             <DialogTitle>Create New Quotation</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 w-full">
             <div className="grid gap-2">
               <Label htmlFor="quotation-name">Quotation Name <span className="text-red-500">*</span></Label>
               <Input
@@ -743,29 +738,6 @@ export default function CreateQuotationForm({
               </div>
             </div>
 
-            {/* Grand Total Section */}
-            {quotationForm.duration &&
-              parseFloat(quotationForm.duration) > 0 && (
-                <div className="flex justify-between items-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div>
-                    <span className="font-semibold text-blue-800">
-                      Grand Total ({quotationForm.duration} months):
-                    </span>
-                    <div className="text-xs text-blue-600 mt-1">
-                      {discountedTotal.toFixed(2)} × {quotationForm.duration}{" "}
-                      months
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-3xl font-bold text-blue-800">
-                      RM
-                      {(
-                        discountedTotal * parseFloat(quotationForm.duration)
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              )}
           </div>
           <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
             <Button

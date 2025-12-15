@@ -28,7 +28,6 @@ import { getAllProjects } from "../../projects/action";
 import { useSession } from "../../contexts/SessionProvider";
 import type { Services } from "@prisma/client";
 import { QuotationWithServices, EditFormData, workflowStatusOptions, paymentStatusOptions } from "../types";
-import { calculateGrandTotal } from "../utils";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import CustomServiceDialog from "./CustomServiceDialog";
@@ -418,17 +417,14 @@ export default function EditQuotationForm({
         }
       }
 
-      // Calculate grand total including approved custom services (monthly price × duration)
+      // Calculate total: sum of services with discount + approved custom services (no duration multiplication)
       const approvedCustomServicesTotal = calculateApprovedCustomServicesTotal();
-      const monthlyTotal = editDiscountedTotal + approvedCustomServicesTotal;
-      const grandTotal = editForm.duration
-        ? calculateGrandTotal(monthlyTotal, parseInt(editForm.duration))
-        : monthlyTotal;
+      const total = editDiscountedTotal + approvedCustomServicesTotal;
 
       await editQuotationById(editingQuotation.id.toString(), {
         name: editForm.name,
         description: editForm.description,
-        totalPrice: grandTotal, // Store grand total in totalPrice (includes custom services)
+        totalPrice: total, // Store total (sum of services with discount + custom services, no duration multiplication)
         workflowStatus: (workflowStatus || editForm.workflowStatus) as "draft" | "in_review" | "final" | "accepted" | "rejected",
         paymentStatus: editForm.paymentStatus,
         // If we already created the client (for final quotations with new clients), use the clientId
@@ -545,14 +541,14 @@ export default function EditQuotationForm({
       onOpenChange(open);
     }}>
       <DialogContent
-        className="w-[70vw] max-w-[70vw] max-h-[90vh] rounded-lg"
+        className="!w-[85vw] !max-w-[85vw] sm:!max-w-[85vw] max-h-[90vh] rounded-lg overflow-hidden"
         showCloseButton={false}
       >
-        <div className="custom-scrollbar overflow-y-auto max-h-[calc(90vh-4rem)] pr-2">
+        <div className="custom-scrollbar overflow-y-auto overflow-x-hidden max-h-[calc(90vh-4rem)] pr-2 min-w-0">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
             <DialogTitle>Edit Quotation</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 w-full">
             <div className="grid gap-2">
               <Label htmlFor="edit-name">Quotation Name <span className="text-red-500">*</span></Label>
               <Input
@@ -859,28 +855,6 @@ export default function EditQuotationForm({
               </div>
             </div>
 
-            {/* Grand Total Section */}
-            {editForm.duration && parseFloat(editForm.duration) > 0 && (
-              <div className="grid grid-cols-2 justify-center gap-2">
-                <Label htmlFor="edit-grandTotal">
-                  Grand Total ({editForm.duration} months)
-                </Label>
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <div className="text-right">
-                    <div className="text-xs text-blue-600 mb-1">
-                      ({editDiscountedTotal.toFixed(2)} + {calculateApprovedCustomServicesTotal().toFixed(2)}) × {editForm.duration}{" "}
-                      months
-                    </div>
-                    <span className="text-xl font-bold text-blue-800">
-                      RM
-                      {(
-                        (editDiscountedTotal + calculateApprovedCustomServicesTotal()) * parseFloat(editForm.duration)
-                      ).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
