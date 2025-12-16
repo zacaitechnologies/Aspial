@@ -257,8 +257,55 @@ export async function getQuotationById(id: string) {
   return quotation;
 }
 
+/**
+ * Generate quotation number in format: QUO-YYYYMM###
+ * Where ### starts at 001 each day and increments
+ * This function must be called within a transaction to prevent race conditions
+ */
+async function generateQuotationNumber(tx: any): Promise<string> {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const datePrefix = `${year}${month}`
+  
+  // Get start of today
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  
+  // Find the last quotation created today with the same date prefix
+  // Use transaction client to ensure atomicity and prevent race conditions
+  // Order by id desc to get the most recent one (more reliable than created_at)
+  const lastQuotation = await tx.quotation.findFirst({
+    where: {
+      name: {
+        startsWith: `QUO-${datePrefix}`
+      },
+      created_at: {
+        gte: startOfDay
+      }
+    },
+    orderBy: {
+      id: 'desc' // Use id for more reliable ordering
+    },
+    select: {
+      name: true
+    }
+  })
+  
+  let nextNumber = 1
+  
+  if (lastQuotation) {
+    // Extract the number from the last quotation (last 3 digits)
+    const lastNumber = parseInt(lastQuotation.name.slice(-3))
+    if (!isNaN(lastNumber)) {
+      nextNumber = lastNumber + 1
+    }
+  }
+  
+  // Format: QUO-YYYYMM###
+  return `QUO-${datePrefix}${String(nextNumber).padStart(3, '0')}`
+}
+
 export async function createQuotation(data: {
-  name: string
   description: string
   totalPrice: number
   serviceIds: string[]
@@ -339,9 +386,15 @@ export async function createQuotation(data: {
       throw new Error("Client ID is required");
     }
 
+    // Generate quotation number within transaction to prevent race conditions
+    // This ensures the number is generated atomically right before creation
+    // The number is only generated when user clicks "Create" or "Save as Draft"
+    // and is not shown to the user until the quotation is successfully created
+    const quotationNumber = await generateQuotationNumber(tx)
+
     const quotation = await tx.quotation.create({
       data: {
-        name: data.name,
+        name: quotationNumber,
         description: data.description,
         totalPrice: data.totalPrice,
         createdById: data.createdById,
@@ -378,7 +431,6 @@ export async function createQuotation(data: {
 export async function editQuotationById(
   id: string,
   data: {
-    name: string
     description: string
     totalPrice: number
     workflowStatus?: "draft" | "in_review" | "final" | "accepted" | "rejected"
@@ -480,11 +532,10 @@ export async function editQuotationById(
       throw new Error("Client ID is required");
     }
 
-    // Update the quotation
+    // Update the quotation (don't update name as it's auto-generated)
     const updatedQuotation = await tx.quotation.update({
       where: { id: Number.parseInt(id) },
       data: {
-        name: data.name,
         description: data.description,
         totalPrice: data.totalPrice,
         workflowStatus: data.workflowStatus,
@@ -525,10 +576,16 @@ export async function editQuotationById(
         clientName = client?.company || client?.name;
       }
       
+      // Get quotation name for project update
+      const quotation = await tx.quotation.findUnique({
+        where: { id: Number.parseInt(id) },
+        select: { name: true }
+      })
+      
       await tx.project.update({
         where: { id: project.id },
         data: {
-          name: data.name,
+          name: quotation?.name || project.name, // Use existing quotation name
           description: data.description,
           clientId: finalClientId,
           clientName: clientName,

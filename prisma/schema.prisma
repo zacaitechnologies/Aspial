@@ -106,7 +106,7 @@ model ServiceTag {
 
 model Quotation {
   id             Int                @id @default(autoincrement())
-  name           String
+  name           String             @unique
   description    String
   totalPrice     Float
   created_at     DateTime           @default(now())

@@ -252,7 +252,7 @@ export default function EditQuotationForm({
   const handleUpdateQuotationClick = (workflowStatus: string) => {
     if (!editingQuotation) return;
 
-    if (!editForm.name || !editForm.description) {
+    if (!editForm.description) {
       toast({
         title: "Validation Error",
         description: "Please fill all required fields correctly.",
@@ -422,7 +422,6 @@ export default function EditQuotationForm({
       const total = editDiscountedTotal + approvedCustomServicesTotal;
 
       await editQuotationById(editingQuotation.id.toString(), {
-        name: editForm.name,
         description: editForm.description,
         totalPrice: total, // Store total (sum of services with discount + custom services, no duration multiplication)
         workflowStatus: (workflowStatus || editForm.workflowStatus) as "draft" | "in_review" | "final" | "accepted" | "rejected",
@@ -549,16 +548,19 @@ export default function EditQuotationForm({
             <DialogTitle>Edit Quotation</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 w-full">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-name">Quotation Name <span className="text-red-500">*</span></Label>
-              <Input
-                id="edit-name"
-                value={editForm.name}
-                onChange={(e) =>
-                  setEditForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-              />
-            </div>
+            {/* Quotation Number (Read-only) */}
+            {editingQuotation && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-quotation-number">Quotation Number</Label>
+                <Input
+                  id="edit-quotation-number"
+                  value={editingQuotation.name}
+                  disabled
+                  className="bg-gray-50 cursor-not-allowed"
+                />
+                <p className="text-xs text-muted-foreground">Quotation number is auto-generated and cannot be changed</p>
+              </div>
+            )}
 
             {/* Client Selection */}
             <div className="grid gap-2">
@@ -944,7 +946,7 @@ export default function EditQuotationForm({
             onClick={() => {
               // Pre-fill the Create New Project form with quotation data
               setNewProjectData({
-                name: editForm.name || "",
+                name: editForm.description || "New Project", // Use description as project name
                 description: editForm.description || "",
                 startDate: editForm.startDate || "",
                 endDate: editForm.startDate && editForm.duration 

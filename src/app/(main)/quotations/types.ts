@@ -59,7 +59,6 @@ export type QuotationWithServices = {
 };
 
 export type QuotationFormData = {
-  name: string;
   description: string;
   discountValue: string;
   discountType: "percentage" | "fixed";
@@ -89,7 +88,7 @@ export type QuotationFormData = {
 };
 
 export type EditFormData = {
-  name: string;
+  name: string; // Keep for display purposes (read-only)
   description: string;
   totalPrice: string;
   workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected";

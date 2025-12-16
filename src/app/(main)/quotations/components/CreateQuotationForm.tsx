@@ -49,7 +49,6 @@ export default function CreateQuotationForm({
   const router = useRouter();
   const [services, setServices] = useState<Services[]>([]);
   const [quotationForm, setQuotationForm] = useState<QuotationFormData>({
-    name: "",
     description: "",
     discountValue: "",
     discountType: "percentage",
@@ -86,7 +85,7 @@ export default function CreateQuotationForm({
     endDate?: string;
     priority: "low" | "medium" | "high";
   }>({
-    name: quotationForm.name,
+    name: quotationForm.description || "New Project", // Use description as project name
     description: quotationForm.description,
     startDate: quotationForm.startDate ? new Date(quotationForm.startDate).toISOString().split('T')[0] : "",
     endDate: quotationForm.startDate && quotationForm.duration ? 
@@ -103,14 +102,14 @@ export default function CreateQuotationForm({
   // Update newProjectData when quotationForm changes
   useEffect(() => {
     setNewProjectData({
-      name: quotationForm.name,
+      name: quotationForm.description || "New Project", // Use description as project name
       description: quotationForm.description,
       startDate: quotationForm.startDate ? new Date(quotationForm.startDate).toISOString().split('T')[0] : "",
       endDate: quotationForm.startDate && quotationForm.duration ? 
         new Date(new Date(quotationForm.startDate).setMonth(new Date(quotationForm.startDate).getMonth() + parseInt(quotationForm.duration))).toISOString().split('T')[0] : "",
       priority: "low"
     });
-  }, [quotationForm.name, quotationForm.description, quotationForm.startDate, quotationForm.duration]);
+  }, [quotationForm.description, quotationForm.startDate, quotationForm.duration]);
 
   const fetchServices = async () => {
     try {
@@ -217,17 +216,14 @@ export default function CreateQuotationForm({
   const validateForm = () => {
     // Debug logging to help identify the issue
     console.log("Form validation check:", {
-      name: quotationForm.name,
       description: quotationForm.description,
       selectedServiceIds: selectedServiceIds,
       selectedServiceIdsLength: selectedServiceIds.length,
-      nameEmpty: !quotationForm.name,
       descriptionEmpty: !quotationForm.description,
       servicesEmpty: selectedServiceIds.length === 0,
     });
 
     if (
-      !quotationForm.name ||
       !quotationForm.description ||
       selectedServiceIds.length === 0
     ) {
@@ -391,7 +387,6 @@ export default function CreateQuotationForm({
 
       // Total price is just the sum of services with discount applied (no duration multiplication)
       await createQuotation({
-        name: quotationForm.name,
         description: quotationForm.description,
         totalPrice: discountedTotal, // Store discounted total (sum of services with discount)
         serviceIds: selectedServiceIds,
@@ -444,7 +439,6 @@ export default function CreateQuotationForm({
 
   const resetForm = () => {
     setQuotationForm({
-      name: "",
       description: "",
       discountValue: "",
       discountType: "percentage",
@@ -498,21 +492,6 @@ export default function CreateQuotationForm({
             <DialogTitle>Create New Quotation</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 w-full">
-            <div className="grid gap-2">
-              <Label htmlFor="quotation-name">Quotation Name <span className="text-red-500">*</span></Label>
-              <Input
-                id="quotation-name"
-                value={quotationForm.name}
-                onChange={(e) =>
-                  setQuotationForm((prev) => ({
-                    ...prev,
-                    name: e.target.value,
-                  }))
-                }
-                placeholder="Enter quotation name"
-              />
-            </div>
-
             {/* Client Selection */}
             <div className="grid gap-2">
               <Label>Client <span className="text-red-500">*</span></Label>
