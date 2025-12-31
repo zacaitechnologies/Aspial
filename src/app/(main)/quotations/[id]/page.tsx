@@ -96,12 +96,6 @@ export default function QuotationDetailPage() {
     return fixedServicesTotal + approvedCustomServicesTotal;
   }, [quotation?.totalPrice, approvedCustomServicesTotal]);
 
-  const monthlyFixedTotal = useMemo(() => {
-    if (!quotation) return 0;
-    const duration = quotation.duration || 1;
-    return quotation.totalPrice / duration;
-  }, [quotation?.totalPrice, quotation?.duration]);
-
   if (isLoading) {
     return (
       <div className="container mx-auto p-6">
@@ -281,11 +275,6 @@ export default function QuotationDetailPage() {
                             <Badge variant="outline" className="text-base">
                               RM{cs.price.toFixed(2)}
                             </Badge>
-                            {quotation.duration && quotation.duration > 1 && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                ({quotation.duration} months total)
-                              </p>
-                            )}
                           </div>
                           {getCustomServiceStatusBadge(cs.status)}
                         </div>
@@ -345,29 +334,18 @@ export default function QuotationDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Fixed Services (per month):</span>
+                <span className="text-muted-foreground">Fixed Services:</span>
                 <span className="font-semibold">
-                  RM{monthlyFixedTotal.toFixed(2)}
+                  RM{quotation.totalPrice.toFixed(2)}
                 </span>
               </div>
-
-              {quotation.duration && quotation.duration > 1 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    Fixed Services ({quotation.duration} months):
-                  </span>
-                  <span className="font-semibold">
-                    RM{quotation.totalPrice.toFixed(2)}
-                  </span>
-                </div>
-              )}
 
               {approvedCustomServicesTotal > 0 && (
                 <>
                   <Separator />
                   <div className="flex justify-between text-green-600">
                     <span className="font-semibold">
-                      Custom Services Total{quotation.duration && quotation.duration > 1 ? ` (${quotation.duration} months)` : ''}:
+                      Custom Services Total:
                     </span>
                     <span className="font-bold">
                       RM{approvedCustomServicesTotal.toFixed(2)}
@@ -381,13 +359,11 @@ export default function QuotationDetailPage() {
               <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
                 <div>
                   <p className="text-sm font-semibold text-blue-800">
-                    Grand Total{quotation.duration && quotation.duration > 1 ? ` (${quotation.duration} months)` : ''}:
+                    Grand Total:
                   </p>
-                  {quotation.duration && quotation.duration > 1 && (
-                    <p className="text-xs text-blue-600">
-                      {quotation.totalPrice.toFixed(2)} + {approvedCustomServicesTotal.toFixed(2)}
-                    </p>
-                  )}
+                  <p className="text-xs text-blue-600">
+                    {quotation.totalPrice.toFixed(2)} + {approvedCustomServicesTotal.toFixed(2)}
+                  </p>
                 </div>
                 <span className="text-2xl font-bold text-blue-800">
                   RM{grandTotal.toFixed(2)}

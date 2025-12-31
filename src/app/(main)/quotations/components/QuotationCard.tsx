@@ -22,6 +22,9 @@ import {
   Download,
   MoreVertical,
   Loader2,
+  Send,
+  History,
+  Eye,
 } from "lucide-react";
 import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
@@ -33,6 +36,8 @@ import {
 import MembershipStatusDialog from "./MembershipStatusDialog";
 import CustomServiceDialog from "./CustomServiceDialog";
 import ProjectSelection from "./ProjectSelection";
+import SendQuotationDialog from "./SendQuotationDialog";
+import EmailHistoryDialog from "./EmailHistoryDialog";
 import { generateQuotationPDF } from "../utils/pdfExport";
 import {
   Dialog,
@@ -82,6 +87,8 @@ export default function QuotationCard({
   const [selectedProjectName, setSelectedProjectName] = useState<string>("");
   const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
   const [isLinkingProject, setIsLinkingProject] = useState(false);
+  const [isSendQuotationDialogOpen, setIsSendQuotationDialogOpen] = useState(false);
+  const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false);
   const [newProjectData, setNewProjectData] = useState<{
     name: string;
     description?: string;
@@ -373,9 +380,8 @@ export default function QuotationCard({
 
   return (
     <Card 
-      className="hover:shadow-md transition-shadow duration-200 border-l-2 pt-0 pb-0 cursor-pointer"
+      className="hover:shadow-md transition-shadow duration-200 border-l-2 pt-0 pb-0"
       style={{ borderLeftColor: isFinalQuotation ? '#10b981' : '#3b82f6' }}
-      onClick={() => router.push(`/quotations/${quotation.id}`)}
     >
       <CardContent className="p-3">
         <div className="flex items-center gap-3">
@@ -469,18 +475,39 @@ export default function QuotationCard({
                   size="sm"
                   className="h-8 w-8 p-0 hover:bg-gray-100 cursor-pointer"
                   onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                 >
                   <MoreVertical className="w-4 h-4 text-gray-600" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent 
+                align="end" 
+                className="w-48"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    router.push(`/quotations/${quotation.id}`);
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="cursor-pointer"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  View Quotation Details
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 {isCreator && !isFinalQuotation && (
                   <>
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         setIsCustomServiceDialogOpen(true);
                       }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       className="cursor-pointer"
                     >
                       <Plus className="w-4 h-4 mr-2" />
@@ -489,8 +516,10 @@ export default function QuotationCard({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         onEdit(quotation);
                       }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       className="cursor-pointer"
                     >
                       <Edit className="w-4 h-4 mr-2" />
@@ -504,8 +533,10 @@ export default function QuotationCard({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         onEdit(quotation);
                       }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       className="cursor-pointer"
                     >
                       <Edit className="w-4 h-4 mr-2" />
@@ -518,8 +549,10 @@ export default function QuotationCard({
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
+                      e.preventDefault();
                       handleCreateProject();
                     }}
+                    onPointerDown={(e) => e.stopPropagation()}
                     className="cursor-pointer"
                   >
                     <Briefcase className="w-4 h-4 mr-2" />
@@ -527,16 +560,44 @@ export default function QuotationCard({
                   </DropdownMenuItem>
                 )}
                 {quotation.workflowStatus === "final" && (
-                  <DropdownMenuItem
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      await generateQuotationPDF(quotation);
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export as PDF
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setIsSendQuotationDialogOpen(true);
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="cursor-pointer"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Send Quotation PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setIsEmailHistoryDialogOpen(true);
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="cursor-pointer"
+                    >
+                      <History className="w-4 h-4 mr-2" />
+                      Email History
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        await generateQuotationPDF(quotation);
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export as PDF
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {isCreator && !isFinalQuotation && (
                   <>
@@ -544,8 +605,10 @@ export default function QuotationCard({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         handleDelete();
                       }}
+                      onPointerDown={(e) => e.stopPropagation()}
                       className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
@@ -587,6 +650,30 @@ export default function QuotationCard({
         quotationId={quotation.id}
         createdById={enhancedUser?.id}
       />
+
+      {/* Send Quotation Dialog */}
+      {quotation.workflowStatus === "final" && (
+        <SendQuotationDialog
+          isOpen={isSendQuotationDialogOpen}
+          onOpenChange={setIsSendQuotationDialogOpen}
+          quotationId={quotation.id}
+          clientEmail={quotation.Client?.email || ""}
+          onSuccess={() => {
+            if (onRefresh) {
+              onRefresh();
+            }
+          }}
+        />
+      )}
+
+      {/* Email History Dialog */}
+      {quotation.workflowStatus === "final" && (
+        <EmailHistoryDialog
+          isOpen={isEmailHistoryDialogOpen}
+          onOpenChange={setIsEmailHistoryDialogOpen}
+          quotationId={quotation.id}
+        />
+      )}
 
       {/* Project Selection Dialog */}
       <Dialog open={isProjectSelectionDialogOpen} onOpenChange={setIsProjectSelectionDialogOpen}>

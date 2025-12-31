@@ -98,37 +98,31 @@ async function _getQuotationsPaginatedInternal(
 
 // Server-side cached version for initial page load (30 second cache)
 const getCachedQuotationsPaginated = unstable_cache(
-  async (page: number, pageSize: number, statusFilter: string) => {
-    return await _getQuotationsPaginatedInternal(page, pageSize, {
-      statusFilter: statusFilter || undefined,
-    })
-  },
+  _getQuotationsPaginatedInternal,
   ["quotations-paginated"],
-  { 
-    revalidate: 30, // Cache for 30 seconds
-    tags: ["quotations"]
+  {
+    revalidate: 30,
+    tags: ["quotations"],
   }
 )
 
+// Client-side version that bypasses cache
 export async function getQuotationsPaginated(
   page: number = 1,
   pageSize: number = 10,
   filters: {
     statusFilter?: string
-  } = {}
+  } = {},
+  useCache: boolean = false
 ) {
-  // Use cached auth - deduplicates within same request
-  await getCachedUser()
-
-  // Use server-side cache for faster initial loads
-  return await getCachedQuotationsPaginated(
-    page, 
-    pageSize, 
-    filters.statusFilter || "all"
-  )
+  unstable_noStore()
+  if (useCache) {
+    return await getCachedQuotationsPaginated(page, pageSize, filters)
+  }
+  return await _getQuotationsPaginatedInternal(page, pageSize, filters)
 }
 
-// Force fresh data (bypasses cache) - use for mutations
+// Fresh version that always bypasses cache (for client-side updates)
 export async function getQuotationsPaginatedFresh(
   page: number = 1,
   pageSize: number = 10,
@@ -137,124 +131,60 @@ export async function getQuotationsPaginatedFresh(
   } = {}
 ) {
   unstable_noStore()
-  await getCachedUser()
   return await _getQuotationsPaginatedInternal(page, pageSize, filters)
 }
 
-// Invalidate quotations cache after mutations
+// Invalidate quotations cache
 export async function invalidateQuotationsCache() {
-  revalidateTag("quotations", {expire: 0})
+  revalidateTag("quotations", "max")
 }
 
 export async function getQuotationById(id: string) {
+  unstable_noStore()
   const quotation = await prisma.quotation.findUnique({
-    where: { id: parseInt(id) },
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      totalPrice: true,
-      workflowStatus: true,
-      paymentStatus: true,
-      discountValue: true,
-      discountType: true,
-      duration: true,
-      startDate: true,
-      endDate: true,
-      created_at: true,
+    where: { id: Number.parseInt(id) },
+    include: {
       services: {
-        select: {
-          id: true,
-          service: {
-            select: {
-              id: true,
-              name: true,
-              description: true,
-              basePrice: true,
-            },
-          },
+        include: {
+          service: true,
         },
       },
-      customServices: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          price: true,
-          status: true,
-          approvalComment: true,
-          rejectionComment: true,
-          createdBy: {
-            select: {
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
-          reviewedBy: {
-            select: {
-              firstName: true,
-              lastName: true,
-            },
-          },
-        },
-      },
-      project: {
-        select: {
-          id: true,
-          name: true,
-          status: true,
-        },
-      },
-      createdBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      Client: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          company: true,
-        },
-      },
+      project: true,
+      createdBy: true,
+      Client: true,
+      customServices: true,
     },
-  });
+  })
 
-  // If quotation is in_review and no pending custom services, determine status based on custom service outcomes
-  // Update status in background (non-blocking) to avoid slowing down the read operation
-  if (quotation && quotation.workflowStatus === "in_review") {
-    const hasPendingCustomServices = quotation.customServices.some(
-      (cs) => cs.status === "PENDING"
-    );
-
-    if (!hasPendingCustomServices) {
-      // Check if any custom services were approved
-      const hasApprovedServices = quotation.customServices.some(
-        (cs) => cs.status === "APPROVED"
-      );
-      
-      // If any services were approved, set to accepted, otherwise rejected
-      const newStatus = hasApprovedServices ? "accepted" : "rejected";
-      
-      // Update the status in the returned object immediately (for display)
-      quotation.workflowStatus = newStatus;
-      
-      // Update database in background (non-blocking) - don't await
-      prisma.quotation.update({
-        where: { id: parseInt(id) },
-        data: { workflowStatus: newStatus },
-      }).catch((error) => {
-        console.error("Error updating quotation status:", error);
-      });
-    }
+  if (!quotation) {
+    return null
   }
 
-  return quotation;
+  // Transform to match QuotationWithServices type
+  return {
+    ...quotation,
+    discountValue: quotation.discountValue ?? undefined,
+    discountType: quotation.discountType ?? undefined,
+    Client: quotation.Client ? {
+      ...quotation.Client,
+      phone: quotation.Client.phone ?? undefined,
+      company: quotation.Client.company ?? undefined,
+      address: quotation.Client.address ?? undefined,
+      notes: quotation.Client.notes ?? undefined,
+      industry: quotation.Client.industry ?? undefined,
+      yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
+    } : undefined,
+    services: quotation.services.map(service => ({
+      ...service,
+      customServiceId: service.customServiceId ?? undefined,
+    })),
+    project: quotation.project ? {
+      ...quotation.project,
+      description: quotation.project.description ?? undefined,
+      startDate: quotation.project.startDate ?? undefined,
+      endDate: quotation.project.endDate ?? undefined,
+    } : null,
+  }
 }
 
 /**
@@ -455,25 +385,15 @@ export async function editQuotationById(
     }
   },
 ) {
-  // Check if user is the creator of the quotation
-  const user = await getCachedUser()
-  const quotation = await prisma.quotation.findUnique({
-    where: { id: Number.parseInt(id) },
-    select: { createdById: true }
-  })
-
-  if (!quotation) {
-    throw new Error("Quotation not found")
-  }
-
-  // Check if current user is the creator
-  if (quotation.createdById !== user.id) {
-    throw new Error("Unauthorized: You can only edit quotations you created")
-  }
-
   // Validate that final quotations have a project
   if (data.workflowStatus === "final" && !data.projectId) {
     throw new Error("Final quotations must be linked to a project. Please select or create a project before finalizing.");
+  }
+
+  // Get current user for createdById
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to edit a quotation")
   }
 
   return await prisma.$transaction(async (tx) => {
@@ -533,7 +453,7 @@ export async function editQuotationById(
     }
 
     // Update the quotation (don't update name as it's auto-generated)
-    const updatedQuotation = await tx.quotation.update({
+    const quotation = await tx.quotation.update({
       where: { id: Number.parseInt(id) },
       data: {
         description: data.description,
@@ -541,153 +461,128 @@ export async function editQuotationById(
         workflowStatus: data.workflowStatus,
         paymentStatus: data.paymentStatus,
         clientId: finalClientId,
-        projectId: data.projectId || null,
-        discountValue: data.discountValue || null,
-        discountType: data.discountType || null,
-        duration: data.duration || 0,
+        projectId: data.projectId !== undefined ? data.projectId : currentQuotation?.projectId || null,
+        discountValue: data.discountValue !== undefined ? data.discountValue : null,
+        discountType: data.discountType !== undefined ? data.discountType : null,
+        duration: data.duration !== undefined ? data.duration : 0,
         startDate: data.startDate ? new Date(data.startDate) : new Date(),
         endDate: endDate || new Date(),
-        services: data.serviceIds ? {
-          create: data.serviceIds.map((serviceId) => ({
-            serviceId: Number.parseInt(serviceId),
-          })),
-        } : undefined,
+        services: data.serviceIds
+          ? {
+              create: data.serviceIds.map((serviceId) => ({
+                serviceId: Number.parseInt(serviceId),
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        Client: true,
+        services: {
+          include: {
+            service: true,
+          },
+        },
+        createdBy: true,
+        project: true,
       },
     });
 
-    // Update the associated project if it exists
-    if (currentQuotation && currentQuotation.project) {
-      const project = currentQuotation.project;
-      const startDate = project.startDate || new Date();
-      let endDate: Date | undefined = undefined;
-      
-      if (data.duration) {
-        endDate = new Date(startDate);
-        endDate.setMonth(endDate.getMonth() + data.duration);
-      }
-      
-      // Get client information for the project update
-      let clientName: string | undefined = undefined;
-      if (finalClientId) {
-        const client = await tx.client.findUnique({
-          where: { id: finalClientId },
-          select: { company: true, name: true }
-        });
-        clientName = client?.company || client?.name;
-      }
-      
-      // Get quotation name for project update
-      const quotation = await tx.quotation.findUnique({
-        where: { id: Number.parseInt(id) },
-        select: { name: true }
-      })
-      
-      await tx.project.update({
-        where: { id: project.id },
-        data: {
-          name: quotation?.name || project.name, // Use existing quotation name
-          description: data.description,
-          clientId: finalClientId,
-          clientName: clientName,
-          startDate: startDate,
-          endDate: endDate,
-        },
-      });
-    }
-
-    return updatedQuotation;
+    return quotation;
   });
 }
 
 export async function deleteQuotationById(id: string) {
-  // Check if user is the creator of the quotation
+  unstable_noStore()
   const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to delete a quotation")
+  }
+
   const quotation = await prisma.quotation.findUnique({
     where: { id: Number.parseInt(id) },
-    select: { createdById: true }
+    include: { createdBy: true },
   })
 
   if (!quotation) {
     throw new Error("Quotation not found")
   }
 
-  // Check if current user is the creator
-  if (quotation.createdById !== user.id) {
-    throw new Error("Unauthorized: You can only delete quotations you created")
+  // Only allow deletion if user is the creator or admin
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (quotation.createdById !== user.id && !isAdmin) {
+    throw new Error("You don't have permission to delete this quotation")
   }
 
-  // First, delete any associated projects
-  await prisma.project.deleteMany({
-    where: { quotations: { some: { id: Number.parseInt(id) } } },
-  });
-
-  // Then delete the quotation
-  return await prisma.quotation.delete({
+  await prisma.quotation.delete({
     where: { id: Number.parseInt(id) },
   })
+
+  revalidateTag("quotations", "max")
 }
 
-export async function getAllClientsForQuotation() {
-  return await prisma.client.findMany({
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      company: true,
-    },
-    orderBy: {
-      name: "asc"
-    }
+export async function getClientById(id: string) {
+  unstable_noStore()
+  return await prisma.client.findUnique({
+    where: { id },
   })
 }
 
-// Optimized function for getting projects for quotations - shows projects immediately with minimal data
-export async function getProjectsForQuotationOptimized(userId?: string) {
-  if (!userId) {
-    return []
-  }
-
-  const isAdmin = await getCachedIsUserAdmin(userId);
-  
-  if (isAdmin) {
-    // For admins: load only essential data for quotation selection
-    const projects = await prisma.project.findMany({
+/**
+ * Get all clients optimized for quotation selection
+ * Returns only essential fields needed for client selection
+ */
+export async function getClientsForQuotationOptimized() {
+  unstable_noStore()
+  try {
+    const clients = await prisma.client.findMany({
       select: {
         id: true,
         name: true,
-        description: true,
-        status: true,
-        startDate: true,
-        endDate: true,
-        Client: {
-          select: {
-            name: true,
-          }
+        email: true,
+        company: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    })
+    return clients.map((client) => ({
+      id: client.id,
+      name: client.name,
+      email: client.email,
+      company: client.company,
+    }))
+  } catch (error) {
+    console.error("Error fetching clients for quotation:", error)
+    return []
+  }
+}
+
+/**
+ * Get all projects optimized for quotation selection
+ * Returns only essential fields needed for project selection
+ */
+export async function getProjectsForQuotationOptimized(userId: string) {
+  unstable_noStore()
+  try {
+    // Check if user is admin
+    const user = await prisma.user.findUnique({
+      where: { supabase_id: userId },
+      include: {
+        userRoles: {
+          include: {
+            role: true,
+          },
         },
       },
-      orderBy: { created_at: "desc" },
-    });
+    })
 
-    return projects;
-  }
+    const isAdmin = user?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
 
-  // For non-admins: load only projects they have access to with minimal data
-  const userPermissions = await prisma.projectPermission.findMany({
-    where: { 
-      userId, 
-      OR: [
-        { isOwner: true },
-        { canView: true }
-      ]
-    },
-    select: {
-      id: true,
-      projectId: true,
-      userId: true,
-      canView: true,
-      canEdit: true,
-      isOwner: true,
-      project: {
+    let projects
+
+    if (isAdmin) {
+      // Admin can see all projects
+      projects = await prisma.project.findMany({
         select: {
           id: true,
           name: true,
@@ -698,138 +593,121 @@ export async function getProjectsForQuotationOptimized(userId?: string) {
           Client: {
             select: {
               name: true,
-            }
+            },
           },
         },
-      },
-    },
-    orderBy: {
-      project: { created_at: "desc" },
-    },
-  }) as any;
+        orderBy: {
+          name: "asc",
+        },
+      })
+    } else {
+      // Get projects user has permissions for
+      const userPermissions = await prisma.projectPermission.findMany({
+        where: {
+          userId,
+          OR: [
+            { isOwner: true },
+            { canView: true },
+          ],
+        },
+        select: {
+          projectId: true,
+        },
+      })
 
-  return userPermissions.map((permission: any) => permission.project);
-}
+      const projectIds = userPermissions.map((p) => p.projectId)
 
-// Optimized function for getting clients for quotations - shows clients immediately with minimal data
-export async function getClientsForQuotationOptimized() {
-  return await prisma.client.findMany({
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      company: true,
-    },
-    orderBy: {
-      name: "asc"
+      if (projectIds.length === 0) {
+        return []
+      }
+
+      projects = await prisma.project.findMany({
+        where: {
+          id: { in: projectIds },
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          Client: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          name: "asc",
+        },
+      })
     }
-  });
+
+    return projects.map((project) => ({
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      startDate: project.startDate,
+      endDate: project.endDate,
+      Client: project.Client,
+    }))
+  } catch (error) {
+    console.error("Error fetching projects for quotation:", error)
+    return []
+  }
 }
 
-// Get client details including membership status
-export async function getClientById(clientId: string) {
-  return await prisma.client.findUnique({
-    where: { id: clientId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      company: true,
-      membershipType: true,
-    }
-  });
-}
+export async function updateClientMembershipStatus(
+  clientId: string,
+  membershipType: "MEMBER" | "NON_MEMBER"
+) {
+  unstable_noStore()
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated")
+  }
 
-// Update client membership status
-export async function updateClientMembershipStatus(clientId: string, membershipType: "MEMBER" | "NON_MEMBER") {
-  return await prisma.client.update({
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) {
+    throw new Error("Only admins can update membership status")
+  }
+
+  await prisma.client.update({
     where: { id: clientId },
     data: { membershipType },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      company: true,
-      membershipType: true,
-    }
-  });
-}
-
-
-// Create a new custom service
-export async function createCustomService(data: {
-  name: string;
-  description: string;
-  price: number;
-  createdById: string;
-  quotationId: number;
-}) {
-  // Check if user is the creator of the quotation
-  const user = await getCachedUser()
-  const quotation = await prisma.quotation.findUnique({
-    where: { id: data.quotationId },
-    select: { createdById: true }
   })
 
-  if (!quotation) {
-    throw new Error("Quotation not found")
-  }
-
-  // Check if current user is the creator
-  if (quotation.createdById !== user.id) {
-    throw new Error("Unauthorized: You can only add custom services to quotations you created")
-  }
-
-  return await prisma.$transaction(async (tx) => {
-    // Create the custom service
-    const customService = await tx.customService.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        createdById: data.createdById,
-        quotationId: data.quotationId,
-        status: "PENDING",
-      },
-    });
-
-    // Update quotation workflow status to in_review
-    await tx.quotation.update({
-      where: { id: data.quotationId },
-      data: { workflowStatus: "in_review" },
-    });
-
-    return customService;
-  });
+  revalidateTag("quotations", "max")
 }
 
 export async function updateQuotationProjectId(quotationId: number, projectId: number) {
-  return await prisma.quotation.update({
+  unstable_noStore()
+  await prisma.quotation.update({
     where: { id: quotationId },
-    data: { projectId: projectId },
-  });
+    data: { projectId },
+  })
+  revalidateTag("quotations", "max")
 }
 
 export async function linkProjectAndUpdateQuotationStatus(quotationId: number, projectId: number) {
-  return await prisma.$transaction(async (tx) => {
-    // Link the project to quotation and update status to final
-    const updatedQuotation = await tx.quotation.update({
-      where: { id: quotationId },
-      data: { 
-        projectId: projectId,
-        workflowStatus: "final"
-      }
-    });
-    return updatedQuotation;
-  });
+  unstable_noStore()
+  const quotation = await prisma.quotation.update({
+    where: { id: quotationId },
+    data: {
+      projectId,
+      workflowStatus: "final",
+    },
+  })
+  revalidateTag("quotations", "max")
+  return quotation
 }
 
-// Get custom services for a quotation
 export async function getCustomServicesByQuotationId(quotationId: number) {
+  unstable_noStore()
   return await prisma.customService.findMany({
-    where: {
-      quotationId: quotationId,
-    },
+    where: { quotationId },
     include: {
       createdBy: {
         select: {
@@ -842,236 +720,98 @@ export async function getCustomServicesByQuotationId(quotationId: number) {
         select: {
           firstName: true,
           lastName: true,
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-}
-
-// Get all pending custom services (for admin)
-export async function getAllPendingCustomServices() {
-  return await prisma.customService.findMany({
-    where: {
-      status: "PENDING",
-    },
-    include: {
-      createdBy: {
-        select: {
-          firstName: true,
-          lastName: true,
           email: true,
         },
       },
-      reviewedBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-        },
-      },
-      quotation: {
-        select: {
-          id: true,
-          name: true,
-          Client: {
-            select: {
-              name: true,
-              company: true,
-            },
-          },
-        },
-      },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+    orderBy: { createdAt: "desc" },
+  })
 }
 
-// Get all custom services (for admin)
-export async function getAllCustomServices() {
-  return await prisma.customService.findMany({
-    include: {
-      createdBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      reviewedBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-        },
-      },
-      quotation: {
-        select: {
-          id: true,
-          name: true,
-          Client: {
-            select: {
-              name: true,
-              company: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-}
-
-// Get user's own pending custom services
-export async function getUserPendingCustomServices(userId: string) {
-  return await prisma.customService.findMany({
-    where: {
-      createdById: userId,
-      status: "PENDING",
-    },
-    include: {
-      createdBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      reviewedBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-        },
-      },
-      quotation: {
-        select: {
-          id: true,
-          name: true,
-          Client: {
-            select: {
-              name: true,
-              company: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-}
-
-// Get user's own custom services (all statuses)
-export async function getUserCustomServices(userId: string) {
-  return await prisma.customService.findMany({
-    where: {
-      createdById: userId,
-    },
-    include: {
-      createdBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      reviewedBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-        },
-      },
-      quotation: {
-        select: {
-          id: true,
-          name: true,
-          Client: {
-            select: {
-              name: true,
-              company: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
-}
-
-// Approve custom service
-export async function approveCustomService(
-  customServiceId: string,
-  reviewedById: string,
-  approvalComment?: string
+export async function createCustomService(
+  quotationId: number,
+  data: {
+    name: string
+    description: string
+    price: number
+  }
 ) {
+  unstable_noStore()
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to create a custom service")
+  }
+
+  return await prisma.customService.create({
+    data: {
+      quotationId,
+      name: data.name,
+      description: data.description,
+      price: data.price,
+      createdById: user.id,
+    },
+    include: {
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+  })
+}
+
+export async function updateCustomServiceStatus(
+  customServiceId: string,
+  status: "PENDING" | "APPROVED" | "REJECTED",
+  comment?: string
+) {
+  unstable_noStore()
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to update custom service status")
+  }
+
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) {
+    throw new Error("Only admins can update custom service status")
+  }
+
   return await prisma.$transaction(async (tx) => {
-    // Update custom service
     const customService = await tx.customService.update({
       where: { id: customServiceId },
       data: {
-        status: "APPROVED",
-        reviewedById: reviewedById,
-        approvalComment: approvalComment || null,
+        status,
+        reviewedById: user.id,
+        approvalComment: status === "APPROVED" ? comment : null,
+        rejectionComment: status === "REJECTED" ? comment : null,
+      },
+      include: {
+        quotation: {
+          include: {
+            services: {
+              where: {
+                customServiceId: customServiceId,
+              },
+            },
+          },
+        },
       },
     });
 
-    // Check if there are any remaining pending custom services for this quotation
-    const pendingCount = await tx.customService.count({
-      where: {
-        quotationId: customService.quotationId,
-        status: "PENDING",
-      },
-    });
-
-    // If no pending custom services and quotation is in_review, change to accepted
-    if (pendingCount === 0) {
-      const quotation = await tx.quotation.findUnique({
-        where: { id: customService.quotationId },
-        select: { workflowStatus: true },
+    // If approved, create QuotationService entry
+    if (status === "APPROVED") {
+      await tx.quotationService.create({
+        data: {
+          quotationId: customService.quotationId,
+          customServiceId: customServiceId,
+          serviceId: 1, // Dummy service ID, not used when customServiceId is set
+        },
       });
-
-      if (quotation?.workflowStatus === "in_review") {
-        await tx.quotation.update({
-          where: { id: customService.quotationId },
-          data: { workflowStatus: "accepted" },
-        });
-      }
     }
 
-    return customService;
-  });
-}
-
-
-// Reject custom service
-export async function rejectCustomService(
-  customServiceId: string,
-  reviewedById: string,
-  rejectionComment: string
-) {
-  if (!rejectionComment.trim()) {
-    throw new Error("Rejection comment is required");
-  }
-  
-  return await prisma.$transaction(async (tx) => {
-    // Update custom service
-    const customService = await tx.customService.update({
-      where: { id: customServiceId },
-      data: {
-        status: "REJECTED",
-        reviewedById: reviewedById,
-        rejectionComment: rejectionComment,
-      },
-    });
-
-    // Check if there are any remaining pending custom services for this quotation
+    // Check if there are any pending custom services
     const pendingCount = await tx.customService.count({
       where: {
         quotationId: customService.quotationId,
@@ -1096,4 +836,167 @@ export async function rejectCustomService(
 
     return customService;
   });
+}
+
+/**
+ * Send quotation PDF via email
+ */
+export async function sendQuotationEmail(
+  quotationId: number,
+  recipientEmail: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = await getCachedUser()
+    if (!user) {
+      throw new Error("User must be authenticated to send quotation")
+    }
+
+    // Get quotation with all related data
+    const quotation = await prisma.quotation.findUnique({
+      where: { id: quotationId },
+      include: {
+        Client: true,
+        services: {
+          include: {
+            service: true,
+          },
+        },
+        project: true,
+        createdBy: true,
+        customServices: true,
+      },
+    })
+
+    if (!quotation) {
+      return { success: false, error: "Quotation not found" }
+    }
+
+    if (quotation.workflowStatus !== "final") {
+      return { success: false, error: "Only finalized quotations can be sent" }
+    }
+
+    // Generate PDF as base64
+    const { generateQuotationPDFBase64 } = await import("./utils/pdfExport")
+    const pdfBase64 = await generateQuotationPDFBase64(quotation as any)
+
+    // Get Supabase URL and anon key
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return { success: false, error: "Supabase configuration missing" }
+    }
+
+    // Call Supabase function to send email
+    const functionUrl = `${supabaseUrl}/functions/v1/send-quote`
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        quotationId: quotation.id,
+        quotationNumber: quotation.name,
+        customerName: quotation.Client?.name || "Valued Customer",
+        customerEmail: recipientEmail,
+        clientCompany: quotation.Client?.company || "",
+        totalAmount: quotation.totalPrice,
+        pdfBase64: pdfBase64,
+        quotationDate: quotation.created_at.toISOString(),
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.text()
+      console.error("Error sending email:", errorData)
+      return { success: false, error: `Failed to send email: ${errorData}` }
+    }
+
+    // Record the email in database
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true },
+    })
+
+    if (!dbUser) {
+      return { success: false, error: "User not found in database" }
+    }
+
+    // Check if quotationEmail model exists (Prisma client needs to be regenerated)
+    if (!(prisma as any).quotationEmail) {
+      console.error("QuotationEmail model not found. Please run: npx prisma generate")
+      return { 
+        success: false, 
+        error: "Database model not available. Please regenerate Prisma client by running: npx prisma generate" 
+      }
+    }
+
+    await (prisma as any).quotationEmail.create({
+      data: {
+        quotationId: quotation.id,
+        recipientEmail: recipientEmail,
+        sentById: user.id,
+      },
+    })
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error sending quotation email:", error)
+    return { success: false, error: error.message || "Failed to send email" }
+  }
+}
+
+/**
+ * Get email history for a quotation
+ */
+export async function getQuotationEmailHistory(
+  quotationId: number
+): Promise<
+  Array<{
+    id: number
+    recipientEmail: string
+    sentAt: Date
+    sentBy: {
+      firstName: string
+      lastName: string
+      email: string
+    }
+  }>
+> {
+  try {
+    // Check if quotationEmail model exists (Prisma client needs to be regenerated)
+    if (!(prisma as any).quotationEmail) {
+      console.error("QuotationEmail model not found. Please run: npx prisma generate")
+      return []
+    }
+
+    const emails = await (prisma as any).quotationEmail.findMany({
+      where: { quotationId },
+      include: {
+        sentBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { sentAt: "desc" },
+    })
+
+    return emails.map((email: any) => ({
+      id: email.id,
+      recipientEmail: email.recipientEmail,
+      sentAt: email.sentAt,
+      sentBy: {
+        firstName: email.sentBy.firstName,
+        lastName: email.sentBy.lastName,
+        email: email.sentBy.email,
+      },
+    }))
+  } catch (error) {
+    console.error("Error fetching email history:", error)
+    return []
+  }
 }
