@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -26,15 +26,26 @@ import {
   XCircle,
   Clock,
   Download,
+  Send,
+  History,
 } from "lucide-react";
 import { workflowStatusOptions, paymentStatusOptions } from "../types";
 import { generateQuotationPDF } from "../utils/pdfExport";
 import { useQuotationCache } from "../hooks/useQuotationCache";
+import SendQuotationDialog from "../components/SendQuotationDialog";
+import EmailHistoryDialog from "../components/EmailHistoryDialog";
 
 export default function QuotationDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { quotation, isLoading } = useQuotationCache(params.id as string);
+  const { quotation, isLoading, onRefresh } = useQuotationCache(params.id as string);
+  const [mounted, setMounted] = useState(false);
+  const [isSendQuotationDialogOpen, setIsSendQuotationDialogOpen] = useState(false);
+  const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Memoize badge functions to avoid recreating on every render
   const getWorkflowStatusBadge = useCallback((status: string) => {
@@ -96,9 +107,21 @@ export default function QuotationDetailPage() {
     return fixedServicesTotal + approvedCustomServicesTotal;
   }, [quotation?.totalPrice, approvedCustomServicesTotal]);
 
-  if (isLoading) {
+  // Prevent hydration mismatch by only showing loading after mount
+  if (!mounted || isLoading) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => router.push("/quotations")}
+            className="mb-4"
+            disabled
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Quotations
+          </Button>
+        </div>
         <div className="flex items-center justify-center h-64">
           Loading quotation details...
         </div>
@@ -141,14 +164,32 @@ export default function QuotationDetailPage() {
           </div>
           <div className="flex gap-2">
             {quotation.workflowStatus === "final" && (
-              <Button
-                variant="outline"
-                onClick={async () => await generateQuotationPDF(quotation)}
-                className="flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                Export PDF
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsSendQuotationDialogOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  Send Email
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEmailHistoryDialogOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <History className="w-4 h-4" />
+                  Email History
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={async () => await generateQuotationPDF(quotation)}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export PDF
+                </Button>
+              </>
             )}
             {getWorkflowStatusBadge(quotation.workflowStatus)}
             {getPaymentStatusBadge(quotation.paymentStatus)}
@@ -466,6 +507,30 @@ export default function QuotationDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Send Quotation Dialog */}
+      {quotation.workflowStatus === "final" && (
+        <SendQuotationDialog
+          isOpen={isSendQuotationDialogOpen}
+          onOpenChange={setIsSendQuotationDialogOpen}
+          quotationId={quotation.id}
+          clientEmail={quotation.Client?.email || ""}
+          onSuccess={() => {
+            if (onRefresh) {
+              onRefresh();
+            }
+          }}
+        />
+      )}
+
+      {/* Email History Dialog */}
+      {quotation.workflowStatus === "final" && (
+        <EmailHistoryDialog
+          isOpen={isEmailHistoryDialogOpen}
+          onOpenChange={setIsEmailHistoryDialogOpen}
+          quotationId={quotation.id}
+        />
+      )}
     </div>
   );
 }

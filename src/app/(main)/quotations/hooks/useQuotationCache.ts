@@ -48,22 +48,32 @@ export function useQuotationCache(quotationId: string | undefined): UseQuotation
 	
 	const [quotation, setQuotation] = useState<any | null>(() => {
 		if (!quotationId) return null
-		
-		// Try localStorage first, then memory cache
-		const stored = loadFromLocalStorage(cacheKey)
-		if (stored) {
-			memoryQuotationCache[cacheKey] = stored
-			return stored.quotation
-		}
+		// Only access memory cache during SSR, localStorage will be checked after mount
 		return memoryQuotationCache[cacheKey]?.quotation || null
 	})
 	
 	// Only show loading if we don't have cached data
 	const [isLoading, setIsLoading] = useState<boolean>(() => {
 		if (!quotationId) return false
-		const stored = loadFromLocalStorage(cacheKey)
-		return !stored && !memoryQuotationCache[cacheKey]
+		// During SSR, assume loading if no memory cache
+		return !memoryQuotationCache[cacheKey]
 	})
+	
+	// Check localStorage after component mounts (client-side only)
+	useEffect(() => {
+		if (!quotationId) return
+		
+		// Try localStorage first, then memory cache
+		const stored = loadFromLocalStorage(cacheKey)
+		if (stored) {
+			memoryQuotationCache[cacheKey] = stored
+			setQuotation(stored.quotation)
+			setIsLoading(false)
+		} else if (memoryQuotationCache[cacheKey]) {
+			// We have memory cache, no need to show loading
+			setIsLoading(false)
+		}
+	}, [quotationId, cacheKey])
 	
 	const loadQuotation = useCallback(async (forceRefresh = false) => {
 		if (!quotationId) {

@@ -36,8 +36,8 @@ export function WeekView({
 	
 	// Calculate relevant time range based on events
 	const timeRange = useMemo(() => {
-		// Always show full business hours (7 AM to 10 PM)
-		return { start: 7, end: 22 }
+		// Show full 24 hours (midnight to midnight)
+		return { start: 0, end: 24 }
 	}, [])
 	
 	// Generate time slots based on relevant range

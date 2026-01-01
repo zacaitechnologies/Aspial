@@ -37,36 +37,49 @@ export function AppointmentGrid({ appointments, selectedDate, onBookingComplete 
 					return (
 						<Card
 							key={appointment.id}
-							className="cursor-pointer hover:shadow-lg transition-shadow"
+							className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
 							onClick={() => setSelectedAppointment(appointment)}
 						>
-							<CardHeader>
-								<div className="flex items-start justify-between">
-									<div className="flex-1">
-										<CardTitle className="text-lg">
-											{appointment.name}
-										</CardTitle>
-										<div className="mt-2 space-y-1">
-											{appointment.location && (
-												<p className="text-sm text-muted-foreground">
-													Location: {appointment.location}
-												</p>
-											)}
-											{appointment.brand && (
-												<p className="text-sm text-muted-foreground">
-													Brand: {appointment.brand}
-												</p>
-											)}
-											{appointment.description && (
-												<p className="text-sm text-muted-foreground">
-													{appointment.description}
-												</p>
-											)}
-										</div>
-									</div>
+							<CardHeader className="overflow-hidden">
+								<div className="space-y-2 w-full overflow-hidden">
+									<h3
+										className="text-lg font-semibold !truncate !min-w-0 w-full"
+										title={appointment.name}
+									>
+										{appointment.name}
+									</h3>
 									<Badge className={appointmentConfig.color}>
 										{appointmentConfig.label}
 									</Badge>
+									<div className="space-y-1 w-full overflow-hidden">
+										{appointment.location && (
+											<div className="flex items-center gap-2 text-sm !min-w-0 w-full overflow-hidden">
+												<span className="text-muted-foreground shrink-0">Location:</span>
+												<span
+													className="!truncate text-muted-foreground !min-w-0 flex-1"
+													title={appointment.location}
+												>
+													{appointment.location}
+												</span>
+											</div>
+										)}
+										{appointment.brand && (
+											<div className="flex items-center gap-2 text-sm">
+												<span className="text-muted-foreground shrink-0">Brand:</span>
+												<span className="text-muted-foreground">{appointment.brand}</span>
+											</div>
+										)}
+										{appointment.description && (
+											<div className="flex items-center gap-2 text-sm !min-w-0 w-full overflow-hidden">
+												<span
+													className="!truncate text-muted-foreground !min-w-0 flex-1"
+													title={appointment.description}
+												>
+													{appointment.description}
+												</span>
+											</div>
+										)}
+									</div>
 								</div>
 							</CardHeader>
 							<CardContent>
@@ -88,6 +101,27 @@ export function AppointmentGrid({ appointments, selectedDate, onBookingComplete 
 					<DialogTitle>
 						Book {selectedAppointment?.name}
 					</DialogTitle>
+					{selectedAppointment && (
+						<div className="space-y-2 text-sm text-muted-foreground mb-4">
+							<div className="flex flex-col gap-1">
+								<div className="font-medium text-foreground">
+									{selectedAppointment.name}
+								</div>
+								{selectedAppointment.location && (
+									<div>
+										<span className="font-medium text-foreground">Location: </span>
+										<span>{selectedAppointment.location}</span>
+									</div>
+								)}
+								{selectedAppointment.description && (
+									<div>
+										<span className="font-medium text-foreground">Description: </span>
+										<span>{selectedAppointment.description}</span>
+									</div>
+								)}
+							</div>
+						</div>
+					)}
 					{selectedAppointment && (
 						<WeeklyCalendarBooking
 							appointment={selectedAppointment}

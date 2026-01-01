@@ -42,9 +42,9 @@ export function DayView({
 		[dayEvents]
 	)
 	
-	// Calculate relevant time range - always show full business hours
+	// Calculate relevant time range - show full 24 hours
 	const timeRange = useMemo(
-		() => ({ start: 7, end: 22 }),
+		() => ({ start: 0, end: 24 }),
 		[]
 	)
 	

@@ -131,7 +131,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
       return isUserBooking || isUserProjectBooking
     }).map(booking => ({
       ...booking,
-      itemName: booking.appointment?.name || 'Appointment',
+      itemName: booking.project?.clientName || booking.appointment?.name || 'Appointment',
       itemLocation: booking.appointment?.location,
       itemBrand: booking.appointment?.brand,
       project: booking.project
@@ -387,25 +387,15 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
               return (
                 <Card key={booking.id} className="card">
                   <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Calendar className="w-5 h-5" />
-                          {booking.itemName}
-                        </CardTitle>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge className={appointmentConfig.color}>
-                            {appointmentConfig.label}
-                          </Badge>
-                          <Badge 
-                            variant="secondary"
-                            className={hasPassed ? "bg-gray-100 text-gray-800" : "bg-green-100 text-green-800"}
-                          >
-                            {hasPassed ? 'Expired' : 'Active'}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex space-x-1">
+                    <div className="flex items-center gap-2 mb-2 w-full">
+                      <Calendar className="w-5 h-5 shrink-0" />
+                      <h3 
+                        className="text-lg font-semibold truncate flex-1 min-w-0" 
+                        title={booking.itemName}
+                      >
+                        {booking.itemName}
+                      </h3>
+                      <div className="flex shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -417,6 +407,17 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={appointmentConfig.color}>
+                        {appointmentConfig.label}
+                      </Badge>
+                      <Badge 
+                        variant="secondary"
+                        className={hasPassed ? "bg-gray-100 text-gray-800" : "bg-green-100 text-green-800"}
+                      >
+                        {hasPassed ? 'Expired' : 'Active'}
+                      </Badge>
                     </div>
                   </CardHeader>
 
@@ -447,9 +448,9 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                       )}
                       {booking.project && (
                         <div className="flex items-center text-sm">
-                          <Calendar className="w-4 h-4 mr-2" />
-                          <span className="font-medium">Project:</span>
-                          <span className="ml-2">{booking.project.name} {booking.project.clientName ? `(${booking.project.clientName})` : ''}</span>
+                          <Calendar className="w-4 h-4 mr-2 shrink-0" />
+                          <span className="font-medium shrink-0">Project:</span>
+                          <span className="ml-2 truncate">{booking.project.clientName || booking.project.name}</span>
                         </div>
                       )}
                     </div>

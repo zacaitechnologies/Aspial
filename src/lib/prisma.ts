@@ -5,7 +5,7 @@ const prismaClientSingleton = () => {
   // Use Accelerate in production for connection pooling and edge caching
   // Make sure to set DATABASE_URL to your Prisma Accelerate connection string in production
   const client = new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+    log: ["error"],
   }).$extends(withAccelerate());
   
   return client;

@@ -159,6 +159,39 @@ export default function OrganizationCalendar() {
     setViewMode(newView)
   }
 
+  // Check if a booking is within the current date range based on view mode
+  const isBookingInCurrentDateRange = (booking: CalendarBooking): boolean => {
+    const bookingDate = new Date(booking.date)
+    bookingDate.setHours(0, 0, 0, 0)
+
+    // Apply date range filter based on view mode
+    if (viewMode === 'month') {
+      const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+      monthStart.setHours(0, 0, 0, 0)
+      const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+      monthEnd.setHours(23, 59, 59, 999)
+      
+      if (bookingDate < monthStart || bookingDate > monthEnd) return false
+    } else if (viewMode === 'week') {
+      const weekDays = getWeekDays(currentDate)
+      const weekStart = new Date(weekDays[0])
+      weekStart.setHours(0, 0, 0, 0)
+      const weekEnd = new Date(weekDays[6])
+      weekEnd.setHours(23, 59, 59, 999)
+      
+      if (bookingDate < weekStart || bookingDate > weekEnd) return false
+    } else if (viewMode === 'day') {
+      const dayStart = new Date(currentDate)
+      dayStart.setHours(0, 0, 0, 0)
+      const dayEnd = new Date(currentDate)
+      dayEnd.setHours(23, 59, 59, 999)
+      
+      if (bookingDate.getTime() < dayStart.getTime() || bookingDate.getTime() > dayEnd.getTime()) return false
+    }
+
+    return true
+  }
+
   // Get filtered bookings for the selected time period
   const getFilteredUpcomingBookings = () => {
     const today = new Date()
@@ -169,29 +202,7 @@ export default function OrganizationCalendar() {
       bookingDate.setHours(0, 0, 0, 0)
 
       // Apply date range filter based on view mode
-      if (viewMode === 'month') {
-        const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-        monthStart.setHours(0, 0, 0, 0)
-        const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-        monthEnd.setHours(23, 59, 59, 999)
-        
-        if (bookingDate < monthStart || bookingDate > monthEnd) return false
-      } else if (viewMode === 'week') {
-        const weekDays = getWeekDays(currentDate)
-        const weekStart = new Date(weekDays[0])
-        weekStart.setHours(0, 0, 0, 0)
-        const weekEnd = new Date(weekDays[6])
-        weekEnd.setHours(23, 59, 59, 999)
-        
-        if (bookingDate < weekStart || bookingDate > weekEnd) return false
-      } else if (viewMode === 'day') {
-        const dayStart = new Date(currentDate)
-        dayStart.setHours(0, 0, 0, 0)
-        const dayEnd = new Date(currentDate)
-        dayEnd.setHours(23, 59, 59, 999)
-        
-        if (bookingDate.getTime() !== dayStart.getTime()) return false
-      }
+      if (!isBookingInCurrentDateRange(booking)) return false
 
       // Don't show past bookings
       if (bookingDate < today) return false
@@ -350,6 +361,8 @@ export default function OrganizationCalendar() {
             {Object.entries(APPOINTMENT_TYPES).map(([appointmentKey, config]) => {
               const count = isLoading ? 0 : bookings.filter((b) => {
                 if (b.appointmentType !== appointmentKey) return false
+                // Filter by current date range (month/week/day)
+                if (!isBookingInCurrentDateRange(b)) return false
                 if (!isAdmin) {
                   if (bookmarkScope === "own" && !b.isUserBooking) return false
                   if (bookmarkScope === "team" && !b.isTeamBooking) return false
@@ -464,6 +477,8 @@ export default function OrganizationCalendar() {
                   <WeekView
                     currentDate={currentDate}
                     bookings={bookings.filter((booking) => {
+                      // Filter by date range (week) - include all events in the week, even past ones
+                      if (!isBookingInCurrentDateRange(booking)) return false
                       if (filterType !== "all" && booking.appointmentType !== filterType) return false
                       if (!isAdmin) {
                         if (bookmarkScope === "own" && !booking.isUserBooking) return false
@@ -506,6 +521,8 @@ export default function OrganizationCalendar() {
                   <DayView
                     currentDate={currentDate}
                     bookings={bookings.filter((booking) => {
+                      // Filter by date range (day) - include all events on the day, even past ones
+                      if (!isBookingInCurrentDateRange(booking)) return false
                       if (filterType !== "all" && booking.appointmentType !== filterType) return false
                       if (!isAdmin) {
                         if (bookmarkScope === "own" && !booking.isUserBooking) return false
