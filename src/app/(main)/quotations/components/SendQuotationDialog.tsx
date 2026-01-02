@@ -33,6 +33,7 @@ export default function SendQuotationDialog({
 }: SendQuotationDialogProps) {
 	const [email, setEmail] = useState(clientEmail)
 	const [isSending, setIsSending] = useState(false)
+	const [sendingProgress, setSendingProgress] = useState<string>("")
 
 	const handleSend = async () => {
 		if (!email || !email.includes("@")) {
@@ -45,8 +46,18 @@ export default function SendQuotationDialog({
 		}
 
 		setIsSending(true)
+		setSendingProgress("Fetching quotation data...")
+		
 		try {
+			// Add a small delay to show the loading state
+			await new Promise(resolve => setTimeout(resolve, 300))
+			
+			setSendingProgress("Generating PDF document...")
+			await new Promise(resolve => setTimeout(resolve, 200))
+			
+			setSendingProgress("Sending email...")
 			const result = await sendQuotationEmail(quotationId, email)
+			
 			if (result.success) {
 				toast({
 					title: "Success",
@@ -70,6 +81,7 @@ export default function SendQuotationDialog({
 			})
 		} finally {
 			setIsSending(false)
+			setSendingProgress("")
 		}
 	}
 
@@ -100,6 +112,12 @@ export default function SendQuotationDialog({
 							The client's email is pre-filled, but you can edit it if needed.
 						</p>
 					</div>
+					{isSending && sendingProgress && (
+						<div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+							<Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+							<p className="text-sm text-blue-700">{sendingProgress}</p>
+						</div>
+					)}
 				</div>
 				<DialogFooter>
 					<Button

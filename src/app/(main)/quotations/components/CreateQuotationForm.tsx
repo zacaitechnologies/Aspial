@@ -25,10 +25,11 @@ import {
 import { Plus, Briefcase } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createQuotation } from "../action";
+import { createQuotation, getAllUsers } from "../action";
 import { getAllServices } from "../../services/action";
 import type { Services } from "@prisma/client";
 import { useSession } from "../../contexts/SessionProvider";
+import { checkIsAdmin } from "../../actions/admin-actions";
 import { QuotationFormData } from "../types";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
@@ -93,11 +94,31 @@ export default function CreateQuotationForm({
     priority: "low"
   });
   const [isSaving, setIsSaving] = useState(false);
-
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; email: string; supabase_id: string }>>([]);
+  const [selectedCreatedById, setSelectedCreatedById] = useState<string>("");
 
   useEffect(() => {
     fetchServices();
+    checkAdminAndFetchUsers();
   }, []);
+
+  const checkAdminAndFetchUsers = async () => {
+    if (enhancedUser?.id) {
+      try {
+        const adminStatus = await checkIsAdmin(enhancedUser.id);
+        setIsAdmin(adminStatus);
+        if (adminStatus) {
+          const users = await getAllUsers();
+          setAllUsers(users);
+          // Default to current user
+          setSelectedCreatedById(enhancedUser.id);
+        }
+      } catch (error) {
+        console.error("Error checking admin status or fetching users:", error);
+      }
+    }
+  };
 
   // Update newProjectData when quotationForm changes
   useEffect(() => {
@@ -390,7 +411,7 @@ export default function CreateQuotationForm({
         description: quotationForm.description,
         totalPrice: discountedTotal, // Store discounted total (sum of services with discount)
         serviceIds: selectedServiceIds,
-        createdById: enhancedUser.id,
+        createdById: isAdmin && selectedCreatedById ? selectedCreatedById : enhancedUser.id,
         workflowStatus: workflowStatus, // Add workflow status parameter
         paymentStatus: "unpaid", // Default to unpaid for new quotations
         // If we already created the client (for final quotations with new clients), use the clientId
@@ -492,6 +513,29 @@ export default function CreateQuotationForm({
             <DialogTitle>Create New Quotation</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 w-full">
+            {/* Created By (Admin only) */}
+            {isAdmin && (
+              <div className="grid gap-2">
+                <Label htmlFor="create-created-by">Created By</Label>
+                <Select
+                  value={selectedCreatedById}
+                  onValueChange={setSelectedCreatedById}
+                >
+                  <SelectTrigger id="create-created-by">
+                    <SelectValue placeholder="Select creator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allUsers.map((user) => (
+                      <SelectItem key={user.supabase_id} value={user.supabase_id}>
+                        {user.firstName} {user.lastName} ({user.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Only admins can select a different creator</p>
+              </div>
+            )}
+
             {/* Client Selection */}
             <div className="grid gap-2">
               <Label>Client <span className="text-red-500">*</span></Label>

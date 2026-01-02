@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { getCachedUser } from "@/lib/auth-cache";
 import { getQuotationsPaginated } from "./action";
 import QuotationsClient from "./components/QuotationsClient";
@@ -15,19 +14,8 @@ export default async function QuotationsPage() {
     return null;
   }
 
-  // Fetch initial data on server - cached for 30 seconds
-  const initialData = await getQuotationsPaginated(1, 10);
+  // Fetch initial data on server with caching enabled for better performance
+  const initialData = await getQuotationsPaginated(1, 10, {}, true);
 
-  return (
-    <Suspense fallback={
-      <div className="container mx-auto p-6">
-        <div className="flex flex-col items-center justify-center py-20 text-primary">
-          <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
-          <p className="text-lg font-medium">Loading quotations…</p>
-        </div>
-      </div>
-    }>
-      <QuotationsClient initialData={initialData} userId={user.id} />
-    </Suspense>
-  );
+  return <QuotationsClient initialData={initialData} userId={user.id} />;
 }

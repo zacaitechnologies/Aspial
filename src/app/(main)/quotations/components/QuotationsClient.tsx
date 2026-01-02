@@ -9,6 +9,7 @@ import EditQuotationForm from "./EditQuotationForm";
 import QuotationCard from "./QuotationCard";
 import { QuotationWithServices, statusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
+import { checkIsAdmin } from "../../actions/admin-actions";
 import {
   Select,
   SelectContent,
@@ -36,6 +37,7 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingQuotation, setEditingQuotation] = useState<QuotationWithServices | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // State from initial data
   const [quotations, setQuotations] = useState<QuotationWithServices[]>(initialData.data);
@@ -44,6 +46,22 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
   const [pageSize, setPageSizeState] = useState(initialData.pageSize);
   const [total, setTotal] = useState(initialData.total);
   const [totalPages, setTotalPages] = useState(initialData.totalPages);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Fetch admin status once on mount
+  useEffect(() => {
+    const fetchAdminStatus = async () => {
+      if (enhancedUser?.id) {
+        try {
+          const adminStatus = await checkIsAdmin(enhancedUser.id);
+          setIsAdmin(adminStatus);
+        } catch (error) {
+          console.error("Error checking admin status:", error);
+        }
+      }
+    };
+    fetchAdminStatus();
+  }, [enhancedUser?.id]);
 
   // Fetch fresh data when filters change
   const fetchQuotations = useCallback(async () => {
@@ -62,22 +80,26 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
     }
   }, [page, pageSize, statusFilter]);
 
-  // Refetch when filters/pagination change
+  // Refetch when filters/pagination change (but skip initial load since we have server data)
   useEffect(() => {
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+      return;
+    }
     fetchQuotations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, statusFilter]);
 
-  const handleEditQuotation = (quotation: QuotationWithServices) => {
+  const handleEditQuotation = useCallback((quotation: QuotationWithServices) => {
     setEditingQuotation(quotation);
     setIsEditOpen(true);
-  };
+  }, []);
 
-  const handleDeleteQuotation = async (quotationId: string) => {
+  const handleDeleteQuotation = useCallback(async (quotationId: string) => {
     try {
       await deleteQuotationById(quotationId);
       await invalidateQuotationsCache();
-      await fetchQuotations();
+      fetchQuotations();
     } catch (error) {
       console.error("Error deleting quotation:", error);
       toast({
@@ -86,12 +108,12 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
         variant: "destructive",
       });
     }
-  };
+  }, []);
 
-  const handleSuccess = async () => {
+  const handleSuccess = useCallback(async () => {
     await invalidateQuotationsCache();
-    await fetchQuotations();
-  };
+    fetchQuotations();
+  }, []);
 
   const goToPage = useCallback((newPage: number) => {
     setPage(newPage);
@@ -152,9 +174,9 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
           </span>
         </div>
 
-        {/* Quotations List with Loading Overlay */}
+        {/* Quotations List - Keep previous list visible during loading */}
         <div className="relative">
-          <div className={`space-y-2 ${loading ? "opacity-50 pointer-events-none" : ""}`}>
+          <div className="space-y-2">
             {quotations.map((quotation) => (
               <QuotationCard
                 key={quotation.id}
@@ -162,17 +184,26 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
                 onEdit={handleEditQuotation}
                 onDelete={handleDeleteQuotation}
                 onRefresh={handleSuccess}
+                isAdmin={isAdmin}
               />
             ))}
           </div>
 
-          {/* Loading Indicator */}
-          {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
-              <div className="flex flex-col items-center gap-3 text-primary">
-                <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                <p className="text-sm font-medium">Loading quotations…</p>
+          {/* Lightweight loading indicator - only show when loading and we have data */}
+          {loading && quotations.length > 0 && (
+            <div className="flex items-center justify-center py-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="h-4 w-4 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                <span>Loading...</span>
               </div>
+            </div>
+          )}
+
+          {/* Full loading state - only when no data yet */}
+          {loading && quotations.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-primary">
+              <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+              <p className="text-lg font-medium">Loading quotations…</p>
             </div>
           )}
         </div>

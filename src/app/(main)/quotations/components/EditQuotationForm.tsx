@@ -22,16 +22,18 @@ import {
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { editQuotationById, getCustomServicesByQuotationId } from "../action";
+import { editQuotationById, getCustomServicesByQuotationId, getAllUsers, getQuotationFullById } from "../action";
 import { getAllServices } from "../../services/action";
 import { getAllProjects } from "../../projects/action";
 import { useSession } from "../../contexts/SessionProvider";
+import { checkIsAdmin } from "../../actions/admin-actions";
 import type { Services } from "@prisma/client";
 import { QuotationWithServices, EditFormData, workflowStatusOptions, paymentStatusOptions } from "../types";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import CustomServiceDialog from "./CustomServiceDialog";
 import { Briefcase, Plus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 
@@ -51,10 +53,12 @@ export default function EditQuotationForm({
   const { enhancedUser } = useSession();
   const router = useRouter();
   
-  // Check if quotation is final and cannot be edited
+  // Check if quotation is final and cannot be edited (unless admin)
   const isFinalQuotation = editingQuotation?.workflowStatus === "final";
+  const [isAdmin, setIsAdmin] = useState(false);
   const [services, setServices] = useState<Services[]>([]);
   const [customServices, setCustomServices] = useState<any[]>([]);
+  const [isLoadingCustomServices, setIsLoadingCustomServices] = useState(false);
   const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<
     string[]
   >([]);
@@ -81,6 +85,10 @@ export default function EditQuotationForm({
     priority: "low"
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingFullData, setIsLoadingFullData] = useState(false);
+  const [allUsers, setAllUsers] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; email: string; supabase_id: string }>>([]);
+  const [selectedCreatedById, setSelectedCreatedById] = useState<string>("");
+  const [fullQuotationData, setFullQuotationData] = useState<QuotationWithServices | null>(null);
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -108,68 +116,146 @@ export default function EditQuotationForm({
 
   useEffect(() => {
     fetchServices();
+    checkAdminAndFetchUsers();
   }, []);
+
+  const checkAdminAndFetchUsers = async () => {
+    if (enhancedUser?.id) {
+      try {
+        const adminStatus = await checkIsAdmin(enhancedUser.id);
+        setIsAdmin(adminStatus);
+        if (adminStatus) {
+          const users = await getAllUsers();
+          setAllUsers(users);
+        }
+      } catch (error) {
+        console.error("Error checking admin status or fetching users:", error);
+      }
+    }
+  };
 
   useEffect(() => {
     if (editingQuotation) {
-      setEditForm({
-        name: editingQuotation.name,
-        description: editingQuotation.description,
-        totalPrice: editingQuotation.totalPrice.toString(),
-        workflowStatus: editingQuotation.workflowStatus as "draft" | "in_review" | "final" | "accepted" | "rejected",
-        paymentStatus: editingQuotation.paymentStatus as "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid",
-        discountValue: editingQuotation.discountValue?.toString() || "",
-        discountType: editingQuotation.discountType || "percentage",
-        duration: editingQuotation.duration?.toString() || "",
-        startDate: editingQuotation.startDate
-          ? new Date(editingQuotation.startDate).toISOString().split("T")[0]
-          : "",
-        clientId: editingQuotation.clientId || "",
-        projectId: editingQuotation.project?.id || undefined,
-        newClient: {
-          name: "",
-          email: "",
-          phone: "",
-          company: "",
-          address: "",
-          notes: "",
-          industry: "",
-          yearlyRevenue: "",
-          membershipType: "NON_MEMBER",
-        },
-        newProject: {
-          name: "",
-          description: "",
-          startDate: "",
-          endDate: "",
-          priority: "low",
-        },
-      });
-      setEditSelectedServiceIds(
-        editingQuotation.services.map((qs) => qs.service.id.toString())
+      // Fetch full quotation data if we don't have complete service data
+      const hasIncompleteServices = editingQuotation.services.some(
+        (qs) => !qs.service || !qs.service.id || Object.keys(qs.service).length === 0
       );
-
-      // Set project mode based on whether there's an existing project
-      if (editingQuotation.project) {
-        setProjectMode("existing");
+      
+      if (hasIncompleteServices) {
+        setIsLoadingFullData(true);
+        getQuotationFullById(editingQuotation.id.toString())
+          .then((fullData) => {
+            if (fullData) {
+              setFullQuotationData(fullData);
+              // Use full data for form initialization
+              initializeFormWithQuotation(fullData);
+            } else {
+              // Fallback to partial data if full fetch fails
+              initializeFormWithQuotation(editingQuotation);
+            }
+          })
+          .catch((error) => {
+            console.error("Error fetching full quotation data:", error);
+            // Fallback to partial data on error
+            initializeFormWithQuotation(editingQuotation);
+          })
+          .finally(() => {
+            setIsLoadingFullData(false);
+          });
       } else {
-        setProjectMode("existing");
+        // We have complete data, use it directly
+        setFullQuotationData(editingQuotation);
+        initializeFormWithQuotation(editingQuotation);
       }
-
-      // Set client mode based on whether there's an existing client
-      setClientMode(editingQuotation.clientId ? "existing" : "new");
-
-      // Fetch custom services for this quotation
-      fetchCustomServices(editingQuotation.id);
     }
   }, [editingQuotation]);
 
+  const initializeFormWithQuotation = (quotation: QuotationWithServices) => {
+    setEditForm({
+      name: quotation.name,
+      description: quotation.description,
+      totalPrice: quotation.totalPrice.toString(),
+      workflowStatus: quotation.workflowStatus as "draft" | "in_review" | "final" | "accepted" | "rejected",
+      paymentStatus: quotation.paymentStatus as "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid",
+      discountValue: quotation.discountValue?.toString() || "",
+      discountType: quotation.discountType || "percentage",
+      duration: quotation.duration?.toString() || "",
+      startDate: quotation.startDate
+        ? new Date(quotation.startDate).toISOString().split("T")[0]
+        : "",
+      clientId: quotation.clientId || "",
+      projectId: quotation.project?.id || undefined,
+      newClient: {
+        name: "",
+        email: "",
+        phone: "",
+        company: "",
+        address: "",
+        notes: "",
+        industry: "",
+        yearlyRevenue: "",
+        membershipType: "NON_MEMBER",
+      },
+      newProject: {
+        name: "",
+        description: "",
+        startDate: "",
+        endDate: "",
+        priority: "low",
+      },
+    });
+    
+    // Set the selected createdBy user if admin
+    if (quotation.createdBy?.supabase_id) {
+      setSelectedCreatedById(quotation.createdBy.supabase_id);
+    }
+    
+    // Use serviceId if available (from list view), otherwise use service.id (from full fetch)
+    setEditSelectedServiceIds(
+      quotation.services
+        .map((qs) => {
+          // List view has serviceId but empty service object
+          // Full fetch has full service object with id
+          if (qs.serviceId) {
+            return qs.serviceId.toString();
+          }
+          // Fallback to service.id if service object is available
+          if (qs.service?.id) {
+            return qs.service.id.toString();
+          }
+          return null;
+        })
+        .filter((id): id is string => id !== null)
+    );
+
+    // Set project mode based on whether there's an existing project
+    if (quotation.project) {
+      setProjectMode("existing");
+    } else {
+      setProjectMode("existing");
+    }
+
+    // Set client mode based on whether there's an existing client
+    setClientMode(quotation.clientId ? "existing" : "new");
+
+    // Fetch custom services for this quotation
+    fetchCustomServices(quotation.id);
+  };
+
   const fetchCustomServices = async (quotationId: number) => {
+    setIsLoadingCustomServices(true);
     try {
       const services = await getCustomServicesByQuotationId(quotationId);
       setCustomServices(services);
     } catch (error) {
       console.error("Failed to fetch custom services:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load custom services. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingCustomServices(false);
     }
   };
 
@@ -440,6 +526,7 @@ export default function EditQuotationForm({
         duration: editForm.duration ? parseInt(editForm.duration) : undefined,
         startDate: editForm.startDate || undefined,
         projectId: projectId,
+        createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined, // Only pass if admin changed it
       });
 
       onSuccess();
@@ -464,8 +551,8 @@ export default function EditQuotationForm({
 
   if (!editingQuotation) return null;
 
-  // For final quotations, show limited editing form
-  if (isFinalQuotation) {
+  // For final quotations, show limited editing form (unless admin)
+  if (isFinalQuotation && !isAdmin) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) {
@@ -543,9 +630,22 @@ export default function EditQuotationForm({
         className="w-[85vw]! max-w-[85vw]! sm:max-w-[85vw]! max-h-[90vh] rounded-lg overflow-hidden"
         showCloseButton={false}
       >
+        {isLoadingFullData ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <p className="text-sm text-muted-foreground">Loading quotation data...</p>
+            </div>
+          </div>
+        ) : (
         <div className="custom-scrollbar overflow-y-auto overflow-x-hidden max-h-[calc(90vh-4rem)] pr-2 min-w-0">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
             <DialogTitle>Edit Quotation</DialogTitle>
+            {isAdmin && isFinalQuotation && (
+              <DialogDescription className="text-amber-700 bg-amber-50 p-2 rounded mt-2">
+                ⚠️ Admin Mode: You can fully edit this final quotation, including services and all fields.
+              </DialogDescription>
+            )}
           </DialogHeader>
           <div className="grid gap-4 py-4 w-full">
             {/* Quotation Number (Read-only) */}
@@ -559,6 +659,29 @@ export default function EditQuotationForm({
                   className="bg-gray-50 cursor-not-allowed"
                 />
                 <p className="text-xs text-muted-foreground">Quotation number is auto-generated and cannot be changed</p>
+              </div>
+            )}
+
+            {/* Created By (Admin only) */}
+            {isAdmin && editingQuotation && (
+              <div className="grid gap-2">
+                <Label htmlFor="edit-created-by">Created By</Label>
+                <Select
+                  value={selectedCreatedById}
+                  onValueChange={setSelectedCreatedById}
+                >
+                  <SelectTrigger id="edit-created-by">
+                    <SelectValue placeholder="Select creator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allUsers.map((user) => (
+                      <SelectItem key={user.supabase_id} value={user.supabase_id}>
+                        {user.firstName} {user.lastName} ({user.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Only admins can change the creator of a quotation</p>
               </div>
             )}
 
@@ -686,12 +809,18 @@ export default function EditQuotationForm({
                   size="sm"
                   onClick={() => setIsCustomServiceDialogOpen(true)}
                   className="flex items-center gap-2"
+                  disabled={isLoadingCustomServices}
                 >
                   <Plus className="w-4 h-4" />
                   New Request
                 </Button>
               </div>
-              {customServices.length === 0 ? (
+              {isLoadingCustomServices ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  <span>Loading custom services...</span>
+                </div>
+              ) : customServices.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground text-sm">
                   No custom services requested yet
                 </div>
@@ -890,6 +1019,7 @@ export default function EditQuotationForm({
             )}
           </div>
         </div>
+        )}
       </DialogContent>
 
       {/* Custom Service Dialog */}

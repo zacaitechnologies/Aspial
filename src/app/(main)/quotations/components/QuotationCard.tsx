@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +31,6 @@ import { useSession } from "../../contexts/SessionProvider";
 import {
   getClientById,
   updateClientMembershipStatus,
-  getCustomServicesByQuotationId,
 } from "../action";
 import MembershipStatusDialog from "./MembershipStatusDialog";
 import CustomServiceDialog from "./CustomServiceDialog";
@@ -62,6 +61,7 @@ interface QuotationCardProps {
   onEdit: (quotation: QuotationWithServices) => void;
   onDelete: (quotationId: string) => void;
   onRefresh?: () => void;
+  isAdmin: boolean;
 }
 
 export default function QuotationCard({
@@ -69,6 +69,7 @@ export default function QuotationCard({
   onEdit,
   onDelete,
   onRefresh,
+  isAdmin,
 }: QuotationCardProps) {
   const router = useRouter();
   const { enhancedUser } = useSession();
@@ -76,7 +77,6 @@ export default function QuotationCard({
   const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] =
     useState(false);
   const [isProjectSelectionDialogOpen, setIsProjectSelectionDialogOpen] = useState(false);
-  const [customServices, setCustomServices] = useState<any[]>([]);
   const [clientData, setClientData] = useState<{
     id: string;
     name: string;
@@ -89,6 +89,7 @@ export default function QuotationCard({
   const [isLinkingProject, setIsLinkingProject] = useState(false);
   const [isSendQuotationDialogOpen, setIsSendQuotationDialogOpen] = useState(false);
   const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [newProjectData, setNewProjectData] = useState<{
     name: string;
     description?: string;
@@ -103,20 +104,9 @@ export default function QuotationCard({
     priority: "low"
   });
 
-  // Fetch custom services when component mounts
-  useEffect(() => {
-    fetchCustomServices();
-  }, [quotation.id]);
-
-  const fetchCustomServices = async () => {
-    try {
-      const services = await getCustomServicesByQuotationId(quotation.id);
-      setCustomServices(services);
-    } catch (error) {
-      console.error("Failed to fetch custom services:", error);
-    }
-  };
-  const getWorkflowStatusBadge = (status: string) => {
+  // Use customServices from quotation data (already fetched)
+  const customServices = quotation.customServices || [];
+  const getWorkflowStatusBadge = useCallback((status: string) => {
     const statusConfig = workflowStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge
@@ -126,9 +116,9 @@ export default function QuotationCard({
         {statusConfig?.label || status}
       </Badge>
     );
-  };
+  }, []);
 
-  const getPaymentStatusBadge = (status: string) => {
+  const getPaymentStatusBadge = useCallback((status: string) => {
     const statusConfig = paymentStatusOptions.find((opt) => opt.value === status);
     return (
       <Badge
@@ -138,10 +128,10 @@ export default function QuotationCard({
         {statusConfig?.label || status}
       </Badge>
     );
-  };
+  }, []);
 
   // Calculate grand total including approved custom services
-  const calculateGrandTotal = () => {
+  const grandTotal = (() => {
     // quotation.totalPrice is already the grand total for entire duration (fixed services)
     const fixedServicesTotal = quotation.totalPrice;
     
@@ -154,16 +144,18 @@ export default function QuotationCard({
     const customServicesTotal = customServicesMonthly * duration;
     
     return fixedServicesTotal + customServicesTotal;
-  };
+  })();
 
   const hasProject = quotation.project !== null;
   const isProjectCancelled = quotation.project?.status === "cancelled";
   const isFinalQuotation = quotation.workflowStatus === "final";
-  const isEditableQuotation = quotation.workflowStatus === "draft" || quotation.workflowStatus === "accepted" || quotation.workflowStatus === "rejected";
+  const isEditableQuotation = quotation.workflowStatus === "draft" || 
+    quotation.workflowStatus === "accepted" || 
+    quotation.workflowStatus === "rejected";
   const isCreator = enhancedUser?.id === quotation.createdBy?.supabase_id;
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     // For final quotations, prevent deletion
     if (isFinalQuotation) {
       toast({
@@ -175,14 +167,14 @@ export default function QuotationCard({
     }
     
     setIsDeleteDialogOpen(true);
-  };
+  }, [isFinalQuotation]);
 
-  const confirmDelete = () => {
+  const confirmDelete = useCallback(() => {
     onDelete(quotation.id.toString());
     setIsDeleteDialogOpen(false);
-  };
+  }, [onDelete, quotation.id]);
 
-  const handleCreateProject = () => {
+  const handleCreateProject = useCallback(() => {
     // Reset form data with quotation info
     setNewProjectData({
       name: quotation.name,
@@ -195,7 +187,7 @@ export default function QuotationCard({
     setSelectedProjectName("");
     setProjectMode("existing");
     setIsProjectSelectionDialogOpen(true);
-  };
+  }, [quotation.name, quotation.description, quotation.startDate, quotation.endDate]);
 
   const createProjectAndRefresh = async (quotation: QuotationWithServices) => {
     try {
@@ -462,7 +454,7 @@ export default function QuotationCard({
               <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
                 <p className="text-[10px] text-gray-600 mb-0.5">Total</p>
                 <p className="text-lg font-bold text-blue-700">
-                  RM{calculateGrandTotal().toFixed(2)}
+                  RM{grandTotal.toFixed(2)}
                 </p>
               </div>
             </div>
@@ -499,7 +491,7 @@ export default function QuotationCard({
                   View Quotation Details
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {isCreator && !isFinalQuotation && (
+                {(isCreator || isAdmin) && !isFinalQuotation && (
                   <>
                     <DropdownMenuItem
                       onClick={(e) => {
@@ -528,8 +520,22 @@ export default function QuotationCard({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {isCreator && isFinalQuotation && (
+                {(isCreator || isAdmin) && isFinalQuotation && (
                   <>
+                    {isAdmin && (
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setIsCustomServiceDialogOpen(true);
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Custom Service
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
@@ -540,7 +546,7 @@ export default function QuotationCard({
                       className="cursor-pointer"
                     >
                       <Edit className="w-4 h-4 mr-2" />
-                      Edit Payment Status
+                      {isAdmin ? "Edit Quotation" : "Edit Payment Status"}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
@@ -589,13 +595,39 @@ export default function QuotationCard({
                       onClick={async (e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        await generateQuotationPDF(quotation);
+                        setIsExportingPDF(true);
+                        try {
+                          await generateQuotationPDF(quotation);
+                          toast({
+                            title: "Success",
+                            description: "PDF exported successfully.",
+                          });
+                        } catch (error) {
+                          console.error("Error exporting PDF:", error);
+                          toast({
+                            title: "Error",
+                            description: "Failed to export PDF. Please try again.",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setIsExportingPDF(false);
+                        }
                       }}
                       onPointerDown={(e) => e.stopPropagation()}
                       className="cursor-pointer"
+                      disabled={isExportingPDF}
                     >
-                      <Download className="w-4 h-4 mr-2" />
-                      Export as PDF
+                      {isExportingPDF ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Exporting...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Export as PDF
+                        </>
+                      )}
                     </DropdownMenuItem>
                   </>
                 )}
@@ -639,8 +671,6 @@ export default function QuotationCard({
         isOpen={isCustomServiceDialogOpen}
         onOpenChange={setIsCustomServiceDialogOpen}
         onServiceCreated={(newService) => {
-          // Refresh custom services list
-          fetchCustomServices();
           // Refresh the quotation data if callback is provided
           if (onRefresh) {
             onRefresh();

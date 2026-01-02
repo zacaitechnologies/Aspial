@@ -1,13 +1,17 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { getQuotationById } from "../action"
+import { getQuotationById, getQuotationFullById } from "../action"
 
 interface UseQuotationCacheReturn {
 	quotation: any | null
 	isLoading: boolean
 	onRefresh: () => Promise<void>
 	invalidateCache: () => void
+}
+
+interface UseQuotationCacheOptions {
+	fetchFullData?: boolean // If true, fetches full data including custom services with complete details
 }
 
 const MEMORY_CACHE_DURATION = 2 * 60 * 1000 // 2 minutes for active session
@@ -43,8 +47,12 @@ const saveToLocalStorage = (cacheKey: string, data: any) => {
 	}
 }
 
-export function useQuotationCache(quotationId: string | undefined): UseQuotationCacheReturn {
-	const cacheKey = `${quotationId}`
+export function useQuotationCache(
+	quotationId: string | undefined,
+	options: UseQuotationCacheOptions = {}
+): UseQuotationCacheReturn {
+	const { fetchFullData = false } = options
+	const cacheKey = `${quotationId}${fetchFullData ? '-full' : ''}`
 	
 	const [quotation, setQuotation] = useState<any | null>(() => {
 		if (!quotationId) return null
@@ -125,7 +133,10 @@ export function useQuotationCache(quotationId: string | undefined): UseQuotation
 		}
 		
 		try {
-			const quotationData = await getQuotationById(quotationId)
+			const quotationData = fetchFullData 
+				? await getQuotationFullById(quotationId)
+				: await getQuotationById(quotationId)
+				
 			if (quotationData) {
 				const freshTimestamp = Date.now()
 				const cacheData = {

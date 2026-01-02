@@ -28,20 +28,24 @@ import {
   Download,
   Send,
   History,
+  Loader2,
 } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 import { workflowStatusOptions, paymentStatusOptions } from "../types";
 import { generateQuotationPDF } from "../utils/pdfExport";
 import { useQuotationCache } from "../hooks/useQuotationCache";
 import SendQuotationDialog from "../components/SendQuotationDialog";
 import EmailHistoryDialog from "../components/EmailHistoryDialog";
+import LoadingProgress from "../components/LoadingProgress";
 
 export default function QuotationDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { quotation, isLoading, onRefresh } = useQuotationCache(params.id as string);
+  const { quotation, isLoading, onRefresh } = useQuotationCache(params.id as string, { fetchFullData: true });
   const [mounted, setMounted] = useState(false);
   const [isSendQuotationDialogOpen, setIsSendQuotationDialogOpen] = useState(false);
   const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -122,9 +126,7 @@ export default function QuotationDetailPage() {
             Back to Quotations
           </Button>
         </div>
-        <div className="flex items-center justify-center h-64">
-          Loading quotation details...
-        </div>
+        <LoadingProgress message="Loading quotation details..." size="lg" className="h-64" />
       </div>
     );
   }
@@ -183,11 +185,39 @@ export default function QuotationDetailPage() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={async () => await generateQuotationPDF(quotation)}
+                  onClick={async () => {
+                    setIsExportingPDF(true);
+                    try {
+                      await generateQuotationPDF(quotation);
+                      toast({
+                        title: "Success",
+                        description: "PDF exported successfully.",
+                      });
+                    } catch (error) {
+                      console.error("Error exporting PDF:", error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to export PDF. Please try again.",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setIsExportingPDF(false);
+                    }
+                  }}
                   className="flex items-center gap-2"
+                  disabled={isExportingPDF}
                 >
-                  <Download className="w-4 h-4" />
-                  Export PDF
+                  {isExportingPDF ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Export PDF
+                    </>
+                  )}
                 </Button>
               </>
             )}

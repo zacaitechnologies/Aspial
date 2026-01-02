@@ -5,6 +5,24 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
+// Get all users for admin dropdown
+export async function getAllUsers() {
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      supabase_id: true,
+    },
+    orderBy: {
+      firstName: "asc"
+    }
+  })
+  
+  return users
+}
+
 export async function getAllQuotations(userId?: string) {
   // Everyone can see all quotations regardless of who created them
   return await prisma.quotation.findMany({
@@ -44,16 +62,72 @@ async function _getQuotationsPaginatedInternal(
     prisma.quotation.count({ where }),
     prisma.quotation.findMany({
       where,
-      include: {
-        services: {
-          include: {
-            service: true,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        totalPrice: true,
+        workflowStatus: true,
+        paymentStatus: true,
+        discountValue: true,
+        discountType: true,
+        duration: true,
+        startDate: true,
+        endDate: true,
+        clientId: true,
+        created_at: true,
+        updated_at: true,
+        project: {
+          select: {
+            id: true,
+            status: true,
           },
         },
-        project: true,
-        createdBy: true,
-        Client: true,
-        customServices: true,
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            supabase_id: true,
+            created_at: true,
+            updated_at: true,
+          },
+        },
+        Client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            company: true,
+            address: true,
+            notes: true,
+            industry: true,
+            yearlyRevenue: true,
+          },
+        },
+        customServices: {
+          select: {
+            id: true,
+            quotationId: true,
+            name: true,
+            description: true,
+            price: true,
+            status: true,
+            createdById: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        services: {
+          select: {
+            id: true,
+            quotationId: true,
+            serviceId: true,
+            customServiceId: true,
+          },
+        },
       },
       orderBy: { created_at: "desc" },
       skip,
@@ -63,9 +137,20 @@ async function _getQuotationsPaginatedInternal(
 
   // Transform data to match QuotationWithServices type (convert null to undefined)
   const transformedQuotations = quotations.map(quotation => ({
-    ...quotation,
+    id: quotation.id,
+    name: quotation.name,
+    description: quotation.description,
+    totalPrice: quotation.totalPrice,
+    workflowStatus: quotation.workflowStatus,
+    paymentStatus: quotation.paymentStatus,
     discountValue: quotation.discountValue ?? undefined,
     discountType: quotation.discountType ?? undefined,
+    duration: quotation.duration ?? undefined,
+    startDate: quotation.startDate ?? undefined,
+    endDate: quotation.endDate ?? undefined,
+    clientId: quotation.clientId ?? undefined,
+    created_at: quotation.created_at,
+    updated_at: quotation.updated_at,
     Client: quotation.Client ? {
       ...quotation.Client,
       phone: quotation.Client.phone ?? undefined,
@@ -75,16 +160,34 @@ async function _getQuotationsPaginatedInternal(
       industry: quotation.Client.industry ?? undefined,
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
+    createdBy: quotation.createdBy,
     services: quotation.services.map(service => ({
       ...service,
       customServiceId: service.customServiceId ?? undefined,
+      // Add minimal service object for type compatibility (not used in list view)
+      service: {} as any,
     })),
     project: quotation.project ? {
-      ...quotation.project,
-      description: quotation.project.description ?? undefined,
-      startDate: quotation.project.startDate ?? undefined,
-      endDate: quotation.project.endDate ?? undefined,
+      id: quotation.project.id,
+      name: "",
+      description: undefined,
+      status: quotation.project.status,
+      startDate: undefined,
+      endDate: undefined,
+      created_at: new Date(),
+      updated_at: new Date(),
     } : null,
+    customServices: quotation.customServices?.map(cs => ({
+      id: cs.id,
+      quotationId: cs.quotationId,
+      name: cs.name,
+      description: cs.description ?? undefined,
+      price: cs.price,
+      status: cs.status,
+      createdById: cs.createdById ?? undefined,
+      created_at: cs.createdAt,
+      updated_at: cs.updatedAt,
+    })) ?? [],
   }))
 
   return {
@@ -184,6 +287,83 @@ export async function getQuotationById(id: string) {
       startDate: quotation.project.startDate ?? undefined,
       endDate: quotation.project.endDate ?? undefined,
     } : null,
+  }
+}
+
+/**
+ * Get full quotation data with all related entities
+ * Used for PDF generation, email sending, and editing
+ * This fetches complete data including all service details
+ */
+export async function getQuotationFullById(id: string) {
+  unstable_noStore()
+  const quotation = await prisma.quotation.findUnique({
+    where: { id: Number.parseInt(id) },
+    include: {
+      services: {
+        include: {
+          service: true,
+        },
+      },
+      project: true,
+      createdBy: true,
+      Client: true,
+      customServices: {
+        include: {
+          createdBy: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          reviewedBy: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  })
+
+  if (!quotation) {
+    return null
+  }
+
+  // Transform to match QuotationWithServices type
+  return {
+    ...quotation,
+    discountValue: quotation.discountValue ?? undefined,
+    discountType: quotation.discountType ?? undefined,
+    Client: quotation.Client ? {
+      ...quotation.Client,
+      phone: quotation.Client.phone ?? undefined,
+      company: quotation.Client.company ?? undefined,
+      address: quotation.Client.address ?? undefined,
+      notes: quotation.Client.notes ?? undefined,
+      industry: quotation.Client.industry ?? undefined,
+      yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
+    } : undefined,
+    services: quotation.services.map(service => ({
+      ...service,
+      customServiceId: service.customServiceId ?? undefined,
+    })),
+    project: quotation.project ? {
+      ...quotation.project,
+      description: quotation.project.description ?? undefined,
+      startDate: quotation.project.startDate ?? undefined,
+      endDate: quotation.project.endDate ?? undefined,
+    } : null,
+    customServices: quotation.customServices.map(cs => ({
+      ...cs,
+      description: cs.description ?? undefined,
+      createdById: cs.createdById ?? undefined,
+      created_at: cs.createdAt,
+      updated_at: cs.updatedAt,
+    })),
   }
 }
 
@@ -372,6 +552,7 @@ export async function editQuotationById(
     startDate?: string
     clientId?: string
     projectId?: number
+    createdById?: string // Allow admin to change createdBy
     newClient?: {
       name: string
       email: string
@@ -394,6 +575,27 @@ export async function editQuotationById(
   const user = await getCachedUser()
   if (!user) {
     throw new Error("User must be authenticated to edit a quotation")
+  }
+
+  // Check if admin is trying to change createdBy
+  let finalCreatedById: string | undefined = undefined
+  if (data.createdById) {
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+    if (!isAdmin) {
+      throw new Error("Only admins can change the creator of a quotation")
+    }
+    
+    // Verify the user exists
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: data.createdById },
+      select: { supabase_id: true }
+    })
+    
+    if (!dbUser) {
+      throw new Error("Selected user not found in database")
+    }
+    
+    finalCreatedById = data.createdById // Use supabase_id directly
   }
 
   return await prisma.$transaction(async (tx) => {
@@ -467,6 +669,7 @@ export async function editQuotationById(
         duration: data.duration !== undefined ? data.duration : 0,
         startDate: data.startDate ? new Date(data.startDate) : new Date(),
         endDate: endDate || new Date(),
+        createdById: finalCreatedById !== undefined ? finalCreatedById : undefined, // Only update if provided
         services: data.serviceIds
           ? {
               create: data.serviceIds.map((serviceId) => ({
@@ -851,21 +1054,8 @@ export async function sendQuotationEmail(
       throw new Error("User must be authenticated to send quotation")
     }
 
-    // Get quotation with all related data
-    const quotation = await prisma.quotation.findUnique({
-      where: { id: quotationId },
-      include: {
-        Client: true,
-        services: {
-          include: {
-            service: true,
-          },
-        },
-        project: true,
-        createdBy: true,
-        customServices: true,
-      },
-    })
+    // Get quotation with all related data (including custom services with full details)
+    const quotation = await getQuotationFullById(quotationId.toString())
 
     if (!quotation) {
       return { success: false, error: "Quotation not found" }

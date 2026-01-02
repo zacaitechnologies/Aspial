@@ -46,6 +46,17 @@ export type QuotationWithServices = {
     service: Services;
     customService?: any;
   }[];
+  customServices?: {
+    id: string;
+    quotationId: number;
+    name: string;
+    description?: string;
+    price: number;
+    status: string;
+    createdById?: string;
+    created_at: Date;
+    updated_at: Date;
+  }[];
   project: {
     id: number;
     name: string;
