@@ -289,7 +289,7 @@ export default function CreateQuotationForm({
     return true;
   };
 
-  const handleCreateQuotation = async (workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" = "draft") => {
+  const handleCreateQuotation = async (workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled" = "draft") => {
     if (!validateForm()) {
       return;
     }
@@ -304,106 +304,85 @@ export default function CreateQuotationForm({
       let finalClientId: string | undefined = clientMode === "existing" ? quotationForm.clientId : undefined;
       let finalClientName: string = clientMode === "existing" ? (quotationForm.selectedClientName || "") : (quotationForm.newClient?.name || "");
 
-      // For final quotations, handle project creation/linking
-      if (workflowStatus === "final") {
-        if (projectMode === "new") {
-          // Create new project first
-          if (!newProjectData.name) {
+      // Project linking is optional - users can link projects anytime, not just when finalizing
+      if (projectMode === "new" && newProjectData.name) {
+        // Create new project if user wants to
+        // If creating a new client, create it first so we have a clientId for the project
+        if (clientMode === "new") {
+          if (!quotationForm.newClient?.name || !quotationForm.newClient?.email) {
             toast({
               title: "Validation Error",
-              description: "Please enter a project name.",
+              description: "Please fill in the required client information (name and email).",
               variant: "destructive",
             });
             setIsSaving(false);
             return;
           }
 
-          // If creating a new client, create it first so we have a clientId for the project
-          if (clientMode === "new") {
-            if (!quotationForm.newClient?.name || !quotationForm.newClient?.email) {
-              toast({
-                title: "Validation Error",
-                description: "Please fill in the required client information (name and email).",
-                variant: "destructive",
-              });
-              setIsSaving(false);
-              return;
-            }
-
-            try {
-              const { createCustomerClient } = await import("../../clients/action");
-              const newClient = await createCustomerClient({
-                name: quotationForm.newClient.name,
-                email: quotationForm.newClient.email,
-                phone: quotationForm.newClient.phone,
-                company: quotationForm.newClient.company,
-                address: quotationForm.newClient.address,
-                notes: quotationForm.newClient.notes,
-                industry: quotationForm.newClient.industry,
-                yearlyRevenue: quotationForm.newClient.yearlyRevenue ? parseFloat(quotationForm.newClient.yearlyRevenue) : undefined,
-                membershipType: (quotationForm.newClient.membershipType as "MEMBER" | "NON_MEMBER") || "NON_MEMBER",
-              });
-              finalClientId = newClient.id;
-              finalClientName = newClient.name;
-            } catch (error) {
-              console.error("Error creating client:", error);
-              toast({
-                title: "Error",
-                description: "Failed to create client: " + (error as Error).message,
-                variant: "destructive",
-              });
-              setIsSaving(false);
-              return;
-            }
-          }
-
-          if (!finalClientId) {
+          try {
+            const { createCustomerClient } = await import("../../clients/action");
+            const newClient = await createCustomerClient({
+              name: quotationForm.newClient.name,
+              email: quotationForm.newClient.email,
+              phone: quotationForm.newClient.phone,
+              company: quotationForm.newClient.company,
+              address: quotationForm.newClient.address,
+              notes: quotationForm.newClient.notes,
+              industry: quotationForm.newClient.industry,
+              yearlyRevenue: quotationForm.newClient.yearlyRevenue ? parseFloat(quotationForm.newClient.yearlyRevenue) : undefined,
+              membershipType: (quotationForm.newClient.membershipType as "MEMBER" | "NON_MEMBER") || "NON_MEMBER",
+            });
+            finalClientId = newClient.id;
+            finalClientName = newClient.name;
+          } catch (error) {
+            console.error("Error creating client:", error);
             toast({
-              title: "Validation Error",
-              description: "Cannot create project: No client assigned. Please assign a client first.",
+              title: "Error",
+              description: "Failed to create client: " + (error as Error).message,
               variant: "destructive",
             });
             setIsSaving(false);
             return;
           }
-
-          const { createProject } = await import("../../projects/action");
-          const newProject = await createProject({
-            name: newProjectData.name,
-            description: newProjectData.description,
-            createdBy: enhancedUser.id,
-            startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
-            endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
-            priority: newProjectData.priority,
-            clientId: finalClientId,
-            clientName: finalClientName,
-          });
-          projectId = newProject.id;
-          
-          // Refresh projects page cache - use setTimeout to ensure the project is fully created
-          setTimeout(() => {
-            router.refresh();
-            // Dispatch custom event to refresh projects page client-side cache
-            // Use a more specific event with detail to ensure it's received
-            const event = new CustomEvent('projectsCacheInvalidate', {
-              detail: { projectId: newProject.id, timestamp: Date.now() }
-            });
-            window.dispatchEvent(event);
-            console.log('Dispatched projectsCacheInvalidate event after project creation');
-          }, 200);
-        } else {
-          // Use selected existing project
-          if (!selectedProjectId) {
-            toast({
-              title: "Validation Error",
-              description: "Please select a project.",
-              variant: "destructive",
-            });
-            setIsSaving(false);
-            return;
-          }
-          projectId = selectedProjectId;
         }
+
+        if (!finalClientId) {
+          toast({
+            title: "Validation Error",
+            description: "Cannot create project: No client assigned. Please assign a client first.",
+            variant: "destructive",
+          });
+          setIsSaving(false);
+          return;
+        }
+
+        const { createProject } = await import("../../projects/action");
+        const newProject = await createProject({
+          name: newProjectData.name,
+          description: newProjectData.description,
+          createdBy: enhancedUser.id,
+          startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
+          endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
+          priority: newProjectData.priority,
+          clientId: finalClientId,
+          clientName: finalClientName,
+        });
+        projectId = newProject.id;
+        
+        // Refresh projects page cache - use setTimeout to ensure the project is fully created
+        setTimeout(() => {
+          router.refresh();
+          // Dispatch custom event to refresh projects page client-side cache
+          // Use a more specific event with detail to ensure it's received
+          const event = new CustomEvent('projectsCacheInvalidate', {
+            detail: { projectId: newProject.id, timestamp: Date.now() }
+          });
+          window.dispatchEvent(event);
+          console.log('Dispatched projectsCacheInvalidate event after project creation');
+        }, 200);
+      } else if (projectMode === "existing") {
+        // Use selected existing project
+        projectId = selectedProjectId;
       }
 
       // Total price is just the sum of services with discount applied (no duration multiplication)

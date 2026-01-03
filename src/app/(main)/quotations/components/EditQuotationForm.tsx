@@ -53,8 +53,10 @@ export default function EditQuotationForm({
   const { enhancedUser } = useSession();
   const router = useRouter();
   
-  // Check if quotation is final and cannot be edited (unless admin)
+  // Check if quotation is final or cancelled and cannot be edited (unless admin)
   const isFinalQuotation = editingQuotation?.workflowStatus === "final";
+  const isCancelledQuotation = editingQuotation?.workflowStatus === "cancelled";
+  const isNonEditableQuotation = isFinalQuotation || isCancelledQuotation;
   const [isAdmin, setIsAdmin] = useState(false);
   const [services, setServices] = useState<Services[]>([]);
   const [customServices, setCustomServices] = useState<any[]>([]);
@@ -390,117 +392,85 @@ export default function EditQuotationForm({
       let finalClientId: string | undefined = clientMode === "existing" ? editForm.clientId : undefined;
       let finalClientName: string = clientMode === "existing" ? (editingQuotation?.Client?.name || "") : (editForm.newClient?.name || "");
 
-      // For final quotations, handle project creation/linking
-      if (workflowStatus === "final") {
-        if (projectMode === "new") {
-          // Create new project first
-          if (!newProjectData.name) {
+      // Project linking is optional - users can link projects anytime, not just when finalizing
+      if (projectMode === "new" && newProjectData.name) {
+        // Create new project if user wants to
+        // If creating a new client, create it first so we have a clientId for the project
+        if (clientMode === "new") {
+          if (!editForm.newClient?.name || !editForm.newClient?.email) {
             toast({
               title: "Validation Error",
-              description: "Please enter a project name.",
+              description: "Please fill in the required client information (name and email).",
               variant: "destructive",
             });
             setIsSaving(false);
             return;
           }
 
-          // If creating a new client, create it first so we have a clientId for the project
-          if (clientMode === "new") {
-            if (!editForm.newClient?.name || !editForm.newClient?.email) {
-              toast({
-                title: "Validation Error",
-                description: "Please fill in the required client information (name and email).",
-                variant: "destructive",
-              });
-              setIsSaving(false);
-              return;
-            }
-
-            try {
-              const { createCustomerClient } = await import("../../clients/action");
-              const newClient = await createCustomerClient({
-                name: editForm.newClient.name,
-                email: editForm.newClient.email,
-                phone: editForm.newClient.phone,
-                company: editForm.newClient.company,
-                address: editForm.newClient.address,
-                notes: editForm.newClient.notes,
-                industry: editForm.newClient.industry,
-                yearlyRevenue: editForm.newClient.yearlyRevenue ? parseFloat(editForm.newClient.yearlyRevenue) : undefined,
-                membershipType: (editForm.newClient.membershipType as "MEMBER" | "NON_MEMBER") || "NON_MEMBER",
-              });
-              finalClientId = newClient.id;
-              finalClientName = newClient.name;
-            } catch (error) {
-              console.error("Error creating client:", error);
-              toast({
-                title: "Error",
-                description: "Failed to create client: " + (error as Error).message,
-                variant: "destructive",
-              });
-              setIsSaving(false);
-              return;
-            }
-          }
-
-          if (!finalClientId) {
+          try {
+            const { createCustomerClient } = await import("../../clients/action");
+            const newClient = await createCustomerClient({
+              name: editForm.newClient.name,
+              email: editForm.newClient.email,
+              phone: editForm.newClient.phone,
+              company: editForm.newClient.company,
+              address: editForm.newClient.address,
+              notes: editForm.newClient.notes,
+              industry: editForm.newClient.industry,
+              yearlyRevenue: editForm.newClient.yearlyRevenue ? parseFloat(editForm.newClient.yearlyRevenue) : undefined,
+              membershipType: (editForm.newClient.membershipType as "MEMBER" | "NON_MEMBER") || "NON_MEMBER",
+            });
+            finalClientId = newClient.id;
+            finalClientName = newClient.name;
+          } catch (error) {
+            console.error("Error creating client:", error);
             toast({
-              title: "Validation Error",
-              description: "Cannot create project: No client assigned. Please ensure quotation has a client.",
+              title: "Error",
+              description: "Failed to create client: " + (error as Error).message,
               variant: "destructive",
             });
             setIsSaving(false);
             return;
           }
-
-          const { createProject } = await import("../../projects/action");
-          const newProject = await createProject({
-            name: newProjectData.name,
-            description: newProjectData.description || "",
-            createdBy: enhancedUser.id,
-            startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
-            endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
-            priority: newProjectData.priority,
-            clientId: finalClientId,
-            clientName: finalClientName,
-          });
-          projectId = newProject.id;
-          
-          // Refresh projects page cache - use setTimeout to ensure the project is fully created
-          setTimeout(() => {
-            router.refresh();
-            // Dispatch custom event to refresh projects page client-side cache
-            // Use a more specific event with detail to ensure it's received
-            const event = new CustomEvent('projectsCacheInvalidate', {
-              detail: { projectId: newProject.id, timestamp: Date.now() }
-            });
-            window.dispatchEvent(event);
-            console.log('Dispatched projectsCacheInvalidate event after project creation');
-          }, 200);
-        } else {
-          // Use selected existing project
-          if (!selectedProjectId && !editForm.projectId) {
-            toast({
-              title: "Validation Error",
-              description: "Please select a project for final quotation.",
-              variant: "destructive",
-            });
-            setIsSaving(false);
-            return;
-          }
-          projectId = selectedProjectId || editForm.projectId;
         }
 
-        // Validate that we have a project for final quotation
-        if (!projectId) {
+        if (!finalClientId) {
           toast({
             title: "Validation Error",
-            description: "A project is required for final quotations.",
+            description: "Cannot create project: No client assigned. Please ensure quotation has a client.",
             variant: "destructive",
           });
           setIsSaving(false);
           return;
         }
+
+        const { createProject } = await import("../../projects/action");
+        const newProject = await createProject({
+          name: newProjectData.name,
+          description: newProjectData.description || "",
+          createdBy: enhancedUser.id,
+          startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
+          endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
+          priority: newProjectData.priority,
+          clientId: finalClientId,
+          clientName: finalClientName,
+        });
+        projectId = newProject.id;
+        
+        // Refresh projects page cache - use setTimeout to ensure the project is fully created
+        setTimeout(() => {
+          router.refresh();
+          // Dispatch custom event to refresh projects page client-side cache
+          // Use a more specific event with detail to ensure it's received
+          const event = new CustomEvent('projectsCacheInvalidate', {
+            detail: { projectId: newProject.id, timestamp: Date.now() }
+          });
+          window.dispatchEvent(event);
+          console.log('Dispatched projectsCacheInvalidate event after project creation');
+        }, 200);
+      } else if (projectMode === "existing") {
+        // Use selected existing project (if any)
+        projectId = selectedProjectId || editForm.projectId;
       }
 
       // Calculate total: sum of services with discount + approved custom services (no duration multiplication)
@@ -510,7 +480,7 @@ export default function EditQuotationForm({
       await editQuotationById(editingQuotation.id.toString(), {
         description: editForm.description,
         totalPrice: total, // Store total (sum of services with discount + custom services, no duration multiplication)
-        workflowStatus: (workflowStatus || editForm.workflowStatus) as "draft" | "in_review" | "final" | "accepted" | "rejected",
+        workflowStatus: (workflowStatus || editForm.workflowStatus) as "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled",
         paymentStatus: editForm.paymentStatus,
         // If we already created the client (for final quotations with new clients), use the clientId
         // Otherwise, use the existing logic
@@ -551,8 +521,8 @@ export default function EditQuotationForm({
 
   if (!editingQuotation) return null;
 
-  // For final quotations, show limited editing form (unless admin)
-  if (isFinalQuotation && !isAdmin) {
+  // For final or cancelled quotations, show read-only view (unless admin)
+  if (isNonEditableQuotation && !isAdmin) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) {
@@ -562,57 +532,31 @@ export default function EditQuotationForm({
       }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Final Quotation</DialogTitle>
+            <DialogTitle>
+              {isFinalQuotation ? "Final Quotation" : "Cancelled Quotation"}
+            </DialogTitle>
             <DialogDescription>
-              This is a final quotation. You can only edit the payment status.
+              {isFinalQuotation 
+                ? "This quotation has been finalized and cannot be edited."
+                : "This quotation has been cancelled and cannot be edited."}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="space-y-4">
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-700">
-                  ⚠️ Final quotations have limited editing. Only payment status can be modified.
+                  ⚠️ {isFinalQuotation 
+                    ? "Final quotations cannot be edited. If you need to make changes, please create a new quotation."
+                    : "Cancelled quotations cannot be edited."}
                 </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="paymentStatus">Payment Status</Label>
-                <Select
-                  value={editForm.paymentStatus}
-                  onValueChange={(value) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      paymentStatus: value as any,
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select payment status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unpaid">Unpaid</SelectItem>
-                    <SelectItem value="partially_paid">Partially Paid</SelectItem>
-                    <SelectItem value="deposit_paid">Deposit Paid</SelectItem>
-                    <SelectItem value="fully_paid">Fully Paid</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </div>
           </div>
-          <div className="flex justify-end gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              Close
             </Button>
-            <Button 
-              onClick={() => {
-                handleUpdateQuotation();
-                onOpenChange(false);
-              }}
-              disabled={isSaving}
-            >
-              {isSaving ? "Updating..." : "Update Payment Status"}
-            </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     );
@@ -879,6 +823,32 @@ export default function EditQuotationForm({
             </div>
 
             <div className="grid gap-2">
+              <Label htmlFor="edit-workflowStatus">Workflow Status</Label>
+              <Select
+                value={editForm.workflowStatus}
+                onValueChange={(value) =>
+                  setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled" }))
+                }
+                disabled={isNonEditableQuotation && !isAdmin}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select workflow status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workflowStatusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isNonEditableQuotation && !isAdmin && (
+                <p className="text-xs text-muted-foreground">
+                  Final and cancelled quotations cannot be edited
+                </p>
+              )}
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="edit-paymentStatus">Payment Status</Label>
               <Select
                 value={editForm.paymentStatus}
@@ -1049,8 +1019,7 @@ export default function EditQuotationForm({
             </h4>
             <div className="space-y-2 text-sm text-red-800">
               <p>
-                Once finalized, this quotation will be marked as final. 
-                You will be prompted to select a project next. All final quotations must be linked to a project.
+                Once finalized, this quotation will be marked as final and cannot be edited.
               </p>
               <p className="font-semibold text-red-900 border-t border-red-200 pt-2 mt-2">
                 ⚠️ Critical: Once finalized, you CANNOT add custom services anymore. Make sure to add all custom services before finalizing.
@@ -1075,40 +1044,25 @@ export default function EditQuotationForm({
           </Button>
           <Button
             onClick={() => {
-              // Pre-fill the Create New Project form with quotation data
-              setNewProjectData({
-                name: editForm.description || "New Project", // Use description as project name
-                description: editForm.description || "",
-                startDate: editForm.startDate || "",
-                endDate: editForm.startDate && editForm.duration 
-                  ? (() => {
-                      const start = new Date(editForm.startDate);
-                      const end = new Date(start);
-                      end.setMonth(end.getMonth() + parseInt(editForm.duration));
-                      return end.toISOString().split("T")[0];
-                    })()
-                  : "",
-                priority: "low",
-              });
-              
               setShowConfirmationDialog(false);
-              setShowProjectSelectionDialog(true);
+              // Directly finalize without requiring project selection
+              handleUpdateQuotation("final");
             }}
             disabled={isSaving}
           >
-            Continue to Project Selection
+            {isSaving ? "Finalizing..." : "Finalize Quotation"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
 
-    {/* Project Selection Dialog for Final Quotations */}
+    {/* Project Selection Dialog (Optional - for linking projects anytime) */}
     <Dialog open={showProjectSelectionDialog} onOpenChange={setShowProjectSelectionDialog}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Select Project for Final Quotation</DialogTitle>
+          <DialogTitle>Link Project to Quotation</DialogTitle>
           <DialogDescription>
-            A project must be linked to finalize this quotation. Please select an existing project or create a new one.
+            You can optionally link a project to this quotation. Projects can be linked at any time, even after finalizing.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">
@@ -1147,10 +1101,13 @@ export default function EditQuotationForm({
             variant="outline"
             onClick={() => {
               setShowProjectSelectionDialog(false);
-              setShowConfirmationDialog(true); // Go back to confirmation
+              // Allow skipping project selection - go back to confirmation or just finalize
+              setShowConfirmationDialog(false);
+              // Finalize without project
+              handleUpdateQuotation("final");
             }}
           >
-            Back
+            Skip & Finalize
           </Button>
           <Button
             onClick={() => handleUpdateQuotation("final")}
@@ -1158,9 +1115,11 @@ export default function EditQuotationForm({
           >
             {isSaving 
               ? "Processing..." 
-              : projectMode === "new" 
+              : projectMode === "new" && newProjectData.name
                 ? "Create Project & Finalize" 
-                : "Finalize Quotation"}
+                : selectedProjectId
+                ? "Link Project & Finalize"
+                : "Finalize Without Project"}
           </Button>
         </DialogFooter>
       </DialogContent>

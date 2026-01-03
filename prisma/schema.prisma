@@ -515,6 +515,7 @@ enum QuotationStatus {
   final
   accepted
   rejected
+  cancelled
 }
 
 enum DiscountType {

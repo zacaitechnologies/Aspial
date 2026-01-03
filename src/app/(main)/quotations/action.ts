@@ -81,8 +81,10 @@ async function _getQuotationsPaginatedInternal(
           select: {
             id: true,
             status: true,
+            name: true,
           },
         },
+        projectId: true,
         createdBy: {
           select: {
             id: true,
@@ -447,7 +449,7 @@ export async function createQuotation(data: {
   totalPrice: number
   serviceIds: string[]
   createdById: string
-  workflowStatus?: "draft" | "in_review" | "final" | "accepted" | "rejected"
+  workflowStatus?: "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled"
   paymentStatus?: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"
   discountValue?: number
   discountType?: "percentage" | "fixed"
@@ -467,10 +469,7 @@ export async function createQuotation(data: {
     membershipType?: string
   }
 }) {
-  // Validate that final quotations have a project
-  if (data.workflowStatus === "final" && !data.projectId) {
-    throw new Error("Final quotations must be linked to a project. Please select or create a project before finalizing.");
-  }
+  // No project requirement for finalizing quotations - users can link projects anytime
 
   // Calculate end date if start date and duration are provided
   let endDate: Date | undefined = undefined;
@@ -570,7 +569,7 @@ export async function editQuotationById(
   data: {
     description: string
     totalPrice: number
-    workflowStatus?: "draft" | "in_review" | "final" | "accepted" | "rejected"
+    workflowStatus?: "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled"
     paymentStatus?: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"
     discountValue?: number
     discountType?: "percentage" | "fixed"
@@ -593,10 +592,7 @@ export async function editQuotationById(
     }
   },
 ) {
-  // Validate that final quotations have a project
-  if (data.workflowStatus === "final" && !data.projectId) {
-    throw new Error("Final quotations must be linked to a project. Please select or create a project before finalizing.");
-  }
+  // No project requirement for finalizing quotations - users can link projects anytime
 
   // Get current user for createdById
   const user = await getCachedUser()
@@ -912,22 +908,23 @@ export async function updateClientMembershipStatus(
   revalidateTag("quotations", "max")
 }
 
-export async function updateQuotationProjectId(quotationId: number, projectId: number) {
+export async function updateQuotationProjectId(quotationId: number, projectId: number | null) {
   unstable_noStore()
   await prisma.quotation.update({
     where: { id: quotationId },
-    data: { projectId },
+    data: { projectId: projectId || null },
   })
   revalidateTag("quotations", "max")
 }
 
 export async function linkProjectAndUpdateQuotationStatus(quotationId: number, projectId: number) {
   unstable_noStore()
+  // Just link the project, don't change status - users can link projects anytime
   const quotation = await prisma.quotation.update({
     where: { id: quotationId },
     data: {
       projectId,
-      workflowStatus: "final",
+      // Don't automatically change status to final - let users finalize when ready
     },
   })
   revalidateTag("quotations", "max")

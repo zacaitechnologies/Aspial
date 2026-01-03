@@ -102,7 +102,7 @@ export type EditFormData = {
   name: string; // Keep for display purposes (read-only)
   description: string;
   totalPrice: string;
-  workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected";
+  workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled";
   paymentStatus: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid";
   discountValue: string;
   discountType: "percentage" | "fixed";
@@ -136,6 +136,7 @@ export const workflowStatusOptions = [
   { value: "final", label: "Final", color: "default" as const, className: "bg-purple-600 text-white" },
   { value: "accepted", label: "Accepted", color: "default" as const, className: "bg-green-600 text-white hover:bg-green-700" },
   { value: "rejected", label: "Rejected", color: "destructive" as const, className: "" },
+  { value: "cancelled", label: "Cancelled", color: "destructive" as const, className: "bg-red-600 text-white" },
 ] as const;
 
 export const paymentStatusOptions = [

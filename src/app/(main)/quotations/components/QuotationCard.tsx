@@ -25,12 +25,14 @@ import {
   Send,
   History,
   Eye,
+  Unlink,
 } from "lucide-react";
 import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
 import {
   getClientById,
   updateClientMembershipStatus,
+  updateQuotationProjectId,
 } from "../action";
 import MembershipStatusDialog from "./MembershipStatusDialog";
 import CustomServiceDialog from "./CustomServiceDialog";
@@ -344,13 +346,12 @@ export default function QuotationCard({
         projectId = parseInt(selectedProjectId);
       }
 
-      // Use a single transaction to link project and update quotation status
-      const { linkProjectAndUpdateQuotationStatus } = await import("../action");
-      await linkProjectAndUpdateQuotationStatus(quotation.id, projectId);
+      // Link project without changing status
+      await updateQuotationProjectId(quotation.id, projectId);
       
       toast({
         title: "Success",
-        description: "Project linked successfully! Quotation status changed to final.",
+        description: "Project linked successfully!",
       });
       setIsProjectSelectionDialogOpen(false);
       
@@ -365,6 +366,43 @@ export default function QuotationCard({
       toast({
         title: "Error",
         description: "Failed to link project. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLinkingProject(false);
+    }
+  };
+
+  const handleUnlinkProject = async () => {
+    if (!quotation.project) {
+      return;
+    }
+
+    if (!confirm("Are you sure you want to unlink this project from the quotation?")) {
+      return;
+    }
+
+    setIsLinkingProject(true);
+    try {
+      // Set projectId to null to unlink
+      await updateQuotationProjectId(quotation.id, null);
+      
+      toast({
+        title: "Success",
+        description: "Project unlinked successfully!",
+      });
+      
+      // Refresh the page to show updated project status
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error("Error unlinking project:", error);
+      toast({
+        title: "Error",
+        description: "Failed to unlink project. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -443,6 +481,15 @@ export default function QuotationCard({
                         {customServices.filter((cs) => cs.status === "REJECTED").length}R
                       </Badge>
                     )}
+                  </div>
+                </>
+              )}
+              {quotation.project && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <div className="flex items-center gap-1">
+                    <Briefcase className="w-3 h-3" />
+                    <span className="font-medium text-gray-900">{quotation.project.name}</span>
                   </div>
                 </>
               )}
@@ -553,18 +600,32 @@ export default function QuotationCard({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {isEditableQuotation && !hasProject && (
+                {!hasProject && (
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      handleCreateProject();
+                      setIsProjectSelectionDialogOpen(true);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                     className="cursor-pointer"
                   >
                     <Briefcase className="w-4 h-4 mr-2" />
                     Link Project
+                  </DropdownMenuItem>
+                )}
+                {hasProject && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleUnlinkProject();
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="cursor-pointer text-red-600"
+                  >
+                    <Unlink className="w-4 h-4 mr-2" />
+                    Unlink Project
                   </DropdownMenuItem>
                 )}
                 {quotation.workflowStatus === "final" && (
