@@ -303,13 +303,45 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
               <div className="space-y-3">
                 {imagePreview ? (
                   <div className="relative inline-block w-full">
-                    <Image
-                      src={imagePreview}
-                      alt="Service preview"
-                      width={600}
-                      height={192}
-                      className="w-full h-48 object-cover rounded-lg border border-gray-300"
-                    />
+                    {/* Check if it's a PDF by checking the URL or file type */}
+                    {(() => {
+                      // Determine if current file is a PDF
+                      const currentFileIsPDF = imageFile && (imageFile.type === 'application/pdf' || imageFile.name.toLowerCase().endsWith('.pdf'))
+                      // Check if existing service has a PDF
+                      const existingServiceIsPDF = service?.imageUrl && service.imageUrl.toLowerCase().endsWith('.pdf')
+                      // Check if preview URL indicates PDF (data URLs won't work, but check anyway)
+                      const previewIsPDF = imagePreview.includes('application/pdf') || imagePreview.toLowerCase().endsWith('.pdf')
+                      
+                      const isPDF = currentFileIsPDF || existingServiceIsPDF || previewIsPDF
+                      
+                      if (isPDF) {
+                        // Show icon for PDF instead of preview
+                        return (
+                          <div className="w-full h-48 flex items-center justify-center rounded-lg border border-gray-300 bg-gray-50">
+                            <div className="text-center space-y-2">
+                              <FileText className="w-16 h-16 text-gray-600 mx-auto" />
+                              <p className="text-sm font-medium text-gray-700">
+                                {imageFile?.name || service?.imageUrl?.split('/').pop()?.split('?')[0] || 'PDF Document'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {imageFile ? `${(imageFile.size / 1024 / 1024).toFixed(2)} MB` : 'PDF file attached'}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      }
+                      
+                      // Show image preview for images
+                      return (
+                        <Image
+                          src={imagePreview}
+                          alt="Service preview"
+                          width={600}
+                          height={192}
+                          className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                        />
+                      )
+                    })()}
                     <button
                       type="button"
                       onClick={handleRemoveImage}
