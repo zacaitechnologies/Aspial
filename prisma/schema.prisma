@@ -158,6 +158,7 @@ model Invoice {
   quotationId   Int
   amount        Float
   createdById   String
+  status        InvoiceStatus @default(active)
   created_at    DateTime      @default(now())
   updated_at    DateTime      @default(now())
   quotation     Quotation     @relation(fields: [quotationId], references: [id], onDelete: Restrict)
@@ -168,6 +169,7 @@ model Invoice {
   @@index([quotationId])
   @@index([type])
   @@index([created_at])
+  @@index([status])
   @@map("invoices")
 }
 
@@ -189,6 +191,7 @@ model Receipt {
   invoiceId     String
   amount        Float
   createdById   String
+  status        ReceiptStatus @default(active)
   created_at    DateTime      @default(now())
   updated_at    DateTime      @default(now())
   invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
@@ -197,6 +200,7 @@ model Receipt {
 
   @@index([invoiceId])
   @@index([created_at])
+  @@index([status])
   @@map("receipts")
 }
 
@@ -216,6 +220,16 @@ enum InvoiceType {
   SO
   EPO
   EO
+}
+
+enum InvoiceStatus {
+  active
+  cancelled
+}
+
+enum ReceiptStatus {
+  active
+  cancelled
 }
 
 enum PaymentStatus {

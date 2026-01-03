@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, User, Target, ChevronDown, ClipboardList } from "lucide-react";
@@ -54,6 +54,12 @@ export function KanbanBoard({
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Use ref to store onTasksUpdated callback to avoid dependency issues
+  const onTasksUpdatedRef = useRef(onTasksUpdated);
+  useEffect(() => {
+    onTasksUpdatedRef.current = onTasksUpdated;
+  }, [onTasksUpdated]);
+
   // Always fetch fresh tasks (no caching) - real-time data
   const fetchData = useCallback(async () => {
     try {
@@ -66,42 +72,21 @@ export function KanbanBoard({
       setTasks(projectTasks);
       setUsers(collaborators);
       setMilestones(projectMilestones);
-      // Notify parent to refresh taskStats
-      onTasksUpdated?.();
+      // Don't call onTasksUpdated here - only call it when tasks are actually modified
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
-  }, [projectId, onTasksUpdated]);
+  }, [projectId]);
 
-  // Fetch fresh data on mount
+  // Fetch fresh data on mount only
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
-  // Refresh tasks when tab becomes visible (real-time updates)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchData();
-      }
-    };
-
-    const handleFocus = () => {
-      fetchData();
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [fetchData]);
-
-  // Refresh all data function
+  // Refresh all data function (without notifying parent - call onTasksUpdated explicitly when needed)
   const refreshData = async () => {
     try {
       const [projectTasks, collaborators, projectMilestones] =
@@ -113,8 +98,6 @@ export function KanbanBoard({
       setTasks(projectTasks);
       setUsers(collaborators);
       setMilestones(projectMilestones);
-      // Notify parent to refresh taskStats
-      onTasksUpdated?.();
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -161,22 +144,25 @@ export function KanbanBoard({
 
   const handleTaskCreated = async (newTask: TaskWithAssignee) => {
     setTasks((prev) => [...prev, newTask]);
-    // Refresh milestones to update task counts
+    // Refresh milestones to update task counts and notify parent
     await refreshData();
+    onTasksUpdatedRef.current?.();
   };
 
   const handleTaskUpdated = async (updatedTask: TaskWithAssignee) => {
     setTasks((prev) =>
       prev.map((task) => (task.id === updatedTask.id ? updatedTask : task))
     );
-    // Refresh milestones to update task counts
+    // Refresh milestones to update task counts and notify parent
     await refreshData();
+    onTasksUpdatedRef.current?.();
   };
 
   const handleTaskDeleted = async (taskId: number) => {
     setTasks((prev) => prev.filter((task) => task.id !== taskId));
-    // Refresh milestones to update task counts
+    // Refresh milestones to update task counts and notify parent
     await refreshData();
+    onTasksUpdatedRef.current?.();
   };
 
   const handleMilestoneCreated = (newMilestone: Milestone) => {
@@ -228,8 +214,9 @@ export function KanbanBoard({
         )
       );
 
-      // Refresh milestones to update task progress
+      // Refresh milestones to update task progress and notify parent
       await refreshData();
+      onTasksUpdatedRef.current?.();
     } catch (error) {
       console.error("Error updating task status:", error);
     }

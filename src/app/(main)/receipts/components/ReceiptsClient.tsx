@@ -40,7 +40,7 @@ export default function ReceiptsClient({ initialData, userId }: ReceiptsClientPr
 		setLoading(true)
 		try {
 			const result = await getReceiptsPaginatedFresh(page, pageSize, {})
-			setReceipts(result.data)
+			setReceipts(result.data as ReceiptWithInvoice[])
 			setTotal(result.total)
 			setTotalPages(result.totalPages)
 		} catch (error) {

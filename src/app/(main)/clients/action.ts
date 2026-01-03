@@ -648,19 +648,61 @@ export async function getCurrentUserId(): Promise<string | null> {
   }
 }
 
-// Get all advisors (users who have created quotations)
+// Get all advisors (users who have created quotations that have invoices)
 export async function getAllAdvisors() {
   try {
-    await getCachedUser()
+    const user = await getCachedUser()
+    if (!user) return []
     
+    // Check if user is admin
+    const isAdmin = await checkIsAdmin(user.id)
+    
+    // If not admin, only return the current user
+    if (!isAdmin) {
+      // Check if user has any quotations with invoices
+      const hasInvoicedQuotations = await prisma.quotation.count({
+        where: { 
+          createdById: user.id, // Quotation.createdById references User.supabase_id
+          invoices: {
+            some: {}
+          }
+        }
+      }) > 0
+      
+      if (!hasInvoicedQuotations) return []
+      
+      // Get user details
+      const dbUser = await prisma.user.findUnique({
+        where: { supabase_id: user.id },
+        select: {
+          supabase_id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        }
+      })
+      
+      if (!dbUser) return []
+      
+      return [{
+        id: dbUser.supabase_id,
+        name: `${dbUser.firstName} ${dbUser.lastName}`,
+        email: dbUser.email,
+      }]
+    }
+    
+    // Admin can see all advisors (users who have quotations with invoices)
     const users = await prisma.user.findMany({
       where: {
         quotations: {
-          some: {}
+          some: {
+            invoices: {
+              some: {}
+            }
+          }
         }
       },
       select: {
-        id: true,
         supabase_id: true,
         firstName: true,
         lastName: true,
@@ -682,7 +724,7 @@ export async function getAllAdvisors() {
   }
 }
 
-// Get sales data by time period and advisor
+// Get sales data by time period and advisor (based on invoices)
 export async function getSalesData(filters: {
   year?: number
   month?: number
@@ -690,18 +732,22 @@ export async function getSalesData(filters: {
   viewMode?: 'monthly' | 'yearly'
 }) {
   try {
-    await getCachedUser()
+    const user = await getCachedUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    
+    // Check if user is admin
+    const isAdmin = await checkIsAdmin(user.id)
     
     const { year, month, advisorId, viewMode = 'yearly' } = filters
     
-    // Build where clause for quotations
+    // Build where clause for invoices
     const where: any = {
-      paymentStatus: {
-        in: ['fully_paid', 'deposit_paid', 'partially_paid']
-      }
+      status: "active", // Exclude cancelled invoices
     }
     
-    // Filter by created date
+    // Filter by invoice created date
     if (year) {
       const startDate = new Date(year, month !== undefined ? month : 0, 1)
       const endDate = month !== undefined 
@@ -714,30 +760,44 @@ export async function getSalesData(filters: {
       }
     }
     
-    // Filter by advisor (creator of quotation)
-    if (advisorId && advisorId !== 'all') {
-      where.createdById = advisorId
+    // Filter by advisor (creator of quotation that the invoice references)
+    // For non-admin users, always filter by their own supabase_id (ignore advisorId parameter)
+    if (!isAdmin) {
+      where.quotation = {
+        createdById: user.id // Quotation.createdById references User.supabase_id
+      }
+    } else if (advisorId && advisorId !== 'all') {
+      // For admin users, filter by selected advisor if provided
+      // Quotation.createdById references User.supabase_id, so use advisorId directly
+      where.quotation = {
+        createdById: advisorId
+      }
     }
     
-    // Get quotations with client info
-    const quotations = await prisma.quotation.findMany({
+    // Get invoices with quotation, client, and advisor info
+    const invoices = await prisma.invoice.findMany({
       where,
       include: {
-        Client: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            company: true,
-            membershipType: true,
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+        quotation: {
+          include: {
+            Client: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                company: true,
+                membershipType: true,
+              }
+            },
+            createdBy: {
+              select: {
+                id: true,
+                supabase_id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              }
+            }
           }
         }
       },
@@ -747,41 +807,41 @@ export async function getSalesData(filters: {
     })
     
     // Calculate totals
-    const totalSales = quotations.reduce((sum, q) => sum + q.totalPrice, 0)
-    const totalClients = new Set(quotations.map(q => q.clientId)).size
-    const totalQuotations = quotations.length
+    const totalSales = invoices.reduce((sum, inv) => sum + inv.amount, 0)
+    const totalClients = new Set(invoices.map(inv => inv.quotation.clientId)).size
+    const totalInvoices = invoices.length
     
-    // Group by advisor
+    // Group by advisor (using quotation creator's supabase_id)
     const salesByAdvisor: Record<string, {
       advisorId: string
       advisorName: string
       totalSales: number
-      quotationsCount: number
+      invoicesCount: number
       clientsCount: number
     }> = {}
     
-    quotations.forEach(q => {
-      const advisorId = q.createdById
-      const advisorName = `${q.createdBy.firstName} ${q.createdBy.lastName}`
+    invoices.forEach(inv => {
+      const advisorId = inv.quotation.createdById // This is supabase_id
+      const advisorName = `${inv.quotation.createdBy.firstName} ${inv.quotation.createdBy.lastName}`
       
       if (!salesByAdvisor[advisorId]) {
         salesByAdvisor[advisorId] = {
           advisorId,
           advisorName,
           totalSales: 0,
-          quotationsCount: 0,
+          invoicesCount: 0,
           clientsCount: 0
         }
       }
       
-      salesByAdvisor[advisorId].totalSales += q.totalPrice
-      salesByAdvisor[advisorId].quotationsCount += 1
+      salesByAdvisor[advisorId].totalSales += inv.amount
+      salesByAdvisor[advisorId].invoicesCount += 1
     })
     
     // Calculate unique clients per advisor
     Object.keys(salesByAdvisor).forEach(advisorId => {
-      const advisorQuotations = quotations.filter(q => q.createdById === advisorId)
-      salesByAdvisor[advisorId].clientsCount = new Set(advisorQuotations.map(q => q.clientId)).size
+      const advisorInvoices = invoices.filter(inv => inv.quotation.createdById === advisorId)
+      salesByAdvisor[advisorId].clientsCount = new Set(advisorInvoices.map(inv => inv.quotation.clientId)).size
     })
     
     // If yearly view, group by month
@@ -789,17 +849,17 @@ export async function getSalesData(filters: {
     if (viewMode === 'yearly' && year) {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
       monthlyBreakdown = months.map((monthName, monthIndex) => {
-        const monthQuotations = quotations.filter(q => {
-          const qDate = new Date(q.created_at)
-          return qDate.getMonth() === monthIndex
+        const monthInvoices = invoices.filter(inv => {
+          const invDate = new Date(inv.created_at)
+          return invDate.getMonth() === monthIndex
         })
         
         return {
           month: monthName,
           monthIndex,
-          sales: monthQuotations.reduce((sum, q) => sum + q.totalPrice, 0),
-          quotations: monthQuotations.length,
-          clients: new Set(monthQuotations.map(q => q.clientId)).size
+          sales: monthInvoices.reduce((sum, inv) => sum + inv.amount, 0),
+          invoices: monthInvoices.length,
+          clients: new Set(monthInvoices.map(inv => inv.quotation.clientId)).size
         }
       })
     }
@@ -807,20 +867,23 @@ export async function getSalesData(filters: {
     return {
       totalSales,
       totalClients,
-      totalQuotations,
+      totalInvoices,
       monthlyBreakdown,
-      quotations: quotations.map(q => ({
-        id: q.id,
-        name: q.name,
-        totalPrice: q.totalPrice,
-        paymentStatus: q.paymentStatus,
-        workflowStatus: q.workflowStatus,
-        created_at: q.created_at.toISOString(),
-        client: q.Client,
+      invoices: invoices.map(inv => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        type: inv.type,
+        amount: inv.amount,
+        created_at: inv.created_at.toISOString(),
+        quotation: {
+          id: inv.quotation.id,
+          name: inv.quotation.name,
+        },
+        client: inv.quotation.Client,
         createdBy: {
-          id: q.createdBy.id,
-          name: `${q.createdBy.firstName} ${q.createdBy.lastName}`,
-          email: q.createdBy.email,
+          id: inv.quotation.createdBy.supabase_id,
+          name: `${inv.quotation.createdBy.firstName} ${inv.quotation.createdBy.lastName}`,
+          email: inv.quotation.createdBy.email,
         }
       })),
       salesByAdvisor: Object.values(salesByAdvisor).sort((a, b) => b.totalSales - a.totalSales),

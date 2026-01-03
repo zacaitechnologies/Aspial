@@ -334,15 +334,32 @@ Deno.serve(async (req) => {
 					.eq('id', reminder.id)
 
 				// Log email in appointment_booking_emails (sentById = null for system, isAutomated = true)
-				await supabase
+				// IMPORTANT: Column names must match database exactly (camelCase)
+				const emailInsertData = {
+					appointmentBookingId: booking.id,
+					recipientEmail: clientEmail,
+					sentById: null, // null for automated/system-sent emails
+					sentAt: nowISO,
+					isAutomated: true // MUST be true for scheduled reminders
+				}
+				
+				const { data: emailLogData, error: emailLogError } = await supabase
 					.from('appointment_booking_emails')
-					.insert({
-						appointmentBookingId: booking.id,
-						recipientEmail: clientEmail,
-						sentById: null, // System-sent
-						sentAt: nowISO,
-						isAutomated: true // Mark as automated reminder
-					})
+					.insert(emailInsertData)
+					.select()
+				
+				if (emailLogError) {
+					console.error(`Error logging email for reminder ${reminder.id}:`, emailLogError)
+					console.error('Failed insert data:', JSON.stringify(emailInsertData, null, 2))
+					console.error('Email log error details:', JSON.stringify(emailLogError, null, 2))
+					// Don't fail the reminder if email logging fails, but log the error for debugging
+				} else {
+					console.log(`Successfully logged automated email for reminder ${reminder.id}:`, emailLogData)
+					// Verify isAutomated was set correctly
+					if (emailLogData && emailLogData[0] && !emailLogData[0].isAutomated) {
+						console.error(`WARNING: isAutomated was not set to true for reminder ${reminder.id}!`)
+					}
+				}
 
 				successCount++
 			} catch (error: any) {

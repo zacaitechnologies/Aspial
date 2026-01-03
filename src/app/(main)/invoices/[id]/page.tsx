@@ -26,6 +26,8 @@ import {
 	History,
 	Loader2,
 	AlertCircle,
+	XCircle,
+	CheckCircle,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { generateInvoicePDF } from "../utils/pdfExport"
@@ -34,11 +36,15 @@ import SendInvoiceDialog from "../components/SendInvoiceDialog"
 import EmailHistoryDialog from "../components/EmailHistoryDialog"
 import LoadingProgress from "../../quotations/components/LoadingProgress"
 import CreateReceiptForm from "../../receipts/components/CreateReceiptForm"
-import { getReceiptsForInvoice } from "../../receipts/action"
+import { getReceiptsForInvoice, updateReceiptAdmin, invalidateReceiptsCache } from "../../receipts/action"
+import { checkIsAdmin } from "../../actions/admin-actions"
+import { useSession } from "../../contexts/SessionProvider"
+import { updateInvoiceAdmin, invalidateInvoicesCache } from "../action"
 
 export default function InvoiceDetailPage() {
 	const params = useParams()
 	const router = useRouter()
+	const { enhancedUser } = useSession()
 	const { invoice, isLoading, onRefresh } = useInvoiceCache(params.id as string, { fetchFullData: true })
 	const [mounted, setMounted] = useState(false)
 	const [isSendInvoiceDialogOpen, setIsSendInvoiceDialogOpen] = useState(false)
@@ -47,16 +53,35 @@ export default function InvoiceDetailPage() {
 	const [isCreateReceiptDialogOpen, setIsCreateReceiptDialogOpen] = useState(false)
 	const [receipts, setReceipts] = useState<any[]>([])
 	const [isLoadingReceipts, setIsLoadingReceipts] = useState(false)
+	const [isAdmin, setIsAdmin] = useState(false)
+	const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+	const [togglingReceiptId, setTogglingReceiptId] = useState<string | null>(null)
+
+	// Check admin status
+	useEffect(() => {
+		const checkAdmin = async () => {
+			if (enhancedUser?.id) {
+				try {
+					const adminStatus = await checkIsAdmin(enhancedUser.id)
+					setIsAdmin(adminStatus)
+				} catch (error) {
+					console.error("Error checking admin status:", error)
+				}
+			}
+		}
+		checkAdmin()
+	}, [enhancedUser?.id])
 
 	useEffect(() => {
 		setMounted(true)
 	}, [])
 
-	// Load receipts for this invoice
+	// Load receipts for this invoice (include cancelled for display)
 	useEffect(() => {
 		if (invoice?.id) {
 			setIsLoadingReceipts(true)
-			getReceiptsForInvoice(invoice.id)
+			// excludeCancelled=false to show all receipts including cancelled ones
+			getReceiptsForInvoice(invoice.id, undefined, false)
 				.then((data) => {
 					setReceipts(data)
 				})
@@ -85,14 +110,14 @@ export default function InvoiceDetailPage() {
 	// Memoize calculations to avoid recalculating on every render
 	const quotationGrandTotal = useMemo(() => {
 		if (!invoice?.quotation) return 0
-		const regularServices = invoice.quotation.services.filter((qs) => !qs.customServiceId)
+		const regularServices = invoice.quotation.services.filter((qs: any) => !qs.customServiceId)
 		const servicesTotal = regularServices.reduce(
-			(sum, serviceItem) => sum + serviceItem.service.basePrice,
+			(sum: number, serviceItem: any) => sum + serviceItem.service.basePrice,
 			0
 		)
 		const approvedCustomServicesTotal = (invoice.quotation.customServices || [])
-			.filter((cs) => cs.status === "APPROVED")
-			.reduce((sum, cs) => sum + cs.price, 0)
+			.filter((cs: any) => cs.status === "APPROVED")
+			.reduce((sum: number, cs: any) => sum + cs.price, 0)
 		const subtotal = servicesTotal + approvedCustomServicesTotal
 
 		let discountAmount = 0
@@ -160,7 +185,14 @@ export default function InvoiceDetailPage() {
 				</Button>
 				<div className="flex justify-between items-start">
 					<div>
-						<h1 className="text-3xl font-bold">{invoice.invoiceNumber}</h1>
+						<div className="flex items-center gap-2">
+							<h1 className="text-3xl font-bold">{invoice.invoiceNumber}</h1>
+							{invoice.status === "cancelled" && (
+								<Badge className="bg-red-600 text-white">
+									Cancelled
+								</Badge>
+							)}
+						</div>
 						<p className="text-muted-foreground mt-2">
 							Invoice Type: {getTypeBadge(invoice.type)}
 						</p>
@@ -226,6 +258,54 @@ export default function InvoiceDetailPage() {
 								</>
 							)}
 						</Button>
+						{isAdmin && (
+							<Button
+								variant={invoice.status === "cancelled" ? "default" : "destructive"}
+								onClick={async () => {
+									setIsTogglingStatus(true)
+									try {
+										const newStatus = invoice.status === "cancelled" ? "active" : "cancelled"
+										await updateInvoiceAdmin(invoice.id, { status: newStatus })
+										await invalidateInvoicesCache()
+										toast({
+											title: "Success",
+											description: `Invoice ${newStatus === "cancelled" ? "cancelled" : "reactivated"} successfully.`,
+										})
+										if (onRefresh) {
+											onRefresh()
+										}
+									} catch (error: any) {
+										console.error("Error toggling invoice status:", error)
+										toast({
+											title: "Error",
+											description: error.message || "Failed to update invoice status. Please try again.",
+											variant: "destructive",
+										})
+									} finally {
+										setIsTogglingStatus(false)
+									}
+								}}
+								className="flex items-center gap-2"
+								disabled={isTogglingStatus}
+							>
+								{isTogglingStatus ? (
+									<>
+										<Loader2 className="w-4 h-4 animate-spin" />
+										Updating...
+									</>
+								) : invoice.status === "cancelled" ? (
+									<>
+										<CheckCircle className="w-4 h-4" />
+										Reactivate
+									</>
+								) : (
+									<>
+										<XCircle className="w-4 h-4" />
+										Cancel
+									</>
+								)}
+							</Button>
+						)}
 					</div>
 				</div>
 			</div>
@@ -319,8 +399,8 @@ export default function InvoiceDetailPage() {
 							<CardContent>
 								<div className="space-y-3">
 									{invoice.quotation.services
-										.filter((qs) => !qs.customServiceId)
-										.map((qs) => (
+										.filter((qs: any) => !qs.customServiceId)
+										.map((qs: any) => (
 											<div
 												key={qs.id}
 												className="flex justify-between items-start p-3 border rounded-lg"
@@ -337,8 +417,8 @@ export default function InvoiceDetailPage() {
 											</div>
 										))}
 									{invoice.quotation.customServices && invoice.quotation.customServices
-										.filter((cs) => cs.status === "APPROVED")
-										.map((cs) => (
+										.filter((cs: any) => cs.status === "APPROVED")
+										.map((cs: any) => (
 											<div
 												key={cs.id}
 												className="flex justify-between items-start p-3 border rounded-lg bg-blue-50"
@@ -384,17 +464,74 @@ export default function InvoiceDetailPage() {
 									{receipts.map((receipt) => (
 										<div
 											key={receipt.id}
-											className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-											onClick={() => router.push(`/receipts/${receipt.id}`)}
+											className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
 										>
-											<div className="flex-1 min-w-0">
-												<p className="font-semibold text-sm">{receipt.receiptNumber}</p>
+											<div 
+												className="flex-1 min-w-0 cursor-pointer"
+												onClick={() => router.push(`/receipts/${receipt.id}`)}
+											>
+												<div className="flex items-center gap-2">
+													<p className="font-semibold text-sm">{receipt.receiptNumber}</p>
+													{receipt.status === "cancelled" && (
+														<Badge className="bg-red-600 text-white text-xs">
+															Cancelled
+														</Badge>
+													)}
+												</div>
 												<p className="text-xs text-muted-foreground mt-1">
 													{new Date(receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 												</p>
 											</div>
-											<div className="text-right">
-												<p className="font-bold text-sm">RM{receipt.amount.toFixed(2)}</p>
+											<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+												<div className="text-right">
+													<p className="font-bold text-sm">RM{receipt.amount.toFixed(2)}</p>
+												</div>
+												{isAdmin && (
+													<Button
+														variant={receipt.status === "cancelled" ? "default" : "destructive"}
+														size="sm"
+														onClick={async () => {
+															setTogglingReceiptId(receipt.id)
+															try {
+																const newStatus = receipt.status === "cancelled" ? "active" : "cancelled"
+																await updateReceiptAdmin(receipt.id, { status: newStatus })
+																await invalidateReceiptsCache()
+																toast({
+																	title: "Success",
+																	description: `Receipt ${newStatus === "cancelled" ? "cancelled" : "reactivated"} successfully.`,
+																})
+																// Refresh receipts list
+																if (invoice?.id) {
+																	getReceiptsForInvoice(invoice.id, undefined, false)
+																		.then((data) => {
+																			setReceipts(data)
+																		})
+																		.catch((error) => {
+																			console.error("Error loading receipts:", error)
+																		})
+																}
+															} catch (error: any) {
+																console.error("Error toggling receipt status:", error)
+																toast({
+																	title: "Error",
+																	description: error.message || "Failed to update receipt status. Please try again.",
+																	variant: "destructive",
+																})
+															} finally {
+																setTogglingReceiptId(null)
+															}
+														}}
+														disabled={togglingReceiptId === receipt.id}
+													>
+														{togglingReceiptId === receipt.id ? (
+															<Loader2 className="w-4 h-4 animate-spin" />
+														) : receipt.status === "cancelled" ? (
+															<CheckCircle className="w-4 h-4" />
+														) : (
+															<XCircle className="w-4 h-4" />
+														)}
+													</Button>
+												)}
 											</div>
 										</div>
 									))}
@@ -505,7 +642,7 @@ export default function InvoiceDetailPage() {
 					}
 					// Refresh receipts list
 					if (invoice?.id) {
-						getReceiptsForInvoice(invoice.id)
+						getReceiptsForInvoice(invoice.id, undefined, false)
 							.then((data) => {
 								setReceipts(data)
 							})

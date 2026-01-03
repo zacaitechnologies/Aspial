@@ -662,7 +662,8 @@ export async function getAppointmentBookingEmailHistory(
 			firstName: string
 			lastName: string
 			email: string
-		}
+		} | null
+		isAutomated: boolean
 	}>
 > {
 	try {
@@ -670,7 +671,11 @@ export async function getAppointmentBookingEmailHistory(
 			where: {
 				appointmentBookingId,
 			},
-			include: {
+			select: {
+				id: true,
+				recipientEmail: true,
+				sentAt: true,
+				isAutomated: true,
 				sentBy: {
 					select: {
 						firstName: true,
@@ -689,6 +694,7 @@ export async function getAppointmentBookingEmailHistory(
 			recipientEmail: email.recipientEmail,
 			sentAt: email.sentAt,
 			sentBy: email.sentBy,
+			isAutomated: email.isAutomated,
 		}))
 	} catch (error) {
 		console.error("Error fetching appointment booking email history:", error)

@@ -38,11 +38,11 @@ export function RewardCard({
       {/* Background gradient */}
       <div className={`absolute inset-0 bg-linear-to-br ${color} opacity-${unlocked ? "20" : "10"}`} />
 
-      {/* Unlocked badge */}
+      {/* Selected badge */}
       {unlocked && (
         <div className="absolute top-3 right-3 z-10">
           <Badge className="bg-green-600 text-white font-black text-xs px-3 py-1 shadow-lg">
-            ✓ UNLOCKED!
+            ✓ SELECTED
           </Badge>
         </div>
       )}

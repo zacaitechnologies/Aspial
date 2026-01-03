@@ -161,14 +161,14 @@ async function generateReceiptPDFInternal(receipt: any) {
 	let currentY = 60 // Start after header
 	
 	// Calculate quotation totals
-	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
+	const regularServices = quotation.services.filter((qs: any) => !qs.customServiceId)
 	const servicesTotal = regularServices.reduce(
-		(sum, serviceItem) => sum + serviceItem.service.basePrice,
+		(sum: number, serviceItem: any) => sum + serviceItem.service.basePrice,
 		0
 	)
 	const approvedCustomServicesTotal = (quotation.customServices || [])
-		.filter((cs) => cs.status === "APPROVED")
-		.reduce((sum, cs) => sum + cs.price, 0)
+		.filter((cs: any) => cs.status === "APPROVED")
+		.reduce((sum: number, cs: any) => sum + cs.price, 0)
 	const subtotal = servicesTotal + approvedCustomServicesTotal
 	
 	let discountAmount = 0
@@ -187,7 +187,7 @@ async function generateReceiptPDFInternal(receipt: any) {
 	// This gives us the historical balance at the time this receipt was created
 	const receiptCreatedAt = new Date(receipt.created_at)
 	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
-	const totalReceived = allReceipts.reduce((sum, r) => sum + r.amount, 0)
+	const totalReceived = allReceipts.reduce((sum: number, r: any) => sum + r.amount, 0)
 	const remainingAmount = invoiceAmount - totalReceived
 	
 	// Get advisor name (createdBy)
@@ -289,13 +289,13 @@ async function generateReceiptPDFInternal(receipt: any) {
 	
 	// Combine all services (from quotation)
 	const allServices = [
-		...regularServices.map((s) => ({
+		...regularServices.map((s: any) => ({
 			name: s.service.name,
 			description: s.service.description || "",
 			price: s.service.basePrice,
 			type: "service",
 		})),
-		...(quotation.customServices || []).filter(cs => cs.status === "APPROVED").map((cs) => ({
+		...(quotation.customServices || []).filter((cs: any) => cs.status === "APPROVED").map((cs: any) => ({
 			name: cs.name,
 			description: cs.description || "",
 			price: cs.price,
@@ -316,8 +316,8 @@ async function generateReceiptPDFInternal(receipt: any) {
 		if (service.description) {
 			const processedDesc = service.description
 				.split('\n')
-				.map(line => line.trim().replace(/^[-•*]\s*/, ''))
-				.filter(line => line.length > 0)
+				.map((line: string) => line.trim().replace(/^[-•*]\s*/, ''))
+				.filter((line: string) => line.length > 0)
 				.join('\n')
 			const descLines = doc.splitTextToSize(processedDesc, descCellWidth)
 			totalLines += descLines.length
@@ -433,8 +433,8 @@ async function generateReceiptPDFInternal(receipt: any) {
 							doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 							let processedDesc = service.description
 								.split('\n')
-								.map(line => line.trim().replace(/^[-•*]\s*/, ''))
-								.filter(line => line.length > 0)
+								.map((line: string) => line.trim().replace(/^[-•*]\s*/, ''))
+								.filter((line: string) => line.length > 0)
 								.join('\n')
 							
 							if (!processedDesc || processedDesc.trim().length === 0) {
@@ -629,14 +629,14 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 	let currentY = 60
 	
 	// Calculate quotation totals
-	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
+	const regularServices = quotation.services.filter((qs: any) => !qs.customServiceId)
 	const servicesTotal = regularServices.reduce(
-		(sum, serviceItem) => sum + serviceItem.service.basePrice,
+		(sum: number, serviceItem: any) => sum + serviceItem.service.basePrice,
 		0
 	)
 	const approvedCustomServicesTotal = (quotation.customServices || [])
-		.filter((cs) => cs.status === "APPROVED")
-		.reduce((sum, cs) => sum + cs.price, 0)
+		.filter((cs: any) => cs.status === "APPROVED")
+		.reduce((sum: number, cs: any) => sum + cs.price, 0)
 	const subtotal = servicesTotal + approvedCustomServicesTotal
 	
 	let discountAmount = 0
@@ -655,7 +655,7 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 	// This gives us the historical balance at the time this receipt was created
 	const receiptCreatedAt = new Date(receipt.created_at)
 	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
-	const totalReceived = allReceipts.reduce((sum, r) => sum + r.amount, 0)
+	const totalReceived = allReceipts.reduce((sum: number, r: any) => sum + r.amount, 0)
 	const remainingAmount = invoiceAmount - totalReceived
 	
 	// Get advisor name
@@ -754,13 +754,13 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 	
 	// Services table - create a row for each service
 	const allServices = [
-		...regularServices.map((s) => ({
+		...regularServices.map((s: any) => ({
 			name: s.service.name,
 			description: s.service.description || "",
 			price: s.service.basePrice,
 			type: "service",
 		})),
-		...(quotation.customServices || []).filter(cs => cs.status === "APPROVED").map((cs) => ({
+		...(quotation.customServices || []).filter((cs: any) => cs.status === "APPROVED").map((cs: any) => ({
 			name: cs.name,
 			description: cs.description || "",
 			price: cs.price,
@@ -780,8 +780,8 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 		if (service.description) {
 			const processedDesc = service.description
 				.split('\n')
-				.map(line => line.trim().replace(/^[-•*]\s*/, ''))
-				.filter(line => line.length > 0)
+				.map((line: string) => line.trim().replace(/^[-•*]\s*/, ''))
+				.filter((line: string) => line.length > 0)
 				.join('\n')
 			const descLines = doc.splitTextToSize(processedDesc, descCellWidth)
 			totalLines += descLines.length
@@ -896,8 +896,8 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 							doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 							let processedDesc = service.description
 								.split('\n')
-								.map(line => line.trim().replace(/^[-•*]\s*/, ''))
-								.filter(line => line.length > 0)
+								.map((line: string) => line.trim().replace(/^[-•*]\s*/, ''))
+								.filter((line: string) => line.length > 0)
 								.join('\n')
 							
 							if (!processedDesc || processedDesc.trim().length === 0) {

@@ -26,6 +26,8 @@ import {
 	History,
 	Loader2,
 	AlertCircle,
+	XCircle,
+	CheckCircle,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { generateReceiptPDF } from "../utils/pdfExport"
@@ -33,11 +35,14 @@ import { useReceiptCache } from "../hooks/useReceiptCache"
 import SendReceiptDialog from "../components/SendReceiptDialog"
 import ReceiptEmailHistoryDialog from "../components/ReceiptEmailHistoryDialog"
 import LoadingProgress from "../../quotations/components/LoadingProgress"
-import { getReceiptsForInvoice } from "../action"
+import { getReceiptsForInvoice, updateReceiptAdmin, invalidateReceiptsCache } from "../action"
+import { checkIsAdmin } from "../../actions/admin-actions"
+import { useSession } from "../../contexts/SessionProvider"
 
 export default function ReceiptDetailPage() {
 	const params = useParams()
 	const router = useRouter()
+	const { enhancedUser } = useSession()
 	const { receipt, isLoading, onRefresh } = useReceiptCache(params.id as string, { fetchFullData: true })
 	const [mounted, setMounted] = useState(false)
 	const [isSendReceiptDialogOpen, setIsSendReceiptDialogOpen] = useState(false)
@@ -45,17 +50,35 @@ export default function ReceiptDetailPage() {
 	const [isExportingPDF, setIsExportingPDF] = useState(false)
 	const [remainingAmount, setRemainingAmount] = useState<number | null>(null)
 	const [isLoadingRemaining, setIsLoadingRemaining] = useState(false)
+	const [isAdmin, setIsAdmin] = useState(false)
+	const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+
+	// Check admin status
+	useEffect(() => {
+		const checkAdmin = async () => {
+			if (enhancedUser?.id) {
+				try {
+					const adminStatus = await checkIsAdmin(enhancedUser.id)
+					setIsAdmin(adminStatus)
+				} catch (error) {
+					console.error("Error checking admin status:", error)
+				}
+			}
+		}
+		checkAdmin()
+	}, [enhancedUser?.id])
 
 	useEffect(() => {
 		setMounted(true)
 	}, [])
 
-	// Calculate remaining amount based on receipts created at or before this receipt
+	// Calculate remaining amount based on receipts created at or before this receipt (excluding cancelled)
 	useEffect(() => {
 		if (receipt?.id && receipt?.invoiceId && receipt?.created_at) {
 			setIsLoadingRemaining(true)
 			const receiptCreatedAt = new Date(receipt.created_at)
-			getReceiptsForInvoice(receipt.invoiceId, receiptCreatedAt)
+			// excludeCancelled=true by default, which excludes cancelled receipts from balance calculation
+			getReceiptsForInvoice(receipt.invoiceId, receiptCreatedAt, true)
 				.then((allReceipts) => {
 					const totalReceived = allReceipts.reduce((sum, r) => sum + r.amount, 0)
 					const invoiceAmount = receipt.invoice?.amount || 0
@@ -134,7 +157,14 @@ export default function ReceiptDetailPage() {
 				</Button>
 				<div className="flex justify-between items-start">
 					<div>
-						<h1 className="text-3xl font-bold">{receipt.receiptNumber}</h1>
+						<div className="flex items-center gap-2">
+							<h1 className="text-3xl font-bold">{receipt.receiptNumber}</h1>
+							{receipt.status === "cancelled" && (
+								<Badge className="bg-red-600 text-white">
+									Cancelled
+								</Badge>
+							)}
+						</div>
 						<p className="text-muted-foreground mt-2">
 							Invoice: {receipt.invoice?.invoiceNumber || 'N/A'} {receipt.invoice?.type && getTypeBadge(receipt.invoice.type)}
 						</p>
@@ -192,6 +222,54 @@ export default function ReceiptDetailPage() {
 								</>
 							)}
 						</Button>
+						{isAdmin && (
+							<Button
+								variant={receipt.status === "cancelled" ? "default" : "destructive"}
+								onClick={async () => {
+									setIsTogglingStatus(true)
+									try {
+										const newStatus = receipt.status === "cancelled" ? "active" : "cancelled"
+										await updateReceiptAdmin(receipt.id, { status: newStatus })
+										await invalidateReceiptsCache()
+										toast({
+											title: "Success",
+											description: `Receipt ${newStatus === "cancelled" ? "cancelled" : "reactivated"} successfully.`,
+										})
+										if (onRefresh) {
+											onRefresh()
+										}
+									} catch (error: any) {
+										console.error("Error toggling receipt status:", error)
+										toast({
+											title: "Error",
+											description: error.message || "Failed to update receipt status. Please try again.",
+											variant: "destructive",
+										})
+									} finally {
+										setIsTogglingStatus(false)
+									}
+								}}
+								className="flex items-center gap-2"
+								disabled={isTogglingStatus}
+							>
+								{isTogglingStatus ? (
+									<>
+										<Loader2 className="w-4 h-4 animate-spin" />
+										Updating...
+									</>
+								) : receipt.status === "cancelled" ? (
+									<>
+										<CheckCircle className="w-4 h-4" />
+										Reactivate
+									</>
+								) : (
+									<>
+										<XCircle className="w-4 h-4" />
+										Cancel
+									</>
+								)}
+							</Button>
+						)}
 					</div>
 				</div>
 			</div>
@@ -291,8 +369,8 @@ export default function ReceiptDetailPage() {
 							<CardContent>
 								<div className="space-y-3">
 									{receipt.invoice.quotation.services
-										.filter((qs) => !qs.customServiceId)
-										.map((qs) => (
+										.filter((qs: any) => !qs.customServiceId)
+										.map((qs: any) => (
 											<div
 												key={qs.id}
 												className="flex justify-between items-start p-3 border rounded-lg"
@@ -309,8 +387,8 @@ export default function ReceiptDetailPage() {
 											</div>
 										))}
 									{receipt.invoice.quotation.customServices && receipt.invoice.quotation.customServices
-										.filter((cs) => cs.status === "APPROVED")
-										.map((cs) => (
+										.filter((cs: any) => cs.status === "APPROVED")
+										.map((cs: any) => (
 											<div
 												key={cs.id}
 												className="flex justify-between items-start p-3 border rounded-lg bg-blue-50"

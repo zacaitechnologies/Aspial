@@ -18,9 +18,12 @@ import {
 	History,
 	Eye,
 	FileText,
+	XCircle,
+	CheckCircle,
 } from "lucide-react"
 import { InvoiceWithQuotation } from "../types"
 import { generateInvoicePDF } from "../utils/pdfExport"
+import { updateInvoiceAdmin, invalidateInvoicesCache } from "../action"
 import {
 	Dialog,
 	DialogContent,
@@ -39,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import SendInvoiceDialog from "./SendInvoiceDialog"
 import EmailHistoryDialog from "./EmailHistoryDialog"
+import CreateReceiptForm from "../../receipts/components/CreateReceiptForm"
 
 interface InvoiceCardProps {
 	invoice: InvoiceWithQuotation
@@ -56,6 +60,8 @@ export default function InvoiceCard({
 	const [isSendInvoiceDialogOpen, setIsSendInvoiceDialogOpen] = useState(false)
 	const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false)
 	const [mounted, setMounted] = useState(false)
+	const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+	const [isCreateReceiptDialogOpen, setIsCreateReceiptDialogOpen] = useState(false)
 
 	useEffect(() => {
 		setMounted(true)
@@ -72,6 +78,17 @@ export default function InvoiceCard({
 				{type}
 			</Badge>
 		)
+	}
+
+	const getStatusBadge = (status: string) => {
+		if (status === "cancelled") {
+			return (
+				<Badge className="bg-red-600 text-white">
+					Cancelled
+				</Badge>
+			)
+		}
+		return null
 	}
 
 	return (
@@ -92,6 +109,7 @@ export default function InvoiceCard({
 							</CardTitle>
 							<div className="flex items-center gap-1.5 shrink-0">
 								{getTypeBadge(invoice.type)}
+								{getStatusBadge(invoice.status)}
 							</div>
 						</div>
 						
@@ -169,6 +187,19 @@ export default function InvoiceCard({
 										onClick={(e) => {
 											e.stopPropagation()
 											e.preventDefault()
+											setIsCreateReceiptDialogOpen(true)
+										}}
+										onPointerDown={(e) => e.stopPropagation()}
+										className="cursor-pointer"
+									>
+										<FileText className="w-4 h-4 mr-2" />
+										Create Receipt
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										onClick={(e) => {
+											e.stopPropagation()
+											e.preventDefault()
 											setIsSendInvoiceDialogOpen(true)
 										}}
 										onPointerDown={(e) => e.stopPropagation()}
@@ -227,6 +258,59 @@ export default function InvoiceCard({
 											</>
 										)}
 									</DropdownMenuItem>
+									{isAdmin && (
+										<>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												onClick={async (e) => {
+													e.stopPropagation()
+													e.preventDefault()
+													setIsTogglingStatus(true)
+													try {
+														const newStatus = invoice.status === "cancelled" ? "active" : "cancelled"
+														await updateInvoiceAdmin(invoice.id, { status: newStatus })
+														await invalidateInvoicesCache()
+														toast({
+															title: "Success",
+															description: `Invoice ${newStatus === "cancelled" ? "cancelled" : "reactivated"} successfully.`,
+														})
+														if (onRefresh) {
+															onRefresh()
+														}
+													} catch (error: any) {
+														console.error("Error toggling invoice status:", error)
+														toast({
+															title: "Error",
+															description: error.message || "Failed to update invoice status. Please try again.",
+															variant: "destructive",
+														})
+													} finally {
+														setIsTogglingStatus(false)
+													}
+												}}
+												onPointerDown={(e) => e.stopPropagation()}
+												className={`cursor-pointer ${invoice.status === "cancelled" ? "text-green-600" : "text-red-600"}`}
+												disabled={isTogglingStatus}
+											>
+												{isTogglingStatus ? (
+													<>
+														<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+														Updating...
+													</>
+												) : invoice.status === "cancelled" ? (
+													<>
+														<CheckCircle className="w-4 h-4 mr-2" />
+														Reactivate Invoice
+													</>
+												) : (
+													<>
+														<XCircle className="w-4 h-4 mr-2" />
+														Cancel Invoice
+													</>
+												)}
+											</DropdownMenuItem>
+										</>
+									)}
 								</DropdownMenuContent>
 							</DropdownMenu>
 						) : (
@@ -261,6 +345,18 @@ export default function InvoiceCard({
 				isOpen={isEmailHistoryDialogOpen}
 				onOpenChange={setIsEmailHistoryDialogOpen}
 				invoiceId={invoice.id}
+			/>
+
+			{/* Create Receipt Dialog */}
+			<CreateReceiptForm
+				isOpen={isCreateReceiptDialogOpen}
+				onOpenChange={setIsCreateReceiptDialogOpen}
+				prefilledInvoiceId={invoice.id}
+				onSuccess={() => {
+					if (onRefresh) {
+						onRefresh()
+					}
+				}}
 			/>
 		</Card>
 	)

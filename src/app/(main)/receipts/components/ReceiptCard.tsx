@@ -18,9 +18,14 @@ import {
 	History,
 	Eye,
 	FileText,
+	XCircle,
+	CheckCircle,
 } from "lucide-react"
 import { ReceiptWithInvoice } from "../types"
 import { generateReceiptPDF } from "../utils/pdfExport"
+import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
+import { checkIsAdmin } from "../../actions/admin-actions"
+import { useSession } from "../../contexts/SessionProvider"
 import {
 	Dialog,
 	DialogContent,
@@ -50,14 +55,43 @@ export default function ReceiptCard({
 	onRefresh,
 }: ReceiptCardProps) {
 	const router = useRouter()
+	const { enhancedUser } = useSession()
 	const [isExportingPDF, setIsExportingPDF] = useState(false)
 	const [isSendReceiptDialogOpen, setIsSendReceiptDialogOpen] = useState(false)
 	const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false)
 	const [mounted, setMounted] = useState(false)
+	const [isAdmin, setIsAdmin] = useState(false)
+	const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+
+	// Check admin status
+	useEffect(() => {
+		const checkAdmin = async () => {
+			if (enhancedUser?.id) {
+				try {
+					const adminStatus = await checkIsAdmin(enhancedUser.id)
+					setIsAdmin(adminStatus)
+				} catch (error) {
+					console.error("Error checking admin status:", error)
+				}
+			}
+		}
+		checkAdmin()
+	}, [enhancedUser?.id])
 
 	useEffect(() => {
 		setMounted(true)
 	}, [])
+
+	const getStatusBadge = (status: string) => {
+		if (status === "cancelled") {
+			return (
+				<Badge className="bg-red-600 text-white">
+					Cancelled
+				</Badge>
+			)
+		}
+		return null
+	}
 
 	return (
 		<Card 
@@ -75,6 +109,7 @@ export default function ReceiptCard({
 							>
 								{receipt.receiptNumber}
 							</CardTitle>
+							{getStatusBadge(receipt.status)}
 						</div>
 						
 						{/* Client and Metadata - Single Line */}
@@ -209,6 +244,59 @@ export default function ReceiptCard({
 											</>
 										)}
 									</DropdownMenuItem>
+									{isAdmin && (
+										<>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												onClick={async (e) => {
+													e.stopPropagation()
+													e.preventDefault()
+													setIsTogglingStatus(true)
+													try {
+														const newStatus = receipt.status === "cancelled" ? "active" : "cancelled"
+														await updateReceiptAdmin(receipt.id, { status: newStatus })
+														await invalidateReceiptsCache()
+														toast({
+															title: "Success",
+															description: `Receipt ${newStatus === "cancelled" ? "cancelled" : "reactivated"} successfully.`,
+														})
+														if (onRefresh) {
+															onRefresh()
+														}
+													} catch (error: any) {
+														console.error("Error toggling receipt status:", error)
+														toast({
+															title: "Error",
+															description: error.message || "Failed to update receipt status. Please try again.",
+															variant: "destructive",
+														})
+													} finally {
+														setIsTogglingStatus(false)
+													}
+												}}
+												onPointerDown={(e) => e.stopPropagation()}
+												className={`cursor-pointer ${receipt.status === "cancelled" ? "text-green-600" : "text-red-600"}`}
+												disabled={isTogglingStatus}
+											>
+												{isTogglingStatus ? (
+													<>
+														<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+														Updating...
+													</>
+												) : receipt.status === "cancelled" ? (
+													<>
+														<CheckCircle className="w-4 h-4 mr-2" />
+														Reactivate Receipt
+													</>
+												) : (
+													<>
+														<XCircle className="w-4 h-4 mr-2" />
+														Cancel Receipt
+													</>
+												)}
+											</DropdownMenuItem>
+										</>
+									)}
 								</DropdownMenuContent>
 							</DropdownMenu>
 						) : (

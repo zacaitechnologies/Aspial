@@ -70,7 +70,7 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 			const result = await getInvoicesPaginatedFresh(page, pageSize, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 			})
-			setInvoices(result.data)
+			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
 			setTotalPages(result.totalPages)
 		} catch (error) {
@@ -95,10 +95,19 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 		fetchInvoices()
 	}, [fetchInvoices])
 
-	// Refresh data when navigating back to list page from detail page
+	// Refresh data when navigating to invoices page or back from detail page
 	useEffect(() => {
+		// Check if we navigated to the invoices page (from any other page)
+		if (pathname === '/invoices' && prevPathnameRef.current && prevPathnameRef.current !== '/invoices') {
+			// We navigated to invoices page from another page - refresh the list
+			if (!isInitialLoad) {
+				invalidateInvoicesCache().then(() => {
+					fetchInvoices()
+				})
+			}
+		}
 		// Check if we're coming back from a detail page (pathname changed from /invoices/[id] to /invoices)
-		if (prevPathnameRef.current && prevPathnameRef.current.startsWith('/invoices/') && pathname === '/invoices' && !isInitialLoad) {
+		else if (prevPathnameRef.current && prevPathnameRef.current.startsWith('/invoices/') && pathname === '/invoices' && !isInitialLoad) {
 			// We navigated back from a detail page - refresh the list
 			invalidateInvoicesCache().then(() => {
 				fetchInvoices()

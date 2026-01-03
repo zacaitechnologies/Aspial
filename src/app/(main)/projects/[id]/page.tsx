@@ -119,15 +119,11 @@ export default function ProjectPage() {
       }
     }, [searchParams]);
 
-  // Refresh project data (including taskStats) when tasks tab becomes active - always show real-time data
+  // Track previous tab to detect tab changes
   const prevActiveTabRef = useRef<"overview" | "tasks" | "complaints" | "contracts" | null>(null);
   useEffect(() => {
-    // Only refresh when switching TO the tasks tab (not when already on tasks tab)
-    if (activeTab === "tasks" && prevActiveTabRef.current !== "tasks" && project?.id) {
-      onRefresh();
-    }
     prevActiveTabRef.current = activeTab;
-  }, [activeTab, project?.id, onRefresh]);
+  }, [activeTab]);
 
   const handleManageCollaborators = () => {
     setIsCollaboratorsOpen(true);

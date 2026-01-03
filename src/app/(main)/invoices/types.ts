@@ -6,6 +6,7 @@ export type InvoiceWithQuotation = {
 	type: InvoiceType
 	amount: number
 	quotationId: number
+	status: "active" | "cancelled"
 	created_at: Date
 	updated_at: Date
 	quotation: {
@@ -74,7 +75,7 @@ export type InvoiceWithQuotation = {
 			created_at: Date
 			updated_at: Date
 		} | null
-	}
+	} | null
 	createdBy: {
 		id: string
 		firstName: string

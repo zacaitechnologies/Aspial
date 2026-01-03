@@ -20,6 +20,15 @@ import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getInvoiceById } from "../../invoices/action"
+import { getAllUsers } from "../../quotations/action"
+import { checkIsAdmin } from "../../actions/admin-actions"
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select"
 
 interface CreateReceiptFormProps {
 	isOpen: boolean
@@ -48,6 +57,29 @@ export default function CreateReceiptForm({
 	const [totalReceipted, setTotalReceipted] = useState<number>(0)
 	const [remaining, setRemaining] = useState<number>(0)
 	const [amountWarning, setAmountWarning] = useState<string>("")
+	const [isAdmin, setIsAdmin] = useState(false)
+	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
+	const [selectedCreatedById, setSelectedCreatedById] = useState<string>("")
+
+	// Check admin status and fetch users
+	useEffect(() => {
+		const checkAdminAndFetchUsers = async () => {
+			if (enhancedUser?.id) {
+				try {
+					const adminStatus = await checkIsAdmin(enhancedUser.id)
+					setIsAdmin(adminStatus)
+					
+					if (adminStatus) {
+						const allUsers = await getAllUsers()
+						setUsers(allUsers)
+					}
+				} catch (error) {
+					console.error("Error checking admin status:", error)
+				}
+			}
+		}
+		checkAdminAndFetchUsers()
+	}, [enhancedUser?.id])
 
 	// Load prefilled invoice if provided
 	useEffect(() => {
@@ -70,6 +102,15 @@ export default function CreateReceiptForm({
 					// Set default amount to remaining if not already set
 					if (!receiptForm.amount && summary.remaining > 0) {
 						setReceiptForm(prev => ({ ...prev, amount: summary.remaining.toFixed(2) }))
+					}
+					
+					// Auto-fill advisor with invoice's creator if not already set
+					if (!selectedCreatedById) {
+						if (selectedInvoice.createdBy?.supabase_id) {
+							setSelectedCreatedById(selectedInvoice.createdBy.supabase_id)
+						} else if (selectedInvoice.createdById) {
+							setSelectedCreatedById(selectedInvoice.createdById)
+						}
 					}
 				} catch (error) {
 					console.error("Error loading receipt summary:", error)
@@ -132,12 +173,18 @@ export default function CreateReceiptForm({
 
 	const handleInvoiceSelect = async (invoiceId: string) => {
 		// Find invoice in search results first
-		let invoice = searchResults.find(i => i.id === invoiceId)
+		const invoice = searchResults.find(i => i.id === invoiceId)
 		
 		if (invoice) {
 			// If found in search results, use it
 			setSelectedInvoice(invoice)
 			setReceiptForm(prev => ({ ...prev, invoiceId }))
+			// Auto-fill advisor with invoice's creator if available
+			if (invoice.createdBy?.supabase_id) {
+				setSelectedCreatedById(invoice.createdBy.supabase_id)
+			} else if (invoice.createdById) {
+				setSelectedCreatedById(invoice.createdById)
+			}
 			setSearchQuery("")
 			setSearchResults([])
 		} else {
@@ -147,6 +194,12 @@ export default function CreateReceiptForm({
 				if (fetchedInvoice) {
 					setSelectedInvoice(fetchedInvoice)
 					setReceiptForm(prev => ({ ...prev, invoiceId }))
+					// Auto-fill advisor with invoice's creator if available
+					if (fetchedInvoice.createdBy?.supabase_id) {
+						setSelectedCreatedById(fetchedInvoice.createdBy.supabase_id)
+					} else if (fetchedInvoice.createdById) {
+						setSelectedCreatedById(fetchedInvoice.createdById)
+					}
 				} else {
 					toast({
 						title: "Error",
@@ -198,7 +251,8 @@ export default function CreateReceiptForm({
 			await createReceipt({
 				invoiceId: receiptForm.invoiceId,
 				amount: parseFloat(receiptForm.amount),
-				createdById: enhancedUser.id,
+				// Only pass createdById if admin selected someone (non-admin will be set to self server-side)
+				createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined,
 			})
 
 			toast({
@@ -212,6 +266,7 @@ export default function CreateReceiptForm({
 				amount: "",
 			})
 			setSelectedInvoice(null)
+			setSelectedCreatedById("")
 			setSearchQuery("")
 			setSearchResults([])
 			setAmountWarning("")
@@ -373,6 +428,32 @@ export default function CreateReceiptForm({
 							</div>
 						)}
 					</div>
+
+					{/* Created By (Admin Only) */}
+					{isAdmin && (
+						<div className="space-y-2">
+							<Label htmlFor="created-by">Created By (Advisor)</Label>
+							<Select
+								value={selectedCreatedById}
+								onValueChange={setSelectedCreatedById}
+								disabled={!selectedInvoice || isSaving}
+							>
+								<SelectTrigger id="created-by">
+									<SelectValue placeholder="Select advisor" />
+								</SelectTrigger>
+								<SelectContent>
+									{users.map((user) => (
+										<SelectItem key={user.supabase_id} value={user.supabase_id}>
+											{user.firstName} {user.lastName} ({user.email})
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								Defaults to quotation creator. You can select a different advisor.
+							</p>
+						</div>
+					)}
 				</div>
 				<DialogFooter>
 					<Button
@@ -384,6 +465,7 @@ export default function CreateReceiptForm({
 								amount: "",
 							})
 							setSelectedInvoice(null)
+							setSelectedCreatedById("")
 							setSearchQuery("")
 							setSearchResults([])
 							setAmountWarning("")

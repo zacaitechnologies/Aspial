@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_noStore, unstable_cache, revalidateTag } from "next/cache"
+import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
 // Internal function - not cached, used by cached version
 async function _getReceiptsPaginatedInternal(
@@ -21,6 +22,7 @@ async function _getReceiptsPaginatedInternal(
 				receiptNumber: true,
 				amount: true,
 				invoiceId: true,
+				status: true,
 				created_at: true,
 				updated_at: true,
 				invoice: {
@@ -70,6 +72,7 @@ async function _getReceiptsPaginatedInternal(
 		receiptNumber: receipt.receiptNumber,
 		amount: receipt.amount,
 		invoiceId: receipt.invoiceId,
+		status: receipt.status,
 		created_at: receipt.created_at,
 		updated_at: receipt.updated_at,
 		invoice: receipt.invoice ? {
@@ -139,10 +142,16 @@ export async function invalidateReceiptsCache() {
  * Get all receipts for an invoice
  * @param invoiceId - The invoice ID
  * @param beforeDate - Optional: Only include receipts created at or before this date (for historical balance calculation)
+ * @param excludeCancelled - Optional: Exclude cancelled receipts (default: true for balance calculations)
  */
-export async function getReceiptsForInvoice(invoiceId: string, beforeDate?: Date) {
+export async function getReceiptsForInvoice(invoiceId: string, beforeDate?: Date, excludeCancelled: boolean = true) {
 	unstable_noStore()
 	const whereClause: any = { invoiceId }
+	
+	// Exclude cancelled receipts by default (for balance calculations)
+	if (excludeCancelled) {
+		whereClause.status = "active"
+	}
 	
 	// If beforeDate is provided, filter receipts by created_at <= beforeDate
 	if (beforeDate) {
@@ -157,6 +166,7 @@ export async function getReceiptsForInvoice(invoiceId: string, beforeDate?: Date
 			id: true,
 			receiptNumber: true,
 			amount: true,
+			status: true,
 			created_at: true,
 			createdBy: {
 				select: {
@@ -299,32 +309,69 @@ async function generateReceiptNumber(tx: any): Promise<string> {
 export async function createReceipt(data: {
 	invoiceId: string
 	amount: number
-	createdById: string
+	createdById?: string // Optional - will be determined server-side based on admin status
 }) {
 	// Validate amount
 	if (data.amount <= 0) {
 		throw new Error("Receipt amount must be greater than 0")
 	}
 
-	// Get current user for createdById
+	// Get current user
 	const user = await getCachedUser()
 	if (!user) {
 		throw new Error("User must be authenticated to create a receipt")
 	}
 
+	// Check if user is admin
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+
 	return await prisma.$transaction(async (tx) => {
-		// Get invoice to validate it exists
+		// Get invoice to validate it exists and get quotation creator
 		const invoice = await tx.invoice.findUnique({
 			where: { id: data.invoiceId },
+			include: {
+				quotation: {
+					include: {
+						createdBy: {
+							select: {
+								supabase_id: true,
+							},
+						},
+					},
+				},
+			},
 		})
 
 		if (!invoice) {
 			throw new Error("Invoice not found")
 		}
 
-		// Calculate total receipted amount for this invoice
+		// Determine final createdById based on admin status
+		let finalCreatedById: string
+		if (!isAdmin) {
+			// Non-admin: always use their own ID (ignore any provided createdById)
+			finalCreatedById = user.id
+		} else {
+			// Admin: default to quotation creator, but allow override if provided
+			finalCreatedById = data.createdById || invoice.quotation.createdById
+		}
+
+		// Validate that the selected user exists
+		const selectedUser = await tx.user.findUnique({
+			where: { supabase_id: finalCreatedById },
+			select: { supabase_id: true },
+		})
+
+		if (!selectedUser) {
+			throw new Error("Selected creator user not found")
+		}
+
+		// Calculate total receipted amount for this invoice (excluding cancelled receipts)
 		const existingReceipts = await tx.receipt.findMany({
-			where: { invoiceId: data.invoiceId },
+			where: { 
+				invoiceId: data.invoiceId,
+				status: "active", // Only count active receipts
+			},
 			select: { amount: true },
 		})
 
@@ -344,7 +391,8 @@ export async function createReceipt(data: {
 				receiptNumber,
 				invoiceId: data.invoiceId,
 				amount: data.amount,
-				createdById: data.createdById,
+				createdById: finalCreatedById,
+				status: "active",
 			},
 			include: {
 				invoice: {
@@ -366,21 +414,26 @@ export async function createReceipt(data: {
 
 /**
  * Get invoice receipt summary (total receipted and remaining)
+ * Excludes cancelled receipts from calculations
  */
 export async function getInvoiceReceiptSummary(invoiceId: string) {
 	unstable_noStore()
 	
 	const invoice = await prisma.invoice.findUnique({
 		where: { id: invoiceId },
-		select: { amount: true },
+		select: { amount: true, status: true },
 	})
 
 	if (!invoice) {
 		return { totalReceipted: 0, remaining: 0 }
 	}
 
+	// Only count active receipts (exclude cancelled)
 	const receipts = await prisma.receipt.findMany({
-		where: { invoiceId },
+		where: { 
+			invoiceId,
+			status: "active", // Exclude cancelled receipts
+		},
 		select: { amount: true },
 	})
 
@@ -418,6 +471,15 @@ export async function searchInvoicesForReceipt(searchTerm: string) {
 			invoiceNumber: true,
 			type: true,
 			amount: true,
+			createdById: true,
+			createdBy: {
+				select: {
+					supabase_id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
 			quotation: {
 				select: {
 					id: true,
@@ -439,6 +501,79 @@ export async function searchInvoicesForReceipt(searchTerm: string) {
 	})
 
 	return invoices
+}
+
+/**
+ * Admin-only: Update receipt (change createdById or status)
+ */
+export async function updateReceiptAdmin(
+	receiptId: string,
+	data: {
+		createdById?: string
+		status?: "active" | "cancelled"
+	}
+) {
+	// Get current user
+	const user = await getCachedUser()
+	if (!user) {
+		throw new Error("User must be authenticated")
+	}
+
+	// Check if user is admin
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) {
+		throw new Error("Only administrators can update receipts")
+	}
+
+	// Build update data
+	const updateData: any = {}
+	
+	if (data.createdById !== undefined) {
+		// Validate that the selected user exists
+		const selectedUser = await prisma.user.findUnique({
+			where: { supabase_id: data.createdById },
+			select: { supabase_id: true },
+		})
+
+		if (!selectedUser) {
+			throw new Error("Selected creator user not found")
+		}
+
+		updateData.createdById = data.createdById
+	}
+
+	if (data.status !== undefined) {
+		updateData.status = data.status
+	}
+
+	if (Object.keys(updateData).length === 0) {
+		throw new Error("No fields to update")
+	}
+
+	updateData.updated_at = new Date()
+
+	const receipt = await prisma.receipt.update({
+		where: { id: receiptId },
+		data: updateData,
+		include: {
+			invoice: {
+				include: {
+					quotation: {
+						include: {
+							Client: true,
+						},
+					},
+				},
+			},
+			createdBy: true,
+		},
+	})
+
+	revalidateTag("receipts", { expire: 0 })
+	revalidatePath("/receipts")
+	revalidatePath(`/receipts/${receiptId}`)
+
+	return receipt
 }
 
 /**

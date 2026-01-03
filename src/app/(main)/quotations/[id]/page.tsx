@@ -39,10 +39,14 @@ import EmailHistoryDialog from "../components/EmailHistoryDialog";
 import LoadingProgress from "../components/LoadingProgress";
 import CreateInvoiceForm from "../../invoices/components/CreateInvoiceForm";
 import { getInvoicesForQuotation } from "../action";
+import { updateInvoiceAdmin, invalidateInvoicesCache } from "../../invoices/action";
+import { checkIsAdmin } from "../../actions/admin-actions";
+import { useSession } from "../../contexts/SessionProvider";
 
 export default function QuotationDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { enhancedUser } = useSession();
   const { quotation, isLoading, onRefresh } = useQuotationCache(params.id as string, { fetchFullData: true });
   const [mounted, setMounted] = useState(false);
   const [isSendQuotationDialogOpen, setIsSendQuotationDialogOpen] = useState(false);
@@ -51,6 +55,23 @@ export default function QuotationDetailPage() {
   const [isCreateInvoiceDialogOpen, setIsCreateInvoiceDialogOpen] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [togglingInvoiceId, setTogglingInvoiceId] = useState<string | null>(null);
+
+  // Check admin status
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (enhancedUser?.id) {
+        try {
+          const adminStatus = await checkIsAdmin(enhancedUser.id);
+          setIsAdmin(adminStatus);
+        } catch (error) {
+          console.error("Error checking admin status:", error);
+        }
+      }
+    };
+    checkAdmin();
+  }, [enhancedUser?.id]);
 
   useEffect(() => {
     setMounted(true);
@@ -447,22 +468,77 @@ export default function QuotationDetailPage() {
                   {invoices.map((invoice) => (
                     <div
                       key={invoice.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => router.push(`/invoices/${invoice.id}`)}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
                     >
-                      <div className="flex-1 min-w-0">
+                      <div 
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => router.push(`/invoices/${invoice.id}`)}
+                      >
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-sm">{invoice.invoiceNumber}</p>
                           <Badge variant="outline" className="text-xs">
                             {invoice.type}
                           </Badge>
+                          {invoice.status === "cancelled" && (
+                            <Badge className="bg-red-600 text-white text-xs">
+                              Cancelled
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
                           {new Date(invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-sm">RM{invoice.amount.toFixed(2)}</p>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="text-right">
+                          <p className="font-bold text-sm">RM{invoice.amount.toFixed(2)}</p>
+                        </div>
+                        {isAdmin && (
+                          <Button
+                            variant={invoice.status === "cancelled" ? "default" : "destructive"}
+                            size="sm"
+                            onClick={async () => {
+                              setTogglingInvoiceId(invoice.id)
+                              try {
+                                const newStatus = invoice.status === "cancelled" ? "active" : "cancelled"
+                                await updateInvoiceAdmin(invoice.id, { status: newStatus })
+                                await invalidateInvoicesCache()
+                                toast({
+                                  title: "Success",
+                                  description: `Invoice ${newStatus === "cancelled" ? "cancelled" : "reactivated"} successfully.`,
+                                })
+                                // Refresh invoices list
+                                if (quotation?.id) {
+                                  getInvoicesForQuotation(quotation.id)
+                                    .then((data) => {
+                                      setInvoices(data)
+                                    })
+                                    .catch((error) => {
+                                      console.error("Error loading invoices:", error)
+                                    })
+                                }
+                              } catch (error: any) {
+                                console.error("Error toggling invoice status:", error)
+                                toast({
+                                  title: "Error",
+                                  description: error.message || "Failed to update invoice status. Please try again.",
+                                  variant: "destructive",
+                                })
+                              } finally {
+                                setTogglingInvoiceId(null)
+                              }
+                            }}
+                            disabled={togglingInvoiceId === invoice.id}
+                          >
+                            {togglingInvoiceId === invoice.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : invoice.status === "cancelled" ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (
+                              <XCircle className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_noStore, unstable_cache, revalidateTag } from "next/cache"
+import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
 // Get all users for admin dropdown
@@ -296,7 +296,8 @@ export async function getQuotationsPaginatedFresh(
 
 // Invalidate quotations cache
 export async function invalidateQuotationsCache() {
-  revalidateTag("quotations", "max")
+  revalidateTag("quotations", { expire: 0 })
+  revalidatePath("/quotations")
 }
 
 /**
@@ -311,6 +312,7 @@ export async function getInvoicesForQuotation(quotationId: number) {
 			invoiceNumber: true,
 			type: true,
 			amount: true,
+			status: true,
 			created_at: true,
 			createdBy: {
 				select: {
@@ -540,7 +542,7 @@ export async function createQuotation(data: {
     throw new Error("User must be authenticated to create a quotation")
   }
 
-  return await prisma.$transaction(async (tx) => {
+  const quotation = await prisma.$transaction(async (tx) => {
     let finalClientId = data.clientId;
 
     // If creating a new client, create it first
@@ -615,8 +617,15 @@ export async function createQuotation(data: {
         createdBy: true,
       },
     })
+    
     return quotation
   });
+  
+  // Invalidate cache after creating quotation (outside transaction)
+  revalidateTag("quotations", { expire: 0 })
+  revalidatePath("/quotations")
+  
+  return quotation
 }
 
 export async function editQuotationById(
@@ -1005,6 +1014,93 @@ export async function getCustomServicesByQuotationId(quotationId: number) {
           email: true,
         },
       },
+      quotation: {
+        select: {
+          id: true,
+          name: true,
+          Client: {
+            select: {
+              name: true,
+              company: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  })
+}
+
+// Get all custom services (for admin)
+export async function getAllCustomServices() {
+  unstable_noStore()
+  return await prisma.customService.findMany({
+    include: {
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      reviewedBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      quotation: {
+        select: {
+          id: true,
+          name: true,
+          Client: {
+            select: {
+              name: true,
+              company: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  })
+}
+
+// Get custom services for a specific user
+export async function getUserCustomServices(userId: string) {
+  unstable_noStore()
+  return await prisma.customService.findMany({
+    where: {
+      createdById: userId,
+    },
+    include: {
+      createdBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      reviewedBy: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      quotation: {
+        select: {
+          id: true,
+          name: true,
+          Client: {
+            select: {
+              name: true,
+              company: true,
+            },
+          },
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
   })
@@ -1118,6 +1214,24 @@ export async function updateCustomServiceStatus(
 
     return customService;
   });
+}
+
+// Approve custom service
+export async function approveCustomService(
+  customServiceId: string,
+  userId: string,
+  comment?: string
+) {
+  return await updateCustomServiceStatus(customServiceId, "APPROVED", comment)
+}
+
+// Reject custom service
+export async function rejectCustomService(
+  customServiceId: string,
+  userId: string,
+  comment: string
+) {
+  return await updateCustomServiceStatus(customServiceId, "REJECTED", comment)
 }
 
 /**

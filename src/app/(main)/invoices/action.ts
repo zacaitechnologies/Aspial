@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_noStore, unstable_cache, revalidateTag } from "next/cache"
+import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 
 // Internal function - not cached, used by cached version
@@ -33,6 +33,7 @@ async function _getInvoicesPaginatedInternal(
 				type: true,
 				amount: true,
 				quotationId: true,
+				status: true,
 				created_at: true,
 				updated_at: true,
 				quotation: {
@@ -77,6 +78,7 @@ async function _getInvoicesPaginatedInternal(
 		type: invoice.type,
 		amount: invoice.amount,
 		quotationId: invoice.quotationId,
+		status: invoice.status,
 		created_at: invoice.created_at,
 		updated_at: invoice.updated_at,
 		quotation: invoice.quotation ? {
@@ -286,18 +288,21 @@ export async function createInvoice(data: {
 	quotationId: number
 	type: "SO" | "EPO" | "EO"
 	amount: number
-	createdById: string
+	createdById?: string // Optional - will be determined server-side based on admin status
 }) {
 	// Validate amount
 	if (data.amount <= 0) {
 		throw new Error("Invoice amount must be greater than 0")
 	}
 
-	// Get current user for createdById
+	// Get current user
 	const user = await getCachedUser()
 	if (!user) {
 		throw new Error("User must be authenticated to create an invoice")
 	}
+
+	// Check if user is admin
+	const isAdmin = await getCachedIsUserAdmin(user.id)
 
 	return await prisma.$transaction(async (tx) => {
 		// Get quotation to validate it exists and check total
@@ -310,11 +315,36 @@ export async function createInvoice(data: {
 					},
 				},
 				customServices: true,
+				createdBy: {
+					select: {
+						supabase_id: true,
+					},
+				},
 			},
 		})
 
 		if (!quotation) {
 			throw new Error("Quotation not found")
+		}
+
+		// Determine final createdById based on admin status
+		let finalCreatedById: string
+		if (!isAdmin) {
+			// Non-admin: always use their own ID (ignore any provided createdById)
+			finalCreatedById = user.id
+		} else {
+			// Admin: default to quotation creator, but allow override if provided
+			finalCreatedById = data.createdById || quotation.createdById
+		}
+
+		// Validate that the selected user exists
+		const selectedUser = await tx.user.findUnique({
+			where: { supabase_id: finalCreatedById },
+			select: { supabase_id: true },
+		})
+
+		if (!selectedUser) {
+			throw new Error("Selected creator user not found")
 		}
 
 		// Calculate quotation grand total
@@ -353,7 +383,8 @@ export async function createInvoice(data: {
 				type: data.type,
 				quotationId: data.quotationId,
 				amount: data.amount,
-				createdById: data.createdById,
+				createdById: finalCreatedById,
+				status: "active",
 			},
 			include: {
 				quotation: {
@@ -367,6 +398,79 @@ export async function createInvoice(data: {
 
 		return invoice
 	})
+
+	// Invalidate cache after creating invoice (outside transaction)
+	revalidateTag("invoices", { expire: 0 })
+	revalidatePath("/invoices")
+}
+
+/**
+ * Admin-only: Update invoice (change createdById or status)
+ */
+export async function updateInvoiceAdmin(
+	invoiceId: string,
+	data: {
+		createdById?: string
+		status?: "active" | "cancelled"
+	}
+) {
+	// Get current user
+	const user = await getCachedUser()
+	if (!user) {
+		throw new Error("User must be authenticated")
+	}
+
+	// Check if user is admin
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) {
+		throw new Error("Only administrators can update invoices")
+	}
+
+	// Build update data
+	const updateData: any = {}
+	
+	if (data.createdById !== undefined) {
+		// Validate that the selected user exists
+		const selectedUser = await prisma.user.findUnique({
+			where: { supabase_id: data.createdById },
+			select: { supabase_id: true },
+		})
+
+		if (!selectedUser) {
+			throw new Error("Selected creator user not found")
+		}
+
+		updateData.createdById = data.createdById
+	}
+
+	if (data.status !== undefined) {
+		updateData.status = data.status
+	}
+
+	if (Object.keys(updateData).length === 0) {
+		throw new Error("No fields to update")
+	}
+
+	updateData.updated_at = new Date()
+
+	const invoice = await prisma.invoice.update({
+		where: { id: invoiceId },
+		data: updateData,
+		include: {
+			quotation: {
+				include: {
+					Client: true,
+				},
+			},
+			createdBy: true,
+		},
+	})
+
+	revalidateTag("invoices", { expire: 0 })
+	revalidatePath("/invoices")
+	revalidatePath(`/invoices/${invoiceId}`)
+
+	return invoice
 }
 
 /**

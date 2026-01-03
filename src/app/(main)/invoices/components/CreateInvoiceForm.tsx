@@ -20,13 +20,14 @@ import {
 } from "@/components/ui/select"
 import { Search, Loader2, AlertTriangle, CheckCircle } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
-import { createInvoice, searchQuotationsForInvoice } from "../action"
+import { createInvoice, searchQuotationsForInvoice, invalidateInvoicesCache } from "../action"
 import { InvoiceFormData, invoiceTypeOptions } from "../types"
 import { useSession } from "../../contexts/SessionProvider"
 import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { getQuotationById } from "../../quotations/action"
+import { getQuotationById, getAllUsers } from "../../quotations/action"
+import { checkIsAdmin } from "../../actions/admin-actions"
 
 interface CreateInvoiceFormProps {
 	isOpen: boolean
@@ -54,6 +55,29 @@ export default function CreateInvoiceForm({
 	const [selectedQuotation, setSelectedQuotation] = useState<any | null>(null)
 	const [quotationGrandTotal, setQuotationGrandTotal] = useState<number>(0)
 	const [amountWarning, setAmountWarning] = useState<string>("")
+	const [isAdmin, setIsAdmin] = useState(false)
+	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
+	const [selectedCreatedById, setSelectedCreatedById] = useState<string>("")
+
+	// Check admin status and fetch users
+	useEffect(() => {
+		const checkAdminAndFetchUsers = async () => {
+			if (enhancedUser?.id) {
+				try {
+					const adminStatus = await checkIsAdmin(enhancedUser.id)
+					setIsAdmin(adminStatus)
+					
+					if (adminStatus) {
+						const allUsers = await getAllUsers()
+						setUsers(allUsers)
+					}
+				} catch (error) {
+					console.error("Error checking admin status:", error)
+				}
+			}
+		}
+		checkAdminAndFetchUsers()
+	}, [enhancedUser?.id])
 
 	// Load prefilled quotation if provided
 	useEffect(() => {
@@ -149,6 +173,10 @@ export default function CreateInvoiceForm({
 			// If found in search results, use it
 			setSelectedQuotation(quotation)
 			setInvoiceForm(prev => ({ ...prev, quotationId }))
+			// If admin, set default createdById to quotation creator
+			if (isAdmin && quotation.createdBy?.supabase_id) {
+				setSelectedCreatedById(quotation.createdBy.supabase_id)
+			}
 			setSearchQuery("")
 			setSearchResults([])
 		} else {
@@ -158,6 +186,10 @@ export default function CreateInvoiceForm({
 				if (fetchedQuotation) {
 					setSelectedQuotation(fetchedQuotation)
 					setInvoiceForm(prev => ({ ...prev, quotationId }))
+					// If admin, set default createdById to quotation creator
+					if (isAdmin && fetchedQuotation.createdBy?.supabase_id) {
+						setSelectedCreatedById(fetchedQuotation.createdBy.supabase_id)
+					}
 				} else {
 					toast({
 						title: "Error",
@@ -210,8 +242,12 @@ export default function CreateInvoiceForm({
 				quotationId: invoiceForm.quotationId,
 				type: invoiceForm.type,
 				amount: parseFloat(invoiceForm.amount),
-				createdById: enhancedUser.id,
+				// Only pass createdById if admin selected someone (non-admin will be set to self server-side)
+				createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined,
 			})
+
+			// Invalidate cache on client side to ensure invoices page refreshes
+			await invalidateInvoicesCache()
 
 			toast({
 				title: "Success",
@@ -225,6 +261,7 @@ export default function CreateInvoiceForm({
 				amount: "",
 			})
 			setSelectedQuotation(null)
+			setSelectedCreatedById("")
 			setSearchQuery("")
 			setSearchResults([])
 			setAmountWarning("")
@@ -393,6 +430,32 @@ export default function CreateInvoiceForm({
 							</div>
 						)}
 					</div>
+
+					{/* Created By (Admin Only) */}
+					{isAdmin && (
+						<div className="space-y-2">
+							<Label htmlFor="created-by">Created By (Advisor)</Label>
+							<Select
+								value={selectedCreatedById}
+								onValueChange={setSelectedCreatedById}
+								disabled={!selectedQuotation || isSaving}
+							>
+								<SelectTrigger id="created-by">
+									<SelectValue placeholder="Select advisor" />
+								</SelectTrigger>
+								<SelectContent>
+									{users.map((user) => (
+										<SelectItem key={user.supabase_id} value={user.supabase_id}>
+											{user.firstName} {user.lastName} ({user.email})
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								Defaults to quotation creator. You can select a different advisor.
+							</p>
+						</div>
+					)}
 				</div>
 				<DialogFooter>
 					<Button

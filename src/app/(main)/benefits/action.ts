@@ -56,13 +56,9 @@ function calculateLevel(sales: number, isMonthly: boolean = false): number {
   return 0
 }
 
-// Get commission rate based on level
+// Get commission rate - fixed at 3% for all tiers
 function getCommissionRate(level: number): string {
-  if (level >= 4) return "12%"
-  if (level >= 3) return "10%"
-  if (level >= 2) return "8%"
-  if (level >= 1) return "5%"
-  return "0%"
+  return "3%"
 }
 
 // Calculate stars: 1 star if monthly sales >= 100K (legacy, not used in new tier system)
@@ -125,17 +121,12 @@ async function _getEmployeeSalesDataInternal(
       endDate = new Date(year, 11, 31, 23, 59, 59)
     }
 
-    // Build where clause based on user role
+    // Build where clause for invoices based on user role
     const whereClause: any = {
+      status: "active", // Exclude cancelled invoices
       created_at: {
         gte: startDate,
         lte: endDate,
-      },
-      workflowStatus: {
-        in: ["final", "accepted"],
-      },
-      paymentStatus: {
-        in: ["partially_paid", "deposit_paid", "fully_paid"],
       },
     }
 
@@ -165,32 +156,42 @@ async function _getEmployeeSalesDataInternal(
             year: year,
           })),
           currentLevel: 0,
-          commissionRate: "0%",
+          commissionRate: "3%", // Fixed at 3% for all tiers
         }
       }
       
-      // Filter quotations by project IDs
-      whereClause.projectId = { in: projectIds }
+      // Filter invoices by quotation's project IDs
+      whereClause.quotation = {
+        projectId: { in: projectIds }
+      }
     } else {
-      // For admin and brand-advisor: filter by createdById (existing behavior)
-      whereClause.createdById = user.supabase_id
+      // For admin and brand-advisor: filter by quotation creator (invoice.quotation.createdById)
+      whereClause.quotation = {
+        createdById: user.supabase_id
+      }
     }
 
-    // Fetch quotations for the selected period
-    const quotations = await prisma.quotation.findMany({
+    // Fetch invoices for the selected period
+    const invoices = await prisma.invoice.findMany({
       where: whereClause,
       select: {
         id: true,
-        totalPrice: true,
+        amount: true,
         created_at: true,
-        workflowStatus: true,
+        quotation: {
+          select: {
+            id: true,
+            createdById: true,
+            projectId: true,
+          },
+        },
       },
       orderBy: {
         created_at: "asc",
       },
     })
 
-    // Group quotations by month
+    // Group invoices by month
     const monthlyDataMap: Map<string, { sales: number; month: string; monthIndex: number; year: number }> = new Map()
     
     // Initialize all 12 months
@@ -205,16 +206,16 @@ async function _getEmployeeSalesDataInternal(
       })
     }
 
-    // Aggregate sales by month
-    quotations.forEach((quotation) => {
-      const date = new Date(quotation.created_at)
+    // Aggregate sales by month from invoices
+    invoices.forEach((invoice) => {
+      const date = new Date(invoice.created_at)
       const monthIndex = date.getMonth()
       const year = date.getFullYear()
       const key = `${year}-${monthIndex}`
 
       if (monthlyDataMap.has(key)) {
         const monthData = monthlyDataMap.get(key)!
-        monthData.sales += quotation.totalPrice
+        monthData.sales += invoice.amount
       }
     })
 
@@ -229,8 +230,8 @@ async function _getEmployeeSalesDataInternal(
         year: data.year,
       }))
 
-    // Calculate total yearly sales
-    const currentYearlySales = quotations.reduce((sum, q) => sum + q.totalPrice, 0)
+    // Calculate total yearly sales from invoices
+    const currentYearlySales = invoices.reduce((sum, inv) => sum + inv.amount, 0)
 
     // Calculate current month sales
     const currentMonth = new Date().getMonth()
@@ -628,7 +629,7 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
         profilePicture: user.profilePicture,
         currentYearlySales: 0,
         currentLevel: 0,
-        commissionRate: '0%',
+        commissionRate: '3%', // Fixed at 3% for all tiers
         totalStars: 0,
         complaintsCount: 0,
         starsAfterComplaints: 0,

@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DollarSign, TrendingUp, Users, FileText, Search, Calendar, Building2, User as UserIcon } from "lucide-react"
 import { getSalesData, getAllAdvisors } from "../action"
+import { checkIsAdmin } from "../../actions/admin-actions"
+import { useSession } from "../../contexts/SessionProvider"
 
 interface SalesAnalyticsProps {
   defaultYear?: number
@@ -17,6 +19,7 @@ interface SalesAnalyticsProps {
 }
 
 export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnalyticsProps) {
+  const { enhancedUser } = useSession()
   const currentDate = new Date()
   const [searchTerm, setSearchTerm] = useState("")
   const [viewMode, setViewMode] = useState<'yearly' | 'monthly'>('yearly')
@@ -26,10 +29,28 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
   const [loading, setLoading] = useState(true)
   const [salesData, setSalesData] = useState<any>(null)
   const [advisors, setAdvisors] = useState<Array<{ id: string; name: string; email: string }>>([])
+  const [isAdmin, setIsAdmin] = useState(false)
 
-  // Fetch advisors on mount
+  // Check admin status on mount
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (enhancedUser?.id) {
+        try {
+          const adminStatus = await checkIsAdmin(enhancedUser.id)
+          setIsAdmin(adminStatus)
+        } catch (error) {
+          console.error('Error checking admin status:', error)
+        }
+      }
+    }
+    checkAdmin()
+  }, [enhancedUser?.id])
+
+  // Fetch advisors on mount (only for admin users)
   useEffect(() => {
     const fetchAdvisors = async () => {
+      if (!isAdmin) return // Non-admin users don't need advisor list
+      
       try {
         const data = await getAllAdvisors()
         setAdvisors(data)
@@ -38,7 +59,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       }
     }
     fetchAdvisors()
-  }, [])
+  }, [isAdmin])
 
   // Fetch sales data when filters change
   useEffect(() => {
@@ -70,13 +91,14 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
     'July', 'August', 'September', 'October', 'November', 'December'
   ]
 
-  // Filter quotations based on search term
-  const filteredQuotations = salesData?.quotations?.filter((quotation: any) => {
+  // Filter invoices based on search term
+  const filteredInvoices = salesData?.invoices?.filter((invoice: any) => {
     const searchLower = searchTerm.toLowerCase()
     return (
-      quotation.name.toLowerCase().includes(searchLower) ||
-      quotation.client.name.toLowerCase().includes(searchLower) ||
-      quotation.createdBy.name.toLowerCase().includes(searchLower)
+      invoice.invoiceNumber.toLowerCase().includes(searchLower) ||
+      invoice.quotation?.name?.toLowerCase().includes(searchLower) ||
+      invoice.client?.name?.toLowerCase().includes(searchLower) ||
+      invoice.createdBy?.name?.toLowerCase().includes(searchLower)
     )
   }) || []
 
@@ -88,7 +110,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4" style={{ color: "#898D74" }} />
           <Input
-            placeholder="Search quotations..."
+            placeholder="Search invoices..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 border-2 bg-white"
@@ -144,21 +166,23 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
             </Select>
           )}
 
-          {/* Advisor Select */}
-          <Select value={advisorId} onValueChange={setAdvisorId}>
-            <SelectTrigger className="w-[180px] border-2 bg-white" style={{ borderColor: "#BDC4A5" }}>
-              <UserIcon className="h-4 w-4 mr-2" style={{ color: "#898D74" }} />
-              <SelectValue placeholder="All Advisors" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Advisors</SelectItem>
-              {advisors.map((advisor) => (
-                <SelectItem key={advisor.id} value={advisor.id}>
-                  {advisor.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Advisor Select (only for admin users) */}
+          {isAdmin && (
+            <Select value={advisorId} onValueChange={setAdvisorId}>
+              <SelectTrigger className="w-[180px] border-2 bg-white" style={{ borderColor: "#BDC4A5" }}>
+                <UserIcon className="h-4 w-4 mr-2" style={{ color: "#898D74" }} />
+                <SelectValue placeholder="All Advisors" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Advisors</SelectItem>
+                {advisors.map((advisor) => (
+                  <SelectItem key={advisor.id} value={advisor.id}>
+                    {advisor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
@@ -209,9 +233,9 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium" style={{ color: "#898D74" }}>Quotations</p>
+                    <p className="text-sm font-medium" style={{ color: "#898D74" }}>Invoices</p>
                     <p className="text-3xl font-bold" style={{ color: "#202F21" }}>
-                      {salesData.totalQuotations}
+                      {salesData.totalInvoices}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#BDC4A5" }}>
@@ -225,9 +249,9 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium" style={{ color: "#898D74" }}>Avg per Quote</p>
+                    <p className="text-sm font-medium" style={{ color: "#898D74" }}>Avg per Invoice</p>
                     <p className="text-3xl font-bold" style={{ color: "#202F21" }}>
-                      RM {salesData.totalQuotations > 0 ? (salesData.totalSales / salesData.totalQuotations / 1000).toFixed(1) : '0'}K
+                      RM {salesData.totalInvoices > 0 ? (salesData.totalSales / salesData.totalInvoices / 1000).toFixed(1) : '0'}K
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#BDC4A5" }}>
@@ -266,7 +290,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                           RM {(monthData.sales / 1000).toFixed(1)}K
                         </div>
                         <div className="text-xs space-y-1" style={{ color: "#898D74" }}>
-                          <div>{monthData.quotations} quotes</div>
+                          <div>{monthData.invoices} invoices</div>
                           <div>{monthData.clients} clients</div>
                         </div>
                       </CardContent>
@@ -277,8 +301,8 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
             </Card>
           )}
 
-          {/* Sales by Advisor */}
-          {salesData.salesByAdvisor && salesData.salesByAdvisor.length > 0 && (
+          {/* Sales by Advisor (only for admin users) */}
+          {isAdmin && salesData.salesByAdvisor && salesData.salesByAdvisor.length > 0 && (
             <Card className="bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
               <CardHeader>
                 <CardTitle style={{ color: "#202F21" }}>Sales by Advisor</CardTitle>
@@ -289,9 +313,9 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                     <TableRow>
                       <TableHead className="font-bold" style={{ color: "#202F21" }}>Advisor</TableHead>
                       <TableHead className="text-right font-bold" style={{ color: "#202F21" }}>Total Sales</TableHead>
-                      <TableHead className="text-center font-bold" style={{ color: "#202F21" }}>Quotations</TableHead>
+                      <TableHead className="text-center font-bold" style={{ color: "#202F21" }}>Invoices</TableHead>
                       <TableHead className="text-center font-bold" style={{ color: "#202F21" }}>Clients</TableHead>
-                      <TableHead className="text-right font-bold" style={{ color: "#202F21" }}>Avg per Quote</TableHead>
+                      <TableHead className="text-right font-bold" style={{ color: "#202F21" }}>Avg per Invoice</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -304,13 +328,13 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                           RM {(advisor.totalSales / 1000).toFixed(1)}K
                         </TableCell>
                         <TableCell className="text-center" style={{ color: "#202F21" }}>
-                          {advisor.quotationsCount}
+                          {advisor.invoicesCount}
                         </TableCell>
                         <TableCell className="text-center" style={{ color: "#202F21" }}>
                           {advisor.clientsCount}
                         </TableCell>
                         <TableCell className="text-right font-medium" style={{ color: "#202F21" }}>
-                          RM {(advisor.totalSales / advisor.quotationsCount / 1000).toFixed(1)}K
+                          RM {(advisor.totalSales / advisor.invoicesCount / 1000).toFixed(1)}K
                         </TableCell>
                       </TableRow>
                     ))}
@@ -320,64 +344,68 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
             </Card>
           )}
 
-          {/* Quotations Table */}
+          {/* Invoices Table */}
           <Card className="bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle style={{ color: "#202F21" }}>
-                  {viewMode === 'yearly' ? `All Quotations (${filteredQuotations.length})` : `Quotations for ${months[parseInt(month)]} ${year} (${filteredQuotations.length})`}
+                  {viewMode === 'yearly' ? `All Invoices (${filteredInvoices.length})` : `Invoices for ${months[parseInt(month)]} ${year} (${filteredInvoices.length})`}
                 </CardTitle>
               </div>
             </CardHeader>
             <CardContent>
-              {filteredQuotations.length > 0 ? (
+              {filteredInvoices.length > 0 ? (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50">
-                        <TableHead className="font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Quotation Name</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Invoice Number</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Type</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Quotation</TableHead>
                         <TableHead className="font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Client</TableHead>
                         <TableHead className="font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Advisor</TableHead>
                         <TableHead className="text-right font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Amount</TableHead>
-                        <TableHead className="text-center font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Status</TableHead>
                         <TableHead className="font-bold whitespace-nowrap" style={{ color: "#202F21" }}>Date</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredQuotations.map((quotation: any) => (
-                        <TableRow key={quotation.id} className="hover:bg-gray-50">
+                      {filteredInvoices.map((invoice: any) => (
+                        <TableRow key={invoice.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium" style={{ color: "#202F21" }}>
-                            {quotation.name}
+                            {invoice.invoiceNumber}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className="whitespace-nowrap"
+                              style={{ 
+                                backgroundColor: invoice.type === 'SO' ? '#4CAF50' : 
+                                                invoice.type === 'EPO' ? '#FFC107' : '#2196F3',
+                                color: 'white'
+                              }}
+                            >
+                              {invoice.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell style={{ color: "#202F21" }}>
+                            {invoice.quotation?.name || 'N/A'}
                           </TableCell>
                           <TableCell style={{ color: "#202F21" }}>
                             <div className="flex items-center gap-2">
                               <Building2 className="h-4 w-4" style={{ color: "#898D74" }} />
-                              {quotation.client.name}
+                              {invoice.client?.name || 'N/A'}
                             </div>
                           </TableCell>
                           <TableCell style={{ color: "#202F21" }}>
                             <div className="flex items-center gap-2">
                               <UserIcon className="h-4 w-4" style={{ color: "#898D74" }} />
-                              {quotation.createdBy.name}
+                              {invoice.createdBy?.name || 'N/A'}
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-bold" style={{ color: "#202F21" }}>
-                            RM {(quotation.totalPrice / 1000).toFixed(1)}K
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge
-                              className="whitespace-nowrap"
-                              style={{ 
-                                backgroundColor: quotation.paymentStatus === 'fully_paid' ? '#4CAF50' : 
-                                                quotation.paymentStatus === 'deposit_paid' ? '#FFC107' : '#898D74',
-                                color: 'white'
-                              }}
-                            >
-                              {quotation.paymentStatus.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                            </Badge>
+                            RM {(invoice.amount / 1000).toFixed(1)}K
                           </TableCell>
                           <TableCell style={{ color: "#202F21" }}>
-                            {new Date(quotation.created_at).toLocaleDateString('en-GB', {
+                            {new Date(invoice.created_at).toLocaleDateString('en-GB', {
                               day: '2-digit',
                               month: 'short',
                               year: 'numeric'
@@ -392,7 +420,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                 <div className="p-12 text-center">
                   <FileText className="w-12 h-12 mx-auto mb-4" style={{ color: "#898D74" }} />
                   <p className="text-lg" style={{ color: "#898D74" }}>
-                    {searchTerm ? 'No quotations match your search' : 'No quotations found'}
+                    {searchTerm ? 'No invoices match your search' : 'No invoices found'}
                   </p>
                 </div>
               )}

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { createAppointmentBooking, getUserProjects } from "@/app/(main)/appointment-bookings/actions"
 import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
-import { format } from "date-fns"
+import { format, subMinutes } from "date-fns"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import {
 	Dialog,

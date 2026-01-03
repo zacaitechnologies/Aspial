@@ -38,6 +38,7 @@
   "exclude": [
     "node_modules",
     "prisma/*MockData.ts",
-    "prisma/userSyncData.ts"
+    "prisma/userSyncData.ts",
+    "supabase/**/*"
   ]
 }

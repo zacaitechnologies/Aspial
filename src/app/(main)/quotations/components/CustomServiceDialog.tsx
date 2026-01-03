@@ -73,13 +73,14 @@ export default function CustomServiceDialog({
 
     setIsLoading(true);
     try {
-      const newCustomService = await createCustomService({
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        price: price,
-        quotationId: quotationId,
-        createdById: createdById,
-      });
+      const newCustomService = await createCustomService(
+        quotationId,
+        {
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          price: price,
+        }
+      );
 
       toast({
         title: "Success",

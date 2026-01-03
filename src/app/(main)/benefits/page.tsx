@@ -242,7 +242,7 @@ export default function EmployeeBenefitsPage() {
     currentSales: viewMode === "yearly" ? currentYearlySales : currentMonthlySales,
     monthlySales: currentYearlySales / 12,
     level: salesData?.currentLevel || 0,
-    commissionRate: salesData?.commissionRate || '0%',
+    commissionRate: "3%", // Fixed at 3% for all tiers
   }
 
   const rewards = [
@@ -450,7 +450,7 @@ export default function EmployeeBenefitsPage() {
         <Card className="mb-8 p-6 bg-white/95 border-4 border-foreground/20 shadow-2xl">
           {loading ? (
             <div className="flex flex-wrap gap-6 justify-around items-center">
-              {[1, 2, 3, 4].map((i) => (
+              {[1, 2, 3].map((i) => (
                 <div key={i} className="text-center">
                   <div className="text-5xl font-black mb-2 h-14 w-32 bg-gray-200 animate-pulse rounded"></div>
                   <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide h-4 w-24 bg-gray-200 animate-pulse rounded mx-auto"></div>
@@ -468,10 +468,6 @@ export default function EmployeeBenefitsPage() {
                   RM {(employeeData.monthlySales / 1000).toFixed(0)}K
                 </div>
                 <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Monthly Average</div>
-              </div>
-              <div className="text-center">
-                <div className="text-5xl font-black text-secondary mb-2">Level {employeeData.level}</div>
-                <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Current Level</div>
               </div>
               <div className="text-center">
                 <div className="text-5xl font-black text-green-600 mb-2">{employeeData.commissionRate}</div>

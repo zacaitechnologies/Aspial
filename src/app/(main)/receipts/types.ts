@@ -3,6 +3,7 @@ export interface ReceiptWithInvoice {
 	receiptNumber: string
 	amount: number
 	invoiceId: string
+	status: "active" | "cancelled"
 	created_at: Date
 	updated_at: Date
 	invoice: {
@@ -18,7 +19,7 @@ export interface ReceiptWithInvoice {
 				id: string
 				name: string
 				email: string
-				company?: string
+				company?: string | null
 			}
 		}
 	} | null
@@ -31,7 +32,7 @@ export interface ReceiptWithInvoice {
 		id: string
 		name: string
 		email: string
-		company?: string
+		company?: string | null
 	} | null
 	createdBy: {
 		id: string
