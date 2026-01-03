@@ -14,13 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { deleteService, searchServices } from "../service-actions";
+import { deleteService, searchServices, getServiceDeletionImpact, type DeletionImpact } from "../service-actions";
 import { Service } from "../types";
 import ServiceForm from "./ServiceForm";
 import React from "react";
 import { useServicesCacheContext } from "../contexts/ServicesCacheContext";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/use-toast";
+import { DeletionImpactWarningDialog } from "@/components/ui/deletion-impact-warning-dialog";
 
 interface ServicesListProps {
   services: Service[];
@@ -44,6 +45,8 @@ export default function ServicesList({
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteServiceId, setDeleteServiceId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isWarningDialogOpen, setIsWarningDialogOpen] = useState(false);
+  const [deletionImpact, setDeletionImpact] = useState<DeletionImpact | null>(null);
   const itemsPerPage = 12;
 
   // Calculate pagination
@@ -119,6 +122,22 @@ export default function ServicesList({
 
   const handleDeleteService = async (serviceId: number) => {
     setDeleteServiceId(serviceId);
+    try {
+      const impact = await getServiceDeletionImpact(serviceId);
+      setDeletionImpact(impact);
+      if (impact.items.length > 0 && impact.items.some((item) => item.count > 0)) {
+        setIsWarningDialogOpen(true);
+      }
+      // If no relations, the normal confirmation dialog will show (isOpen={deleteServiceId !== null && !isWarningDialogOpen})
+    } catch (error) {
+      console.error("Failed to get deletion impact:", error);
+      toast({
+        title: "Error",
+        description: "Failed to check deletion impact. Please try again.",
+        variant: "destructive",
+      });
+      setDeleteServiceId(null);
+    }
   };
 
   const confirmDeleteService = async () => {
@@ -132,6 +151,8 @@ export default function ServicesList({
       // Clear search after deletion to show updated list
       setSearchQuery("");
       setDeleteServiceId(null);
+      setIsWarningDialogOpen(false);
+      setDeletionImpact(null);
       toast({
         title: "Success",
         description: "Service deleted successfully.",
@@ -480,14 +501,31 @@ export default function ServicesList({
       )}
 
       <ConfirmationDialog
-        isOpen={deleteServiceId !== null}
-        onClose={() => setDeleteServiceId(null)}
+        isOpen={deleteServiceId !== null && !isWarningDialogOpen}
+        onClose={() => {
+          setDeleteServiceId(null);
+          setDeletionImpact(null);
+        }}
         onConfirm={confirmDeleteService}
         title="Delete Service"
         description="Are you sure you want to delete this service? This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+        isLoading={isDeleting}
+      />
+
+      <DeletionImpactWarningDialog
+        isOpen={isWarningDialogOpen}
+        onClose={() => {
+          setIsWarningDialogOpen(false);
+          setDeleteServiceId(null);
+          setDeletionImpact(null);
+        }}
+        onProceed={confirmDeleteService}
+        title="Delete Service"
+        entityName="service"
+        impactItems={deletionImpact?.items || []}
         isLoading={isDeleting}
       />
     </div>

@@ -26,7 +26,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
-import { deleteClient, getCurrentUserId, getClientsPaginatedFresh, invalidateClientsCache } from "../action"
+import { deleteClient, getCurrentUserId, getClientsPaginatedFresh, invalidateClientsCache, getClientDeletionImpact, type DeletionImpact } from "../action"
 import { checkHasFullAccess } from "../../actions/admin-actions"
 import CreateClientDialog from "./CreateClientDialog"
 import EditClientDialog from "./EditClientDialog"
@@ -35,6 +35,7 @@ import SalesAnalytics from "./SalesAnalytics"
 import { ProjectPagination } from "../../projects/components/ProjectPagination"
 import { toast } from "@/components/ui/use-toast"
 import { useSession } from "../../contexts/SessionProvider"
+import { DeletionImpactWarningDialog } from "@/components/ui/deletion-impact-warning-dialog"
 
 interface Client {
   id: string
@@ -86,6 +87,8 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
   const [editingClient, setEditingClient] = useState<Client | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
+  const [isWarningDialogOpen, setIsWarningDialogOpen] = useState(false)
+  const [deletionImpact, setDeletionImpact] = useState<DeletionImpact | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(userId || null)
   const [activeTab, setActiveTab] = useState("clients")
@@ -165,9 +168,24 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
     setIsEditDialogOpen(true)
   }
 
-  const handleDeleteClient = (client: Client) => {
+  const handleDeleteClient = async (client: Client) => {
     setDeletingClient(client)
-    setIsDeleteDialogOpen(true)
+    try {
+      const impact = await getClientDeletionImpact(client.id)
+      setDeletionImpact(impact)
+      if (impact.items.length > 0 && impact.items.some((item) => item.count > 0)) {
+        setIsWarningDialogOpen(true)
+      } else {
+        setIsDeleteDialogOpen(true)
+      }
+    } catch (error) {
+      console.error("Failed to get deletion impact:", error)
+      toast({
+        title: "Error",
+        description: "Failed to check deletion impact. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const confirmDeleteClient = async () => {
@@ -177,6 +195,14 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
       await deleteClient(deletingClient.id)
       await invalidateClientsCache()
       await fetchClients()
+      setIsDeleteDialogOpen(false)
+      setIsWarningDialogOpen(false)
+      setDeletingClient(null)
+      setDeletionImpact(null)
+      toast({
+        title: "Success",
+        description: "Client deleted successfully.",
+      })
     } catch (error) {
       console.error("Failed to delete client:", error)
       toast({
@@ -502,6 +528,21 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
 
         {/* Delete Client Dialog */}
         <DeleteClientDialog isOpen={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen} onConfirm={confirmDeleteClient} clientName={deletingClient?.name || ""} />
+
+        {/* Deletion Impact Warning Dialog */}
+        <DeletionImpactWarningDialog
+          isOpen={isWarningDialogOpen}
+          onClose={() => {
+            setIsWarningDialogOpen(false)
+            setDeletingClient(null)
+            setDeletionImpact(null)
+          }}
+          onProceed={confirmDeleteClient}
+          title="Delete Client"
+          entityName="client"
+          impactItems={deletionImpact?.items || []}
+          isLoading={false}
+        />
       </div>
     </div>
   )

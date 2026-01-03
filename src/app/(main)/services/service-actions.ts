@@ -98,6 +98,183 @@ export async function updateServiceTag(id: number, data: UpdateServiceTagData): 
   return transformServiceTag(tag)
 }
 
+export interface DeletionImpactItem {
+	label: string
+	count: number
+	examples?: string[]
+}
+
+export interface DeletionImpact {
+	items: DeletionImpactItem[]
+}
+
+export async function getServiceTagDeletionImpact(id: number): Promise<DeletionImpact> {
+	try {
+		const services = await prisma.services.findMany({
+			where: {
+				ServiceToTag: {
+					some: {
+						A: id,
+					},
+				},
+			},
+			select: { id: true, name: true },
+			take: 5,
+		})
+
+		const servicesCount = await prisma.services.count({
+			where: {
+				ServiceToTag: {
+					some: {
+						A: id,
+					},
+				},
+			},
+		})
+
+		const items: DeletionImpactItem[] = []
+
+		if (servicesCount > 0) {
+			items.push({
+				label: "services",
+				count: servicesCount,
+				examples: services.map((s) => s.name),
+			})
+		}
+
+		return { items }
+	} catch (error: any) {
+		console.error("Error in getServiceTagDeletionImpact:", error)
+		throw new Error("Failed to get deletion impact")
+	}
+}
+
+export async function getServiceDeletionImpact(id: number): Promise<DeletionImpact> {
+	try {
+		// Get quotations via QuotationService
+		const quotationServices = await prisma.quotationService.findMany({
+			where: { serviceId: id },
+			include: {
+				quotation: {
+					select: { id: true, name: true },
+				},
+			},
+			take: 5,
+		})
+
+		// Get projects via Milestone
+		const milestones = await prisma.milestone.findMany({
+			where: { serviceId: id },
+			include: {
+				project: {
+					select: { id: true, name: true },
+				},
+			},
+			take: 5,
+		})
+
+		// Get invoices via Quotation -> Invoice
+		const invoices = await prisma.invoice.findMany({
+			where: {
+				quotation: {
+					services: {
+						some: {
+							serviceId: id,
+						},
+					},
+				},
+			},
+			select: { id: true, invoiceNumber: true },
+			take: 5,
+		})
+
+		// Get receipts via Invoice -> Receipt
+		const receipts = await prisma.receipt.findMany({
+			where: {
+				invoice: {
+					quotation: {
+						services: {
+							some: {
+								serviceId: id,
+							},
+						},
+					},
+				},
+			},
+			select: { id: true, receiptNumber: true },
+			take: 5,
+		})
+
+		const [quotationsCount, projectsCount, invoicesCount, receiptsCount] = await Promise.all([
+			prisma.quotationService.count({ where: { serviceId: id } }),
+			prisma.milestone.count({ where: { serviceId: id } }),
+			prisma.invoice.count({
+				where: {
+					quotation: {
+						services: {
+							some: {
+								serviceId: id,
+							},
+						},
+					},
+				},
+			}),
+			prisma.receipt.count({
+				where: {
+					invoice: {
+						quotation: {
+							services: {
+								some: {
+									serviceId: id,
+								},
+							},
+						},
+					},
+				},
+			}),
+		])
+
+		const items: DeletionImpactItem[] = []
+
+		if (quotationsCount > 0) {
+			items.push({
+				label: "quotation services",
+				count: quotationsCount,
+				examples: quotationServices.map((qs) => qs.quotation.name),
+			})
+		}
+
+		if (projectsCount > 0) {
+			items.push({
+				label: "projects",
+				count: projectsCount,
+				examples: milestones.map((m) => m.project.name),
+			})
+		}
+
+		if (invoicesCount > 0) {
+			items.push({
+				label: "invoices",
+				count: invoicesCount,
+				examples: invoices.map((i) => i.invoiceNumber),
+			})
+		}
+
+		if (receiptsCount > 0) {
+			items.push({
+				label: "receipts",
+				count: receiptsCount,
+				examples: receipts.map((r) => r.receiptNumber),
+			})
+		}
+
+		return { items }
+	} catch (error: any) {
+		console.error("Error in getServiceDeletionImpact:", error)
+		throw new Error("Failed to get deletion impact")
+	}
+}
+
 export async function deleteServiceTag(id: number): Promise<void> {
   const isAdmin = await checkIsAdmin()
   if (!isAdmin) {

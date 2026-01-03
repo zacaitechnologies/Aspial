@@ -548,6 +548,116 @@ export async function updateClient(id: string, data: {
   }
 }
 
+export interface DeletionImpactItem {
+	label: string
+	count: number
+	examples?: string[]
+}
+
+export interface DeletionImpact {
+	items: DeletionImpactItem[]
+}
+
+export async function getClientDeletionImpact(id: string): Promise<DeletionImpact> {
+	try {
+		await getCurrentUser() // Ensure user is authenticated
+
+		const [projects, quotations, invoices, receipts] = await Promise.all([
+			prisma.project.findMany({
+				where: { clientId: id },
+				select: { id: true, name: true },
+				take: 5,
+			}),
+			prisma.quotation.findMany({
+				where: { clientId: id },
+				select: { id: true, name: true },
+				take: 5,
+			}),
+			prisma.invoice.findMany({
+				where: {
+					quotation: {
+						clientId: id,
+					},
+				},
+				select: { id: true, invoiceNumber: true },
+				take: 5,
+			}),
+			prisma.receipt.findMany({
+				where: {
+					invoice: {
+						quotation: {
+							clientId: id,
+						},
+					},
+				},
+				select: { id: true, receiptNumber: true },
+				take: 5,
+			}),
+		])
+
+		const [projectsCount, quotationsCount, invoicesCount, receiptsCount] = await Promise.all([
+			prisma.project.count({ where: { clientId: id } }),
+			prisma.quotation.count({ where: { clientId: id } }),
+			prisma.invoice.count({
+				where: {
+					quotation: {
+						clientId: id,
+					},
+				},
+			}),
+			prisma.receipt.count({
+				where: {
+					invoice: {
+						quotation: {
+							clientId: id,
+						},
+					},
+				},
+			}),
+		])
+
+		const items: DeletionImpactItem[] = []
+
+		if (projectsCount > 0) {
+			items.push({
+				label: "projects",
+				count: projectsCount,
+				examples: projects.map((p) => p.name),
+			})
+		}
+
+		if (quotationsCount > 0) {
+			items.push({
+				label: "quotations",
+				count: quotationsCount,
+				examples: quotations.map((q) => q.name),
+			})
+		}
+
+		if (invoicesCount > 0) {
+			items.push({
+				label: "invoices",
+				count: invoicesCount,
+				examples: invoices.map((i) => i.invoiceNumber),
+			})
+		}
+
+		if (receiptsCount > 0) {
+			items.push({
+				label: "receipts",
+				count: receiptsCount,
+				examples: receipts.map((r) => r.receiptNumber),
+			})
+		}
+
+		return { items }
+	} catch (error: any) {
+		if (isRedirectError(error)) throw error
+		console.error("Error in getClientDeletionImpact:", error)
+		throw new Error("Failed to get deletion impact")
+	}
+}
+
 export async function deleteClient(id: string) {
   try {
     const user = await getCurrentUser() // Ensure user is authenticated

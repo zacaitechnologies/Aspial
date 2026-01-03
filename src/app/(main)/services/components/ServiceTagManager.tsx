@@ -27,12 +27,15 @@ const PREDEFINED_COLORS = [
 import { 
   createServiceTag, 
   updateServiceTag, 
-  deleteServiceTag
+  deleteServiceTag,
+  getServiceTagDeletionImpact,
+  type DeletionImpact
 } from "../service-actions"
 import { ServiceTag, CreateServiceTagData, UpdateServiceTagData } from "../types"
 import { useServicesCacheContext } from "../contexts/ServicesCacheContext"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { toast } from "@/components/ui/use-toast"
+import { DeletionImpactWarningDialog } from "@/components/ui/deletion-impact-warning-dialog"
 
 export default function ServiceTagManager() {
   const { serviceTags, invalidateAllCaches } = useServicesCacheContext()
@@ -44,6 +47,8 @@ export default function ServiceTagManager() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isWarningDialogOpen, setIsWarningDialogOpen] = useState(false)
+  const [deletionImpact, setDeletionImpact] = useState<DeletionImpact | null>(null)
   const [formData, setFormData] = useState<CreateServiceTagData>({
     name: "",
     color: "#3B82F6"
@@ -106,6 +111,22 @@ export default function ServiceTagManager() {
 
   const handleDeleteTag = async (tagId: number) => {
     setDeleteTagId(tagId)
+    try {
+      const impact = await getServiceTagDeletionImpact(tagId)
+      setDeletionImpact(impact)
+      if (impact.items.length > 0 && impact.items.some((item) => item.count > 0)) {
+        setIsWarningDialogOpen(true)
+      }
+      // If no relations, the normal confirmation dialog will show (isOpen={deleteTagId !== null && !isWarningDialogOpen})
+    } catch (error) {
+      console.error("Failed to get deletion impact:", error)
+      toast({
+        title: "Error",
+        description: "Failed to check deletion impact. Please try again.",
+        variant: "destructive",
+      })
+      setDeleteTagId(null)
+    }
   }
 
   const confirmDeleteTag = async () => {
@@ -117,6 +138,8 @@ export default function ServiceTagManager() {
       invalidateAllCaches()
       await onRefresh()
       setDeleteTagId(null)
+      setIsWarningDialogOpen(false)
+      setDeletionImpact(null)
       toast({
         title: "Success",
         description: "Service tag deleted successfully.",
@@ -383,14 +406,31 @@ export default function ServiceTagManager() {
       </Dialog>
 
       <ConfirmationDialog
-        isOpen={deleteTagId !== null}
-        onClose={() => setDeleteTagId(null)}
+        isOpen={deleteTagId !== null && !isWarningDialogOpen}
+        onClose={() => {
+          setDeleteTagId(null)
+          setDeletionImpact(null)
+        }}
         onConfirm={confirmDeleteTag}
         title="Delete Service Tag"
         description="Are you sure you want to delete this tag? This will remove it from all associated services."
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+        isLoading={isDeleting}
+      />
+
+      <DeletionImpactWarningDialog
+        isOpen={isWarningDialogOpen}
+        onClose={() => {
+          setIsWarningDialogOpen(false)
+          setDeleteTagId(null)
+          setDeletionImpact(null)
+        }}
+        onProceed={confirmDeleteTag}
+        title="Delete Service Tag"
+        entityName="service tag"
+        impactItems={deletionImpact?.items || []}
         isLoading={isDeleting}
       />
     </div>
