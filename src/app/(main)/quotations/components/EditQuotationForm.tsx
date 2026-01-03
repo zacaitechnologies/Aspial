@@ -630,6 +630,15 @@ export default function EditQuotationForm({
         className="w-[85vw]! max-w-[85vw]! sm:max-w-[85vw]! max-h-[90vh] rounded-lg overflow-hidden"
         showCloseButton={false}
       >
+        <DialogHeader className="pb-4 border-b">
+          <DialogTitle>Edit Quotation</DialogTitle>
+          {isAdmin && isFinalQuotation && (
+            <DialogDescription className="text-amber-700 bg-amber-50 p-2 rounded mt-2">
+              ⚠️ Admin Mode: You can fully edit this final quotation, including services and all fields.
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
         {isLoadingFullData ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-3">
@@ -638,15 +647,7 @@ export default function EditQuotationForm({
             </div>
           </div>
         ) : (
-        <div className="custom-scrollbar overflow-y-auto overflow-x-hidden max-h-[calc(90vh-4rem)] pr-2 min-w-0">
-          <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
-            <DialogTitle>Edit Quotation</DialogTitle>
-            {isAdmin && isFinalQuotation && (
-              <DialogDescription className="text-amber-700 bg-amber-50 p-2 rounded mt-2">
-                ⚠️ Admin Mode: You can fully edit this final quotation, including services and all fields.
-              </DialogDescription>
-            )}
-          </DialogHeader>
+        <div className="custom-scrollbar overflow-y-auto overflow-x-hidden max-h-[calc(90vh-8rem)] pr-2 min-w-0">
           <div className="grid gap-4 py-4 w-full">
             {/* Quotation Number (Read-only) */}
             {editingQuotation && (

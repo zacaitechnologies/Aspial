@@ -37,6 +37,8 @@ import { useQuotationCache } from "../hooks/useQuotationCache";
 import SendQuotationDialog from "../components/SendQuotationDialog";
 import EmailHistoryDialog from "../components/EmailHistoryDialog";
 import LoadingProgress from "../components/LoadingProgress";
+import CreateInvoiceForm from "../../invoices/components/CreateInvoiceForm";
+import { getInvoicesForQuotation } from "../action";
 
 export default function QuotationDetailPage() {
   const params = useParams();
@@ -46,10 +48,30 @@ export default function QuotationDetailPage() {
   const [isSendQuotationDialogOpen, setIsSendQuotationDialogOpen] = useState(false);
   const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isCreateInvoiceDialogOpen, setIsCreateInvoiceDialogOpen] = useState(false);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [isLoadingInvoices, setIsLoadingInvoices] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Load invoices for this quotation
+  useEffect(() => {
+    if (quotation?.id) {
+      setIsLoadingInvoices(true);
+      getInvoicesForQuotation(quotation.id)
+        .then((data) => {
+          setInvoices(data);
+        })
+        .catch((error) => {
+          console.error("Error loading invoices:", error);
+        })
+        .finally(() => {
+          setIsLoadingInvoices(false);
+        });
+    }
+  }, [quotation?.id]);
 
   // Memoize badge functions to avoid recreating on every render
   const getWorkflowStatusBadge = useCallback((status: string) => {
@@ -182,6 +204,14 @@ export default function QuotationDetailPage() {
                 >
                   <History className="w-4 h-4" />
                   Email History
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCreateInvoiceDialogOpen(true)}
+                  className="flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  Create Invoice
                 </Button>
                 <Button
                   variant="outline"
@@ -391,6 +421,55 @@ export default function QuotationDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Invoices List */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Invoices
+              </CardTitle>
+              <CardDescription>
+                All invoices created from this quotation
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingInvoices ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : invoices.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No invoices created yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {invoices.map((invoice) => (
+                    <div
+                      key={invoice.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => router.push(`/invoices/${invoice.id}`)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm">{invoice.invoiceNumber}</p>
+                          <Badge variant="outline" className="text-xs">
+                            {invoice.type}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-sm">RM{invoice.amount.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar */}
@@ -559,6 +638,30 @@ export default function QuotationDetailPage() {
           isOpen={isEmailHistoryDialogOpen}
           onOpenChange={setIsEmailHistoryDialogOpen}
           quotationId={quotation.id}
+        />
+      )}
+
+      {/* Create Invoice Dialog */}
+      {quotation.workflowStatus === "final" && (
+        <CreateInvoiceForm
+          isOpen={isCreateInvoiceDialogOpen}
+          onOpenChange={setIsCreateInvoiceDialogOpen}
+          prefilledQuotationId={quotation.id}
+          onSuccess={() => {
+            if (onRefresh) {
+              onRefresh();
+            }
+            // Refresh invoices list
+            if (quotation?.id) {
+              getInvoicesForQuotation(quotation.id)
+                .then((data) => {
+                  setInvoices(data);
+                })
+                .catch((error) => {
+                  console.error("Error loading invoices:", error);
+                });
+            }
+          }}
         />
       )}
     </div>

@@ -54,6 +54,10 @@ model User {
   projects                       Project[]                 @relation("ProjectCreator")
   quotations                     Quotation[]               @relation("QuotationCreator")
   quotationEmails                QuotationEmail[]          @relation("QuotationEmailSender")
+  invoices                       Invoice[]                 @relation("InvoiceCreator")
+  invoiceEmails                  InvoiceEmail[]             @relation("InvoiceEmailSender")
+  receipts                       Receipt[]                 @relation("ReceiptCreator")
+  receiptEmails                  ReceiptEmail[]            @relation("ReceiptEmailSender")
   tasksAssigned                  Task[]                    @relation("TaskAssignee")
   assignedTasks                  Task[]                    @relation("TaskCreator")
   timeEntries                    TimeEntry[]
@@ -129,6 +133,7 @@ model Quotation {
   project        Project?           @relation(fields: [projectId], references: [id])
 
   quotationEmails QuotationEmail[]
+  invoices        Invoice[]
 
   @@map("quotations")
 }
@@ -143,6 +148,73 @@ model QuotationEmail {
   sentBy       User      @relation("QuotationEmailSender", fields: [sentById], references: [supabase_id])
 
   @@map("quotation_emails")
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  type          InvoiceType
+  quotationId   Int
+  amount        Float
+  createdById   String
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @default(now())
+  quotation     Quotation     @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  createdBy     User          @relation("InvoiceCreator", fields: [createdById], references: [supabase_id])
+  invoiceEmails InvoiceEmail[]
+  receipts      Receipt[]
+
+  @@index([quotationId])
+  @@index([type])
+  @@index([created_at])
+  @@map("invoices")
+}
+
+model InvoiceEmail {
+  id            Int       @id @default(autoincrement())
+  invoiceId     String
+  invoice       Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recipientEmail String
+  sentAt        DateTime  @default(now())
+  sentById      String
+  sentBy        User      @relation("InvoiceEmailSender", fields: [sentById], references: [supabase_id])
+
+  @@map("invoice_emails")
+}
+
+model Receipt {
+  id            String        @id @default(cuid())
+  receiptNumber String        @unique
+  invoiceId     String
+  amount        Float
+  createdById   String
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @default(now())
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  createdBy     User          @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
+  receiptEmails ReceiptEmail[]
+
+  @@index([invoiceId])
+  @@index([created_at])
+  @@map("receipts")
+}
+
+model ReceiptEmail {
+  id            Int       @id @default(autoincrement())
+  receiptId     String
+  receipt       Receipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  recipientEmail String
+  sentAt        DateTime  @default(now())
+  sentById      String
+  sentBy        User      @relation("ReceiptEmailSender", fields: [sentById], references: [supabase_id])
+
+  @@map("receipt_emails")
+}
+
+enum InvoiceType {
+  SO
+  EPO
+  EO
 }
 
 enum PaymentStatus {

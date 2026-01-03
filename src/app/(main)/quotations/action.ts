@@ -242,6 +242,33 @@ export async function invalidateQuotationsCache() {
   revalidateTag("quotations", "max")
 }
 
+/**
+ * Get all invoices for a quotation
+ */
+export async function getInvoicesForQuotation(quotationId: number) {
+	unstable_noStore()
+	const invoices = await prisma.invoice.findMany({
+		where: { quotationId },
+		select: {
+			id: true,
+			invoiceNumber: true,
+			type: true,
+			amount: true,
+			created_at: true,
+			createdBy: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
+		},
+		orderBy: { created_at: "desc" },
+	})
+
+	return invoices
+}
+
 export async function getQuotationById(id: string) {
   unstable_noStore()
   const quotation = await prisma.quotation.findUnique({

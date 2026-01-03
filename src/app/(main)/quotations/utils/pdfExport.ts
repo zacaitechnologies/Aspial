@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import type { QuotationWithServices } from "../types";
-import { getCustomServicesByQuotationId, getQuotationFullById } from "../action";
+import { getQuotationFullById } from "../action";
 
 // Type definitions for jsPDF autoTable and extension
 declare module "jspdf" {
@@ -161,10 +161,8 @@ export async function generateQuotationPDFWithFetch(quotationId: number) {
 async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   const doc = new jsPDF();
   
-  // Use custom services from quotation if available (from full fetch), otherwise fetch them
-  const customServices = quotation.customServices && quotation.customServices.length > 0
-    ? quotation.customServices
-    : await getCustomServicesByQuotationId(quotation.id);
+  // Use custom services already loaded on the quotation (full fetch includes these)
+  const customServices = quotation.customServices ?? [];
   
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -219,6 +217,12 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   const rightCol = pageWidth - margin; // Right-aligned from right margin
   let leftY = currentY;
   let rightY = currentY;
+  
+  // Left side - Big bolded QUOTATION label
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("QUOTATION", leftCol, leftY);
+  leftY += 8;
   
   // Left side - Bill To section
   if (clientCompany) {
@@ -288,41 +292,56 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
     })),
   ];
   
-  // Services table - combine name and description in one column
+  // Services table - create a row for each service
   const tableData: any[] = [];
-  let calculatedRowHeight = 10; // Default row height
+  const rowHeights: number[] = [];
+  const descCellWidth = 110 - 6; // Account for padding
   
-  if (allServices.length > 0) {
-    const mainService = allServices[0];
-    const packageQty = 1.00;
-    const pricePerPackage = originalPrice;
-    const total = grandTotal;
-    
-    // Calculate required cell height for description column
-    const descCellWidth = 110 - 6; // Account for padding
-    const nameLines = doc.splitTextToSize(mainService.name, descCellWidth);
+  // Calculate row height for each service and create table rows
+  allServices.forEach((service, index) => {
+    const nameLines = doc.splitTextToSize(service.name, descCellWidth);
     let totalLines = nameLines.length;
-    if (mainService.description) {
+    
+    if (service.description) {
       // Process description - split by newlines and remove bullets
-      const processedDesc = mainService.description
+      const processedDesc = service.description
         .split('\n')
         .map(line => line.trim().replace(/^[-•*]\s*/, ''))
         .filter(line => line.length > 0)
         .join('\n');
       const descLines = doc.splitTextToSize(processedDesc, descCellWidth);
       totalLines += descLines.length;
+      // Add 2px for gap between name and description
+      totalLines += 0.5; // 2px gap = 0.5 line spacing
     }
-    // Ensure adequate height - use 4px per line for tighter spacing
-    calculatedRowHeight = Math.max(15, totalLines * 4 + 8); // 4px per line + padding
     
-    // Put empty string in description column - will be rendered with custom didDrawCell
+    // Calculate row height - use 5px per line for better spacing, add extra padding
+    const rowHeight = Math.max(20, totalLines * 5 + 12); // 5px per line + extra padding
+    rowHeights.push(rowHeight);
+    
+    // Add row data - empty string in description column will be rendered by didDrawCell
+    tableData.push([
+      String(index + 1),
+      "", // Empty - will be rendered by didDrawCell
+      "1.00", // Package quantity
+      service.price.toFixed(2), // Price per package
+      service.price.toFixed(2) // Total
+    ]);
+  });
+  
+  // If no individual services, show combined total
+  if (allServices.length === 0) {
+    const packageQty = 1.00;
+    const pricePerPackage = originalPrice;
+    const total = grandTotal;
     tableData.push([
       "1",
-      "", // Empty - will be rendered by didDrawCell
+      "",
       packageQty.toFixed(2),
       pricePerPackage.toFixed(2),
       total.toFixed(2)
     ]);
+    rowHeights.push(15);
   }
   
   // Add table
@@ -343,14 +362,17 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
         fontSize: 9,
         textColor: BLACK,
         lineWidth: 0.1,
-        minCellHeight: calculatedRowHeight,
       },
       columnStyles: {
         0: { cellWidth: (pageWidth - 2 * margin) / 15 * 1, halign: "center" },
-        1: { cellWidth: (pageWidth - 2 * margin) / 15 * 5, cellPadding: { top: 5, right: 3, bottom: 5, left: 3 }, minCellHeight: calculatedRowHeight },
-        2: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" }, 
+        1: { 
+          cellWidth: (pageWidth - 2 * margin) / 15 * 7, 
+          cellPadding: { top: 5, right: 3, bottom: 5, left: 3 },
+          valign: 'top'
+        },
+        2: { cellWidth: (pageWidth - 2 * margin) / 15 * 2, halign: "right" }, 
         3: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" },
-        4: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" },
+        4: { cellWidth: (pageWidth - 2 * margin) / 15 * 2, halign: "right" },
       },
       margin: { left: margin, right: margin },
       styles: {
@@ -359,15 +381,37 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
         lineColor: [0, 0, 0],
         overflow: 'linebreak',
       },
+      didParseCell: (data: any) => {
+        // Set row height based on calculated height for each row
+        if (data.row.index >= 0 && rowHeights[data.row.index]) {
+          // Set minHeight for all cells in the row to ensure consistent row height
+          data.cell.minHeight = rowHeights[data.row.index];
+          // Also set the row height directly
+          if (data.table.body[data.row.index]) {
+            data.table.body[data.row.index].height = rowHeights[data.row.index];
+          }
+        }
+      },
+      willDrawCell: (data: any) => {
+        // Ensure row height is applied before drawing
+        if (data.row.index >= 0 && rowHeights[data.row.index]) {
+          data.cell.height = rowHeights[data.row.index];
+        }
+      },
       didDrawCell: (data: any) => {
         // Custom rendering for description column (index 1) to handle bold name and normal description
-        if (data.column.index === 1 && data.row.index >= 0) {
-          const service = allServices[0];
+        // Only render for body rows, not header rows
+        if (data.column.index === 1 && data.row.index >= 0 && data.row.section === 'body') {
+          const serviceIndex = data.row.index;
+          const service = allServices[serviceIndex];
+          
           if (service) {
             const cellWidth = data.cell.width - 6; // Account for padding
             const x = data.cell.x + 3;
             let y = data.cell.y + 5;
-            const maxY = data.cell.y + data.cell.height - 5;
+            // Use calculated row height or cell height, whichever is larger
+            const cellHeight = rowHeights[serviceIndex] || data.cell.height || 20;
+            const maxY = data.cell.y + cellHeight - 5;
             
             // Draw service name in bold
             doc.setFont("helvetica", "bold");
@@ -380,22 +424,36 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
               y += 4; // Tighter spacing
             });
             
-            // Draw description in normal font
-            if (service.description && y < maxY) {
+            // Add small gap between name and description
+            if (service.description) {
+              y += 2;
+            }
+            
+            // Draw description in normal font (always show if it exists)
+            if (service.description) {
               doc.setFont("helvetica", "normal");
               doc.setFontSize(9);
+              doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
               // Process description - split by newlines and remove bullets
-              const processedDesc = service.description
+              let processedDesc = service.description
                 .split('\n')
                 .map(line => line.trim().replace(/^[-•*]\s*/, ''))
                 .filter(line => line.length > 0)
                 .join('\n');
-              const descLines = doc.splitTextToSize(processedDesc, cellWidth);
-              descLines.forEach((line: string) => {
-                if (y >= maxY) return; // Prevent overflow
-                doc.text(line, x, y);
-                y += 4; // Tighter spacing
-              });
+              
+              // If processing removed everything, use original description
+              if (!processedDesc || processedDesc.trim().length === 0) {
+                processedDesc = service.description.trim();
+              }
+              
+              if (processedDesc && processedDesc.length > 0) {
+                const descLines = doc.splitTextToSize(processedDesc, cellWidth);
+                descLines.forEach((line: string) => {
+                  if (y >= maxY) return; // Prevent overflow
+                  doc.text(line, x, y);
+                  y += 4; // Tighter spacing
+                });
+              }
             }
             
             // Return false to prevent default rendering
@@ -478,47 +536,6 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   });
   currentY += 5;
   
-  // Payment table
-  if (currentY > pageHeight - 40) {
-    doc.addPage();
-    const newTotalPages = doc.getNumberOfPages();
-    addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName);
-    currentY = 60;
-  }
-  
-  autoTable(doc, {
-    startY: currentY,
-    head: [["First Payment", "Total Payable"]],
-    body: [[grandTotal.toFixed(2), grandTotal.toFixed(2)]],
-    theme: "grid",
-    headStyles: {
-      fillColor: PRIMARY_COLOR,
-      textColor: WHITE,
-      fontSize: 9,
-      fontStyle: "bold",
-      lineWidth: 0.1,
-    },
-    bodyStyles: {
-      fontSize: 9,
-      textColor: BLACK,
-      lineWidth: 0.1,
-    },
-    columnStyles: {
-      0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-      1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-    },
-    margin: { left: margin, right: margin },
-    styles: {
-      cellPadding: 5,
-      lineWidth: 0.1,
-      lineColor: [0, 0, 0],
-    },
-    didDrawPage: (data: any) => {
-      const totalPages = doc.getNumberOfPages();
-      addHeader(doc, data.pageNumber, totalPages, quotation.name, quotationDate, advisorName);
-    },
-  });
-  
   // Final update of page numbers on all pages (only in header)
   const finalTotalPages = doc.getNumberOfPages();
   for (let i = 1; i <= finalTotalPages; i++) {
@@ -539,19 +556,21 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
  * It will use existing custom services data if available, or fetch if needed
  */
 export async function generateQuotationPDF(quotation: QuotationWithServices) {
-  // If quotation has custom services already loaded, use the internal function directly
-  // Otherwise, fetch full data first
-  if (quotation.customServices && quotation.customServices.length > 0) {
-    return await generateQuotationPDFInternal(quotation)
+  // List views may provide a lightweight quotation (services without basePrice, etc).
+  // Ensure we have full service details before generating.
+  const hasFullServiceData =
+    quotation.services?.length > 0 &&
+    quotation.services.every((qs) => typeof (qs.service as any)?.basePrice === "number")
+
+  if (!hasFullServiceData) {
+    const fullQuotation = await getQuotationFullById(quotation.id.toString())
+    if (!fullQuotation) {
+      throw new Error("Quotation not found")
+    }
+    return await generateQuotationPDFInternal(fullQuotation)
   }
-  
-  // Fetch full quotation data if custom services not loaded
-  const fullQuotation = await getQuotationFullById(quotation.id.toString())
-  if (!fullQuotation) {
-    throw new Error("Quotation not found")
-  }
-  
-  return await generateQuotationPDFInternal(fullQuotation)
+
+  return await generateQuotationPDFInternal(quotation)
 }
 
 /**
@@ -559,12 +578,23 @@ export async function generateQuotationPDF(quotation: QuotationWithServices) {
  * This expects a full quotation object with all related data already loaded
  */
 export async function generateQuotationPDFBase64(quotation: QuotationWithServices): Promise<string> {
+  // Ensure we have full service details (list views may not)
+  const hasFullServiceData =
+    quotation.services?.length > 0 &&
+    quotation.services.every((qs) => typeof (qs.service as any)?.basePrice === "number")
+
+  if (!hasFullServiceData) {
+    const fullQuotation = await getQuotationFullById(quotation.id.toString())
+    if (!fullQuotation) {
+      throw new Error("Quotation not found")
+    }
+    return await generateQuotationPDFBase64(fullQuotation)
+  }
+
   const doc = new jsPDF();
   
-  // Use custom services from quotation if available (from full fetch), otherwise fetch them
-  const customServices = quotation.customServices && quotation.customServices.length > 0
-    ? quotation.customServices
-    : await getCustomServicesByQuotationId(quotation.id);
+  // Use custom services already loaded on the quotation (full fetch includes these)
+  const customServices = quotation.customServices ?? [];
   
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -619,6 +649,12 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
   const rightCol = pageWidth - margin; // Right-aligned from right margin
   let leftY = currentY;
   let rightY = currentY;
+  
+  // Left side - Big bolded QUOTATION label
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("QUOTATION", leftCol, leftY);
+  leftY += 8;
   
   // Left side - Bill To section
   if (clientCompany) {
@@ -689,41 +725,56 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
     })),
   ];
   
-  // Services table - combine name and description in one column
+  // Services table - create a row for each service
   const tableData: any[] = [];
-  let calculatedRowHeight = 10; // Default row height
+  const rowHeights: number[] = [];
+  const descCellWidth = 110 - 6; // Account for padding
   
-  if (allServices.length > 0) {
-    const mainService = allServices[0];
-    const packageQty = 1.00;
-    const pricePerPackage = originalPrice;
-    const total = grandTotal;
-    
-    // Calculate required cell height for description column
-    const descCellWidth = 110 - 6; // Account for padding
-    const nameLines = doc.splitTextToSize(mainService.name, descCellWidth);
+  // Calculate row height for each service and create table rows
+  allServices.forEach((service, index) => {
+    const nameLines = doc.splitTextToSize(service.name, descCellWidth);
     let totalLines = nameLines.length;
-    if (mainService.description) {
+    
+    if (service.description) {
       // Process description - split by newlines and remove bullets
-      const processedDesc = mainService.description
+      const processedDesc = service.description
         .split('\n')
         .map(line => line.trim().replace(/^[-•*]\s*/, ''))
         .filter(line => line.length > 0)
         .join('\n');
       const descLines = doc.splitTextToSize(processedDesc, descCellWidth);
       totalLines += descLines.length;
+      // Add 2px for gap between name and description
+      totalLines += 0.5; // 2px gap = 0.5 line spacing
     }
-    // Ensure adequate height - use 4px per line for tighter spacing
-    calculatedRowHeight = Math.max(15, totalLines * 4 + 8); // 4px per line + padding
     
-    // Put empty string in description column - will be rendered with custom didDrawCell
+    // Calculate row height - use 5px per line for better spacing, add extra padding
+    const rowHeight = Math.max(20, totalLines * 5 + 12); // 5px per line + extra padding
+    rowHeights.push(rowHeight);
+    
+    // Add row data - empty string in description column will be rendered by didDrawCell
+    tableData.push([
+      String(index + 1),
+      "", // Empty - will be rendered by didDrawCell
+      "1.00", // Package quantity
+      service.price.toFixed(2), // Price per package
+      service.price.toFixed(2) // Total
+    ]);
+  });
+  
+  // If no individual services, show combined total
+  if (allServices.length === 0) {
+    const packageQty = 1.00;
+    const pricePerPackage = originalPrice;
+    const total = grandTotal;
     tableData.push([
       "1",
-      "", // Empty - will be rendered by didDrawCell
+      "",
       packageQty.toFixed(2),
       pricePerPackage.toFixed(2),
       total.toFixed(2)
     ]);
+    rowHeights.push(15);
   }
   
   // Add table
@@ -744,14 +795,17 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
         fontSize: 9,
         textColor: BLACK,
         lineWidth: 0.1,
-        minCellHeight: calculatedRowHeight,
       },
       columnStyles: {
         0: { cellWidth: (pageWidth - 2 * margin) / 15 * 1, halign: "center" },
-        1: { cellWidth: (pageWidth - 2 * margin) / 15 * 5, cellPadding: { top: 5, right: 3, bottom: 5, left: 3 }, minCellHeight: calculatedRowHeight },
-        2: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" }, 
+        1: { 
+          cellWidth: (pageWidth - 2 * margin) / 15 * 7, 
+          cellPadding: { top: 5, right: 3, bottom: 5, left: 3 },
+          valign: 'top'
+        },
+        2: { cellWidth: (pageWidth - 2 * margin) / 15 * 2, halign: "right" }, 
         3: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" },
-        4: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" },
+        4: { cellWidth: (pageWidth - 2 * margin) / 15 * 2, halign: "right" },
       },
       margin: { left: margin, right: margin },
       styles: {
@@ -760,15 +814,37 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
         lineColor: [0, 0, 0],
         overflow: 'linebreak',
       },
+      didParseCell: (data: any) => {
+        // Set row height based on calculated height for each row
+        if (data.row.index >= 0 && rowHeights[data.row.index]) {
+          // Set minHeight for all cells in the row to ensure consistent row height
+          data.cell.minHeight = rowHeights[data.row.index];
+          // Also set the row height directly
+          if (data.table.body[data.row.index]) {
+            data.table.body[data.row.index].height = rowHeights[data.row.index];
+          }
+        }
+      },
+      willDrawCell: (data: any) => {
+        // Ensure row height is applied before drawing
+        if (data.row.index >= 0 && rowHeights[data.row.index]) {
+          data.cell.height = rowHeights[data.row.index];
+        }
+      },
       didDrawCell: (data: any) => {
         // Custom rendering for description column (index 1) to handle bold name and normal description
-        if (data.column.index === 1 && data.row.index >= 0) {
-          const service = allServices[0];
+        // Only render for body rows, not header rows
+        if (data.column.index === 1 && data.row.index >= 0 && data.row.section === 'body') {
+          const serviceIndex = data.row.index;
+          const service = allServices[serviceIndex];
+          
           if (service) {
             const cellWidth = data.cell.width - 6; // Account for padding
             const x = data.cell.x + 3;
             let y = data.cell.y + 5;
-            const maxY = data.cell.y + data.cell.height - 5;
+            // Use calculated row height or cell height, whichever is larger
+            const cellHeight = rowHeights[serviceIndex] || data.cell.height || 20;
+            const maxY = data.cell.y + cellHeight - 5;
             
             // Draw service name in bold
             doc.setFont("helvetica", "bold");
@@ -781,22 +857,36 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
               y += 4; // Tighter spacing
             });
             
-            // Draw description in normal font
-            if (service.description && y < maxY) {
+            // Add small gap between name and description
+            if (service.description) {
+              y += 2;
+            }
+            
+            // Draw description in normal font (always show if it exists)
+            if (service.description) {
               doc.setFont("helvetica", "normal");
               doc.setFontSize(9);
+              doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
               // Process description - split by newlines and remove bullets
-              const processedDesc = service.description
+              let processedDesc = service.description
                 .split('\n')
                 .map(line => line.trim().replace(/^[-•*]\s*/, ''))
                 .filter(line => line.length > 0)
                 .join('\n');
-              const descLines = doc.splitTextToSize(processedDesc, cellWidth);
-              descLines.forEach((line: string) => {
-                if (y >= maxY) return; // Prevent overflow
-                doc.text(line, x, y);
-                y += 4; // Tighter spacing
-              });
+              
+              // If processing removed everything, use original description
+              if (!processedDesc || processedDesc.trim().length === 0) {
+                processedDesc = service.description.trim();
+              }
+              
+              if (processedDesc && processedDesc.length > 0) {
+                const descLines = doc.splitTextToSize(processedDesc, cellWidth);
+                descLines.forEach((line: string) => {
+                  if (y >= maxY) return; // Prevent overflow
+                  doc.text(line, x, y);
+                  y += 4; // Tighter spacing
+                });
+              }
             }
             
             // Return false to prevent default rendering
@@ -882,47 +972,6 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
     currentY += 5;
   });
   currentY += 5;
-  
-  // Payment table
-  if (currentY > pageHeight - 40) {
-    doc.addPage();
-    const newTotalPages = doc.getNumberOfPages();
-    addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName);
-    currentY = 60;
-  }
-  
-  autoTable(doc, {
-    startY: currentY,
-    head: [["First Payment", "Total Payable"]],
-    body: [[grandTotal.toFixed(2), grandTotal.toFixed(2)]],
-    theme: "grid",
-    headStyles: {
-      fillColor: PRIMARY_COLOR,
-      textColor: WHITE,
-      fontSize: 9,
-      fontStyle: "bold",
-      lineWidth: 0.1,
-    },
-    bodyStyles: {
-      fontSize: 9,
-      textColor: BLACK,
-      lineWidth: 0.1,
-    },
-    columnStyles: {
-      0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-      1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-    },
-    margin: { left: margin, right: margin },
-    styles: {
-      cellPadding: 5,
-      lineWidth: 0.1,
-      lineColor: [0, 0, 0],
-    },
-    didDrawPage: (data: any) => {
-      const totalPages = doc.getNumberOfPages();
-      addHeader(doc, data.pageNumber, totalPages, quotation.name, quotationDate, advisorName);
-    },
-  });
   
   // Final update of page numbers on all pages (both in header and below ADVISOR)
   const finalTotalPages = doc.getNumberOfPages();

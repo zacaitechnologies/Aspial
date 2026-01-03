@@ -17,6 +17,11 @@ import {
   Users,
   Gift,
   Shield,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Wallet,
+  FileCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getAllPendingInvitations, getUserInvitations } from "../projects/permissions";
@@ -33,6 +38,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 
 const mainNavItems = [
@@ -45,11 +53,6 @@ const mainNavItems = [
     title: "Services",
     url: "/services",
     icon: Wrench,
-  },
-  {
-    title: "Quotations",
-    url: "/quotations",
-    icon: Receipt,
   },
   {
     title: "Appointment Bookings",
@@ -83,6 +86,9 @@ export function AppSidebar() {
   const { enhancedUser } = useSession();
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPaymentsOpen, setIsPaymentsOpen] = useState(
+    pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts")
+  );
 
   useEffect(() => {
     const fetchPendingInvitations = async () => {
@@ -163,6 +169,91 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+              
+              {/* Payments Collapsible Section */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => setIsPaymentsOpen(!isPaymentsOpen)}
+                  isActive={pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts")}
+                  className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
+                >
+                  <div className="flex items-center gap-3 w-full justify-between">
+                    <div className="flex items-center gap-3">
+                      <Receipt className="w-5 h-5" />
+                      <span className="font-medium">Payments</span>
+                    </div>
+                    <div className={`transition-transform duration-300 ease-in-out ${isPaymentsOpen ? 'rotate-0' : '-rotate-90'}`}>
+                      {isPaymentsOpen ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </div>
+                  </div>
+                </SidebarMenuButton>
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isPaymentsOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  <SidebarMenuSub className="mt-1">
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.includes("/quotations") && !pathname.includes("/invoices") && !pathname.includes("/receipts")}
+                      >
+                        <Link 
+                          href="/quotations" 
+                          className={`flex items-center gap-2 ${
+                            pathname.includes("/quotations") && !pathname.includes("/invoices") && !pathname.includes("/receipts")
+                              ? ''
+                              : '[&>svg]:!text-[#202F21]'
+                          }`}
+                        >
+                          <FileText className="w-4 h-4 transition-colors" />
+                          <span>Quotations</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.includes("/invoices")}
+                      >
+                        <Link 
+                          href="/invoices" 
+                          className={`flex items-center gap-2 ${
+                            pathname.includes("/invoices")
+                              ? ''
+                              : '[&>svg]:!text-[#202F21]'
+                          }`}
+                        >
+                          <FileCheck className="w-4 h-4 transition-colors" />
+                          <span>Invoices</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.includes("/receipts")}
+                      >
+                        <Link 
+                          href="/receipts" 
+                          className={`flex items-center gap-2 ${
+                            pathname.includes("/receipts")
+                              ? ''
+                              : '[&>svg]:!text-[#202F21]'
+                          }`}
+                        >
+                          <Wallet className="w-4 h-4 transition-colors" />
+                          <span>Receipts</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  </SidebarMenuSub>
+                </div>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

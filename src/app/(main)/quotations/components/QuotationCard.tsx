@@ -38,6 +38,7 @@ import ProjectSelection from "./ProjectSelection";
 import SendQuotationDialog from "./SendQuotationDialog";
 import EmailHistoryDialog from "./EmailHistoryDialog";
 import { generateQuotationPDF } from "../utils/pdfExport";
+import CreateInvoiceForm from "../../invoices/components/CreateInvoiceForm";
 import {
   Dialog,
   DialogContent,
@@ -90,6 +91,7 @@ export default function QuotationCard({
   const [isSendQuotationDialogOpen, setIsSendQuotationDialogOpen] = useState(false);
   const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [isCreateInvoiceDialogOpen, setIsCreateInvoiceDialogOpen] = useState(false);
   const [newProjectData, setNewProjectData] = useState<{
     name: string;
     description?: string;
@@ -629,6 +631,19 @@ export default function QuotationCard({
                         </>
                       )}
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setIsCreateInvoiceDialogOpen(true);
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Invoice
+                    </DropdownMenuItem>
                   </>
                 )}
                 {isCreator && !isFinalQuotation && (
@@ -702,6 +717,20 @@ export default function QuotationCard({
           isOpen={isEmailHistoryDialogOpen}
           onOpenChange={setIsEmailHistoryDialogOpen}
           quotationId={quotation.id}
+        />
+      )}
+
+      {/* Create Invoice Dialog */}
+      {quotation.workflowStatus === "final" && (
+        <CreateInvoiceForm
+          isOpen={isCreateInvoiceDialogOpen}
+          onOpenChange={setIsCreateInvoiceDialogOpen}
+          prefilledQuotationId={quotation.id}
+          onSuccess={() => {
+            if (onRefresh) {
+              onRefresh();
+            }
+          }}
         />
       )}
 
