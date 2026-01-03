@@ -17,7 +17,7 @@ import Link from "next/link";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { ProjectPagination } from "./ProjectPagination";
 import { toast } from "@/components/ui/use-toast";
-import { checkHasFullAccess } from "../../actions/admin-actions";
+import { checkIsAdmin, getUserRole } from "../../actions/admin-actions";
 
 interface ProjectsClientProps {
   initialData: {
@@ -48,6 +48,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userSystemRole, setUserSystemRole] = useState<string | null>(null);
 
   // Fetch fresh data when filters change
   const fetchProjects = useCallback(async (forceRefresh = false) => {
@@ -79,20 +80,31 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, searchQuery, statusFilter]);
 
-  // Fetch admin status once on mount
+  // Fetch admin status and user role once on mount
   useEffect(() => {
-    const fetchAdminStatus = async () => {
+    const fetchUserRoleStatus = async () => {
       if (enhancedUser?.id) {
         try {
-          const hasFullAccess = await checkHasFullAccess(enhancedUser.id);
-          setIsAdmin(hasFullAccess);
+          const [isAdminCheck, systemRole] = await Promise.all([
+            checkIsAdmin(enhancedUser.id),
+            getUserRole(enhancedUser.id)
+          ]);
+          setIsAdmin(isAdminCheck);
+          setUserSystemRole(systemRole);
+          
+          console.log('🎯 Projects Page Role Check:', {
+            userId: enhancedUser.id,
+            isAdmin: isAdminCheck,
+            systemRole: systemRole,
+            staffRole: enhancedUser?.profile?.staffRole?.roleName
+          });
         } catch (error) {
           console.error("Error checking admin status:", error);
         }
       }
     };
-    fetchAdminStatus();
-  }, [enhancedUser?.id]);
+    fetchUserRoleStatus();
+  }, [enhancedUser?.id, enhancedUser?.profile?.staffRole?.roleName]);
 
   // Listen for cache invalidation events
   useEffect(() => {
@@ -189,10 +201,21 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
 
   // Determine role display text
   const getRoleText = () => {
-    if (isAdmin) {
-      return ', our Admin';
-    } else if (enhancedUser?.profile?.staffRole?.roleName) {
+    // Priority: Staff Role > System Role
+    if (enhancedUser?.profile?.staffRole?.roleName) {
       return `, our ${enhancedUser.profile.staffRole.roleName}`;
+    } else if (userSystemRole) {
+      // Format system role for display
+      const roleDisplay = userSystemRole === "brand-advisor" 
+        ? "Brand Advisor"
+        : userSystemRole === "operation-user"
+        ? "Operation User"
+        : userSystemRole === "admin"
+        ? "Admin"
+        : userSystemRole === "staff"
+        ? "Staff"
+        : userSystemRole;
+      return `, our ${roleDisplay}`;
     }
     return '';
   };
