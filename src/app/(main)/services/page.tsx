@@ -5,20 +5,44 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ServiceTagManager from "./components/ServiceTagManager"
 import ServicesList from "./components/ServicesList"
 import { ServicesCacheProvider, useServicesCacheContext } from "./contexts/ServicesCacheContext"
-import { checkIsAdmin } from "./service-actions"
+import { checkIsOperationUser, checkIsAdmin } from "../actions/admin-actions"
+import { useSession } from "../contexts/SessionProvider"
+import AccessDenied from "../components/AccessDenied"
 
 function ServicesPageContent() {
+  const { enhancedUser } = useSession()
   const [activeTab, setActiveTab] = useState("services")
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isOperationUser, setIsOperationUser] = useState<boolean | null>(null)
   const { services, serviceTags, invalidateAllCaches } = useServicesCacheContext()
 
   useEffect(() => {
     const fetchAdminStatus = async () => {
-      const adminStatus = await checkIsAdmin()
+      if (!enhancedUser?.id) return
+      const [adminStatus, operationUserStatus] = await Promise.all([
+        checkIsAdmin(enhancedUser.id),
+        checkIsOperationUser(enhancedUser.id)
+      ])
       setIsAdmin(adminStatus)
+      setIsOperationUser(operationUserStatus)
     }
     fetchAdminStatus()
-  }, [])
+  }, [enhancedUser?.id])
+
+  if (isOperationUser === null) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex flex-col items-center justify-center py-20 text-primary">
+          <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+          <p className="text-lg font-medium">Loading…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isOperationUser) {
+    return <AccessDenied />
+  }
 
   // Invalidate cache when switching tabs to ensure fresh data if needed
   const handleTabChange = (value: string) => {

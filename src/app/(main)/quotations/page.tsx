@@ -1,6 +1,8 @@
 import { getCachedUser } from "@/lib/auth-cache";
 import { getQuotationsPaginated } from "./action";
 import QuotationsClient from "./components/QuotationsClient";
+import { checkIsOperationUser } from "../actions/admin-actions";
+import AccessDenied from "../components/AccessDenied";
 
 // Force dynamic rendering since we use cookies for auth
 export const dynamic = 'force-dynamic';
@@ -12,6 +14,12 @@ export default async function QuotationsPage() {
   
   if (!user) {
     return null;
+  }
+
+  // Check if user is operation-user (restricted access)
+  const isOperationUser = await checkIsOperationUser(user.id);
+  if (isOperationUser) {
+    return <AccessDenied />;
   }
 
   // Fetch initial data on server with caching enabled for better performance

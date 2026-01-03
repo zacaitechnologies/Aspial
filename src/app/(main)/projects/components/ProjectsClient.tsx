@@ -17,6 +17,7 @@ import Link from "next/link";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { ProjectPagination } from "./ProjectPagination";
 import { toast } from "@/components/ui/use-toast";
+import { checkHasFullAccess } from "../../actions/admin-actions";
 
 interface ProjectsClientProps {
   initialData: {
@@ -46,6 +47,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
   const [selectedProject, setSelectedProject] = useState<ProjectWithQuotation | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Fetch fresh data when filters change
   const fetchProjects = useCallback(async (forceRefresh = false) => {
@@ -76,6 +78,21 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
     fetchProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, searchQuery, statusFilter]);
+
+  // Fetch admin status once on mount
+  useEffect(() => {
+    const fetchAdminStatus = async () => {
+      if (enhancedUser?.id) {
+        try {
+          const hasFullAccess = await checkHasFullAccess(enhancedUser.id);
+          setIsAdmin(hasFullAccess);
+        } catch (error) {
+          console.error("Error checking admin status:", error);
+        }
+      }
+    };
+    fetchAdminStatus();
+  }, [enhancedUser?.id]);
 
   // Listen for cache invalidation events
   useEffect(() => {
@@ -172,7 +189,6 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
 
   // Determine role display text
   const getRoleText = () => {
-    const isAdmin = enhancedUser?.profile?.userRoles?.some(ur => ur.role.slug === 'admin');
     if (isAdmin) {
       return ', our Admin';
     } else if (enhancedUser?.profile?.staffRole?.roleName) {
@@ -284,18 +300,23 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
                           <Info className="w-4 h-4" />
                         </Button>
                       </Link>
-                      <Button variant="ghost" size="sm" onClick={() => handleEditProject(project)} title="Edit Project">
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => handleDelete(project.id.toString())}
-                        title="Delete Project"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {/* Only show edit/delete buttons if project is not cancelled, or if user is admin */}
+                      {(!project.status || project.status !== "cancelled" || isAdmin) && (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => handleEditProject(project)} title="Edit Project">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDelete(project.id.toString())}
+                            title="Delete Project"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardHeader>

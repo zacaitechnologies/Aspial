@@ -1,10 +1,16 @@
 "use server"
 
-import { isUserAdmin } from "@/app/(main)/projects/permissions"
+import { isUserAdmin, isUserBrandAdvisor, isUserOperationUser, getUserRole } from "@/app/(main)/projects/permissions"
 
-// Cache for isUserAdmin checks - shared across all pages
-const adminCache = new Map<string, { isAdmin: boolean; timestamp: number }>()
-const ADMIN_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+// Cache for role checks - shared across all pages
+const roleCache = new Map<string, { 
+  isAdmin: boolean
+  isBrandAdvisor: boolean
+  isOperationUser: boolean
+  role: string | null
+  timestamp: number 
+}>()
+const ROLE_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 /**
  * Cached version of isUserAdmin that reduces database queries
@@ -12,28 +18,116 @@ const ADMIN_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
  */
 export async function getCachedIsUserAdmin(userId: string): Promise<boolean> {
   const now = Date.now()
-  const cached = adminCache.get(userId)
+  const cached = roleCache.get(userId)
   
-  if (cached && now - cached.timestamp < ADMIN_CACHE_DURATION) {
+  if (cached && now - cached.timestamp < ROLE_CACHE_DURATION) {
     return cached.isAdmin
   }
   
   const isAdmin = await isUserAdmin(userId)
-  adminCache.set(userId, { isAdmin, timestamp: now })
+  const isBrandAdvisor = await isUserBrandAdvisor(userId)
+  const isOperationUser = await isUserOperationUser(userId)
+  const role = await getUserRole(userId)
+  
+  roleCache.set(userId, { 
+    isAdmin, 
+    isBrandAdvisor,
+    isOperationUser,
+    role,
+    timestamp: now 
+  })
   return isAdmin
 }
 
 /**
- * Clear the admin cache for a specific user (useful when roles change)
+ * Cached version of isUserBrandAdvisor
  */
-export async function clearAdminCache(userId: string): Promise<void> {
-  adminCache.delete(userId)
+export async function getCachedIsUserBrandAdvisor(userId: string): Promise<boolean> {
+  const now = Date.now()
+  const cached = roleCache.get(userId)
+  
+  if (cached && now - cached.timestamp < ROLE_CACHE_DURATION) {
+    return cached.isBrandAdvisor
+  }
+  
+  const isAdmin = await isUserAdmin(userId)
+  const isBrandAdvisor = await isUserBrandAdvisor(userId)
+  const isOperationUser = await isUserOperationUser(userId)
+  const role = await getUserRole(userId)
+  
+  roleCache.set(userId, { 
+    isAdmin, 
+    isBrandAdvisor,
+    isOperationUser,
+    role,
+    timestamp: now 
+  })
+  return isBrandAdvisor
 }
 
 /**
- * Clear all admin cache entries
+ * Cached version of isUserOperationUser
+ */
+export async function getCachedIsUserOperationUser(userId: string): Promise<boolean> {
+  const now = Date.now()
+  const cached = roleCache.get(userId)
+  
+  if (cached && now - cached.timestamp < ROLE_CACHE_DURATION) {
+    return cached.isOperationUser
+  }
+  
+  const isAdmin = await isUserAdmin(userId)
+  const isBrandAdvisor = await isUserBrandAdvisor(userId)
+  const isOperationUser = await isUserOperationUser(userId)
+  const role = await getUserRole(userId)
+  
+  roleCache.set(userId, { 
+    isAdmin, 
+    isBrandAdvisor,
+    isOperationUser,
+    role,
+    timestamp: now 
+  })
+  return isOperationUser
+}
+
+/**
+ * Cached version of getUserRole
+ */
+export async function getCachedUserRole(userId: string): Promise<string | null> {
+  const now = Date.now()
+  const cached = roleCache.get(userId)
+  
+  if (cached && now - cached.timestamp < ROLE_CACHE_DURATION) {
+    return cached.role
+  }
+  
+  const isAdmin = await isUserAdmin(userId)
+  const isBrandAdvisor = await isUserBrandAdvisor(userId)
+  const isOperationUser = await isUserOperationUser(userId)
+  const role = await getUserRole(userId)
+  
+  roleCache.set(userId, { 
+    isAdmin, 
+    isBrandAdvisor,
+    isOperationUser,
+    role,
+    timestamp: now 
+  })
+  return role
+}
+
+/**
+ * Clear the role cache for a specific user (useful when roles change)
+ */
+export async function clearAdminCache(userId: string): Promise<void> {
+  roleCache.delete(userId)
+}
+
+/**
+ * Clear all role cache entries
  */
 export async function clearAllAdminCache(): Promise<void> {
-  adminCache.clear()
+  roleCache.clear()
 }
 

@@ -7,8 +7,8 @@ async function roleMain() {
   // Define the roles to be created
   const roles = [
     { slug: 'admin' },
-    { slug: 'co-admin' },
-    { slug: 'staff' }
+    { slug: 'brand-advisor' },
+    { slug: 'operation-user' }
   ];
 
   // Optional: Clear existing roles (delete user roles first due to foreign key constraint)

@@ -107,6 +107,10 @@ async function _getEmployeeSalesDataInternal(
     throw new Error("User not found")
   }
 
+    // Check if user is operation-user - if so, filter by project permissions
+    const { isUserOperationUser } = await import("../projects/permissions")
+    const isOperationUser = await isUserOperationUser(user.supabase_id)
+    
     // Determine date range based on parameters
     let startDate: Date
     let endDate: Date
@@ -121,21 +125,60 @@ async function _getEmployeeSalesDataInternal(
       endDate = new Date(year, 11, 31, 23, 59, 59)
     }
 
+    // Build where clause based on user role
+    const whereClause: any = {
+      created_at: {
+        gte: startDate,
+        lte: endDate,
+      },
+      workflowStatus: {
+        in: ["final", "accepted"],
+      },
+      paymentStatus: {
+        in: ["partially_paid", "deposit_paid", "fully_paid"],
+      },
+    }
+
+    if (isOperationUser) {
+      // For operation-users: filter by project permissions
+      const userProjects = await prisma.projectPermission.findMany({
+        where: { 
+          userId: user.supabase_id,
+          canView: true
+        },
+        select: { projectId: true }
+      })
+      const projectIds = userProjects.map(p => p.projectId)
+      
+      if (projectIds.length === 0) {
+        // User has no projects, return empty data
+        return {
+          userId: user.id,
+          userName: `${user.firstName} ${user.lastName}`,
+          currentYearlySales: 0,
+          currentMonthlySales: 0,
+          monthlyData: Array.from({ length: 12 }, (_, i) => ({
+            month: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][i],
+            sales: 0,
+            level: 0,
+            stars: 0,
+            year: year,
+          })),
+          currentLevel: 0,
+          commissionRate: "0%",
+        }
+      }
+      
+      // Filter quotations by project IDs
+      whereClause.projectId = { in: projectIds }
+    } else {
+      // For admin and brand-advisor: filter by createdById (existing behavior)
+      whereClause.createdById = user.supabase_id
+    }
+
     // Fetch quotations for the selected period
     const quotations = await prisma.quotation.findMany({
-      where: {
-        createdById: user.supabase_id,
-        created_at: {
-          gte: startDate,
-          lte: endDate,
-        },
-        workflowStatus: {
-          in: ["final", "accepted"],
-        },
-        paymentStatus: {
-          in: ["partially_paid", "deposit_paid", "fully_paid"],
-        },
-      },
+      where: whereClause,
       select: {
         id: true,
         totalPrice: true,

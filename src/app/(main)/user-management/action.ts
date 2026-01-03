@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/utils/supabase/server"
 import { unstable_cache, revalidateTag } from "next/cache"
+import { clearAdminCache } from "@/lib/admin-cache"
 
 // Create admin client with service role key for admin operations
 function createAdminClient() {
@@ -266,6 +267,7 @@ export async function createUserAccount(data: {
   email: string
   password: string
   staffRoleId?: string
+  roleSlug?: string
 }) {
   // Validate admin access
   const validation = await validateAdminUser()
@@ -298,13 +300,14 @@ export async function createUserAccount(data: {
       throw new Error("No user returned from auth")
     }
 
-    // Get staff role
-    const staffRole = await prisma.role.findUnique({
-      where: { slug: 'staff' }
+    // Get the role to assign (use provided roleSlug or default to 'staff')
+    const roleSlug = data.roleSlug || 'staff'
+    const role = await prisma.role.findUnique({
+      where: { slug: roleSlug }
     })
 
-    if (!staffRole) {
-      throw new Error("Staff role not found")
+    if (!role) {
+      throw new Error(`Role "${roleSlug}" not found`)
     }
 
     // Create user in public database
@@ -317,7 +320,7 @@ export async function createUserAccount(data: {
         staffRoleId: data.staffRoleId || null,
         userRoles: {
           create: {
-            roleId: staffRole.id
+            roleId: role.id
           }
         }
       },
@@ -349,6 +352,28 @@ export async function createUserAccount(data: {
   }
 }
 
+// Get all available roles
+export async function getAllRoles() {
+  // Validate admin access
+  const validation = await validateAdminUser()
+  if (!validation.valid) {
+    throw new Error(validation.error)
+  }
+
+  try {
+    const roles = await prisma.role.findMany({
+      orderBy: {
+        slug: 'asc'
+      }
+    })
+
+    return roles
+  } catch (error) {
+    console.error("Error fetching roles:", error)
+    throw error
+  }
+}
+
 // Update user account
 export async function updateUserAccount(data: {
   userId: string
@@ -356,6 +381,7 @@ export async function updateUserAccount(data: {
   lastName: string
   email: string
   staffRoleId?: string | null
+  roleSlug?: string | null
 }) {
   // Validate admin access
   const validation = await validateAdminUser()
@@ -392,6 +418,33 @@ export async function updateUserAccount(data: {
       }
     }
 
+    // Update user roles if roleSlug is provided
+    if (data.roleSlug !== undefined) {
+      // Get the role by slug
+      const role = data.roleSlug ? await prisma.role.findUnique({
+        where: { slug: data.roleSlug }
+      }) : null
+
+      if (data.roleSlug && !role) {
+        throw new Error(`Role "${data.roleSlug}" not found`)
+      }
+
+      // Delete all existing user roles
+      await prisma.userRole.deleteMany({
+        where: { userId: data.userId }
+      })
+
+      // Add the new role if provided
+      if (role) {
+        await prisma.userRole.create({
+          data: {
+            userId: data.userId,
+            roleId: role.id
+          }
+        })
+      }
+    }
+
     // Update user in database
     const updatedUser = await prisma.user.update({
       where: { id: data.userId },
@@ -412,6 +465,9 @@ export async function updateUserAccount(data: {
     })
 
     revalidateTag("users", { expire: 0 })
+    
+    // Clear role cache for the updated user to reflect new permissions immediately
+    await clearAdminCache(updatedUser.supabase_id)
     
     return {
       success: true,

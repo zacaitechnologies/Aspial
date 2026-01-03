@@ -2,6 +2,8 @@ import { Suspense } from "react"
 import { getCachedUser } from "@/lib/auth-cache"
 import { getClientsPaginated } from "./action"
 import ClientsClient from "./components/ClientsClient"
+import { checkIsOperationUser } from "../actions/admin-actions"
+import AccessDenied from "../components/AccessDenied"
 
 // Force dynamic rendering since we use cookies for auth
 export const dynamic = 'force-dynamic'
@@ -13,6 +15,12 @@ export default async function ClientsPage() {
   
   if (!user) {
     return null
+  }
+
+  // Check if user is operation-user (restricted access)
+  const isOperationUser = await checkIsOperationUser(user.id)
+  if (isOperationUser) {
+    return <AccessDenied />
   }
 
   // Fetch initial data on server - cached for 30 seconds

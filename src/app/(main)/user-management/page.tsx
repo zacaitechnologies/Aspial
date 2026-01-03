@@ -35,11 +35,13 @@ import {
   createStaffRole,
   updateStaffRole,
   deleteStaffRole,
+  getAllRoles,
   UserWithRole, 
   StaffRole 
 } from "./action"
-import { checkIsAdmin } from "../actions/admin-actions"
+import { checkIsAdmin, checkIsOperationUser } from "../actions/admin-actions"
 import { useSession } from "../contexts/SessionProvider"
+import AccessDenied from "../components/AccessDenied"
 import { usePaginatedData } from "@/hooks/use-paginated-data"
 import { ProjectPagination } from "../projects/components/ProjectPagination"
 import { toast } from "@/components/ui/use-toast"
@@ -49,7 +51,9 @@ export default function UserManagementPage() {
   const router = useRouter()
   const { enhancedUser } = useSession()
   const [staffRoles, setStaffRoles] = useState<StaffRole[]>([])
+  const [availableRoles, setAvailableRoles] = useState<{ id: string; slug: string }[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isOperationUser, setIsOperationUser] = useState<boolean | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
@@ -63,6 +67,7 @@ export default function UserManagementPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [staffRoleId, setStaffRoleId] = useState<string>("none")
+  const [roleSlug, setRoleSlug] = useState<string>("none")
   const [error, setError] = useState("")
 
   // Edit form state
@@ -71,6 +76,7 @@ export default function UserManagementPage() {
   const [editLastName, setEditLastName] = useState("")
   const [editEmail, setEditEmail] = useState("")
   const [editStaffRoleId, setEditStaffRoleId] = useState<string>("none")
+  const [editRoleSlug, setEditRoleSlug] = useState<string>("none")
   const [editError, setEditError] = useState("")
 
   // Password change state
@@ -126,6 +132,15 @@ export default function UserManagementPage() {
     }
   }, [])
 
+  const fetchAvailableRoles = useCallback(async () => {
+    try {
+      const roles = await getAllRoles()
+      setAvailableRoles(roles)
+    } catch (error: any) {
+      console.error("Failed to fetch roles:", error)
+    }
+  }, [])
+
   const checkAdminAndFetchData = useCallback(async () => {
     if (!enhancedUser?.id) {
       router.push("/")
@@ -133,24 +148,46 @@ export default function UserManagementPage() {
     }
 
     try {
-      const adminStatus = await checkIsAdmin(enhancedUser.id)
+      const [adminStatus, operationUserStatus] = await Promise.all([
+        checkIsAdmin(enhancedUser.id),
+        checkIsOperationUser(enhancedUser.id)
+      ])
       setIsAdmin(adminStatus)
+      setIsOperationUser(operationUserStatus)
 
+      // User management is admin-only
       if (!adminStatus) {
-        router.push("/")
         return
       }
 
-      await fetchStaffRoles()
+      await Promise.all([
+        fetchStaffRoles(),
+        fetchAvailableRoles()
+      ])
     } catch (error) {
       console.error("Error checking admin status:", error)
-      router.push("/")
     }
-  }, [enhancedUser?.id, router, fetchStaffRoles])
+  }, [enhancedUser?.id, router, fetchStaffRoles, fetchAvailableRoles])
 
   useEffect(() => {
     checkAdminAndFetchData()
   }, [checkAdminAndFetchData])
+
+  // Show access denied for operation users or non-admins
+  if (isOperationUser === null) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex flex-col items-center justify-center py-20 text-primary">
+          <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+          <p className="text-lg font-medium">Loading…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isOperationUser || !isAdmin) {
+    return <AccessDenied />
+  }
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -175,6 +212,7 @@ export default function UserManagementPage() {
         email,
         password,
         staffRoleId: staffRoleId && staffRoleId !== "none" ? staffRoleId : undefined,
+        roleSlug: roleSlug && roleSlug !== "none" ? roleSlug : undefined,
       })
 
       if (result.success) {
@@ -184,6 +222,7 @@ export default function UserManagementPage() {
         setEmail("")
         setPassword("")
         setStaffRoleId("none")
+        setRoleSlug("none")
         setIsCreateDialogOpen(false)
         
         // Refresh users list
@@ -209,6 +248,9 @@ export default function UserManagementPage() {
     setEditLastName(user.lastName)
     setEditEmail(user.email)
     setEditStaffRoleId(user.staffRoleId || "none")
+    // Set the current role slug (users typically have one role)
+    const currentRoleSlug = user.roles && user.roles.length > 0 ? user.roles[0].role.slug : "none"
+    setEditRoleSlug(currentRoleSlug)
     setEditError("")
     setIsEditDialogOpen(true)
   }
@@ -233,6 +275,7 @@ export default function UserManagementPage() {
         lastName: editLastName,
         email: editEmail,
         staffRoleId: editStaffRoleId && editStaffRoleId !== "none" ? editStaffRoleId : null,
+        roleSlug: editRoleSlug && editRoleSlug !== "none" ? editRoleSlug : null,
       })
 
       if (result.success) {
@@ -571,6 +614,26 @@ export default function UserManagementPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="role">System Role *</Label>
+                <Select value={roleSlug || "none"} onValueChange={setRoleSlug}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a system role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {availableRoles.map((role) => (
+                      <SelectItem key={role.id} value={role.slug}>
+                        {role.slug === "admin" ? "Admin" : role.slug === "brand-advisor" ? "Brand Advisor" : role.slug === "operation-user" ? "Operation User" : role.slug === "staff" ? "Staff" : role.slug}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  System roles control access permissions (admin, brand-advisor, operation-user, staff)
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="staffRole">Staff Role</Label>
                 <Select value={staffRoleId || "none"} onValueChange={setStaffRoleId}>
                   <SelectTrigger>
@@ -585,6 +648,9 @@ export default function UserManagementPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Staff roles are for organizational purposes (e.g., Photographer, Editor)
+                </p>
               </div>
 
               {error && (
@@ -605,6 +671,7 @@ export default function UserManagementPage() {
                     setEmail("")
                     setPassword("")
                     setStaffRoleId("none")
+                    setRoleSlug("none")
                   }}
                   disabled={isCreating}
                 >
@@ -912,6 +979,26 @@ export default function UserManagementPage() {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="editRole">System Role *</Label>
+              <Select value={editRoleSlug || "none"} onValueChange={setEditRoleSlug}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a system role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (Remove Role)</SelectItem>
+                  {availableRoles.map((role) => (
+                    <SelectItem key={role.id} value={role.slug}>
+                      {role.slug === "admin" ? "Admin" : role.slug === "brand-advisor" ? "Brand Advisor" : role.slug === "operation-user" ? "Operation User" : role.slug}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                System roles control access permissions (admin, brand-advisor, operation-user)
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="editStaffRole">Staff Role</Label>
               <Select value={editStaffRoleId || "none"} onValueChange={setEditStaffRoleId}>
                 <SelectTrigger>
@@ -926,6 +1013,9 @@ export default function UserManagementPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Staff roles are for organizational purposes (e.g., Photographer, Editor)
+              </p>
             </div>
 
             {editError && (

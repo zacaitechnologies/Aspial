@@ -317,7 +317,7 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 				}
 			} else {
 				// No email notification, proceed normally
-				onSuccess()
+			onSuccess()
 			}
 		} catch (error) {
 			console.error("Failed to create appointments:", error)

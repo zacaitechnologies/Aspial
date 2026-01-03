@@ -155,7 +155,7 @@ export async function createAppointmentBooking(formData: FormData) {
 		const reminderOffsetsStr = formData.get("reminderOffsets") as string | null
 		const reminderOffsets = reminderOffsetsStr ? JSON.parse(reminderOffsetsStr) as number[] : []
 
-		try {
+	try {
 		// Check for overlapping bookings if appointment is specified
 		if (appointmentId) {
 			const overlappingBookings = await prisma.appointmentBooking.findMany({

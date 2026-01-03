@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getAllPendingInvitations, getUserInvitations } from "../projects/permissions";
-import { checkIsAdmin } from "../actions/admin-actions";
+import { checkIsAdmin, checkIsOperationUser } from "../actions/admin-actions";
 
 import {
   Sidebar,
@@ -86,6 +86,7 @@ export function AppSidebar() {
   const { enhancedUser } = useSession();
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isOperationUser, setIsOperationUser] = useState(false);
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(
     pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts")
   );
@@ -95,8 +96,12 @@ export function AppSidebar() {
       if (!enhancedUser?.id) return;
 
       try {
-        const adminStatus = await checkIsAdmin(enhancedUser.id);
+        const [adminStatus, operationUserStatus] = await Promise.all([
+          checkIsAdmin(enhancedUser.id),
+          checkIsOperationUser(enhancedUser.id)
+        ]);
         setIsAdmin(adminStatus);
+        setIsOperationUser(operationUserStatus);
 
         if (adminStatus) {
           // For admins: get all pending invitations
@@ -152,25 +157,36 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => {
-                const isActive = pathname.includes(item.url.replace('/', ''));
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
-                    >
-                      <Link href={item.url} className="flex items-center gap-3">
-                        <item.icon className="w-5 h-5" />
-                        <span className="font-medium">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {mainNavItems
+                .filter((item) => {
+                  // Hide restricted items for operation-user
+                  if (isOperationUser) {
+                    // Operation users can only see: Projects, Appointment Bookings, Time Tracking, Calendar, Benefits
+                    const allowedUrls = ["/projects", "/appointment-bookings", "/time-tracking", "/calander", "/benefits"];
+                    return allowedUrls.includes(item.url);
+                  }
+                  return true; // Show all items for admin and brand-advisor
+                })
+                .map((item) => {
+                  const isActive = pathname.includes(item.url.replace('/', ''));
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
+                      >
+                        <Link href={item.url} className="flex items-center gap-3">
+                          <item.icon className="w-5 h-5" />
+                          <span className="font-medium">{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
               
-              {/* Payments Collapsible Section */}
+              {/* Payments Collapsible Section - Hidden for operation-user */}
+              {!isOperationUser && (
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => setIsPaymentsOpen(!isPaymentsOpen)}
@@ -254,6 +270,7 @@ export function AppSidebar() {
                   </SidebarMenuSub>
                 </div>
               </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -26,7 +26,8 @@ import {
   TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
-import { deleteClient, checkIsAdmin, getCurrentUserId, getClientsPaginatedFresh, invalidateClientsCache } from "../action"
+import { deleteClient, getCurrentUserId, getClientsPaginatedFresh, invalidateClientsCache } from "../action"
+import { checkHasFullAccess } from "../../actions/admin-actions"
 import CreateClientDialog from "./CreateClientDialog"
 import EditClientDialog from "./EditClientDialog"
 import DeleteClientDialog from "./DeleteClientDialog"
@@ -124,15 +125,15 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, searchTerm, industryFilter, membershipFilter, sortBy, sortDirection])
 
-  // Check admin status and get current user ID
+  // Check admin/brand-advisor status and get current user ID
   useEffect(() => {
     const checkAdminAndUser = async () => {
       if (enhancedUser?.id) {
-        const [adminStatus, fetchedUserId] = await Promise.all([
-          checkIsAdmin(enhancedUser.id),
+        const [hasFullAccess, fetchedUserId] = await Promise.all([
+          checkHasFullAccess(enhancedUser.id),
           getCurrentUserId(),
         ])
-        setIsAdmin(adminStatus)
+        setIsAdmin(hasFullAccess)
         setCurrentUserId(fetchedUserId)
       }
     }

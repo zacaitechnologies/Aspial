@@ -18,6 +18,59 @@ export async function isUserAdmin(userSupabaseId: string) {
   return userWithRoles.userRoles.some((userRole) => userRole.role.slug === "admin")
 }
 
+export async function isUserBrandAdvisor(userSupabaseId: string) {
+  // Check if userSupabaseId is valid
+  if (!userSupabaseId || userSupabaseId.trim() === '') {
+    return false
+  }
+
+  const userWithRoles = await prisma.user.findUnique({
+    where: { supabase_id: userSupabaseId },
+    include: { userRoles: { include: { role: true } } },
+  })
+
+  if (!userWithRoles) return false
+  return userWithRoles.userRoles.some((userRole) => userRole.role.slug === "brand-advisor")
+}
+
+export async function isUserOperationUser(userSupabaseId: string) {
+  // Check if userSupabaseId is valid
+  if (!userSupabaseId || userSupabaseId.trim() === '') {
+    return false
+  }
+
+  const userWithRoles = await prisma.user.findUnique({
+    where: { supabase_id: userSupabaseId },
+    include: { userRoles: { include: { role: true } } },
+  })
+
+  if (!userWithRoles) return false
+  return userWithRoles.userRoles.some((userRole) => userRole.role.slug === "operation-user")
+}
+
+export async function getUserRole(userSupabaseId: string): Promise<string | null> {
+  // Check if userSupabaseId is valid
+  if (!userSupabaseId || userSupabaseId.trim() === '') {
+    return null
+  }
+
+  const userWithRoles = await prisma.user.findUnique({
+    where: { supabase_id: userSupabaseId },
+    include: { userRoles: { include: { role: true } } },
+  })
+
+  if (!userWithRoles) return null
+  
+  // Return the first role found (users typically have one primary role)
+  // Priority: admin > brand-advisor > operation-user
+  const roleSlugs = userWithRoles.userRoles.map(ur => ur.role.slug)
+  if (roleSlugs.includes("admin")) return "admin"
+  if (roleSlugs.includes("brand-advisor")) return "brand-advisor"
+  if (roleSlugs.includes("operation-user")) return "operation-user"
+  
+  return roleSlugs[0] || null
+}
+
 export async function getVisibleProjectsForUser(userSupabaseId: string) {
   const isAdmin = await isUserAdmin(userSupabaseId)
 

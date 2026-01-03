@@ -9,7 +9,7 @@ import CreateInvoiceForm from "./CreateInvoiceForm"
 import InvoiceCard from "./InvoiceCard"
 import { InvoiceWithQuotation, invoiceTypeOptions } from "../types"
 import { useSession } from "../../contexts/SessionProvider"
-import { checkIsAdmin } from "../../actions/admin-actions"
+import { checkHasFullAccess } from "../../actions/admin-actions"
 import {
 	Select,
 	SelectContent,
@@ -48,13 +48,13 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 	const [totalPages, setTotalPages] = useState(initialData.totalPages)
 	const [isAdmin, setIsAdmin] = useState(false)
 
-	// Fetch admin status once on mount
+	// Fetch admin/brand-advisor status once on mount
 	useEffect(() => {
 		const fetchAdminStatus = async () => {
 			if (enhancedUser?.id) {
 				try {
-					const adminStatus = await checkIsAdmin(enhancedUser.id)
-					setIsAdmin(adminStatus)
+					const hasFullAccess = await checkHasFullAccess(enhancedUser.id)
+					setIsAdmin(hasFullAccess)
 				} catch (error) {
 					console.error("Error checking admin status:", error)
 				}

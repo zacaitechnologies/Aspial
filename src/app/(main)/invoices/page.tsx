@@ -4,11 +4,14 @@ import { useState, useEffect } from "react"
 import { getInvoicesPaginated } from "./action"
 import InvoicesClient from "./components/InvoicesClient"
 import { useSession } from "../contexts/SessionProvider"
+import { checkIsOperationUser } from "../actions/admin-actions"
+import AccessDenied from "../components/AccessDenied"
 
 export default function InvoicesPage() {
 	const { enhancedUser } = useSession()
 	const [initialData, setInitialData] = useState<any>(null)
 	const [isLoading, setIsLoading] = useState(true)
+	const [isOperationUser, setIsOperationUser] = useState<boolean | null>(null)
 
 	useEffect(() => {
 		const fetchInitialData = async () => {
@@ -18,8 +21,12 @@ export default function InvoicesPage() {
 			}
 
 			try {
-				const data = await getInvoicesPaginated(1, 10, {}, true)
+				const [data, operationUserStatus] = await Promise.all([
+					getInvoicesPaginated(1, 10, {}, true),
+					checkIsOperationUser(enhancedUser.id)
+				])
 				setInitialData(data)
+				setIsOperationUser(operationUserStatus)
 			} catch (error) {
 				console.error("Error fetching initial invoices data:", error)
 			} finally {
@@ -34,7 +41,7 @@ export default function InvoicesPage() {
 		return null
 	}
 
-	if (isLoading || !initialData) {
+	if (isLoading || isOperationUser === null) {
 		return (
 			<div className="container mx-auto p-6">
 				<div className="flex flex-col items-center justify-center py-20 text-primary">
@@ -43,6 +50,10 @@ export default function InvoicesPage() {
 				</div>
 			</div>
 		)
+	}
+
+	if (isOperationUser) {
+		return <AccessDenied />
 	}
 
 	return <InvoicesClient initialData={initialData} userId={enhancedUser.id} />

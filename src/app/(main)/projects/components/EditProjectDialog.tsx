@@ -47,6 +47,10 @@ export default function EditProjectDialog({
   const { enhancedUser } = useSession();
   const [isUpdating, setIsUpdating] = useState(false);
   
+  // Check if user is admin
+  const isAdmin = enhancedUser?.profile?.userRoles?.some(ur => ur.role.slug === 'admin') || false;
+  const isProjectCancelled = project?.status === "cancelled";
+  
   const [form, setForm] = useState<ProjectFormData>({
     name: "",
     description: "",
@@ -86,6 +90,16 @@ export default function EditProjectDialog({
       return;
     }
 
+    // Prevent non-admins from editing cancelled projects
+    if (isProjectCancelled && !isAdmin) {
+      toast({
+        title: "Access Denied",
+        description: "Only administrators can edit cancelled projects.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (isUpdating) return; // Prevent double submission
 
     try {
@@ -110,9 +124,10 @@ export default function EditProjectDialog({
       onOpenChange(false);
     } catch (error) {
       console.error("Error updating project:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to update project. Please try again.";
       toast({
         title: "Error",
-        description: "Failed to update project. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -128,6 +143,13 @@ export default function EditProjectDialog({
         <DialogHeader>
           <DialogTitle>Edit Project</DialogTitle>
         </DialogHeader>
+        {isProjectCancelled && !isAdmin && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-sm text-red-800 font-medium">
+              This project is cancelled. Only administrators can edit cancelled projects.
+            </p>
+          </div>
+        )}
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Project Name</Label>
@@ -136,6 +158,7 @@ export default function EditProjectDialog({
               value={form.name}
               onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
               placeholder="Enter project name"
+              disabled={isProjectCancelled && !isAdmin}
             />
           </div>
 
@@ -147,6 +170,7 @@ export default function EditProjectDialog({
               onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
               placeholder="Enter project description"
               rows={3}
+              disabled={isProjectCancelled && !isAdmin}
             />
           </div>
 
@@ -155,6 +179,7 @@ export default function EditProjectDialog({
             <Select
               value={form.status}
               onValueChange={(value) => setForm(prev => ({ ...prev, status: value }))}
+              disabled={isProjectCancelled && !isAdmin}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -177,6 +202,7 @@ export default function EditProjectDialog({
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm(prev => ({ ...prev, startDate: e.target.value }))}
+                disabled={isProjectCancelled && !isAdmin}
               />
             </div>
 
@@ -187,6 +213,7 @@ export default function EditProjectDialog({
                 type="date"
                 value={form.endDate}
                 onChange={(e) => setForm(prev => ({ ...prev, endDate: e.target.value }))}
+                disabled={isProjectCancelled && !isAdmin}
               />
             </div>
           </div>
@@ -196,7 +223,7 @@ export default function EditProjectDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isUpdating}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={isUpdating}>
+          <Button onClick={handleSubmit} disabled={isUpdating || (isProjectCancelled && !isAdmin)}>
             {isUpdating ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

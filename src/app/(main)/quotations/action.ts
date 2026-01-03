@@ -24,8 +24,32 @@ export async function getAllUsers() {
 }
 
 export async function getAllQuotations(userId?: string) {
-  // Everyone can see all quotations regardless of who created them
+  // Check if user is operation-user - if so, filter by project permissions
+  const whereClause: any = {}
+  
+  if (userId) {
+    const { isUserOperationUser } = await import("../projects/permissions")
+    const isOperationUser = await isUserOperationUser(userId)
+    
+    if (isOperationUser) {
+      // Get user's project IDs from ProjectPermission
+      const userProjects = await prisma.projectPermission.findMany({
+        where: { 
+          userId: userId,
+          canView: true
+        },
+        select: { projectId: true }
+      })
+      const projectIds = userProjects.map(p => p.projectId)
+      
+      // Only show quotations linked to projects user has access to
+      whereClause.projectId = { in: projectIds }
+    }
+    // For admin and brand-advisor, show all quotations (empty where clause)
+  }
+
   return await prisma.quotation.findMany({
+    where: whereClause,
     include: {
       services: {
         include: {
@@ -46,7 +70,8 @@ async function _getQuotationsPaginatedInternal(
   pageSize: number = 10,
   filters: {
     statusFilter?: string
-  } = {}
+  } = {},
+  userId?: string
 ) {
   const skip = (page - 1) * pageSize
   const { statusFilter } = filters
@@ -55,6 +80,28 @@ async function _getQuotationsPaginatedInternal(
   const where: any = {}
   if (statusFilter && statusFilter !== 'all') {
     where.workflowStatus = statusFilter
+  }
+
+  // For operation-users, filter by project permissions
+  if (userId) {
+    const { isUserOperationUser } = await import("../projects/permissions")
+    const isOperationUser = await isUserOperationUser(userId)
+    
+    if (isOperationUser) {
+      // Get user's project IDs from ProjectPermission
+      const userProjects = await prisma.projectPermission.findMany({
+        where: { 
+          userId: userId,
+          canView: true
+        },
+        select: { projectId: true }
+      })
+      const projectIds = userProjects.map(p => p.projectId)
+      
+      // Only show quotations linked to projects user has access to
+      where.projectId = { in: projectIds }
+    }
+    // For admin and brand-advisor, show all quotations
   }
 
   // Execute count and findMany in parallel for better performance
@@ -221,10 +268,15 @@ export async function getQuotationsPaginated(
   useCache: boolean = false
 ) {
   unstable_noStore()
+  // Get current user for filtering
+  const user = await getCachedUser()
+  const userId = user?.id
+  
   if (useCache) {
+    // Note: Cache doesn't include userId, so operation-users should use non-cached version
     return await getCachedQuotationsPaginated(page, pageSize, filters)
   }
-  return await _getQuotationsPaginatedInternal(page, pageSize, filters)
+  return await _getQuotationsPaginatedInternal(page, pageSize, filters, userId)
 }
 
 // Fresh version that always bypasses cache (for client-side updates)
@@ -236,7 +288,10 @@ export async function getQuotationsPaginatedFresh(
   } = {}
 ) {
   unstable_noStore()
-  return await _getQuotationsPaginatedInternal(page, pageSize, filters)
+  // Get current user for filtering
+  const user = await getCachedUser()
+  const userId = user?.id
+  return await _getQuotationsPaginatedInternal(page, pageSize, filters, userId)
 }
 
 // Invalidate quotations cache

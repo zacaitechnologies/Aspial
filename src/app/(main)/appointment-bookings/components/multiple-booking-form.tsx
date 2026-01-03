@@ -235,8 +235,8 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				}
 			} else {
 				// No email notification, proceed normally
-				onSuccess?.()
-				onClose()
+			onSuccess?.()
+			onClose()
 			}
 		} catch (error) {
 			console.error("Failed to create bookings:", error)
@@ -314,16 +314,16 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 						)}
 					</div>
 
-					<div className="space-y-2">
-						<Label htmlFor="purpose">Purpose</Label>
-						<Textarea
-							id="purpose"
-							value={purpose}
-							onChange={(e) => setPurpose(e.target.value)}
-							placeholder="What will this be used for?"
-							rows={3}
-						/>
-					</div>
+				<div className="space-y-2">
+					<Label htmlFor="purpose">Purpose</Label>
+					<Textarea
+						id="purpose"
+						value={purpose}
+						onChange={(e) => setPurpose(e.target.value)}
+						placeholder="What will this be used for?"
+						rows={3}
+					/>
+				</div>
 
 					<div className="space-y-2">
 						<Label htmlFor="attendees">Number of Attendees</Label>
