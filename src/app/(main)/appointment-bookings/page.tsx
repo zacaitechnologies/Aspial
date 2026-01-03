@@ -95,6 +95,30 @@ async function _getBookingsInternal() {
 					id: true,
 					name: true,
 					clientName: true,
+					Client: {
+						select: {
+							id: true,
+							name: true,
+							email: true,
+							company: true,
+						},
+					},
+				}
+			},
+			reminders: {
+				where: {
+					status: {
+						in: ['PENDING', 'SENDING']
+					}
+				},
+				select: {
+					id: true,
+					offsetMinutes: true,
+					remindAt: true,
+					status: true,
+				},
+				orderBy: {
+					offsetMinutes: 'asc'
 				}
 			}
 		},

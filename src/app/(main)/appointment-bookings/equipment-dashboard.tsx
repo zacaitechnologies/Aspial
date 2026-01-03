@@ -9,10 +9,14 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/
 import { AppointmentForm } from "@/app/(main)/appointment-bookings/components/appointment-form"
 import { AppointmentGrid } from "@/app/(main)/appointment-bookings/components/appointment-grid"
 import { DatePicker } from "@/app/(main)/appointment-bookings/components/date-picker"
+import AppointmentBookingEmailHistoryDialog from "@/app/(main)/appointment-bookings/components/AppointmentBookingEmailHistoryDialog"
+import SendAppointmentReminderDialog from "@/app/(main)/appointment-bookings/components/SendAppointmentReminderDialog"
+import EditAppointmentRemindersDialog from "@/app/(main)/appointment-bookings/components/EditAppointmentRemindersDialog"
 import { deleteAppointment, cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
+import { cn } from "@/lib/utils"
 import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
-import { Edit, Trash2, Plus, Calendar, Clock, User, Search, List, Users as UsersIcon } from "lucide-react"
+import { Edit, Trash2, Plus, Calendar, Clock, User, Search, List, Users as UsersIcon, Mail, Send, Bell } from "lucide-react"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -51,7 +55,19 @@ interface AppointmentBooking {
 		id: number
 		name: string
 		clientName: string | null
+		Client?: {
+			id: string
+			name: string
+			email: string
+			company: string | null
+		} | null
 	} | null
+	reminders?: {
+		id: number
+		offsetMinutes: number
+		remindAt: Date
+		status: string
+	}[]
 }
 
 interface AdminDashboardProps {
@@ -79,6 +95,18 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
   const [showCancelBookingDialog, setShowCancelBookingDialog] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<{ id: number; name: string } | null>(null)
   const [bookingToCancel, setBookingToCancel] = useState<{ id: number } | null>(null)
+  
+  // Email history dialog state
+  const [showEmailHistoryDialog, setShowEmailHistoryDialog] = useState(false)
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null)
+  
+  // Send reminder dialog state
+  const [showSendReminderDialog, setShowSendReminderDialog] = useState(false)
+  const [selectedReminderBookingId, setSelectedReminderBookingId] = useState<number | null>(null)
+  
+  // Edit reminders dialog state
+  const [showEditRemindersDialog, setShowEditRemindersDialog] = useState(false)
+  const [selectedEditRemindersBookingId, setSelectedEditRemindersBookingId] = useState<number | null>(null)
 
   // Get user name for filtering bookings
   const userName = enhancedUser?.profile 
@@ -395,7 +423,47 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                       >
                         {booking.itemName}
                       </h3>
-                      <div className="flex shrink-0">
+                      <div className="flex shrink-0 gap-1">
+                        {booking.project && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedReminderBookingId(booking.id)
+                                setShowSendReminderDialog(true)
+                              }}
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              title="Send reminder email"
+                            >
+                              <Send className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedEditRemindersBookingId(booking.id)
+                                setShowEditRemindersDialog(true)
+                              }}
+                              className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                              title="Edit reminders"
+                            >
+                              <Bell className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedBookingId(booking.id)
+                            setShowEmailHistoryDialog(true)
+                          }}
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          title="View email history"
+                        >
+                          <Mail className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -649,6 +717,55 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
         cancelText="Keep Booking"
         variant="warning"
       />
+
+      {/* Email History Dialog */}
+      {selectedBookingId && (
+        <AppointmentBookingEmailHistoryDialog
+          isOpen={showEmailHistoryDialog}
+          onOpenChange={(open) => {
+            setShowEmailHistoryDialog(open)
+            if (!open) {
+              setSelectedBookingId(null)
+            }
+          }}
+          appointmentBookingId={selectedBookingId}
+        />
+      )}
+
+      {/* Send Reminder Dialog */}
+      {selectedReminderBookingId && (
+        <SendAppointmentReminderDialog
+          isOpen={showSendReminderDialog}
+          onOpenChange={(open) => {
+            setShowSendReminderDialog(open)
+            if (!open) {
+              setSelectedReminderBookingId(null)
+            }
+          }}
+          appointmentBookingId={selectedReminderBookingId}
+          onSuccess={() => {
+            handleRefresh()
+          }}
+        />
+      )}
+
+      {/* Edit Reminders Dialog */}
+      {selectedEditRemindersBookingId && (
+        <EditAppointmentRemindersDialog
+          isOpen={showEditRemindersDialog}
+          onOpenChange={(open) => {
+            setShowEditRemindersDialog(open)
+            if (!open) {
+              setSelectedEditRemindersBookingId(null)
+            }
+          }}
+          appointmentBookingId={selectedEditRemindersBookingId}
+          onSuccess={() => {
+            // Don't refresh or navigate - just show toast (handled in dialog)
+            // Dialog stays open and user stays on "My Appointments" tab
+          }}
+        />
+      )}
     </Tabs>
   )
 }

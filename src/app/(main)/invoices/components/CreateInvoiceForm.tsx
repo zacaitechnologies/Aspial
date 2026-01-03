@@ -143,7 +143,7 @@ export default function CreateInvoiceForm({
 
 	const handleQuotationSelect = async (quotationId: number) => {
 		// Find quotation in search results first
-		let quotation = searchResults.find(q => q.id === quotationId)
+		const quotation = searchResults.find(q => q.id === quotationId)
 		
 		if (quotation) {
 			// If found in search results, use it

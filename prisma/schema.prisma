@@ -58,6 +58,7 @@ model User {
   invoiceEmails                  InvoiceEmail[]             @relation("InvoiceEmailSender")
   receipts                       Receipt[]                 @relation("ReceiptCreator")
   receiptEmails                  ReceiptEmail[]            @relation("ReceiptEmailSender")
+  appointmentBookingEmails       AppointmentBookingEmail[] @relation("AppointmentBookingEmailSender")
   tasksAssigned                  Task[]                    @relation("TaskAssignee")
   assignedTasks                  Task[]                    @relation("TaskCreator")
   timeEntries                    TimeEntry[]
@@ -352,22 +353,65 @@ model Appointment {
 }
 
 model AppointmentBooking {
-  id              Int             @id @default(autoincrement())
+  id              Int                      @id @default(autoincrement())
   bookedBy        String
   startDate       DateTime
   endDate         DateTime
   purpose         String?
-  appointmentType AppointmentType @default(OTHERS)
-  status          String          @default("active")
+  appointmentType AppointmentType          @default(OTHERS)
+  status          String                   @default("active")
   projectId       Int?
   appointmentId   Int?
   attendees       Int?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  appointment     Appointment?    @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  project         Project?        @relation("AppointmentBookingProject", fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  appointment     Appointment?            @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  project         Project?                 @relation("AppointmentBookingProject", fields: [projectId], references: [id], onDelete: SetNull)
+  bookingEmails   AppointmentBookingEmail[]
+  reminders       AppointmentBookingReminder[]
 
   @@map("appointment_bookings")
+}
+
+model AppointmentBookingEmail {
+  id                Int               @id @default(autoincrement())
+  appointmentBookingId Int
+  appointmentBooking AppointmentBooking @relation(fields: [appointmentBookingId], references: [id], onDelete: Cascade)
+  recipientEmail    String
+  sentAt            DateTime          @default(now())
+  sentById          String?
+  sentBy            User?             @relation("AppointmentBookingEmailSender", fields: [sentById], references: [supabase_id])
+  isAutomated       Boolean           @default(false) // true for automated reminders, false for manual
+
+  @@map("appointment_booking_emails")
+}
+
+enum ReminderStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+model AppointmentBookingReminder {
+  id                  Int                 @id @default(autoincrement())
+  appointmentBookingId Int
+  appointmentBooking AppointmentBooking   @relation(fields: [appointmentBookingId], references: [id], onDelete: Cascade)
+  offsetMinutes       Int                 // Minutes before startDate (e.g., 60 for 1 hour, 2880 for 48 hours)
+  recipientEmail      String              // Email address to send reminder to
+  remindAt             DateTime            // Computed: startDate - offsetMinutes
+  status               ReminderStatus      @default(PENDING)
+  sentAt               DateTime?
+  lastAttemptAt        DateTime?
+  attemptCount         Int                 @default(0)
+  lastError            String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@unique([appointmentBookingId, offsetMinutes])
+  @@index([status])
+  @@index([remindAt, status])
+  @@map("appointment_booking_reminders")
 }
 
 model TimeEntry {
