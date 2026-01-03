@@ -91,13 +91,6 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
           ]);
           setIsAdmin(isAdminCheck);
           setUserSystemRole(systemRole);
-          
-          console.log('🎯 Projects Page Role Check:', {
-            userId: enhancedUser.id,
-            isAdmin: isAdminCheck,
-            systemRole: systemRole,
-            staffRole: enhancedUser?.profile?.staffRole?.roleName
-          });
         } catch (error) {
           console.error("Error checking admin status:", error);
         }

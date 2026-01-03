@@ -101,12 +101,6 @@ export function AppSidebar() {
           checkIsOperationUser(enhancedUser.id)
         ]);
         
-        console.log('🔐 Sidebar Role Check:', {
-          userId: enhancedUser.id,
-          isAdmin: adminStatus,
-          isOperationUser: operationUserStatus
-        });
-        
         setIsAdmin(adminStatus);
         setIsOperationUser(operationUserStatus);
 
