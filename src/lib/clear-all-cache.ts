@@ -25,7 +25,23 @@ export function clearAllClientCaches(): void {
 				if (key.startsWith('quotations-cache')) {
 					keysToRemove.push(key)
 				}
-				// Clear any other app-specific caches (add more patterns as needed)
+				// Clear invoice caches
+				if (key.startsWith('invoice-cache')) {
+					keysToRemove.push(key)
+				}
+				// Clear receipt caches
+				if (key.startsWith('receipt-cache')) {
+					keysToRemove.push(key)
+				}
+				// Clear client caches
+				if (key.startsWith('client-cache')) {
+					keysToRemove.push(key)
+				}
+				// Clear service caches
+				if (key.startsWith('service-cache')) {
+					keysToRemove.push(key)
+				}
+				// Clear any other app-specific caches
 				if (key.startsWith('aspial-')) {
 					keysToRemove.push(key)
 				}
@@ -37,7 +53,11 @@ export function clearAllClientCaches(): void {
 			localStorage.removeItem(key)
 		})
 		
+		// SECURITY: Also clear sessionStorage
+		sessionStorage.clear()
+		
 		console.log(`🧹 Cleared ${keysToRemove.length} cached items from localStorage`)
+		console.log('🔒 Cleared all sessionStorage for security')
 	} catch (error) {
 		console.error('Error clearing client caches:', error)
 	}

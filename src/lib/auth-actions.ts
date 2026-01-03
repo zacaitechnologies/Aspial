@@ -162,10 +162,17 @@ export async function signout() {
   // Get current user ID before signing out to clear their cache
   const { data: { user } } = await supabase.auth.getUser();
   
-  // Clear admin cache for the current user
+  // CRITICAL: Clear ALL caches for security
   if (user?.id) {
-    const { clearAdminCache } = await import("@/lib/admin-cache");
+    const { clearAdminCache, clearAllAdminCache } = await import("@/lib/admin-cache");
+    // Clear this user's cache
     await clearAdminCache(user.id);
+    // Clear all admin cache to prevent any leakage
+    await clearAllAdminCache();
+  } else {
+    // Even if no user, clear all admin cache as a safety measure
+    const { clearAllAdminCache } = await import("@/lib/admin-cache");
+    await clearAllAdminCache();
   }
   
   const { error } = await supabase.auth.signOut();
@@ -174,12 +181,17 @@ export async function signout() {
     redirect("/error");
   }
 
-  // Revalidate all paths to ensure fresh data on next login
+  // Revalidate ALL paths to ensure fresh data on next login
   revalidatePath("/", "layout");
   revalidatePath("/projects", "layout");
   revalidatePath("/quotations", "layout");
+  revalidatePath("/invoices", "layout");
+  revalidatePath("/receipts", "layout");
   revalidatePath("/clients", "layout");
   revalidatePath("/services", "layout");
+  revalidatePath("/appointment-bookings", "layout");
+  revalidatePath("/time-tracking", "layout");
+  revalidatePath("/user-management", "layout");
   revalidatePath("/settings", "layout");
   
   redirect("/logout");

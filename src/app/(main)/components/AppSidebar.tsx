@@ -86,7 +86,7 @@ export function AppSidebar() {
   const { enhancedUser } = useSession();
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isOperationUser, setIsOperationUser] = useState(false);
+  const [isOperationUser, setIsOperationUser] = useState<boolean | null>(null);
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(
     pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts")
   );
@@ -100,6 +100,13 @@ export function AppSidebar() {
           checkIsAdmin(enhancedUser.id),
           checkIsOperationUser(enhancedUser.id)
         ]);
+        
+        console.log('🔐 Sidebar Role Check:', {
+          userId: enhancedUser.id,
+          isAdmin: adminStatus,
+          isOperationUser: operationUserStatus
+        });
+        
         setIsAdmin(adminStatus);
         setIsOperationUser(operationUserStatus);
 
@@ -159,13 +166,22 @@ export function AppSidebar() {
             <SidebarMenu>
               {mainNavItems
                 .filter((item) => {
-                  // Hide restricted items for operation-user
-                  if (isOperationUser) {
-                    // Operation users can only see: Projects, Appointment Bookings, Time Tracking, Calendar, Benefits
-                    const allowedUrls = ["/projects", "/appointment-bookings", "/time-tracking", "/calander", "/benefits"];
-                    return allowedUrls.includes(item.url);
+                  // Operation users can only see: Projects, Appointment Bookings, Time Tracking, Calendar, Benefits
+                  const allowedUrlsForOperationUser = ["/projects", "/appointment-bookings", "/time-tracking", "/calander", "/benefits"];
+                  
+                  // If role check is still in progress, show only allowed items (safer default)
+                  if (isOperationUser === null) {
+                    return allowedUrlsForOperationUser.includes(item.url);
                   }
-                  return true; // Show all items for admin and brand-advisor
+                  
+                  // If user is operation-user, only show allowed items
+                  if (isOperationUser) {
+                    console.log(`🔒 Operation user - filtering out: ${item.title}`);
+                    return allowedUrlsForOperationUser.includes(item.url);
+                  }
+                  
+                  // Show all items for admin and brand-advisor
+                  return true;
                 })
                 .map((item) => {
                   const isActive = pathname.includes(item.url.replace('/', ''));
@@ -186,7 +202,7 @@ export function AppSidebar() {
                 })}
               
               {/* Payments Collapsible Section - Hidden for operation-user */}
-              {!isOperationUser && (
+              {isOperationUser !== null && !isOperationUser && (
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => setIsPaymentsOpen(!isPaymentsOpen)}

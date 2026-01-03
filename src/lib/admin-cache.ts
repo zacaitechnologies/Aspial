@@ -10,7 +10,7 @@ const roleCache = new Map<string, {
   role: string | null
   timestamp: number 
 }>()
-const ROLE_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+const ROLE_CACHE_DURATION = 30 * 1000 // 30 seconds (reduced from 5 minutes)
 
 /**
  * Cached version of isUserAdmin that reduces database queries

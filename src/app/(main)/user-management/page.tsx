@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Trash2, Mail, User, Shield, Loader2, Edit, Key, Briefcase, Users } from "lucide-react"
+import { Plus, Trash2, Mail, User, Shield, Loader2, Edit, Key, Briefcase, Users, RefreshCw, AlertCircle } from "lucide-react"
 import { 
   getUsersPaginated, 
   createUserAccount, 
@@ -36,6 +36,8 @@ import {
   updateStaffRole,
   deleteStaffRole,
   getAllRoles,
+  checkOrphanedAuthAccounts,
+  linkOrphanedAccount,
   UserWithRole, 
   StaffRole 
 } from "./action"
@@ -67,7 +69,7 @@ export default function UserManagementPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [staffRoleId, setStaffRoleId] = useState<string>("none")
-  const [roleSlug, setRoleSlug] = useState<string>("none")
+  const [roleSlug, setRoleSlug] = useState<string>("brand-advisor")
   const [error, setError] = useState("")
 
   // Edit form state
@@ -102,6 +104,18 @@ export default function UserManagementPage() {
   const [deleteRoleName, setDeleteRoleName] = useState<string>("")
   const [isDeletingUser, setIsDeletingUser] = useState(false)
   const [isDeletingRole, setIsDeletingRole] = useState(false)
+
+  // Orphaned accounts state
+  const [orphanedAccounts, setOrphanedAccounts] = useState<any[]>([])
+  const [isCheckingOrphans, setIsCheckingOrphans] = useState(false)
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
+  const [linkingAccount, setLinkingAccount] = useState<any>(null)
+  const [linkFirstName, setLinkFirstName] = useState("")
+  const [linkLastName, setLinkLastName] = useState("")
+  const [linkStaffRoleId, setLinkStaffRoleId] = useState<string>("none")
+  const [linkRoleSlug, setLinkRoleSlug] = useState<string>("staff")
+  const [linkError, setLinkError] = useState("")
+  const [isLinking, setIsLinking] = useState(false)
 
   // Pagination for users
   const {
@@ -162,12 +176,25 @@ export default function UserManagementPage() {
 
       await Promise.all([
         fetchStaffRoles(),
-        fetchAvailableRoles()
+        fetchAvailableRoles(),
+        checkForOrphanedAccounts()
       ])
     } catch (error) {
       console.error("Error checking admin status:", error)
     }
   }, [enhancedUser?.id, router, fetchStaffRoles, fetchAvailableRoles])
+
+  const checkForOrphanedAccounts = useCallback(async () => {
+    setIsCheckingOrphans(true)
+    try {
+      const orphaned = await checkOrphanedAuthAccounts()
+      setOrphanedAccounts(orphaned)
+    } catch (error: any) {
+      console.error("Failed to check orphaned accounts:", error)
+    } finally {
+      setIsCheckingOrphans(false)
+    }
+  }, [])
 
   useEffect(() => {
     checkAdminAndFetchData()
@@ -206,13 +233,19 @@ export default function UserManagementPage() {
         return
       }
 
+      // Validate role selection
+      if (!roleSlug || roleSlug === "none") {
+        setError("Please select a system role")
+        return
+      }
+
       const result = await createUserAccount({
         firstName,
         lastName,
         email,
         password,
         staffRoleId: staffRoleId && staffRoleId !== "none" ? staffRoleId : undefined,
-        roleSlug: roleSlug && roleSlug !== "none" ? roleSlug : undefined,
+        roleSlug: roleSlug,
       })
 
       if (result.success) {
@@ -222,12 +255,18 @@ export default function UserManagementPage() {
         setEmail("")
         setPassword("")
         setStaffRoleId("none")
-        setRoleSlug("none")
+        setRoleSlug("brand-advisor")
         setIsCreateDialogOpen(false)
         
-        // Refresh users list
+        // Refresh users list and check for orphaned accounts
         invalidateCache()
         await refreshUsers()
+        await checkForOrphanedAccounts()
+        
+        toast({
+          title: "Success",
+          description: "User created successfully",
+        })
       } else {
         setError(result.error || "Failed to create user")
         // If unauthorized or forbidden, redirect to home
@@ -239,6 +278,68 @@ export default function UserManagementPage() {
       setError("An unexpected error occurred")
     } finally {
       setIsCreating(false)
+    }
+  }
+
+  const handleLinkOrphanedAccount = (account: any) => {
+    setLinkingAccount(account)
+    setLinkFirstName("")
+    setLinkLastName("")
+    setLinkStaffRoleId("none")
+    setLinkRoleSlug("brand-advisor")
+    setLinkError("")
+    setIsLinkDialogOpen(true)
+  }
+
+  const confirmLinkAccount = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!linkingAccount) return
+
+    setLinkError("")
+    setIsLinking(true)
+
+    try {
+      // Basic validation
+      if (!linkFirstName || !linkLastName) {
+        setLinkError("First name and last name are required")
+        return
+      }
+
+      // Validate role selection
+      if (!linkRoleSlug || linkRoleSlug === "none") {
+        setLinkError("Please select a system role")
+        return
+      }
+
+      const result = await linkOrphanedAccount({
+        supabaseId: linkingAccount.id,
+        email: linkingAccount.email,
+        firstName: linkFirstName,
+        lastName: linkLastName,
+        staffRoleId: linkStaffRoleId && linkStaffRoleId !== "none" ? linkStaffRoleId : undefined,
+        roleSlug: linkRoleSlug,
+      })
+
+      if (result.success) {
+        setIsLinkDialogOpen(false)
+        setLinkingAccount(null)
+        
+        // Refresh users list and check for orphaned accounts
+        invalidateCache()
+        await refreshUsers()
+        await checkForOrphanedAccounts()
+        
+        toast({
+          title: "Success",
+          description: "Account linked successfully",
+        })
+      } else {
+        setLinkError(result.error || "Failed to link account")
+      }
+    } catch (error) {
+      setLinkError("An unexpected error occurred")
+    } finally {
+      setIsLinking(false)
     }
   }
 
@@ -269,13 +370,19 @@ export default function UserManagementPage() {
         return
       }
 
+      // Validate role selection
+      if (!editRoleSlug || editRoleSlug === "none") {
+        setEditError("Please select a system role")
+        return
+      }
+
       const result = await updateUserAccount({
         userId: editingUser.id,
         firstName: editFirstName,
         lastName: editLastName,
         email: editEmail,
         staffRoleId: editStaffRoleId && editStaffRoleId !== "none" ? editStaffRoleId : null,
-        roleSlug: editRoleSlug && editRoleSlug !== "none" ? editRoleSlug : null,
+        roleSlug: editRoleSlug,
       })
 
       if (result.success) {
@@ -285,6 +392,11 @@ export default function UserManagementPage() {
         // Refresh users list
         invalidateCache()
         await refreshUsers()
+        
+        toast({
+          title: "Success",
+          description: "User updated successfully",
+        })
       } else {
         setEditError(result.error || "Failed to update user")
         // If unauthorized or forbidden, redirect to home
@@ -544,12 +656,70 @@ export default function UserManagementPage() {
 
         {/* Users Tab */}
         <TabsContent value="users" className="space-y-6">
+          {/* Orphaned Accounts Alert */}
+          {orphanedAccounts.length > 0 && (
+            <Card className="border-orange-200 bg-orange-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-900">
+                  <AlertCircle className="w-5 h-5" />
+                  Orphaned Auth Accounts Found
+                </CardTitle>
+                <CardDescription className="text-orange-700">
+                  {orphanedAccounts.length} email(s) registered in authentication but not linked to user accounts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {orphanedAccounts.map((account) => (
+                    <div key={account.id} className="flex items-center justify-between bg-white p-3 rounded-md">
+                      <div>
+                        <p className="font-medium">{account.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Registered: {new Date(account.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleLinkOrphanedAccount(account)}
+                      >
+                        Link Account
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-semibold">Staff Users</h2>
               <p className="text-sm text-muted-foreground">Manage user accounts and permissions</p>
             </div>
+            
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => checkForOrphanedAccounts()}
+                disabled={isCheckingOrphans}
+              >
+                {isCheckingOrphans ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Checking...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Refresh
+                  </>
+                )}
+              </Button>
 
+            </div>
+            
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -615,21 +785,22 @@ export default function UserManagementPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="role">System Role *</Label>
-                <Select value={roleSlug || "none"} onValueChange={setRoleSlug}>
+                <Select value={roleSlug} onValueChange={setRoleSlug}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a system role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {availableRoles.map((role) => (
-                      <SelectItem key={role.id} value={role.slug}>
-                        {role.slug === "admin" ? "Admin" : role.slug === "brand-advisor" ? "Brand Advisor" : role.slug === "operation-user" ? "Operation User" : role.slug === "staff" ? "Staff" : role.slug}
-                      </SelectItem>
-                    ))}
+                    {availableRoles
+                      .filter((role) => role.slug !== "admin")
+                      .map((role) => (
+                        <SelectItem key={role.id} value={role.slug}>
+                          {role.slug === "admin" ? "Admin" : role.slug === "brand-advisor" ? "Brand Advisor" : role.slug === "operation-user" ? "Operation User" : role.slug === "staff" ? "Staff" : role.slug}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  System roles control access permissions (admin, brand-advisor, operation-user, staff)
+                  System roles control access permissions (brand-advisor, operation-user, staff)
                 </p>
               </div>
 
@@ -726,15 +897,6 @@ export default function UserManagementPage() {
                     title="Change Password"
                   >
                     <Key className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteUser(user.id, `${user.firstName} ${user.lastName}`)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    title="Delete User"
-                  >
-                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -980,21 +1142,41 @@ export default function UserManagementPage() {
 
             <div className="space-y-2">
               <Label htmlFor="editRole">System Role *</Label>
-              <Select value={editRoleSlug || "none"} onValueChange={setEditRoleSlug}>
+              <Select 
+                value={editRoleSlug} 
+                onValueChange={setEditRoleSlug}
+                disabled={editingUser?.roles?.some(r => r.role.slug === "admin")}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a system role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None (Remove Role)</SelectItem>
-                  {availableRoles.map((role) => (
-                    <SelectItem key={role.id} value={role.slug}>
-                      {role.slug === "admin" ? "Admin" : role.slug === "brand-advisor" ? "Brand Advisor" : role.slug === "operation-user" ? "Operation User" : role.slug}
-                    </SelectItem>
-                  ))}
+                  {availableRoles
+                    .filter((role) => {
+                      // Show admin only if current user has it (for display purposes)
+                      if (role.slug === "admin") {
+                        return editingUser?.roles?.some(r => r.role.slug === "admin")
+                      }
+                      return true
+                    })
+                    .map((role) => (
+                      <SelectItem 
+                        key={role.id} 
+                        value={role.slug}
+                        disabled={role.slug === "admin"}
+                      >
+                        {role.slug === "admin" ? "Admin" : role.slug === "brand-advisor" ? "Brand Advisor" : role.slug === "operation-user" ? "Operation User" : role.slug}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
+              {editingUser?.roles?.some(r => r.role.slug === "admin") && (
+                <p className="text-xs text-amber-600">
+                  This user has admin role. Admin role cannot be changed through this interface.
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
-                System roles control access permissions (admin, brand-advisor, operation-user)
+                System roles control access permissions (brand-advisor, operation-user)
               </p>
             </div>
 
@@ -1163,18 +1345,6 @@ export default function UserManagementPage() {
       </Dialog>
 
       <ConfirmationDialog
-        isOpen={deleteUserId !== null}
-        onClose={() => setDeleteUserId(null)}
-        onConfirm={confirmDeleteUser}
-        title="Delete User"
-        description={`Are you sure you want to delete ${deleteUserName}? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        variant="danger"
-        isLoading={isDeletingUser}
-      />
-
-      <ConfirmationDialog
         isOpen={deleteRoleId !== null}
         onClose={() => setDeleteRoleId(null)}
         onConfirm={confirmDeleteRole}
@@ -1185,6 +1355,105 @@ export default function UserManagementPage() {
         variant="danger"
         isLoading={isDeletingRole}
       />
+
+      {/* Link Orphaned Account Dialog */}
+      <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Link Registered Account</DialogTitle>
+            <DialogDescription>
+              This email ({linkingAccount?.email}) is registered in authentication but not linked to a user account. Fill in the details to complete the account setup.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={confirmLinkAccount} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="linkFirstName">First Name *</Label>
+                <Input
+                  id="linkFirstName"
+                  value={linkFirstName}
+                  onChange={(e) => setLinkFirstName(e.target.value)}
+                  placeholder="John"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="linkLastName">Last Name *</Label>
+                <Input
+                  id="linkLastName"
+                  value={linkLastName}
+                  onChange={(e) => setLinkLastName(e.target.value)}
+                  placeholder="Doe"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="linkRole">System Role *</Label>
+              <Select value={linkRoleSlug} onValueChange={setLinkRoleSlug}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a system role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableRoles
+                    .filter((role) => role.slug !== "admin")
+                    .map((role) => (
+                      <SelectItem key={role.id} value={role.slug}>
+                        {role.slug === "admin" ? "Admin" : role.slug === "brand-advisor" ? "Brand Advisor" : role.slug === "operation-user" ? "Operation User" : role.slug === "staff" ? "Staff" : role.slug}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="linkStaffRole">Staff Role</Label>
+              <Select value={linkStaffRoleId} onValueChange={setLinkStaffRoleId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {staffRoles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.roleName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {linkError && (
+              <div className="bg-red-50 text-red-600 px-4 py-2 rounded-md text-sm">
+                {linkError}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsLinkDialogOpen(false)}
+                disabled={isLinking}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLinking}>
+                {isLinking ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Linking...
+                  </>
+                ) : (
+                  "Link Account"
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

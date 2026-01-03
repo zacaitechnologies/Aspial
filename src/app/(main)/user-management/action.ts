@@ -374,6 +374,121 @@ export async function getAllRoles() {
   }
 }
 
+// Check for orphaned auth accounts (registered in auth but not in public.user)
+export async function checkOrphanedAuthAccounts() {
+  // Validate admin access
+  const validation = await validateAdminUser()
+  if (!validation.valid) {
+    throw new Error(validation.error)
+  }
+
+  try {
+    const supabase = createAdminClient()
+    
+    // Get all users from auth
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+    
+    if (authError) {
+      throw new Error(`Failed to fetch auth users: ${authError.message}`)
+    }
+    
+    if (!authUsers || !authUsers.users) {
+      return []
+    }
+    
+    // Get all public users
+    const publicUsers = await prisma.user.findMany({
+      select: { supabase_id: true }
+    })
+    
+    const publicUserIds = new Set(publicUsers.map(u => u.supabase_id))
+    
+    // Find orphaned accounts
+    const orphanedAccounts = authUsers.users
+      .filter(authUser => !publicUserIds.has(authUser.id))
+      .map(authUser => ({
+        id: authUser.id,
+        email: authUser.email || 'No email',
+        created_at: authUser.created_at
+      }))
+    
+    return orphanedAccounts
+  } catch (error: any) {
+    console.error("Error checking orphaned accounts:", error)
+    throw error
+  }
+}
+
+// Link orphaned auth account to public user table
+export async function linkOrphanedAccount(data: {
+  supabaseId: string
+  email: string
+  firstName: string
+  lastName: string
+  staffRoleId?: string
+  roleSlug: string
+}) {
+  // Validate admin access
+  const validation = await validateAdminUser()
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: validation.error
+    }
+  }
+
+  try {
+    // Get the role to assign
+    const role = await prisma.role.findUnique({
+      where: { slug: data.roleSlug }
+    })
+
+    if (!role) {
+      throw new Error(`Role "${data.roleSlug}" not found`)
+    }
+
+    // Create user in public database with existing supabase_id
+    const user = await prisma.user.create({
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        supabase_id: data.supabaseId,
+        staffRoleId: data.staffRoleId || null,
+        userRoles: {
+          create: {
+            roleId: role.id
+          }
+        }
+      },
+      include: {
+        userRoles: {
+          include: {
+            role: true
+          }
+        },
+        staffRole: true
+      }
+    })
+
+    revalidateTag("users", { expire: 0 })
+    
+    return {
+      success: true,
+      user: {
+        ...user,
+        roles: user.userRoles
+      }
+    }
+  } catch (error: any) {
+    console.error("Error linking orphaned account:", error)
+    return {
+      success: false,
+      error: error.message || "Failed to link account"
+    }
+  }
+}
+
 // Update user account
 export async function updateUserAccount(data: {
   userId: string
@@ -577,6 +692,9 @@ export async function deleteUserAccount(userId: string) {
     await prisma.user.delete({
       where: { id: userId }
     })
+
+    // SECURITY: Clear role cache for deleted user
+    await clearAdminCache(user.supabase_id)
 
     revalidateTag("users", { expire: 0 })
     

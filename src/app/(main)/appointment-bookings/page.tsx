@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore } from "next/cache"
 import { redirect } from "next/navigation"
+import { isRedirectError } from "next/dist/client/components/redirect-error"
 
 // Internal functions - not cached, used by cached versions
 async function _getAppointmentsInternal() {
@@ -146,6 +147,10 @@ async function getUserWithRole() {
 	try {
 		const user = await getCachedUser()
 
+		if (!user) {
+			return redirect("/login")
+		}
+
 		const dbUser = await prisma.user.findUnique({
 			where: { supabase_id: user.id },
 			include: {
@@ -169,6 +174,8 @@ async function getUserWithRole() {
 			userId: user.id
 		}
 	} catch (error: any) {
+		// Handle redirect errors - must re-throw them
+		if (isRedirectError(error)) throw error;
 		console.error("Error in getUserWithRole:", error)
 		throw new Error("Failed to get user with role")
 	}
