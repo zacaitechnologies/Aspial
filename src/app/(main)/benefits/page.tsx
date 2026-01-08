@@ -11,6 +11,7 @@ import { AdminBenefitsView } from "./components/admin-benefits-view"
 import { Plane, Award, Trophy, Car, Loader2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/components/ui/use-toast"
 import {
@@ -349,26 +350,39 @@ export default function EmployeeBenefitsPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <div className="text-5xl">
-                {selectedTier ? "🎯" : "⚠️"}
+            <div className="space-y-4">
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <div className="text-5xl">
+                  {selectedTier ? "🎯" : "⚠️"}
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-foreground mb-1">
+                    {selectedTier 
+                      ? `Your Challenge: Tier ${selectedTier.replace('TIER_', '')}` 
+                      : "Tier Selection Required"}
+                  </h3>
+                  <p className={`text-sm font-bold ${
+                    selectedTier
+                      ? "text-green-800"
+                      : "text-yellow-800"
+                  }`}>
+                    {selectedTier 
+                      ? `Monthly Target: RM${(getCurrentTierTarget() / 1000).toFixed(0)}K | Yearly Target: RM${(getCurrentTierTarget() * 12 / 1000).toFixed(0)}K`
+                      : "Please select your challenge tier for this year"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-2xl font-black text-foreground mb-1">
-                  {selectedTier 
-                    ? `Your Challenge: Tier ${selectedTier.replace('TIER_', '')}` 
-                    : "Tier Selection Required"}
-                </h3>
-                <p className={`text-sm font-bold ${
-                  selectedTier
-                    ? "text-green-800"
-                    : "text-yellow-800"
-                }`}>
-                  {selectedTier 
-                    ? `Monthly Target: RM${(getCurrentTierTarget() / 1000).toFixed(0)}K | Yearly Target: RM${(getCurrentTierTarget() * 12 / 1000).toFixed(0)}K`
-                    : "Please select your challenge tier for this year"}
-                </p>
-              </div>
+              {!selectedTier && (
+                <div className="flex justify-center">
+                  <Button
+                    onClick={() => setShowTierModal(true)}
+                    size="lg"
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-8 py-3 text-lg shadow-lg"
+                  >
+                    Select Your Tier
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </Card>
