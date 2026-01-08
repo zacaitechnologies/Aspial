@@ -13,6 +13,10 @@ interface TimerDisplayProps {
   onStart: () => void
   onPause: () => void
   onStop: () => void
+  isStarting?: boolean
+  isPausing?: boolean
+  isResuming?: boolean
+  isStopping?: boolean
 }
 
 export function TimerDisplay({
@@ -23,6 +27,10 @@ export function TimerDisplay({
   onStart,
   onPause,
   onStop,
+  isStarting = false,
+  isPausing = false,
+  isResuming = false,
+  isStopping = false,
 }: TimerDisplayProps) {
   return (
     <div className="h-full flex flex-col">
@@ -51,44 +59,83 @@ export function TimerDisplay({
             {!isTracking ? (
               <Button
                 onClick={onStart}
-                disabled={!selectedProject}
+                disabled={!selectedProject || isStarting}
                 size="lg"
                 className="bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-lg px-8 py-3"
               >
-                <Play className="h-6 w-6 mr-2" />
-                Start Timer
+                {isStarting ? (
+                  <>
+                    <div className="h-6 w-6 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-6 w-6 mr-2" />
+                    Start Timer
+                  </>
+                )}
               </Button>
             ) : (
               <>
                 {!isPaused ? (
                   <Button
                     onClick={onPause}
+                    disabled={isPausing}
                     size="lg"
                     variant="outline"
                     className="border-[var(--color-accent)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 text-lg px-8 py-3"
                   >
-                    <Pause className="h-6 w-6 mr-2" />
-                    Pause
+                    {isPausing ? (
+                      <>
+                        <div className="h-6 w-6 mr-2 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+                        Pausing...
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="h-6 w-6 mr-2" />
+                        Pause
+                      </>
+                    )}
                   </Button>
                 ) : (
                   <Button
                     onClick={onStart}
+                    disabled={isResuming}
                     size="lg"
                     variant="outline"
                     className="border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 text-lg px-8 py-3"
                   >
-                    <Play className="h-6 w-6 mr-2" />
-                    Resume
+                    {isResuming ? (
+                      <>
+                        <div className="h-6 w-6 mr-2 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                        Resuming...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-6 w-6 mr-2" />
+                        Resume
+                      </>
+                    )}
                   </Button>
                 )}
                 <Button
                   onClick={onStop}
+                  disabled={isStopping}
                   size="lg"
                   variant="destructive"
                   className="text-lg px-8 py-3"
                 >
-                  <Square className="h-6 w-6 mr-2" />
-                  Stop
+                  {isStopping ? (
+                    <>
+                      <div className="h-6 w-6 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Stopping...
+                    </>
+                  ) : (
+                    <>
+                      <Square className="h-6 w-6 mr-2" />
+                      Stop
+                    </>
+                  )}
                 </Button>
               </>
             )}

@@ -6,7 +6,7 @@ import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
 import { TimeEntry, Project } from "@prisma/client"
-import { createTimeEntry, getActiveTimeEntry, pauseTimeEntry, resumeTimeEntry, stopTimeEntry } from "../action"
+import { createTimeEntry, getActiveTimeEntry, pauseTimeEntry, resumeTimeEntry, stopTimeEntry, getAllUserTimeEntries } from "../action"
 
 interface UserTimeTrackingProps {
   initialTimeEntries: (TimeEntry & {
@@ -31,6 +31,10 @@ export default function UserTimeTracking({
   const [pausedTime, setPausedTime] = useState(0)
   const [activeEntryId, setActiveEntryId] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isStarting, setIsStarting] = useState(false)
+  const [isPausing, setIsPausing] = useState(false)
+  const [isResuming, setIsResuming] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
 
   // Load active time entry on mount
   useEffect(() => {
@@ -87,6 +91,7 @@ export default function UserTimeTracking({
   const pauseTimer = async () => {
     if (!isTracking || !startTime || !activeEntryId) return
 
+    setIsPausing(true)
     const now = new Date()
     const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000)
     const totalDuration = elapsed + pausedTime
@@ -98,12 +103,15 @@ export default function UserTimeTracking({
       setCurrentSession(totalDuration)
     } catch (err) {
       console.error("Failed to pause time entry:", err)
+    } finally {
+      setIsPausing(false)
     }
   }
 
   const resumeTimer = async () => {
     if (!isPaused || !activeEntryId) return
 
+    setIsResuming(true)
     try {
       const updatedEntry = await resumeTimeEntry(activeEntryId)
       setIsPaused(false)
@@ -113,6 +121,8 @@ export default function UserTimeTracking({
       setPausedTime(updatedEntry.duration)
     } catch (err) {
       console.error("Failed to resume time entry:", err)
+    } finally {
+      setIsResuming(false)
     }
   }
 
@@ -122,12 +132,13 @@ export default function UserTimeTracking({
     // Check if there's already an active entry
     if (activeEntryId) {
       if (isPaused) {
-        // Resume from pause
+        // Resume from pause - this will handle its own loading state
         await resumeTimer()
       }
       return
     }
 
+    setIsStarting(true)
     // Start fresh timer
     const now = new Date()
     try {
@@ -170,12 +181,15 @@ export default function UserTimeTracking({
           console.error("Failed to reload active entry:", loadErr)
         }
       }
+    } finally {
+      setIsStarting(false)
     }
   }
 
   const stopTimer = async () => {
     if (!selectedProject || !startTime || !activeEntryId) return
 
+    setIsStopping(true)
     const endTime = new Date()
     let totalDuration = currentSession
 
@@ -186,11 +200,11 @@ export default function UserTimeTracking({
     }
 
     try {
-      const updatedEntry = await stopTimeEntry(activeEntryId, totalDuration)
-      // Update the entry in the list instead of adding a duplicate
-      setTimeEntries((prev) => 
-        prev.map(entry => entry.id === updatedEntry.id ? updatedEntry : entry)
-      )
+      await stopTimeEntry(activeEntryId, totalDuration)
+      
+      // Refetch all time entries to get the updated list with the newly stopped entry
+      const refreshedEntries = await getAllUserTimeEntries()
+      setTimeEntries(refreshedEntries)
       
       setIsTracking(false)
       setIsPaused(false)
@@ -201,6 +215,8 @@ export default function UserTimeTracking({
       setSelectedProject(null)
     } catch (err) {
       console.error("Failed to stop time entry:", err)
+    } finally {
+      setIsStopping(false)
     }
   }
 
@@ -243,6 +259,10 @@ export default function UserTimeTracking({
                   onStart={startTimer}
                   onPause={pauseTimer}
                   onStop={stopTimer}
+                  isStarting={isStarting}
+                  isPausing={isPausing}
+                  isResuming={isResuming}
+                  isStopping={isStopping}
                 />
               </div>
             </div>

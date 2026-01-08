@@ -139,6 +139,13 @@ model Quotation {
   @@map("quotations")
 }
 
+model QuotationCounter {
+  month_prefix String @id // Format: YYYYMM (e.g., "202601")
+  last_value   Int    @default(0)
+
+  @@map("quotation_counters")
+}
+
 model QuotationEmail {
   id          Int       @id @default(autoincrement())
   quotationId Int

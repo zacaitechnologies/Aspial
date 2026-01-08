@@ -587,4 +587,46 @@ export async function getTimeEntries() {
     console.error("Error in getTimeEntries:", error)
     throw error
   }
+}
+
+// Get all time entries (including stopped) for current user (used by client components)
+export async function getAllUserTimeEntries() {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id }
+    })
+
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+
+    const timeEntries = await prisma.timeEntry.findMany({
+      where: {
+        userId: dbUser.id,
+      },
+      include: {
+        project: true,
+      },
+      orderBy: {
+        startTime: "desc",
+      },
+    })
+
+    return timeEntries
+  } catch (error: any) {
+    // Handle redirect errors
+    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+      // This is a redirect, not an error - don't log it
+      throw error
+    }
+    console.error("Error in getAllUserTimeEntries:", error)
+    throw error
+  }
 } 

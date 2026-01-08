@@ -454,51 +454,20 @@ export async function getQuotationFullById(id: string) {
 }
 
 /**
- * Generate quotation number in format: QUO-YYYYMM###
- * Where ### starts at 001 each day and increments
+ * Generate quotation number using PostgreSQL function
  * This function must be called within a transaction to prevent race conditions
  */
 async function generateQuotationNumber(tx: any): Promise<string> {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const datePrefix = `${year}${month}`
+  // Call the PostgreSQL function to generate gapless quotation number
+  const result = await tx.$queryRaw<Array<{ generate_gapless_quotation_name: string }>>`
+    SELECT generate_gapless_quotation_name() as "generate_gapless_quotation_name"
+  `
   
-  // Get start of today
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  
-  // Find the last quotation created today with the same date prefix
-  // Use transaction client to ensure atomicity and prevent race conditions
-  // Order by id desc to get the most recent one (more reliable than created_at)
-  const lastQuotation = await tx.quotation.findFirst({
-    where: {
-      name: {
-        startsWith: `QUO-${datePrefix}`
-      },
-      created_at: {
-        gte: startOfDay
-      }
-    },
-    orderBy: {
-      id: 'desc' // Use id for more reliable ordering
-    },
-    select: {
-      name: true
-    }
-  })
-  
-  let nextNumber = 1
-  
-  if (lastQuotation) {
-    // Extract the number from the last quotation (last 3 digits)
-    const lastNumber = parseInt(lastQuotation.name.slice(-3))
-    if (!isNaN(lastNumber)) {
-      nextNumber = lastNumber + 1
-    }
+  if (!result || result.length === 0 || !result[0]?.generate_gapless_quotation_name) {
+    throw new Error("Failed to generate quotation number")
   }
   
-  // Format: QUO-YYYYMM###
-  return `QUO-${datePrefix}${String(nextNumber).padStart(3, '0')}`
+  return result[0].generate_gapless_quotation_name
 }
 
 export async function createQuotation(data: {

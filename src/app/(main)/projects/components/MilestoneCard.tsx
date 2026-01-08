@@ -212,9 +212,17 @@ export function MilestoneCard({
 
         {/* Due Date */}
         {milestone.dueDate && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Calendar className="w-3 h-3" />
-            <span>Due: {new Date(milestone.dueDate).toLocaleDateString()}</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-100 border border-amber-200">
+              <Calendar className="w-3.5 h-3.5 text-amber-700" />
+              <span className="text-xs font-medium text-amber-900">
+                Due: {new Date(milestone.dueDate).toLocaleDateString("en-UK", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
           </div>
         )}
       </CardContent>
