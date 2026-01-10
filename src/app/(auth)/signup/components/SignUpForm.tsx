@@ -22,14 +22,17 @@ import { useForm } from "react-hook-form";
 import { signUpSchema, SignUpValues } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PasswordInput } from "@/components/PasswordInput";
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import LoadingButton from "@/components/LoadingButton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string>("");
 
   const form = useForm<SignUpValues>({
     //make sure input is valid
@@ -44,8 +47,29 @@ export function SignupForm({
   });
 
   async function onSubmit(values: SignUpValues) {
+    setError("");
     startTransition(async () => {
-      await signup(values);
+      try {
+        const result = await signup(values);
+        
+        // If result is returned (not undefined), check for errors
+        if (result) {
+          if (!result.success) {
+            setError(result.error || "Failed to create account");
+          }
+          // If successful but no redirect happened, something went wrong
+          // (redirect should have been called in signup function)
+        }
+        // If no result returned, redirect happened successfully (NEXT_REDIRECT was thrown)
+      } catch (err: any) {
+        // Handle redirect errors - they should propagate, don't catch them
+        if (err?.digest?.startsWith('NEXT_REDIRECT')) {
+          // Re-throw redirect errors so Next.js can handle them
+          throw err;
+        }
+        // Only catch non-redirect errors
+        setError(err?.message || "An unexpected error occurred");
+      }
     });
   }
 
@@ -61,6 +85,12 @@ export function SignupForm({
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
               <div className="grid gap-6">
                 {/* First Name and Last Name Row */}
                 <div className="grid grid-cols-2 gap-4">

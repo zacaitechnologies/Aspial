@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   '/reset-password',
   '/auth/confirm',
   '/check-email',
+  '/email-confirmation',
 ];
 
 export async function middleware(request: NextRequest) {

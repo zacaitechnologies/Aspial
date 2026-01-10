@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { createClient } from "@/utils/supabase/server";
 import { loginSchema, LoginValues, signUpSchema, SignUpValues } from "./validation";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +19,18 @@ export async function login(formData: LoginValues) {
   const { error } = await supabase.auth.signInWithPassword(data);
 
   if (error) {
+    // Check if error is due to email not confirmed
+    const errorMessage = error.message?.toLowerCase() || "";
+    if (errorMessage.includes("email not confirmed") || 
+        errorMessage.includes("email not verified") ||
+        errorMessage.includes("email address not confirmed") ||
+        errorMessage.includes("email address not verified") ||
+        errorMessage.includes("confirm your email") ||
+        errorMessage.includes("verify your email") ||
+        (error.status === 400 && errorMessage.includes("confirm"))) {
+      // Redirect to email confirmation page with email as query param
+      redirect(`/email-confirmation?email=${encodeURIComponent(email)}`);
+    }
     return { success: false, error: error.message };
   }
 
@@ -31,7 +44,7 @@ export async function signup(formData: SignUpValues) {
     const { email, password, firstName, lastName } = signUpSchema.parse(formData);
     const supabase = await createClient();
 
-    // Create user in Supabase Auth
+    // Create user in Supabase Auth - wait for response
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
@@ -42,15 +55,61 @@ export async function signup(formData: SignUpValues) {
 
     if (error) {
       console.error("Supabase signup error:", error);
-      throw new Error(error.message || "Failed to create user account");
+      
+      // Handle duplicate email error from Supabase
+      if (error.message?.includes("already registered") || 
+          error.message?.includes("User already registered") ||
+          error.message?.includes("email address is already") ||
+          error.message?.includes("already exists") ||
+          error.message?.toLowerCase().includes("duplicate")) {
+        return {
+          success: false,
+          error: "This email is already registered. Please use a different email or sign in instead."
+        };
+      }
+      
+      // Generic error for other cases
+      return {
+        success: false,
+        error: "Something went wrong. Please try again later."
+      };
     }
 
     if (!data.user) {
       console.error("No user returned from Supabase");
-      throw new Error("Failed to create user account");
+      return {
+        success: false,
+        error: "Failed to create user account. Please try again."
+      };
     }
 
     const supabaseId = data.user.id;
+
+    // Check if this Supabase user already exists in our database
+    // (Supabase doesn't error on duplicate emails, so we need to check)
+    const existingUser = await prisma.user.findUnique({
+      where: { supabase_id: supabaseId }
+    });
+
+    // If user already exists, they're already registered
+    if (existingUser) {
+      return {
+        success: false,
+        error: "This email is already registered. Please sign in instead."
+      };
+    }
+
+    // Check if email is already used by a different account
+    const emailExists = await prisma.user.findFirst({
+      where: { email }
+    });
+
+    if (emailExists) {
+      return {
+        success: false,
+        error: "This email is already registered. Please use a different email or sign in instead."
+      };
+    }
 
     // Ensure admin role exists
     const adminRole = await prisma.role.upsert({
@@ -60,14 +119,8 @@ export async function signup(formData: SignUpValues) {
     });
 
     // Create user in Prisma database with admin role
-    const user = await prisma.user.upsert({
-      where: { supabase_id: supabaseId },
-      update: { 
-        firstName, 
-        lastName, 
-        email,
-      },
-      create: {
+    const user = await prisma.user.create({
+      data: {
         supabase_id: supabaseId,
         firstName,
         lastName,
@@ -109,10 +162,18 @@ export async function signup(formData: SignUpValues) {
     revalidatePath("/", "layout");
     redirect("/projects");
   } catch (error: any) {
+    // Handle redirect errors - don't catch them, let them propagate
+    if (isRedirectError(error)) {
+      throw error;
+    }
+    
     console.error("Signup error:", error);
-    // Redirect to error page with error message
-    const errorMessage = error?.message || "An error occurred during signup";
-    redirect(`/error?message=${encodeURIComponent(errorMessage)}`);
+    
+    // Return error instead of redirecting
+    return {
+      success: false,
+      error: error?.message || "An error occurred during signup. Please try again."
+    };
   }
 }
 
@@ -152,6 +213,44 @@ export async function sendPasswordReset(email: string) {
 
   if (error) {
     throw new Error(error.message);
+  }
+}
+
+export async function resendConfirmationEmail(email: string) {
+  try {
+    const supabase = await createClient();
+    
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/projects`
+      }
+    });
+
+    if (error) {
+      console.error("Error resending confirmation email:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to resend confirmation email. Please try again."
+      };
+    }
+
+    return {
+      success: true,
+      message: "Confirmation email sent successfully"
+    };
+  } catch (error: any) {
+    // Handle redirect errors
+    if (isRedirectError(error)) {
+      throw error;
+    }
+    
+    console.error("Error in resendConfirmationEmail:", error);
+    return {
+      success: false,
+      error: error?.message || "Something went wrong. Please try again later."
+    };
   }
 }
 
