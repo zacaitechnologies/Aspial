@@ -949,9 +949,17 @@ export async function getUserBanStatus(userId: string) {
       throw new Error(`Failed to get user status for userId=${userId}, supabase_id=${user.supabase_id}, email=${user.email || 'N/A'}: ${authError.message}`)
     }
 
+    if (!authUser?.user) {
+      return { isBanned: false }
+    }
+
     // Check if user is banned (banned_until is set and in the future)
-    const isBanned = authUser.user.banned_until 
-      ? new Date(authUser.user.banned_until) > new Date()
+    // Note: banned_until may not be in TypeScript types but exists at runtime
+    const userData = authUser.user as any
+    const bannedUntil = userData.banned_until as string | null | undefined
+    
+    const isBanned = bannedUntil 
+      ? new Date(bannedUntil) > new Date()
       : false
 
     return { isBanned }
