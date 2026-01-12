@@ -37,18 +37,11 @@ async function userMain() {
     //   roles: ['staff']
     // },
     {
-      firstName: 'Brian',
-      lastName: 'Bong',
-      email: 'bong7054@gmail.com',
-      supabase_id: '362c318d-6007-488b-ae53-78acc94670f1',
-      roles: ['staff']
-    },
-    {
       firstName: 'Super',
       lastName: 'User',
       email: 'twetingyau333@gmail.com',
       supabase_id: '78510265-c571-4ef8-a258-50eeb8375f62',
-      roles: ['staff']
+      roles: ['brand-advisor']
     },
     // {
     //   firstName: 'lulala',

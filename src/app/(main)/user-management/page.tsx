@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Trash2, Mail, User, Shield, Loader2, Edit, Key, Briefcase, Users, RefreshCw, AlertCircle } from "lucide-react"
+import { Plus, Trash2, Mail, User, Shield, Loader2, Edit, Key, Briefcase, Users, RefreshCw, AlertCircle, Ban, CheckCircle } from "lucide-react"
 import { 
   getUsersPaginated, 
   createUserAccount, 
@@ -38,6 +38,9 @@ import {
   getAllRoles,
   checkOrphanedAuthAccounts,
   linkOrphanedAccount,
+  banUser,
+  unbanUser,
+  getUserBanStatus,
   UserWithRole, 
   StaffRole 
 } from "./action"
@@ -117,6 +120,11 @@ export default function UserManagementPage() {
   const [linkError, setLinkError] = useState("")
   const [isLinking, setIsLinking] = useState(false)
 
+  // Ban/unban state
+  const [userBanStatuses, setUserBanStatuses] = useState<Record<string, boolean>>({})
+  const [isBanningUser, setIsBanningUser] = useState<string | null>(null)
+  const [isUnbanningUser, setIsUnbanningUser] = useState<string | null>(null)
+
   // Pagination for users
   const {
     data: users,
@@ -154,6 +162,31 @@ export default function UserManagementPage() {
       console.error("Failed to fetch roles:", error)
     }
   }, [])
+
+  const fetchUserBanStatuses = useCallback(async () => {
+    if (!users || users.length === 0) return
+    
+    try {
+      const statusPromises = users.map(async (user) => {
+        try {
+          const status = await getUserBanStatus(user.id)
+          return { userId: user.id, isBanned: status.isBanned }
+        } catch (error) {
+          console.error(`Failed to get ban status for user ${user.id}:`, error)
+          return { userId: user.id, isBanned: false }
+        }
+      })
+      
+      const statuses = await Promise.all(statusPromises)
+      const statusMap: Record<string, boolean> = {}
+      statuses.forEach(({ userId, isBanned }) => {
+        statusMap[userId] = isBanned
+      })
+      setUserBanStatuses(statusMap)
+    } catch (error) {
+      console.error("Error fetching user ban statuses:", error)
+    }
+  }, [users])
 
   const checkAdminAndFetchData = useCallback(async () => {
     if (!enhancedUser?.id) {
@@ -199,6 +232,12 @@ export default function UserManagementPage() {
   useEffect(() => {
     checkAdminAndFetchData()
   }, [checkAdminAndFetchData])
+
+  useEffect(() => {
+    if (users && users.length > 0) {
+      fetchUserBanStatuses()
+    }
+  }, [users, fetchUserBanStatuses])
 
   // Show access denied for operation users or non-admins
   if (isOperationUser === null) {
@@ -611,6 +650,70 @@ export default function UserManagementPage() {
     }
   }
 
+  const handleBanUser = async (userId: string) => {
+    setIsBanningUser(userId)
+    try {
+      const result = await banUser(userId)
+      
+      if (result.success) {
+        // Update local ban status
+        setUserBanStatuses(prev => ({ ...prev, [userId]: true }))
+        invalidateCache()
+        await refreshUsers()
+        toast({
+          title: "Success",
+          description: "User has been disabled.",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to disable user",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBanningUser(null)
+    }
+  }
+
+  const handleUnbanUser = async (userId: string) => {
+    setIsUnbanningUser(userId)
+    try {
+      const result = await unbanUser(userId)
+      
+      if (result.success) {
+        // Update local ban status
+        setUserBanStatuses(prev => ({ ...prev, [userId]: false }))
+        invalidateCache()
+        await refreshUsers()
+        toast({
+          title: "Success",
+          description: "User has been reactivated.",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to reactivate user",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUnbanningUser(null)
+    }
+  }
+
   if (!isAdmin) {
     return null
   }
@@ -867,14 +970,24 @@ export default function UserManagementPage() {
       {/* Users Grid with Loading Overlay */}
       <div className="relative">
         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
-        {users.map((user) => (
-          <Card key={user.id} className="card flex flex-col h-full">
+        {users.map((user) => {
+          const isBanned = userBanStatuses[user.id] || false
+          const isBanning = isBanningUser === user.id
+          const isUnbanning = isUnbanningUser === user.id
+          
+          return (
+          <Card key={user.id} className={`card flex flex-col h-full ${isBanned ? 'opacity-60 border-red-200' : ''}`}>
             <CardHeader>
               <div className="flex justify-between items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-lg flex items-center gap-2 mb-1">
                     <User className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                     <span className="line-clamp-2" title={`${user.firstName} ${user.lastName}`}>{user.firstName} {user.lastName}</span>
+                    {isBanned && (
+                      <Badge variant="destructive" className="ml-2">
+                        Disabled
+                      </Badge>
+                    )}
                   </CardTitle>
                   <CardDescription className="flex items-center gap-1 break-all">
                     <Mail className="w-3 h-3 flex-shrink-0" />
@@ -887,6 +1000,7 @@ export default function UserManagementPage() {
                     size="sm"
                     onClick={() => handleEditUser(user)}
                     title="Edit User"
+                    disabled={isBanned}
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
@@ -895,9 +1009,41 @@ export default function UserManagementPage() {
                     size="sm"
                     onClick={() => handleOpenPasswordDialog(user)}
                     title="Change Password"
+                    disabled={isBanned}
                   >
                     <Key className="w-4 h-4" />
                   </Button>
+                  {isBanned ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleUnbanUser(user.id)}
+                      title="Reactivate User"
+                      disabled={isUnbanning}
+                      className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                    >
+                      {isUnbanning ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4" />
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleBanUser(user.id)}
+                      title="Disable User"
+                      disabled={isBanning}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      {isBanning ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Ban className="w-4 h-4" />
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -927,7 +1073,8 @@ export default function UserManagementPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+          )
+        })}
         </div>
 
         {/* Loading Indicator */}

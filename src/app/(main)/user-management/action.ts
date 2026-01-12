@@ -820,3 +820,144 @@ export async function deleteStaffRole(roleId: string) {
   }
 }
 
+// Ban/disable a user in Supabase Auth
+export async function banUser(userId: string) {
+  // Validate admin access
+  const validation = await validateAdminUser()
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: validation.error
+    }
+  }
+
+  try {
+    // Get user to find supabase_id
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { supabase_id: true }
+    })
+
+    if (!user) {
+      throw new Error("User not found")
+    }
+
+    // Ban user in Supabase Auth (set ban_duration to a very large number, effectively permanent)
+    const supabase = createAdminClient()
+    const { error: authError } = await supabase.auth.admin.updateUserById(
+      user.supabase_id,
+      {
+        ban_duration: '876000h', // ~100 years, effectively permanent
+      }
+    )
+
+    if (authError) {
+      throw new Error(`Failed to ban user: ${authError.message}`)
+    }
+
+    // Clear role cache for banned user
+    await clearAdminCache(user.supabase_id)
+
+    revalidateTag("users", { expire: 0 })
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error banning user:", error)
+    return {
+      success: false,
+      error: error.message || "Failed to ban user"
+    }
+  }
+}
+
+// Unban/reactivate a user in Supabase Auth
+export async function unbanUser(userId: string) {
+  // Validate admin access
+  const validation = await validateAdminUser()
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: validation.error
+    }
+  }
+
+  try {
+    // Get user to find supabase_id
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { supabase_id: true }
+    })
+
+    if (!user) {
+      throw new Error("User not found")
+    }
+
+    // Unban user in Supabase Auth (set ban_duration to 'none')
+    const supabase = createAdminClient()
+    const { error: authError } = await supabase.auth.admin.updateUserById(
+      user.supabase_id,
+      {
+        ban_duration: 'none',
+      }
+    )
+
+    if (authError) {
+      throw new Error(`Failed to unban user: ${authError.message}`)
+    }
+
+    // Clear role cache for unbanned user
+    await clearAdminCache(user.supabase_id)
+
+    revalidateTag("users", { expire: 0 })
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error("Error unbanning user:", error)
+    return {
+      success: false,
+      error: error.message || "Failed to unban user"
+    }
+  }
+}
+
+// Get user ban status from Supabase Auth
+export async function getUserBanStatus(userId: string) {
+  // Validate admin access
+  const validation = await validateAdminUser()
+  if (!validation.valid) {
+    throw new Error(validation.error)
+  }
+
+  try {
+    // Get user to find supabase_id
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { supabase_id: true, email: true }
+    })
+
+    if (!user) {
+      throw new Error(`User not found in database: userId=${userId}`)
+    }
+
+    // Get user from Supabase Auth to check ban status
+    const supabase = createAdminClient()
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(
+      user.supabase_id
+    )
+
+    if (authError) {
+      throw new Error(`Failed to get user status for userId=${userId}, supabase_id=${user.supabase_id}, email=${user.email || 'N/A'}: ${authError.message}`)
+    }
+
+    // Check if user is banned (banned_until is set and in the future)
+    const isBanned = authUser.user.banned_until 
+      ? new Date(authUser.user.banned_until) > new Date()
+      : false
+
+    return { isBanned }
+  } catch (error: any) {
+    console.error(`Error getting user ban status for userId=${userId}:`, error)
+    throw error
+  }
+}
+
