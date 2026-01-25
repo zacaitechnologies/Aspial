@@ -192,6 +192,7 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 	const clientCompany = quotation.Client?.company || ''
 	const clientPhone = quotation.Client?.phone || ''
 	const clientEmail = quotation.Client?.email || ''
+	const clientCompanyRegistrationNumber = quotation.Client?.companyRegistrationNumber || ''
 	
 	// Prepare header data
 	const invoiceDate = formatDate(new Date(invoice.created_at))
@@ -246,6 +247,13 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		doc.text(`EMAIL: ${clientEmail}`, leftCol, leftY)
 	} else {
 		doc.text(`EMAIL :`, leftCol, leftY)
+	}
+	leftY += 5
+	
+	if (clientCompanyRegistrationNumber) {
+		doc.text(`REG NO: ${clientCompanyRegistrationNumber}`, leftCol, leftY)
+	} else {
+		doc.text(`REG NO :`, leftCol, leftY)
 	}
 	
 	// Right side - Invoice details (right-aligned)
@@ -661,6 +669,7 @@ export async function generateInvoicePDFBase64(invoice: InvoiceWithQuotation): P
 	const clientCompany = quotation.Client?.company || ''
 	const clientPhone = quotation.Client?.phone || ''
 	const clientEmail = quotation.Client?.email || ''
+	const clientCompanyRegistrationNumber = quotation.Client?.companyRegistrationNumber || ''
 	
 	const invoiceDate = formatDate(new Date(invoice.created_at))
 	
@@ -713,6 +722,13 @@ export async function generateInvoicePDFBase64(invoice: InvoiceWithQuotation): P
 		doc.text(`EMAIL: ${clientEmail}`, leftCol, leftY)
 	} else {
 		doc.text(`EMAIL :`, leftCol, leftY)
+	}
+	leftY += 5
+	
+	if (clientCompanyRegistrationNumber) {
+		doc.text(`REG NO: ${clientCompanyRegistrationNumber}`, leftCol, leftY)
+	} else {
+		doc.text(`REG NO :`, leftCol, leftY)
 	}
 	
 	// Right side - Invoice details

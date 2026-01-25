@@ -26,6 +26,7 @@ export type InvoiceWithQuotation = {
 			email: string
 			phone?: string
 			company?: string
+			companyRegistrationNumber?: string
 			address?: string
 			notes?: string
 			industry?: string

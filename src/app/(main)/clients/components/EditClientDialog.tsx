@@ -17,6 +17,7 @@ interface Client {
   email: string
   phone?: string
   company?: string
+  companyRegistrationNumber?: string
   address?: string
   notes?: string
   industry?: string
@@ -46,6 +47,7 @@ export default function EditClientDialog({
     email: "",
     phone: "",
     company: "",
+    companyRegistrationNumber: "",
     address: "",
     notes: "",
     industry: "",
@@ -60,6 +62,7 @@ export default function EditClientDialog({
         email: client.email,
         phone: client.phone || "",
         company: client.company || "",
+        companyRegistrationNumber: client.companyRegistrationNumber || "",
         address: client.address || "",
         notes: client.notes || "",
         industry: client.industry || "",
@@ -80,6 +83,7 @@ export default function EditClientDialog({
         email: formData.email,
         phone: formData.phone || undefined,
         company: formData.company || undefined,
+        companyRegistrationNumber: formData.companyRegistrationNumber || undefined,
         address: formData.address || undefined,
         notes: formData.notes || undefined,
         industry: formData.industry || undefined,
@@ -152,6 +156,15 @@ export default function EditClientDialog({
                 onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-companyRegistrationNumber">Company Registration Number <span className="text-red-500">*</span></Label>
+              <Input 
+                id="edit-companyRegistrationNumber" 
+                placeholder="e.g., 123456789" 
+                value={formData.companyRegistrationNumber}
+                onChange={(e) => setFormData(prev => ({ ...prev, companyRegistrationNumber: e.target.value }))}
+              />
+            </div>
             <div className="col-span-2 space-y-2">
               <Label htmlFor="edit-address">Address</Label>
               <Input 
@@ -211,7 +224,7 @@ export default function EditClientDialog({
               style={{ backgroundColor: "#202F21" }} 
               className="text-white"
               onClick={handleUpdateClient}
-              disabled={!formData.name || !formData.email || isUpdating}
+              disabled={!formData.name || !formData.email || !formData.companyRegistrationNumber || isUpdating}
             >
               {isUpdating ? (
                 <>

@@ -419,6 +419,7 @@ export async function createCustomerClient(data: {
   email: string
   phone?: string
   company?: string
+  companyRegistrationNumber?: string
   address?: string
   notes?: string
   industry?: string
@@ -449,6 +450,7 @@ export async function createCustomerClient(data: {
         email: data.email,
         phone: data.phone,
         company: data.company,
+        companyRegistrationNumber: data.companyRegistrationNumber,
         address: data.address,
         notes: data.notes,
         industry: data.industry,
@@ -473,6 +475,7 @@ export async function updateClient(id: string, data: {
   email?: string
   phone?: string
   company?: string
+  companyRegistrationNumber?: string
   address?: string
   notes?: string
   industry?: string
@@ -528,6 +531,7 @@ export async function updateClient(id: string, data: {
         email: data.email,
         phone: data.phone,
         company: data.company,
+        companyRegistrationNumber: data.companyRegistrationNumber,
         address: data.address,
         notes: data.notes,
         industry: data.industry,

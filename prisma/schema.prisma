@@ -36,53 +36,53 @@ model staffRole {
 }
 
 model User {
-  id                             String                    @id @default(cuid())
-  firstName                      String
-  lastName                       String
-  email                          String
-  supabase_id                    String                    @unique
-  profilePicture                 String?
-  created_at                     DateTime                  @default(now())
-  updated_at                     DateTime                  @default(now())
-  staffRoleId                    String?
-  staffRole                      staffRole?                @relation(fields: [staffRoleId], references: [id])
-  reviewedCustomServices         CustomService[]           @relation("CustomServiceReviewer")
-  createdCustomServices          CustomService[]           @relation("CustomServiceCreator")
-  sentInvitations                ProjectInvitation[]       @relation("ProjectInviter")
-  receivedInvitations            ProjectInvitation[]       @relation("ProjectInvitee")
-  projectPermissions             ProjectPermission[]
-  projects                       Project[]                 @relation("ProjectCreator")
-  quotations                     Quotation[]               @relation("QuotationCreator")
-  quotationEmails                QuotationEmail[]          @relation("QuotationEmailSender")
-  invoices                       Invoice[]                 @relation("InvoiceCreator")
-  invoiceEmails                  InvoiceEmail[]             @relation("InvoiceEmailSender")
-  receipts                       Receipt[]                 @relation("ReceiptCreator")
-  receiptEmails                  ReceiptEmail[]            @relation("ReceiptEmailSender")
-  appointmentBookingEmails       AppointmentBookingEmail[] @relation("AppointmentBookingEmailSender")
-  tasksAssigned                  Task[]                    @relation("TaskAssignee")
-  assignedTasks                  Task[]                    @relation("TaskCreator")
-  timeEntries                    TimeEntry[]
-  userRoles                      UserRole[]
-  complaints                     Complaint[]
-  tierSelections                 TierSelection[]
-  contracts                      Contract[]
-  createdClients                 Client[]                  @relation("ClientCreator")
+  id                       String                    @id @default(cuid())
+  firstName                String
+  lastName                 String
+  email                    String
+  supabase_id              String                    @unique
+  profilePicture           String?
+  created_at               DateTime                  @default(now())
+  updated_at               DateTime                  @default(now())
+  staffRoleId              String?
+  staffRole                staffRole?                @relation(fields: [staffRoleId], references: [id])
+  reviewedCustomServices   CustomService[]           @relation("CustomServiceReviewer")
+  createdCustomServices    CustomService[]           @relation("CustomServiceCreator")
+  sentInvitations          ProjectInvitation[]       @relation("ProjectInviter")
+  receivedInvitations      ProjectInvitation[]       @relation("ProjectInvitee")
+  projectPermissions       ProjectPermission[]
+  projects                 Project[]                 @relation("ProjectCreator")
+  quotations               Quotation[]               @relation("QuotationCreator")
+  quotationEmails          QuotationEmail[]          @relation("QuotationEmailSender")
+  invoices                 Invoice[]                 @relation("InvoiceCreator")
+  invoiceEmails            InvoiceEmail[]            @relation("InvoiceEmailSender")
+  receipts                 Receipt[]                 @relation("ReceiptCreator")
+  receiptEmails            ReceiptEmail[]            @relation("ReceiptEmailSender")
+  appointmentBookingEmails AppointmentBookingEmail[] @relation("AppointmentBookingEmailSender")
+  tasksAssigned            Task[]                    @relation("TaskAssignee")
+  assignedTasks            Task[]                    @relation("TaskCreator")
+  timeEntries              TimeEntry[]
+  userRoles                UserRole[]
+  complaints               Complaint[]
+  tierSelections           TierSelection[]
+  contracts                Contract[]
+  createdClients           Client[]                  @relation("ClientCreator")
 
   @@index([supabase_id])
   @@map("user")
 }
 
 model Complaint {
-  id         Int             @id @default(autoincrement())
-  date       DateTime        @default(now())
+  id         Int      @id @default(autoincrement())
+  date       DateTime @default(now())
   customer   String
   reason     String
   userId     String
   projectId  Int?
-  user       User            @relation(fields: [userId], references: [id])
-  project    Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  created_at DateTime        @default(now())
-  updated_at DateTime        @updatedAt
+  user       User     @relation(fields: [userId], references: [id])
+  project    Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@map("complaints")
 }
@@ -147,29 +147,29 @@ model QuotationCounter {
 }
 
 model QuotationEmail {
-  id          Int       @id @default(autoincrement())
-  quotationId Int
-  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  id             Int       @id @default(autoincrement())
+  quotationId    Int
+  quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   recipientEmail String
-  sentAt       DateTime  @default(now())
-  sentById    String
-  sentBy       User      @relation("QuotationEmailSender", fields: [sentById], references: [supabase_id])
+  sentAt         DateTime  @default(now())
+  sentById       String
+  sentBy         User      @relation("QuotationEmailSender", fields: [sentById], references: [supabase_id])
 
   @@map("quotation_emails")
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
+  id            String         @id @default(cuid())
+  invoiceNumber String         @unique
   type          InvoiceType
   quotationId   Int
   amount        Float
   createdById   String
-  status        InvoiceStatus @default(active)
-  created_at    DateTime      @default(now())
-  updated_at    DateTime      @default(now())
-  quotation     Quotation     @relation(fields: [quotationId], references: [id], onDelete: Restrict)
-  createdBy     User          @relation("InvoiceCreator", fields: [createdById], references: [supabase_id])
+  status        InvoiceStatus  @default(active)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @default(now())
+  quotation     Quotation      @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  createdBy     User           @relation("InvoiceCreator", fields: [createdById], references: [supabase_id])
   invoiceEmails InvoiceEmail[]
   receipts      Receipt[]
 
@@ -181,28 +181,28 @@ model Invoice {
 }
 
 model InvoiceEmail {
-  id            Int       @id @default(autoincrement())
-  invoiceId     String
-  invoice       Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  id             Int      @id @default(autoincrement())
+  invoiceId      String
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   recipientEmail String
-  sentAt        DateTime  @default(now())
-  sentById      String
-  sentBy        User      @relation("InvoiceEmailSender", fields: [sentById], references: [supabase_id])
+  sentAt         DateTime @default(now())
+  sentById       String
+  sentBy         User     @relation("InvoiceEmailSender", fields: [sentById], references: [supabase_id])
 
   @@map("invoice_emails")
 }
 
 model Receipt {
-  id            String        @id @default(cuid())
-  receiptNumber String        @unique
+  id            String         @id @default(cuid())
+  receiptNumber String         @unique
   invoiceId     String
   amount        Float
   createdById   String
-  status        ReceiptStatus @default(active)
-  created_at    DateTime      @default(now())
-  updated_at    DateTime      @default(now())
-  invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  createdBy     User          @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
+  status        ReceiptStatus  @default(active)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @default(now())
+  invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  createdBy     User           @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
   receiptEmails ReceiptEmail[]
 
   @@index([invoiceId])
@@ -212,13 +212,13 @@ model Receipt {
 }
 
 model ReceiptEmail {
-  id            Int       @id @default(autoincrement())
-  receiptId     String
-  receipt       Receipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  id             Int      @id @default(autoincrement())
+  receiptId      String
+  receipt        Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   recipientEmail String
-  sentAt        DateTime  @default(now())
-  sentById      String
-  sentBy        User      @relation("ReceiptEmailSender", fields: [sentById], references: [supabase_id])
+  sentAt         DateTime @default(now())
+  sentById       String
+  sentBy         User     @relation("ReceiptEmailSender", fields: [sentById], references: [supabase_id])
 
   @@map("receipt_emails")
 }
@@ -282,24 +282,24 @@ model CustomService {
 }
 
 model Project {
-  id            Int                 @id @default(autoincrement())
+  id            Int                  @id @default(autoincrement())
   name          String
   description   String?
-  status        ProjectStatus       @default(planning)
+  status        ProjectStatus        @default(planning)
   startDate     DateTime
   endDate       DateTime
-  created_at    DateTime               @default(now())
-  updated_at    DateTime               @default(now())
+  created_at    DateTime             @default(now())
+  updated_at    DateTime             @default(now())
   createdBy     String
   clientId      String
   clientName    String
-  appointments  AppointmentBooking[]   @relation("AppointmentBookingProject")
+  appointments  AppointmentBooking[] @relation("AppointmentBookingProject")
   milestones    Milestone[]
   invitations   ProjectInvitation[]
   permissions   ProjectPermission[]
   contracts     Contract[]
-  Client        Client                 @relation(fields: [clientId], references: [id])
-  createdByUser User                   @relation("ProjectCreator", fields: [createdBy], references: [supabase_id])
+  Client        Client               @relation(fields: [clientId], references: [id])
+  createdByUser User                 @relation("ProjectCreator", fields: [createdBy], references: [supabase_id])
   quotations    Quotation[]
   tasks         Task[]
   timeEntries   TimeEntry[]
@@ -338,49 +338,50 @@ model ProjectPermission {
 }
 
 model Client {
-  id             String         @id @default(cuid())
-  name           String
-  email          String         @unique
-  phone          String?
-  company        String?
-  address        String?
-  notes          String?
-  created_at     DateTime       @default(now())
-  updated_at     DateTime       @default(now())
-  industry       String?
-  membershipType MembershipType @default(NON_MEMBER)
-  yearlyRevenue  Float?
-  createdById    String
-  createdBy      User            @relation("ClientCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  projects       Project[]
-  quotations     Quotation[]
+  id                        String         @id @default(cuid())
+  name                      String
+  email                     String         @unique
+  phone                     String?
+  company                   String?
+  companyRegistrationNumber String?
+  address                   String?
+  notes                     String?
+  created_at                DateTime       @default(now())
+  updated_at                DateTime       @default(now())
+  industry                  String?
+  membershipType            MembershipType @default(NON_MEMBER)
+  yearlyRevenue             Float?
+  createdById               String
+  createdBy                 User           @relation("ClientCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  projects                  Project[]
+  quotations                Quotation[]
 
   @@map("clients")
 }
 
 model Appointment {
-  id              Int                   @id @default(autoincrement())
+  id              Int                  @id @default(autoincrement())
   name            String
   location        String?
   brand           String?
   description     String?
-  appointmentType AppointmentType       @default(OTHERS)
-  isAvailable     Boolean               @default(true)
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  appointmentType AppointmentType      @default(OTHERS)
+  isAvailable     Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
   bookings        AppointmentBooking[]
 
   @@map("appointments")
 }
 
 model AppointmentBooking {
-  id              Int                      @id @default(autoincrement())
+  id              Int                          @id @default(autoincrement())
   bookedBy        String
   startDate       DateTime
   endDate         DateTime
   purpose         String?
-  appointmentType AppointmentType          @default(OTHERS)
-  status          String                   @default("active")
+  appointmentType AppointmentType              @default(OTHERS)
+  status          String                       @default("active")
   projectId       Int?
   appointmentId   Int?
   attendees       Int?
@@ -388,10 +389,10 @@ model AppointmentBooking {
   companyName     String?
   contactNumber   String?
   remarks         String?
-  createdAt       DateTime                 @default(now())
-  updatedAt       DateTime                 @updatedAt
-  appointment     Appointment?             @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  project         Project?                 @relation("AppointmentBookingProject", fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  appointment     Appointment?                 @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  project         Project?                     @relation("AppointmentBookingProject", fields: [projectId], references: [id], onDelete: SetNull)
   bookingEmails   AppointmentBookingEmail[]
   reminders       AppointmentBookingReminder[]
 
@@ -399,14 +400,14 @@ model AppointmentBooking {
 }
 
 model AppointmentBookingEmail {
-  id                Int               @id @default(autoincrement())
+  id                   Int                @id @default(autoincrement())
   appointmentBookingId Int
-  appointmentBooking AppointmentBooking @relation(fields: [appointmentBookingId], references: [id], onDelete: Cascade)
-  recipientEmail    String
-  sentAt            DateTime          @default(now())
-  sentById          String?
-  sentBy            User?             @relation("AppointmentBookingEmailSender", fields: [sentById], references: [supabase_id])
-  isAutomated       Boolean           @default(false) // true for automated reminders, false for manual
+  appointmentBooking   AppointmentBooking @relation(fields: [appointmentBookingId], references: [id], onDelete: Cascade)
+  recipientEmail       String
+  sentAt               DateTime           @default(now())
+  sentById             String?
+  sentBy               User?              @relation("AppointmentBookingEmailSender", fields: [sentById], references: [supabase_id])
+  isAutomated          Boolean            @default(false) // true for automated reminders, false for manual
 
   @@map("appointment_booking_emails")
 }
@@ -419,19 +420,19 @@ enum ReminderStatus {
 }
 
 model AppointmentBookingReminder {
-  id                  Int                 @id @default(autoincrement())
+  id                   Int                @id @default(autoincrement())
   appointmentBookingId Int
-  appointmentBooking AppointmentBooking   @relation(fields: [appointmentBookingId], references: [id], onDelete: Cascade)
-  offsetMinutes       Int                 // Minutes before startDate (e.g., 60 for 1 hour, 2880 for 48 hours)
-  recipientEmail      String              // Email address to send reminder to
-  remindAt             DateTime            // Computed: startDate - offsetMinutes
-  status               ReminderStatus      @default(PENDING)
+  appointmentBooking   AppointmentBooking @relation(fields: [appointmentBookingId], references: [id], onDelete: Cascade)
+  offsetMinutes        Int // Minutes before startDate (e.g., 60 for 1 hour, 2880 for 48 hours)
+  recipientEmail       String // Email address to send reminder to
+  remindAt             DateTime // Computed: startDate - offsetMinutes
+  status               ReminderStatus     @default(PENDING)
   sentAt               DateTime?
   lastAttemptAt        DateTime?
-  attemptCount         Int                 @default(0)
+  attemptCount         Int                @default(0)
   lastError            String?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   @@unique([appointmentBookingId, offsetMinutes, recipientEmail])
   @@index([status])
@@ -596,33 +597,32 @@ enum AppointmentType {
 }
 
 model TierSelection {
-  id             String      @id @default(cuid())
-  userId         String
-  year           Int
-  tier           BenefitTier
-  customTarget   Int?        // Custom monthly target for Tier 1 (50k-70k)
-  selectedAt     DateTime    @default(now())
-  adminOverride  Boolean     @default(false)
-  adminNote      String?
-  created_at     DateTime    @default(now())
-  updated_at     DateTime    @updatedAt
-  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String      @id @default(cuid())
+  userId        String
+  year          Int
+  tier          BenefitTier
+  customTarget  Int? // Custom monthly target for Tier 1 (50k-70k)
+  selectedAt    DateTime    @default(now())
+  adminOverride Boolean     @default(false)
+  adminNote     String?
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, year])
   @@map("tier_selections")
 }
 
 model Contract {
-  id          String   @id @default(cuid())
-  projectId   Int
-  fileName    String
-  filePath    String
-  uploadedBy  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  uploader    User     @relation(fields: [uploadedBy], references: [supabase_id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  projectId  Int
+  fileName   String
+  filePath   String
+  uploadedBy String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader   User     @relation(fields: [uploadedBy], references: [supabase_id], onDelete: Cascade)
 
   @@map("contracts")
 }
-

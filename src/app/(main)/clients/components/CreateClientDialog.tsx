@@ -23,6 +23,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
     email: "",
     phone: "",
     company: "",
+    companyRegistrationNumber: "",
     address: "",
     notes: "",
     industry: "",
@@ -40,6 +41,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
         email: formData.email,
         phone: formData.phone || undefined,
         company: formData.company || undefined,
+        companyRegistrationNumber: formData.companyRegistrationNumber || undefined,
         address: formData.address || undefined,
         notes: formData.notes || undefined,
         industry: formData.industry || undefined,
@@ -53,6 +55,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
         email: "",
         phone: "",
         company: "",
+        companyRegistrationNumber: "",
         address: "",
         notes: "",
         industry: "",
@@ -80,6 +83,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
       email: "",
       phone: "",
       company: "",
+      companyRegistrationNumber: "",
       address: "",
       notes: "",
       industry: "",
@@ -137,6 +141,15 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
               placeholder="Company Name" 
               value={formData.company}
               onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="companyRegistrationNumber">Company Registration Number <span className="text-red-500">*</span></Label>
+            <Input 
+              id="companyRegistrationNumber" 
+              placeholder="e.g., 123456789" 
+              value={formData.companyRegistrationNumber}
+              onChange={(e) => setFormData(prev => ({ ...prev, companyRegistrationNumber: e.target.value }))}
             />
           </div>
           <div className="col-span-2 space-y-2">
@@ -197,7 +210,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
             style={{ backgroundColor: "#202F21" }} 
             className="text-white"
             onClick={handleCreateClient}
-            disabled={!formData.name || !formData.email || isCreating}
+            disabled={!formData.name || !formData.email || !formData.companyRegistrationNumber || isCreating}
           >
             {isCreating ? (
               <>
