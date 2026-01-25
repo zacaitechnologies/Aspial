@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
 		let successCount = 0
 		let failureCount = 0
 
-		// Process each reminder
+		// Process each reminder (each reminder is now one row per email)
 		for (const reminder of reminders) {
 			const booking = reminder.appointment_bookings
 			
@@ -245,6 +245,8 @@ Deno.serve(async (req) => {
 					hour12: true
 				})
 
+				const clientName = client?.name || booking.projects?.clientName || 'Valued Client'
+
 				// Email template (same as confirmation, but with "Reminder" subject)
 				const emailHtml = `
 <!DOCTYPE html>
@@ -272,7 +274,7 @@ Deno.serve(async (req) => {
               <h2 style="margin: 0 0 20px 0; color: #202F21; font-size: 24px; font-weight: 600;">Appointment Reminder</h2>
               
               <p style="margin: 0 0 20px 0; color: #202F21; font-size: 16px;">
-                Dear ${client?.name || booking.projects?.clientName || 'Valued Client'},
+                Dear ${clientName},
               </p>
               
               <p style="margin: 0 0 20px 0; color: #202F21; font-size: 16px;">
@@ -315,7 +317,7 @@ Deno.serve(async (req) => {
 </html>
 				`
 
-				// Send email
+				// Send email (each reminder row is for one email)
 				const emailResult = await resend.emails.send({
 					from: 'Aspial Production <appointments@aspialwork.com>',
 					to: [clientEmail],
@@ -334,7 +336,6 @@ Deno.serve(async (req) => {
 					.eq('id', reminder.id)
 
 				// Log email in appointment_booking_emails (sentById = null for system, isAutomated = true)
-				// IMPORTANT: Column names must match database exactly (camelCase)
 				const emailInsertData = {
 					appointmentBookingId: booking.id,
 					recipientEmail: clientEmail,

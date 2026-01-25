@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, Mail, User, Building2, Mail as MailIcon } from "lucide-react"
 import { getAppointmentBookingWithDetails, sendAppointmentReminder } from "../actions"
+import type { AppointmentBookingWithDetails } from "../types"
 import { format } from "date-fns"
 import { toast } from "@/components/ui/use-toast"
 
@@ -34,7 +35,7 @@ export default function SendAppointmentReminderDialog({
 	const [isSending, setIsSending] = useState(false)
 	const [clientEmail, setClientEmail] = useState("")
 	const [error, setError] = useState<string | null>(null)
-	const [bookingDetails, setBookingDetails] = useState<any>(null)
+	const [bookingDetails, setBookingDetails] = useState<AppointmentBookingWithDetails | null>(null)
 
 	useEffect(() => {
 		if (isOpen && appointmentBookingId) {
@@ -109,12 +110,13 @@ export default function SendAppointmentReminderDialog({
 				description: "Reminder email sent successfully",
 			})
 			// Don't close dialog or call onSuccess - just show toast
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error("Error sending reminder:", error)
-			setError(error.message || "Failed to send reminder email")
+			const errorMessage = error instanceof Error ? error.message : "Failed to send reminder email"
+			setError(errorMessage)
 			toast({
 				title: "Failed",
-				description: error.message || "Failed to send reminder email",
+				description: errorMessage,
 				variant: "destructive",
 			})
 		} finally {

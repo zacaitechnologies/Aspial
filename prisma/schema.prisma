@@ -384,9 +384,13 @@ model AppointmentBooking {
   projectId       Int?
   appointmentId   Int?
   attendees       Int?
+  bookingName     String?
+  companyName     String?
+  contactNumber   String?
+  remarks         String?
   createdAt       DateTime                 @default(now())
   updatedAt       DateTime                 @updatedAt
-  appointment     Appointment?            @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  appointment     Appointment?             @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   project         Project?                 @relation("AppointmentBookingProject", fields: [projectId], references: [id], onDelete: SetNull)
   bookingEmails   AppointmentBookingEmail[]
   reminders       AppointmentBookingReminder[]
@@ -429,7 +433,7 @@ model AppointmentBookingReminder {
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
-  @@unique([appointmentBookingId, offsetMinutes])
+  @@unique([appointmentBookingId, offsetMinutes, recipientEmail])
   @@index([status])
   @@index([remindAt, status])
   @@map("appointment_booking_reminders")

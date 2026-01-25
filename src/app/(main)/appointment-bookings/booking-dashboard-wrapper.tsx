@@ -10,17 +10,6 @@ const BookingDashboard = dynamic(
 	}
 )
 
-interface Appointment {
-	id: number
-	name: string
-	location: string | null
-	brand: string | null
-	description: string | null
-	appointmentType: string
-	isAvailable: boolean
-	bookings?: any[]
-}
-
 interface AppointmentBooking {
 	id: number
 	bookedBy: string
@@ -32,16 +21,27 @@ interface AppointmentBooking {
 	appointmentId: number | null
 	attendees: number | null
 	appointment?: {
-	id: number
-	name: string
+		id: number
+		name: string
 		location: string | null
-	brand: string | null
+		brand: string | null
 	} | null
 	project?: {
 		id: number
 		name: string
 		clientName: string | null
 	} | null
+}
+
+interface Appointment {
+	id: number
+	name: string
+	location: string | null
+	brand: string | null
+	description: string | null
+	appointmentType: string
+	isAvailable: boolean
+	bookings?: AppointmentBooking[]
 }
 
 interface BookingDashboardWrapperProps {
@@ -54,4 +54,3 @@ interface BookingDashboardWrapperProps {
 export function BookingDashboardWrapper(props: BookingDashboardWrapperProps) {
 	return <BookingDashboard {...props} />
 }
-

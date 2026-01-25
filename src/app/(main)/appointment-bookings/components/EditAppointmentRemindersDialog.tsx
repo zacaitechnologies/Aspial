@@ -13,9 +13,10 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Loader2, Bell, Trash2, Edit2, Check, X } from "lucide-react"
-import { getRemindersForBooking, updateBookingReminders, getAppointmentBookingWithDetails, deleteReminder, updateReminderEmail } from "../actions"
+import { getRemindersForBooking, updateBookingReminders, getAppointmentBookingWithDetails, deleteReminder, updateReminderEmail, getProjectUsersEmails } from "../actions"
 import { format, subMinutes, isPast as isDatePast } from "date-fns"
 import { toast } from "@/components/ui/use-toast"
+import { EmailListInput } from "./EmailListInput"
 
 interface EditAppointmentRemindersDialogProps {
 	isOpen: boolean
@@ -36,16 +37,19 @@ export default function EditAppointmentRemindersDialog({
 	const [allReminders, setAllReminders] = useState<Array<{
 		id: number
 		offsetMinutes: number
-		recipientEmail: string
+		recipientEmail: string // Keep for backward compatibility
+		recipientEmails: string[] // New field with all emails
 		remindAt: Date
 		status: string
 		sentAt: Date | null
 	}>>([])
 	const [editingReminderId, setEditingReminderId] = useState<number | null>(null)
-	const [editingEmail, setEditingEmail] = useState<string>("")
+	const [editingEmails, setEditingEmails] = useState<string[]>([])
 	const [bookingStartDate, setBookingStartDate] = useState<Date | null>(null)
 	const [defaultEmail, setDefaultEmail] = useState<string>("")
-	const [newReminders, setNewReminders] = useState<Array<{ offsetMinutes: number; recipientEmail: string }>>([])
+	const [projectId, setProjectId] = useState<number | null>(null)
+	const [allProjectEmails, setAllProjectEmails] = useState<string[]>([])
+	const [newReminders, setNewReminders] = useState<Array<{ offsetMinutes: number; recipientEmails: string[] }>>([])
 	const [isAddingNew, setIsAddingNew] = useState(false)
 
 	useEffect(() => {
@@ -57,8 +61,10 @@ export default function EditAppointmentRemindersDialog({
 			setError(null)
 			setBookingStartDate(null)
 			setDefaultEmail("")
+			setProjectId(null)
+			setAllProjectEmails([])
 			setEditingReminderId(null)
-			setEditingEmail("")
+			setEditingEmails([])
 			setNewReminders([])
 			setIsAddingNew(false)
 		}
@@ -72,20 +78,36 @@ export default function EditAppointmentRemindersDialog({
 			const booking = await getAppointmentBookingWithDetails(appointmentBookingId)
 			if (booking) {
 				setBookingStartDate(new Date(booking.startDate))
-				const email = booking.project?.Client?.email || ""
-				setDefaultEmail(email)
+				const clientEmail = booking.project?.Client?.email || ""
+				setDefaultEmail(clientEmail)
+				
+				// Get project ID and fetch all project emails (client + users)
+				if (booking.project?.id) {
+					setProjectId(booking.project.id)
+					try {
+						const projectUserEmails = await getProjectUsersEmails(booking.project.id)
+						const allEmails = new Set([clientEmail, ...projectUserEmails].filter(Boolean))
+						setAllProjectEmails(Array.from(allEmails))
+					} catch (error) {
+						console.error("Error fetching project users emails:", error)
+						setAllProjectEmails(clientEmail ? [clientEmail] : [])
+					}
+				} else {
+					setAllProjectEmails(clientEmail ? [clientEmail] : [])
+				}
 			}
 
-			const reminderData = await getRemindersForBooking(appointmentBookingId)
-			// Show all reminders, not just pending
-			setAllReminders(reminderData.map(r => ({
-				id: r.id,
-				offsetMinutes: r.offsetMinutes,
-				recipientEmail: r.recipientEmail || defaultEmail,
-				remindAt: new Date(r.remindAt),
-				status: r.status,
-				sentAt: r.sentAt ? new Date(r.sentAt) : null,
-			})))
+		const reminderData = await getRemindersForBooking(appointmentBookingId)
+		// Show all reminders, not just pending
+		setAllReminders(reminderData.map(r => ({
+			id: r.id,
+			offsetMinutes: r.offsetMinutes,
+			recipientEmail: r.recipientEmail || defaultEmail,
+			recipientEmails: (r as { recipientEmails?: string[] }).recipientEmails || [r.recipientEmail || defaultEmail].filter(Boolean),
+			remindAt: new Date(r.remindAt),
+			status: r.status,
+			sentAt: r.sentAt ? new Date(r.sentAt) : null,
+		})))
 		} catch (error) {
 			console.error("Error loading reminders:", error)
 			setError("Failed to load reminders")
@@ -117,12 +139,13 @@ export default function EditAppointmentRemindersDialog({
 					description: "Reminder deleted successfully",
 				})
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error("Error deleting reminder:", error)
-			setError(error.message || "Failed to delete reminder")
+			const errorMessage = error instanceof Error ? error.message : "Failed to delete reminder"
+			setError(errorMessage)
 			toast({
 				title: "Error",
-				description: error.message || "Failed to delete reminder",
+				description: errorMessage,
 				variant: "destructive",
 			})
 		} finally {
@@ -132,46 +155,53 @@ export default function EditAppointmentRemindersDialog({
 
 	const handleStartEdit = (reminder: typeof allReminders[0]) => {
 		setEditingReminderId(reminder.id)
-		setEditingEmail(reminder.recipientEmail)
+		setEditingEmails(reminder.recipientEmails.length > 0 ? reminder.recipientEmails : [reminder.recipientEmail].filter(Boolean))
 	}
 
 	const handleCancelEdit = () => {
 		setEditingReminderId(null)
-		setEditingEmail("")
+		setEditingEmails([])
 	}
 
 	const handleSaveEdit = async (reminderId: number) => {
-		if (!editingEmail || !/\S+@\S+\.\S+/.test(editingEmail)) {
-			setError("Please enter a valid email address")
+		// Validate emails
+		const validEmails = editingEmails.filter(e => {
+			const trimmed = e.trim()
+			return trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+		})
+		
+		if (validEmails.length === 0) {
+			setError("At least one valid email address is required")
 			return
 		}
 
 		setIsSaving(true)
 		setError(null)
 		try {
-			const result = await updateReminderEmail(reminderId, editingEmail)
+			const result = await updateReminderEmail(reminderId, validEmails)
 			if (!result.success) {
-				setError(result.error || "Failed to update reminder email")
+				setError(result.error || "Failed to update reminder emails")
 				toast({
 					title: "Error",
-					description: result.error || "Failed to update reminder email",
+					description: result.error || "Failed to update reminder emails",
 					variant: "destructive",
 				})
 			} else {
 				setEditingReminderId(null)
-				setEditingEmail("")
+				setEditingEmails([])
 				await loadReminders()
 				toast({
 					title: "Success",
-					description: "Reminder email updated successfully",
+					description: "Reminder emails updated successfully",
 				})
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error("Error updating reminder:", error)
-			setError(error.message || "Failed to update reminder")
+			const errorMessage = error instanceof Error ? error.message : "Failed to update reminder"
+			setError(errorMessage)
 			toast({
 				title: "Error",
-				description: error.message || "Failed to update reminder",
+				description: errorMessage,
 				variant: "destructive",
 			})
 		} finally {
@@ -199,10 +229,14 @@ export default function EditAppointmentRemindersDialog({
 			return
 		}
 
-		// Validate all new reminders
+		// Validate all new reminders have at least one valid email
 		for (const reminder of newReminders) {
-			if (!reminder.recipientEmail || !/\S+@\S+\.\S+/.test(reminder.recipientEmail)) {
-				setError(`Please enter a valid email address for the ${reminder.offsetMinutes / 60} hour reminder`)
+			const validEmails = reminder.recipientEmails.filter(e => {
+				const trimmed = e.trim()
+				return trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+			})
+			if (validEmails.length === 0) {
+				setError(`Please enter at least one valid email address for the ${reminder.offsetMinutes / 60} hour reminder`)
 				return
 			}
 		}
@@ -232,12 +266,13 @@ export default function EditAppointmentRemindersDialog({
 					description: `Successfully scheduled ${newReminders.length} reminder${newReminders.length !== 1 ? 's' : ''}`,
 				})
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error("Error adding reminders:", error)
-			setError(error.message || "Failed to add reminders")
+			const errorMessage = error instanceof Error ? error.message : "Failed to add reminders"
+			setError(errorMessage)
 			toast({
 				title: "Error",
-				description: error.message || "Failed to add reminders",
+				description: errorMessage,
 				variant: "destructive",
 			})
 		} finally {
@@ -343,7 +378,9 @@ export default function EditAppointmentRemindersDialog({
 														if (isSelectedInNew) {
 															setNewReminders(newReminders.filter(r => r.offsetMinutes !== minutes))
 														} else {
-															setNewReminders([...newReminders, { offsetMinutes: minutes, recipientEmail: defaultEmail }])
+															// Auto-fill with all project emails (client + users) if available, otherwise use default email
+															const emailsToUse = allProjectEmails.length > 0 ? allProjectEmails : (defaultEmail ? [defaultEmail] : [""])
+															setNewReminders([...newReminders, { offsetMinutes: minutes, recipientEmails: emailsToUse }])
 														}
 													}}
 													className="text-xs"
@@ -405,16 +442,15 @@ export default function EditAppointmentRemindersDialog({
 																	×
 																</Button>
 															</div>
-															<Input
-																type="email"
-																value={reminder.recipientEmail}
-																onChange={(e) => {
+															<EmailListInput
+																emails={reminder.recipientEmails}
+																onChange={(emails) => {
 																	const updated = [...newReminders]
-																	updated[index].recipientEmail = e.target.value
+																	updated[index].recipientEmails = emails
 																	setNewReminders(updated)
 																}}
-																placeholder="Email address"
-																className="h-8 text-xs"
+																required
+																className="mt-2"
 															/>
 														</div>
 													)
@@ -540,17 +576,25 @@ export default function EditAppointmentRemindersDialog({
 														</div>
 													</div>
 													{isEditing ? (
-														<Input
-															type="email"
-															value={editingEmail}
-															onChange={(e) => setEditingEmail(e.target.value)}
-															placeholder="Email address"
-															className="h-8 text-xs"
+														<EmailListInput
+															emails={editingEmails}
+															onChange={setEditingEmails}
+															required
+															className="mt-2"
 														/>
 													) : (
-														<p className="text-xs text-muted-foreground">
-															Email: {reminder.recipientEmail}
-														</p>
+														<div className="text-xs text-muted-foreground">
+															<p className="font-medium mb-1">Recipients:</p>
+															{reminder.recipientEmails.length > 0 ? (
+																<ul className="list-disc list-inside space-y-0.5">
+																	{reminder.recipientEmails.map((email, idx) => (
+																		<li key={idx}>{email}</li>
+																	))}
+																</ul>
+															) : (
+																<p>Email: {reminder.recipientEmail}</p>
+															)}
+														</div>
 													)}
 													{isPast && (
 														<p className="text-xs text-red-600 font-medium">

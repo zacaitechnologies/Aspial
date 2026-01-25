@@ -101,6 +101,7 @@ async function _getBookingsInternal() {
 							id: true,
 							name: true,
 							email: true,
+							phone: true,
 							company: true,
 						},
 					},
@@ -173,7 +174,7 @@ async function getUserWithRole() {
 			isAdmin,
 			userId: user.id
 		}
-	} catch (error: any) {
+	} catch (error: unknown) {
 		// Handle redirect errors - must re-throw them
 		if (isRedirectError(error)) throw error;
 		console.error("Error in getUserWithRole:", error)
@@ -193,22 +194,39 @@ async function getUserProjectIds(userId: string) {
 }
 
 export default async function AdminPage() {
+	// Fetch all data in parallel including userProjectIds
 	const [appointments, bookings, userData] = await Promise.all([
 		getAppointments(), 
 		getBookings(),
 		getUserWithRole()
 	])
 
+	// Fetch userProjectIds in parallel with other operations
 	const userProjectIds = await getUserProjectIds(userData.userId)
+
+	// Safety checks: ensure arrays are always defined and handle null/undefined
+	const safeAppointments = (appointments && Array.isArray(appointments)) ? appointments : []
+	const safeBookings = (bookings && Array.isArray(bookings)) ? bookings.map(booking => {
+		// Type assertion: Prisma includes reminders in the query, but TypeScript doesn't infer it
+		const bookingWithReminders = booking as typeof booking & { reminders?: Array<{ id: number; offsetMinutes: number; remindAt: Date; status: string }> }
+		const reminders = 'reminders' in bookingWithReminders && bookingWithReminders.reminders && Array.isArray(bookingWithReminders.reminders) 
+			? bookingWithReminders.reminders 
+			: []
+		return {
+			...booking,
+			reminders
+		}
+	}) : []
+	const safeUserProjectIds = (userProjectIds && Array.isArray(userProjectIds)) ? userProjectIds : []
 
 	return (
 		<div className="container mx-auto p-6">
 			<Suspense fallback={<div>Loading...</div>}>
 				<BookingDashboardWrapper 
-					appointments={appointments}
-					bookings={bookings}
+					appointments={safeAppointments}
+					bookings={safeBookings}
 					isAdmin={userData.isAdmin}
-					userProjectIds={userProjectIds}
+					userProjectIds={safeUserProjectIds}
 				/>
 			</Suspense>
 		</div>

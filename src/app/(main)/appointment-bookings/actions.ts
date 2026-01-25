@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
+import type { AppointmentType } from "@/app/(main)/calander/constants"
 
 // Project Actions
 export async function getUserProjects(userId: string) {
@@ -22,6 +23,8 @@ export async function getUserProjects(userId: string) {
 						id: true,
 						name: true,
 						email: true,
+						phone: true,
+						company: true,
 					},
 				},
 			},
@@ -49,6 +52,8 @@ export async function getUserProjects(userId: string) {
 						id: true,
 						name: true,
 						email: true,
+						phone: true,
+						company: true,
 					},
 				},
 			},
@@ -70,13 +75,69 @@ export async function getUserProjects(userId: string) {
 		return []
 	}
 }
+
+// Get all user emails for a project (creator + users with permissions)
+export async function getProjectUsersEmails(projectId: number): Promise<string[]> {
+	try {
+		// Get project with creator
+		const project = await prisma.project.findUnique({
+			where: { id: projectId },
+			select: {
+				createdBy: true,
+				createdByUser: {
+					select: {
+						email: true,
+					},
+				},
+			},
+		})
+
+		if (!project) {
+			return []
+		}
+
+		// Get all users with permissions on this project
+		const permissions = await prisma.projectPermission.findMany({
+			where: { projectId },
+			select: {
+				userId: true,
+				user: {
+					select: {
+						email: true,
+					},
+				},
+			},
+		})
+
+		// Collect unique emails
+		const emails = new Set<string>()
+
+		// Add creator email
+		if (project.createdByUser?.email) {
+			emails.add(project.createdByUser.email)
+		}
+
+		// Add emails from users with permissions
+		permissions.forEach((permission) => {
+			if (permission.user?.email) {
+				emails.add(permission.user.email)
+			}
+		})
+
+		return Array.from(emails)
+	} catch (error) {
+		console.error('Error fetching project users emails:', error)
+		return []
+	}
+}
+
 // Appointment Actions
 export async function createAppointment(formData: FormData) {
   const name = formData.get("name") as string
   const location = formData.get("location") as string
   const brand = formData.get("brand") as string
   const description = formData.get("description") as string
-  const appointmentType = (formData.get("appointmentType") as string) || 'OTHERS'
+  const appointmentType = ((formData.get("appointmentType") as string) || 'OTHERS') as AppointmentType
 
   try {
     await prisma.appointment.create({
@@ -85,7 +146,7 @@ export async function createAppointment(formData: FormData) {
         location: location || null,
         brand: brand || null,
         description: description || null,
-        appointmentType: appointmentType as any,
+        appointmentType: appointmentType,
       },
     })
     revalidatePath("/appointment-bookings")
@@ -102,7 +163,7 @@ export async function updateAppointment(id: number, formData: FormData) {
   const brand = formData.get("brand") as string
   const description = formData.get("description") as string
   const isAvailable = formData.get("isAvailable") === "on"
-  const appointmentType = (formData.get("appointmentType") as string) || 'OTHERS'
+  const appointmentType = ((formData.get("appointmentType") as string) || 'OTHERS') as AppointmentType
 
   try {
     await prisma.appointment.update({
@@ -113,7 +174,7 @@ export async function updateAppointment(id: number, formData: FormData) {
         brand: brand || null,
         description: description || null,
         isAvailable,
-        appointmentType: appointmentType as any,
+        appointmentType: appointmentType,
       },
     })
     revalidatePath("/appointment-bookings")
@@ -143,19 +204,93 @@ export async function createAppointmentBooking(formData: FormData) {
 	const startDate = new Date(formData.get("startDate") as string)
 	const endDate = new Date(formData.get("endDate") as string)
 	const purpose = formData.get("purpose") as string
-	const appointmentType = (formData.get("appointmentType") as string) || 'OTHERS'
+	const appointmentType = ((formData.get("appointmentType") as string) || 'OTHERS') as AppointmentType
 	const projectIdStr = formData.get("projectId") as string
 	const projectId = projectIdStr && projectIdStr !== '' ? Number.parseInt(projectIdStr) : null
 	const appointmentIdStr = formData.get("appointmentId") as string
 	const appointmentId = appointmentIdStr && appointmentIdStr !== '' ? Number.parseInt(appointmentIdStr) : null
 	const attendeesStr = formData.get("attendees") as string
 	const attendees = attendeesStr && attendeesStr !== '' ? Number.parseInt(attendeesStr) : null
-		const notifyClient = formData.get("notifyClient") === "true"
-		const clientEmail = formData.get("clientEmail") as string
-		const reminderOffsetsStr = formData.get("reminderOffsets") as string | null
-		const reminderOffsets = reminderOffsetsStr ? JSON.parse(reminderOffsetsStr) as number[] : []
+	
+	// New fields
+	const bookingName = formData.get("bookingName") as string | null
+	const companyName = formData.get("companyName") as string | null
+	const contactNumber = formData.get("contactNumber") as string | null
+	const remarks = formData.get("remarks") as string | null
+	
+	// Multiple emails (always required now)
+	const clientEmailsStr = formData.get("clientEmails") as string
+	const clientEmails: string[] = clientEmailsStr ? JSON.parse(clientEmailsStr) as string[] : []
+	
+	const reminderOffsetsStr = formData.get("reminderOffsets") as string | null
+	const reminderOffsets = reminderOffsetsStr ? JSON.parse(reminderOffsetsStr) as number[] : []
 
 	try {
+		// Validation: If no project, require bookingName, companyName, contactNumber
+		if (!projectId) {
+			if (!bookingName || !bookingName.trim()) {
+				return { success: false, error: "Booking name is required when no project is selected" }
+			}
+			if (!companyName || !companyName.trim()) {
+				return { success: false, error: "Company name is required when no project is selected" }
+			}
+			if (!contactNumber || !contactNumber.trim()) {
+				return { success: false, error: "Contact number is required when no project is selected" }
+			}
+		}
+
+		// Validation: Email is always required
+		if (!clientEmails || clientEmails.length === 0 || !clientEmails.some(email => email.trim())) {
+			return { success: false, error: "At least one email address is required" }
+		}
+
+		// Validate all emails are valid format and remove duplicates (case-insensitive)
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+		const emailSet = new Set<string>()
+		const validEmails = clientEmails.filter(email => {
+			const trimmed = email.trim()
+			if (!trimmed) return false
+			if (!emailRegex.test(trimmed)) return false
+			// Check for duplicates (case-insensitive)
+			const normalized = trimmed.toLowerCase()
+			if (emailSet.has(normalized)) return false
+			emailSet.add(normalized)
+			return true
+		})
+		if (validEmails.length === 0) {
+			return { success: false, error: "At least one valid email address is required" }
+		}
+
+		// Fetch project with Client if project is selected
+		let projectClient: { name: string; email: string; company: string | null; phone: string | null } | null = null
+		if (projectId) {
+			const project = await prisma.project.findUnique({
+				where: { id: projectId },
+				select: {
+					Client: {
+						select: {
+							name: true,
+							email: true,
+							company: true,
+							phone: true,
+						},
+					},
+				},
+			})
+
+			if (project?.Client) {
+				projectClient = {
+					name: project.Client.name,
+					email: project.Client.email,
+					company: project.Client.company,
+					phone: project.Client.phone,
+				}
+
+				// Overwrite fields with project client info if project is selected
+				// (This happens even if fields were already filled - per user requirement)
+			}
+		}
+
 		// Check for overlapping bookings if appointment is specified
 		if (appointmentId) {
 			const overlappingBookings = await prisma.appointmentBooking.findMany({
@@ -185,16 +320,25 @@ export async function createAppointmentBooking(formData: FormData) {
 			}
 		}
 
+		// Determine final field values: use project client info if project selected, otherwise use form values
+		const finalBookingName = projectId && projectClient ? projectClient.name : (bookingName?.trim() || null)
+		const finalCompanyName = projectId && projectClient ? (projectClient.company || projectClient.name) : (companyName?.trim() || null)
+		const finalContactNumber = projectId && projectClient ? (projectClient.phone || null) : (contactNumber?.trim() || null)
+
 		const booking = await prisma.appointmentBooking.create({
 			data: {
 				bookedBy,
 				startDate,
 				endDate,
 				purpose: purpose || null,
-				appointmentType: appointmentType as any,
+				appointmentType: appointmentType,
 				projectId,
 				appointmentId,
 				attendees,
+				bookingName: finalBookingName,
+				companyName: finalCompanyName,
+				contactNumber: finalContactNumber,
+				remarks: remarks?.trim() || null,
 			},
 			include: {
 				appointment: {
@@ -208,6 +352,7 @@ export async function createAppointmentBooking(formData: FormData) {
 						Client: {
 							select: {
 								name: true,
+								email: true,
 							},
 						},
 					},
@@ -215,80 +360,91 @@ export async function createAppointmentBooking(formData: FormData) {
 			},
 		})
 
-		// Send email if requested
-		let emailSent = false
+		// Use the emails from the form directly (they already include project users)
+		// The form adds project users when a project is selected, so we don't need to add them again
+		const allEmails: string[] = [...validEmails]
+
+		// Send emails to all recipients (separate email to each)
+		let emailSentCount = 0
+		let emailFailedCount = 0
 		let emailError: string | null = null
 		
-		if (notifyClient && clientEmail) {
-			try {
-				const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-				const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+		if (allEmails.length > 0) {
+			const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+			const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-				if (!supabaseUrl || !supabaseAnonKey) {
-					emailError = "Email service configuration missing"
-				} else {
-					// Get client name from project or use a default
-					const clientName = booking.project?.Client?.name || "Valued Client"
+			if (!supabaseUrl || !supabaseAnonKey) {
+				emailError = "Email service configuration missing"
+			} else {
+				// Get client name from project or booking name
+				const clientName = booking.project?.Client?.name || finalBookingName || "Valued Client"
 
-					const response = await fetch(`${supabaseUrl}/functions/v1/send-appointment-confirmation`, {
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-							Authorization: `Bearer ${supabaseAnonKey}`,
-						},
-						body: JSON.stringify({
-							appointmentName: booking.appointment?.name || "Appointment",
-							appointmentLocation: booking.appointment?.location || null,
-							clientName,
-							clientEmail,
-							startDate: startDate.toISOString(),
-							endDate: endDate.toISOString(),
-							purpose: purpose || null,
-							bookedBy,
-						}),
-					})
+				// Send separate email to each recipient
+				for (const recipientEmail of allEmails) {
+					try {
+						const response = await fetch(`${supabaseUrl}/functions/v1/send-appointment-confirmation`, {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								Authorization: `Bearer ${supabaseAnonKey}`,
+							},
+							body: JSON.stringify({
+								appointmentName: booking.appointment?.name || "Appointment",
+								appointmentLocation: booking.appointment?.location || null,
+								clientName,
+								clientEmail: recipientEmail,
+								startDate: startDate.toISOString(),
+								endDate: endDate.toISOString(),
+								purpose: purpose || null,
+								bookedBy,
+							}),
+						})
 
-					if (!response.ok) {
-						const errorData = await response.json()
-						emailError = errorData.error || "Failed to send email"
-						console.error("Failed to send appointment confirmation email:", errorData)
-					} else {
-						emailSent = true
-						
-						// Save email history
-						try {
-							const user = await getCachedUser()
-							if (user) {
-								await prisma.appointmentBookingEmail.create({
-									data: {
-										appointmentBookingId: booking.id,
-										recipientEmail: clientEmail,
-										sentById: user.id,
-										isAutomated: false, // Manual confirmation email
-									},
-								})
+						if (!response.ok) {
+							const errorData = await response.json()
+							emailError = errorData.error || "Failed to send email"
+							console.error(`Failed to send appointment confirmation email to ${recipientEmail}:`, errorData)
+							emailFailedCount++
+						} else {
+							emailSentCount++
+							
+							// Save email history for each recipient
+							try {
+								const user = await getCachedUser()
+								if (user) {
+									await prisma.appointmentBookingEmail.create({
+										data: {
+											appointmentBookingId: booking.id,
+											recipientEmail: recipientEmail,
+											sentById: user.id,
+											isAutomated: false, // Manual confirmation email
+										},
+									})
+								}
+							} catch (historyError) {
+								console.error("Error saving email history:", historyError)
+								// Don't fail the booking if history save fails
 							}
-						} catch (historyError) {
-							console.error("Error saving email history:", historyError)
-							// Don't fail the booking if history save fails
 						}
+					} catch (error: unknown) {
+						emailError = error instanceof Error ? error.message : "Failed to send email"
+						console.error(`Error sending appointment confirmation email to ${recipientEmail}:`, error)
+						emailFailedCount++
 					}
 				}
-			} catch (error: any) {
-				emailError = error.message || "Failed to send email"
-				console.error("Error sending appointment confirmation email:", error)
 			}
 		}
 
 		// Create reminders if provided and project exists
 		if (reminderOffsets.length > 0 && projectId) {
 			try {
-				// Parse reminder data (can be array of numbers or array of objects with email)
-				const reminderData = reminderOffsets.map((item: any) => {
+				// Parse reminder data (can be array of numbers or array of objects with emails)
+				const reminderData = reminderOffsets.map((item: number | { offsetMinutes: number; recipientEmails: string[] }) => {
 					if (typeof item === 'number') {
-						return { offsetMinutes: item, recipientEmail: clientEmail || "" }
+						// Use all emails as default if no emails specified
+						return { offsetMinutes: item, recipientEmails: allEmails.length > 0 ? allEmails : [] }
 					}
-					return item // Already has offsetMinutes and recipientEmail
+					return item // Already has offsetMinutes and recipientEmails
 				})
 				await createOrUpdateReminders(booking.id, startDate, reminderData)
 			} catch (reminderError) {
@@ -300,8 +456,11 @@ export async function createAppointmentBooking(formData: FormData) {
 		revalidatePath("/appointment-bookings")
 		return { 
 			success: true,
-			emailSent,
-			emailError,
+			emailSent: emailSentCount > 0,
+			emailSentCount,
+			emailFailedCount,
+			uniqueRecipientCount: allEmails.length,
+			emailError: emailFailedCount > 0 ? emailError : null,
 		}
 	} catch (error) {
 		console.error(error)
@@ -411,7 +570,7 @@ function validateReminderOffsets(offsets: number[]): { valid: boolean; error?: s
 async function createOrUpdateReminders(
 	appointmentBookingId: number,
 	startDate: Date,
-	reminders: Array<{ offsetMinutes: number; recipientEmail: string }>
+	reminders: Array<{ offsetMinutes: number; recipientEmails: string[] }>
 ) {
 	// Validate offsets
 	const offsetMinutes = reminders.map(r => r.offsetMinutes)
@@ -420,7 +579,7 @@ async function createOrUpdateReminders(
 		throw new Error(validation.error)
 	}
 
-	// Check for duplicates within the provided reminders
+	// Check for duplicates within the provided reminders (same offset time)
 	const uniqueOffsets = new Set(offsetMinutes)
 	if (uniqueOffsets.size !== offsetMinutes.length) {
 		const duplicates = offsetMinutes.filter((offset, index) => offsetMinutes.indexOf(offset) !== index)
@@ -447,54 +606,31 @@ async function createOrUpdateReminders(
 
 	const defaultEmail = booking?.project?.Client?.email || ""
 
-	// Calculate remindAt for each offset
-	const remindersToCreate = reminders.map((reminder) => {
-		const remindAt = new Date(startDate.getTime() - reminder.offsetMinutes * 60 * 1000)
-		return {
-			appointmentBookingId,
-			offsetMinutes: reminder.offsetMinutes,
-			recipientEmail: reminder.recipientEmail || defaultEmail,
-			remindAt,
-			status: "PENDING" as const,
-		}
-	})
-
-	// Use upsert to handle existing reminders
-	for (const reminder of remindersToCreate) {
-		await prisma.appointmentBookingReminder.upsert({
-			where: {
-				appointmentBookingId_offsetMinutes: {
-					appointmentBookingId: reminder.appointmentBookingId,
-					offsetMinutes: reminder.offsetMinutes,
-				},
-			},
-			update: {
-				remindAt: reminder.remindAt,
-				recipientEmail: reminder.recipientEmail,
-				status: "PENDING", // Reset to pending if updating
-			},
-			create: reminder,
-		})
-	}
-
-	// Delete reminders that are no longer in the list
-	const existingReminders = await prisma.appointmentBookingReminder.findMany({
+	// Delete all existing reminders for this booking first (we'll recreate them)
+	await prisma.appointmentBookingReminder.deleteMany({
 		where: { appointmentBookingId },
-		select: { offsetMinutes: true },
 	})
 
-	const offsetsToKeep = new Set(offsetMinutes)
-	const remindersToDelete = existingReminders
-		.filter((r) => !offsetsToKeep.has(r.offsetMinutes))
-		.map((r) => r.offsetMinutes)
-
-	if (remindersToDelete.length > 0) {
-		await prisma.appointmentBookingReminder.deleteMany({
-			where: {
-				appointmentBookingId,
-				offsetMinutes: { in: remindersToDelete },
-			},
-		})
+	// Create reminder records - one per email per offset (just like email confirmations)
+	for (const reminder of reminders) {
+		const remindAt = new Date(startDate.getTime() - reminder.offsetMinutes * 60 * 1000)
+		const emails = reminder.recipientEmails.filter(e => e.trim())
+		
+		// If no emails provided, use default
+		const emailsToUse = emails.length > 0 ? emails : [defaultEmail].filter(Boolean)
+		
+		// Create one reminder row per email address
+		for (const email of emailsToUse) {
+			await prisma.appointmentBookingReminder.create({
+				data: {
+					appointmentBookingId,
+					offsetMinutes: reminder.offsetMinutes,
+					recipientEmail: email,
+					remindAt,
+					status: "PENDING" as const,
+				},
+			})
+		}
 	}
 }
 
@@ -508,15 +644,50 @@ export async function getRemindersForBooking(appointmentBookingId: number) {
 			orderBy: { offsetMinutes: "asc" },
 		})
 
-		return reminders.map((r) => ({
-			id: r.id,
-			offsetMinutes: r.offsetMinutes,
-			recipientEmail: r.recipientEmail,
-			remindAt: r.remindAt,
-			status: r.status,
-			sentAt: r.sentAt,
-			attemptCount: r.attemptCount,
-			lastError: r.lastError,
+		// Group reminders by offsetMinutes and collect all emails
+		const grouped = reminders.reduce((acc, r) => {
+			const key = r.offsetMinutes
+			if (!acc[key]) {
+				acc[key] = {
+					offsetMinutes: r.offsetMinutes,
+					remindAt: r.remindAt,
+					status: r.status,
+					sentAt: r.sentAt,
+					attemptCount: r.attemptCount,
+					lastError: r.lastError,
+					ids: [] as number[],
+					recipientEmails: [] as string[],
+				}
+			}
+			acc[key].ids.push(r.id)
+			acc[key].recipientEmails.push(r.recipientEmail)
+			// Use the most recent status if there are multiple
+			if (r.sentAt && (!acc[key].sentAt || r.sentAt > acc[key].sentAt!)) {
+				acc[key].sentAt = r.sentAt
+			}
+			return acc
+		}, {} as Record<number, {
+			offsetMinutes: number
+			remindAt: Date
+			status: string
+			sentAt: Date | null
+			attemptCount: number
+			lastError: string | null
+			ids: number[]
+			recipientEmails: string[]
+		}>)
+
+		// Convert grouped object to array, using first id for backward compatibility
+		return Object.values(grouped).map((group) => ({
+			id: group.ids[0], // Use first id for backward compatibility
+			offsetMinutes: group.offsetMinutes,
+			recipientEmail: group.recipientEmails[0] || "", // Keep for backward compatibility
+			recipientEmails: group.recipientEmails,
+			remindAt: group.remindAt,
+			status: group.status,
+			sentAt: group.sentAt,
+			attemptCount: group.attemptCount,
+			lastError: group.lastError,
 		}))
 	} catch (error) {
 		console.error("Error fetching reminders:", error)
@@ -529,7 +700,7 @@ export async function getRemindersForBooking(appointmentBookingId: number) {
  */
 export async function updateBookingReminders(
 	appointmentBookingId: number,
-	reminders: Array<{ offsetMinutes: number; recipientEmail: string }>
+	reminders: Array<{ offsetMinutes: number; recipientEmails: string[] }>
 ) {
 	try {
 		// Get booking to access startDate and project client email
@@ -586,24 +757,30 @@ export async function updateBookingReminders(
 		const startDate = new Date(booking.startDate)
 
 		// Create only the new reminders (don't delete existing ones)
+		// Create one reminder row per email address
 		for (const reminder of newReminders) {
 			const remindAt = new Date(startDate.getTime() - reminder.offsetMinutes * 60 * 1000)
-			await prisma.appointmentBookingReminder.create({
-				data: {
-					appointmentBookingId,
-					offsetMinutes: reminder.offsetMinutes,
-					recipientEmail: reminder.recipientEmail || defaultEmail,
-					remindAt,
-					status: "PENDING",
-				},
-			})
+			const emails = reminder.recipientEmails.filter(e => e.trim())
+			const emailsToUse = emails.length > 0 ? emails : [defaultEmail].filter(Boolean)
+			
+			for (const email of emailsToUse) {
+				await prisma.appointmentBookingReminder.create({
+					data: {
+						appointmentBookingId,
+						offsetMinutes: reminder.offsetMinutes,
+						recipientEmail: email,
+						remindAt,
+						status: "PENDING",
+					},
+				})
+			}
 		}
 
 		revalidatePath("/appointment-bookings")
 		return { success: true }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		console.error("Error updating reminders:", error)
-		return { success: false, error: error.message || "Failed to update reminders" }
+		return { success: false, error: error instanceof Error ? error.message : "Failed to update reminders" }
 	}
 }
 
@@ -617,34 +794,77 @@ export async function deleteReminder(reminderId: number) {
 		})
 		revalidatePath("/appointment-bookings")
 		return { success: true }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		console.error("Error deleting reminder:", error)
-		return { success: false, error: error.message || "Failed to delete reminder" }
+		return { success: false, error: error instanceof Error ? error.message : "Failed to delete reminder" }
 	}
 }
 
 /**
- * Update a specific reminder's email
+ * Update a specific reminder's emails
+ * This updates all reminders with the same offsetMinutes for the same booking
  */
 export async function updateReminderEmail(
 	reminderId: number,
-	recipientEmail: string
+	recipientEmails: string[]
 ) {
 	try {
-		// Validate email
-		if (!recipientEmail || !/\S+@\S+\.\S+/.test(recipientEmail)) {
-			return { success: false, error: "Invalid email address" }
+		// Validate emails
+		const validEmails = recipientEmails.filter(e => {
+			const trimmed = e.trim()
+			return trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+		})
+		
+		if (validEmails.length === 0) {
+			return { success: false, error: "At least one valid email address is required" }
 		}
 
-		await prisma.appointmentBookingReminder.update({
+		// Get the reminder to find booking and offset
+		const reminder = await prisma.appointmentBookingReminder.findUnique({
 			where: { id: reminderId },
-			data: { recipientEmail },
 		})
+
+		if (!reminder) {
+			return { success: false, error: "Reminder not found" }
+		}
+
+		// Delete all reminders with the same offsetMinutes for this booking
+		await prisma.appointmentBookingReminder.deleteMany({
+			where: {
+				appointmentBookingId: reminder.appointmentBookingId,
+				offsetMinutes: reminder.offsetMinutes,
+			},
+		})
+
+		// Get booking to calculate remindAt
+		const booking = await prisma.appointmentBooking.findUnique({
+			where: { id: reminder.appointmentBookingId },
+		})
+
+		if (!booking) {
+			return { success: false, error: "Booking not found" }
+		}
+
+		const remindAt = new Date(booking.startDate.getTime() - reminder.offsetMinutes * 60 * 1000)
+
+		// Create new reminders for each email
+		for (const email of validEmails) {
+			await prisma.appointmentBookingReminder.create({
+				data: {
+					appointmentBookingId: reminder.appointmentBookingId,
+					offsetMinutes: reminder.offsetMinutes,
+					recipientEmail: email,
+					remindAt,
+					status: "PENDING",
+				},
+			})
+		}
+
 		revalidatePath("/appointment-bookings")
 		return { success: true }
-	} catch (error: any) {
-		console.error("Error updating reminder email:", error)
-		return { success: false, error: error.message || "Failed to update reminder email" }
+	} catch (error: unknown) {
+		console.error("Error updating reminder emails:", error)
+		return { success: false, error: error instanceof Error ? error.message : "Failed to update reminder emails" }
 	}
 }
 
@@ -816,8 +1036,8 @@ export async function sendAppointmentReminder(
 		})
 
 		return { success: true }
-	} catch (error: any) {
+	} catch (error: unknown) {
 		console.error("Error sending appointment reminder:", error)
-		return { success: false, error: error.message || "Failed to send reminder email" }
+		return { success: false, error: error instanceof Error ? error.message : "Failed to send reminder email" }
 	}
 }

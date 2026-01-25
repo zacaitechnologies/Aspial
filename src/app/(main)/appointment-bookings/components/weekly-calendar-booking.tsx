@@ -13,7 +13,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { format, addDays, startOfWeek, addHours, startOfDay, isBefore, isSameDay, endOfWeek, subMinutes } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
-import { createAppointmentBooking, getUserProjects, getAppointmentBookings } from "@/app/(main)/appointment-bookings/actions"
+import { createAppointmentBooking, getUserProjects, getAppointmentBookings, getProjectUsersEmails } from "@/app/(main)/appointment-bookings/actions"
+import type { ProjectWithClient } from "@/app/(main)/appointment-bookings/types"
+import { EmailListInput } from "./EmailListInput"
+import { FieldOverwriteDialog } from "./FieldOverwriteDialog"
 import {
 	Dialog,
 	DialogContent,
@@ -54,25 +57,34 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [purpose, setPurpose] = useState("")
 	const [attendees, setAttendees] = useState("")
-	const [projects, setProjects] = useState<any[]>([])
+	const [projects, setProjects] = useState<ProjectWithClient[]>([])
 	const [selectedProject, setSelectedProject] = useState<string>("none")
 	const [isLoadingProjects, setIsLoadingProjects] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [existingBookings, setExistingBookings] = useState<BookingSlot[]>([])
 	const [isLoadingBookings, setIsLoadingBookings] = useState(false)
 	const [calendarOpen, setCalendarOpen] = useState(false)
-	const [notifyClient, setNotifyClient] = useState(false)
-	const [clientEmail, setClientEmail] = useState("")
+	const [clientEmails, setClientEmails] = useState<string[]>([""])
 	const [showResultDialog, setShowResultDialog] = useState(false)
 	const [emailResult, setEmailResult] = useState<{ success: boolean; message: string } | null>(null)
-	const [reminders, setReminders] = useState<Array<{ offsetMinutes: number; recipientEmail: string }>>([]) // Store reminders with emails
+	const [reminders, setReminders] = useState<Array<{ offsetMinutes: number; recipientEmails: string[] }>>([])
+	
+	// New fields
+	const [bookingName, setBookingName] = useState("")
+	const [companyName, setCompanyName] = useState("")
+	const [contactNumber, setContactNumber] = useState("")
+	const [remarks, setRemarks] = useState("")
+	
+	// Overwrite dialog state
+	const [showOverwriteDialog, setShowOverwriteDialog] = useState(false)
+	const [pendingProjectSelection, setPendingProjectSelection] = useState<string | null>(null)
 
 	useEffect(() => {
 		const fetchProjects = async () => {
 			if (enhancedUser?.id) {
 				setIsLoadingProjects(true)
 				const userProjects = await getUserProjects(enhancedUser.id)
-				setProjects(userProjects as any[])
+				setProjects(userProjects)
 				setIsLoadingProjects(false)
 			} else {
 				setIsLoadingProjects(false)
@@ -81,21 +93,64 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 		fetchProjects()
 	}, [enhancedUser?.id])
 
-	// Auto-fill email when project is selected
+	// Auto-fill fields when project is selected
 	useEffect(() => {
-		if (selectedProject && selectedProject !== "none") {
-			const project = projects.find((p: any) => p.id.toString() === selectedProject)
-			if (project?.Client?.email) {
-				setClientEmail(project.Client.email)
-				// Also update reminder emails if they're empty
-				setReminders(prev => prev.map(r => ({
-					...r,
-					recipientEmail: r.recipientEmail || project.Client.email
-				})))
+		const handleProjectSelection = async () => {
+			if (selectedProject && selectedProject !== "none") {
+				const project = projects.find((p) => p.id.toString() === selectedProject)
+				if (project?.Client) {
+					// Check if fields are already filled - show overwrite dialog
+					const hasFilledFields = bookingName.trim() || companyName.trim() || contactNumber.trim()
+					
+					if (hasFilledFields) {
+						setPendingProjectSelection(selectedProject)
+						setShowOverwriteDialog(true)
+						return
+					}
+
+					// Auto-fill fields with project client info
+					setBookingName(project.Client.name || "")
+					setCompanyName(project.Client.company || project.Client.name || "")
+					setContactNumber(project.Client.phone || "")
+
+					// Auto-fill first email with project client email
+					const projectClientEmail = project.Client.email || ""
+					if (projectClientEmail) {
+						setClientEmails([projectClientEmail])
+					}
+
+					// Fetch and add project users' emails
+					try {
+						const projectUserEmails = await getProjectUsersEmails(project.id)
+						const allEmails = new Set([projectClientEmail, ...projectUserEmails].filter(Boolean))
+						const allEmailsArray = Array.from(allEmails)
+						setClientEmails(allEmailsArray)
+
+						// Auto-add 24h reminder if no reminders exist, with all project emails
+						if (reminders.length === 0) {
+							setReminders([{ offsetMinutes: 24 * 60, recipientEmails: allEmailsArray.length > 0 ? allEmailsArray : [projectClientEmail].filter(Boolean) }])
+						} else {
+							// Update existing reminder emails with all project emails
+							setReminders(prev => prev.map(r => ({
+								...r,
+								recipientEmails: r.recipientEmails.length > 0 ? r.recipientEmails : allEmailsArray.length > 0 ? allEmailsArray : [projectClientEmail].filter(Boolean)
+							})))
+						}
+					} catch (error) {
+						console.error("Error fetching project users emails:", error)
+					}
+				}
+			} else {
+				// Reset fields when no project selected
+				setBookingName("")
+				setCompanyName("")
+				setContactNumber("")
+				setClientEmails([""])
+				setReminders([]) // Clear reminders when no project
 			}
-		} else {
-			setClientEmail("")
 		}
+
+		handleProjectSelection()
 	}, [selectedProject, projects])
 
 	// Fetch bookings when week changes
@@ -224,16 +279,81 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 		return groups
 	}
 
+	const handleOverwriteAccept = () => {
+		if (pendingProjectSelection) {
+			const project = projects.find((p) => p.id.toString() === pendingProjectSelection)
+			if (project?.Client) {
+				setBookingName(project.Client.name || "")
+				setCompanyName(project.Client.company || project.Client.name || "")
+				setContactNumber(project.Client.phone || "")
+
+				const projectClientEmail = project.Client.email || ""
+				if (projectClientEmail) {
+					setClientEmails([projectClientEmail])
+				}
+
+				// Fetch and add project users' emails
+				getProjectUsersEmails(project.id).then((projectUserEmails) => {
+					const allEmails = new Set([projectClientEmail, ...projectUserEmails].filter(Boolean))
+					const allEmailsArray = Array.from(allEmails)
+					setClientEmails(allEmailsArray)
+
+					// Auto-add 24h reminder if no reminders exist, with all project emails
+					if (reminders.length === 0) {
+						setReminders([{ offsetMinutes: 24 * 60, recipientEmails: allEmailsArray.length > 0 ? allEmailsArray : [projectClientEmail].filter(Boolean) }])
+					} else {
+						// Update existing reminder emails with all project emails
+						setReminders(prev => prev.map(r => ({
+							...r,
+							recipientEmails: r.recipientEmails.length > 0 ? r.recipientEmails : allEmailsArray.length > 0 ? allEmailsArray : [projectClientEmail].filter(Boolean)
+						})))
+					}
+				}).catch((error) => {
+					console.error("Error fetching project users emails:", error)
+				})
+			}
+		}
+		setShowOverwriteDialog(false)
+		setPendingProjectSelection(null)
+	}
+
+	const handleOverwriteCancel = () => {
+		setShowOverwriteDialog(false)
+		setPendingProjectSelection(null)
+		// Revert project selection
+		setSelectedProject("none")
+	}
+
 	const handleSubmit = async () => {
 		if (selectedSlots.length === 0) return
 
-		// Validate email if notify client is checked
-		if (notifyClient) {
-			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-			if (!clientEmail || !emailRegex.test(clientEmail)) {
-				setError("Please enter a valid email address to notify the client")
+		// Validation: If no project, require bookingName, companyName, contactNumber
+		if (!selectedProject || selectedProject === "none") {
+			if (!bookingName.trim()) {
+				setError("Booking name is required when no project is selected")
 				return
 			}
+			if (!companyName.trim()) {
+				setError("Company name is required when no project is selected")
+				return
+			}
+			if (!contactNumber.trim()) {
+				setError("Contact number is required when no project is selected")
+				return
+			}
+		}
+
+		// Validation: Email is always required
+		const validEmails = clientEmails.filter(email => {
+			const trimmed = email.trim()
+			if (!trimmed) return false
+			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+			return emailRegex.test(trimmed)
+		})
+
+		if (validEmails.length === 0) {
+			setError("At least one valid email address is required")
+			return
 		}
 
 		setIsSubmitting(true)
@@ -241,11 +361,34 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 
 		try {
 			const slotGroups = groupConsecutiveSlots(selectedSlots)
-			let emailSentCount = 0
-			let emailFailedCount = 0
+			let totalEmailSentCount = 0
+			let totalEmailFailedCount = 0
+			let uniqueRecipientCount = validEmails.length // Will be updated from first result
 
-			// Validate reminders for duplicates before submitting
-			if (reminders.length > 0) {
+			// Validate reminders: at least one required if project is selected
+			if (selectedProject && selectedProject !== "none") {
+				if (reminders.length === 0) {
+					setError("At least one reminder is required when a project is selected")
+					setIsSubmitting(false)
+					return
+				}
+
+			// Validate all reminders have at least one valid email
+			const invalidReminders = reminders.filter(r => {
+				if (!r.recipientEmails || r.recipientEmails.length === 0) return true
+				const validEmails = r.recipientEmails.filter(email => {
+					const trimmed = email.trim()
+					return trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+				})
+				return validEmails.length === 0
+			})
+			if (invalidReminders.length > 0) {
+				setError("All reminders must have at least one valid email address")
+				setIsSubmitting(false)
+				return
+			}
+
+				// Validate for duplicates
 				const reminderOffsets = reminders.map(r => r.offsetMinutes)
 				const uniqueOffsets = new Set(reminderOffsets)
 				if (uniqueOffsets.size !== reminderOffsets.length) {
@@ -271,11 +414,20 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 				if (attendees) {
 					formData.append("attendees", attendees)
 				}
-				if (notifyClient) {
-					formData.append("notifyClient", "true")
-					formData.append("clientEmail", clientEmail)
-				}
-				if (reminders.length > 0) {
+
+				// New fields
+				formData.append("bookingName", bookingName)
+				formData.append("companyName", companyName)
+				formData.append("contactNumber", contactNumber)
+				formData.append("remarks", remarks)
+				
+				// Multiple emails (always required)
+				formData.append("clientEmails", JSON.stringify(validEmails))
+
+				// Reminders are required when project is selected
+				if (selectedProject && selectedProject !== "none") {
+					formData.append("reminderOffsets", JSON.stringify(reminders))
+				} else if (reminders.length > 0) {
 					formData.append("reminderOffsets", JSON.stringify(reminders))
 				}
 
@@ -287,37 +439,36 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 					return
 				}
 
-				// Track email sending results
-				if (notifyClient) {
-					if (result.emailSent) {
-						emailSentCount++
-					} else if (result.emailError) {
-						emailFailedCount++
-					}
+				// Track email sending results (for error reporting)
+				if (result.emailSentCount) {
+					totalEmailSentCount += result.emailSentCount
+				}
+				if (result.emailFailedCount) {
+					totalEmailFailedCount += result.emailFailedCount
+				}
+
+				// Get unique recipient count from first result (accounts for project users added server-side)
+				if (result.uniqueRecipientCount && uniqueRecipientCount === validEmails.length) {
+					uniqueRecipientCount = result.uniqueRecipientCount
 				}
 			}
 
 			// Show dialog for email results
-			if (notifyClient) {
-				if (emailSentCount > 0 && emailFailedCount === 0) {
-					setEmailResult({
-						success: true,
-						message: `Appointment confirmation email sent successfully to ${clientEmail}`,
-					})
-					setShowResultDialog(true)
-				} else if (emailFailedCount > 0) {
-					setEmailResult({
-						success: false,
-						message: `Could not send confirmation email to ${clientEmail}. Please check if the email address is correct.`,
-					})
-					setShowResultDialog(true)
-				} else {
-					// No email results, proceed normally
-					onSuccess()
-				}
+			if (totalEmailSentCount > 0 && totalEmailFailedCount === 0) {
+				setEmailResult({
+					success: true,
+					message: `Appointment confirmation emails sent successfully to ${uniqueRecipientCount} recipient${uniqueRecipientCount !== 1 ? 's' : ''}`,
+				})
+				setShowResultDialog(true)
+			} else if (totalEmailFailedCount > 0) {
+				setEmailResult({
+					success: false,
+					message: `Failed to send confirmation emails to ${totalEmailFailedCount} recipient${totalEmailFailedCount !== 1 ? 's' : ''}. ${totalEmailSentCount > 0 ? `${uniqueRecipientCount} email${uniqueRecipientCount !== 1 ? 's' : ''} sent successfully.` : ''}`,
+				})
+				setShowResultDialog(true)
 			} else {
-				// No email notification, proceed normally
-			onSuccess()
+				// No email results, proceed normally
+				onSuccess()
 			}
 		} catch (error) {
 			console.error("Failed to create appointments:", error)
@@ -404,7 +555,7 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 					<span>Selected</span>
 				</div>
 				<div className="flex items-center gap-2">
-					<div className="w-4 h-4 bg-green-500 rounded"></div>
+					<div className="w-4 h-4 bg-[var(--color-chart-3)] rounded"></div>
 					<span>Your Booking</span>
 				</div>
 				<div className="flex items-center gap-2">
@@ -461,11 +612,11 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 										onClick={() => toggleSlot(day, hour)}
 										className={cn(
 											"p-3 text-xs border-r last:border-r-0 transition-colors min-h-[40px]",
-											isSelected && "bg-primary text-white hover:bg-primary/90",
-											!isSelected && !isPast && !isBooked && "hover:bg-muted bg-white border-2 border-gray-200",
+											isSelected && "bg-primary text-primary-foreground hover:bg-primary/90",
+											!isSelected && !isPast && !isBooked && "hover:bg-muted bg-white border-2 border-gray-400",
 											isPast && "opacity-60 cursor-not-allowed bg-gray-300 border border-gray-400",
-											isBookedByUser && "bg-green-500 text-white cursor-not-allowed",
-											isBooked && !isBookedByUser && "bg-red-500 cursor-not-allowed opacity-80"
+											isBookedByUser && "bg-[var(--color-chart-3)] text-primary-foreground cursor-not-allowed",
+											isBooked && !isBookedByUser && "bg-destructive cursor-not-allowed opacity-80"
 										)}
 										title={
 											isBookedByUser 
@@ -504,7 +655,7 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="none">None</SelectItem>
-									{projects.map((project: any) => (
+									{projects.map((project) => (
 										<SelectItem key={project.id} value={project.id.toString()}>
 											{project.name}{project.clientName ? ` (${project.clientName})` : ''}
 										</SelectItem>
@@ -515,6 +666,97 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 							<div className="text-sm text-muted-foreground">No projects available</div>
 						)}
 					</div>
+
+					{/* New fields - conditional required */}
+					{(!selectedProject || selectedProject === "none") && (
+						<>
+							<div className="space-y-2">
+								<Label htmlFor="bookingName">
+									Booking Name <span className="text-destructive">*</span>
+								</Label>
+								<Input
+									id="bookingName"
+									type="text"
+									value={bookingName}
+									onChange={(e) => setBookingName(e.target.value)}
+									placeholder="Enter booking name"
+									required={!selectedProject || selectedProject === "none"}
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="companyName">
+									Company Name <span className="text-destructive">*</span>
+								</Label>
+								<Input
+									id="companyName"
+									type="text"
+									value={companyName}
+									onChange={(e) => setCompanyName(e.target.value)}
+									placeholder="Enter company name"
+									required={!selectedProject || selectedProject === "none"}
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="contactNumber">
+									Contact Number <span className="text-destructive">*</span>
+								</Label>
+								<Input
+									id="contactNumber"
+									type="tel"
+									value={contactNumber}
+									onChange={(e) => setContactNumber(e.target.value)}
+									placeholder="Enter contact number"
+									required={!selectedProject || selectedProject === "none"}
+								/>
+							</div>
+						</>
+					)}
+
+					{/* Show fields even when project selected (read-only, showing project client info) */}
+					{selectedProject && selectedProject !== "none" && (
+						<>
+							<div className="space-y-2">
+								<Label htmlFor="bookingName">Booking Name</Label>
+								<Input
+									id="bookingName"
+									type="text"
+									value={bookingName}
+									onChange={(e) => setBookingName(e.target.value)}
+									placeholder="Auto-filled from project"
+									readOnly
+									className="bg-muted"
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="companyName">Company Name</Label>
+								<Input
+									id="companyName"
+									type="text"
+									value={companyName}
+									onChange={(e) => setCompanyName(e.target.value)}
+									placeholder="Auto-filled from project"
+									readOnly
+									className="bg-muted"
+								/>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="contactNumber">Contact Number</Label>
+								<Input
+									id="contactNumber"
+									type="tel"
+									value={contactNumber}
+									onChange={(e) => setContactNumber(e.target.value)}
+									placeholder="Auto-filled from project"
+									readOnly
+									className="bg-muted"
+								/>
+							</div>
+						</>
+					)}
 
 					<div className="space-y-2">
 						<Label htmlFor="attendees">Number of Attendees (Optional)</Label>
@@ -540,53 +782,31 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 					</div>
 
 					<div className="space-y-2">
-						<div className="flex items-center space-x-2">
-							<Checkbox
-								id="notifyClient"
-								checked={notifyClient}
-								onCheckedChange={(checked) => setNotifyClient(checked === true)}
-							/>
-							<Label htmlFor="notifyClient" className="cursor-pointer">
-								Notify client via email
-							</Label>
-						</div>
+						<Label htmlFor="remarks">Remarks (Optional)</Label>
+						<Textarea
+							id="remarks"
+							value={remarks}
+							onChange={(e) => setRemarks(e.target.value)}
+							placeholder="Any additional remarks or notes"
+							rows={2}
+						/>
 					</div>
 
-					{notifyClient && (
-						<div className="space-y-2">
-							<Label htmlFor="clientEmail">
-								Client Email <span className="text-red-500">*</span>
-							</Label>
-							<Input
-								id="clientEmail"
-								type="email"
-								value={clientEmail}
-								onChange={(e) => setClientEmail(e.target.value)}
-								placeholder="client@example.com"
-								required={notifyClient}
-								className={!clientEmail ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
-							/>
-							{!clientEmail && (
-								<p className="text-xs text-red-500 font-medium">
-									⚠ Email is required to notify the client
-								</p>
-							)}
-							{clientEmail && (
-								<p className="text-xs text-muted-foreground">
-									{selectedProject && selectedProject !== "none" 
-										? "Email auto-filled from project client. You can edit it if needed."
-										: "Enter the client's email address to send confirmation."}
-								</p>
-							)}
-						</div>
-					)}
+					{/* Email addresses - always required */}
+					<EmailListInput
+						emails={clientEmails}
+						onChange={setClientEmails}
+						required
+					/>
 
 					{/* Reminder Settings - Only show if project is selected */}
 					{selectedProject && selectedProject !== "none" && selectedSlots.length > 0 && (
 						<div className="space-y-3 border-t pt-4">
-							<Label>Automated Reminders (Optional)</Label>
+							<Label>
+								Automated Reminders <span className="text-destructive">*</span>
+							</Label>
 							<p className="text-xs text-muted-foreground">
-								Set up reminder emails to be sent before the appointment starts
+								Set up reminder emails to be sent before the appointment starts. At least one reminder is required.
 							</p>
 							<div className="space-y-3 max-h-64 overflow-y-auto">
 								{/* Quick select buttons */}
@@ -611,9 +831,9 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 														if (reminders.some(r => r.offsetMinutes === minutes)) {
 															return // Already exists, don't add
 														}
-														const project = projects.find((p: any) => p.id.toString() === selectedProject)
-														const defaultEmail = project?.Client?.email || clientEmail || ""
-														setReminders([...reminders, { offsetMinutes: minutes, recipientEmail: defaultEmail }])
+														// Use all emails from clientEmails (which includes all project emails)
+														const defaultEmails = clientEmails.filter(e => e.trim())
+														setReminders([...reminders, { offsetMinutes: minutes, recipientEmails: defaultEmails.length > 0 ? defaultEmails : [""] }])
 													}
 												}}
 												className="text-xs"
@@ -670,16 +890,15 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 																×
 															</Button>
 														</div>
-														<Input
-															type="email"
-															value={reminder.recipientEmail}
-															onChange={(e) => {
+														<EmailListInput
+															emails={reminder.recipientEmails}
+															onChange={(emails) => {
 																const updated = [...reminders]
-																updated[index].recipientEmail = e.target.value
+																updated[index].recipientEmails = emails
 																setReminders(updated)
 															}}
-															placeholder="Email address"
-															className="h-8 text-xs"
+															required
+															className="mt-2"
 														/>
 													</div>
 												)
@@ -706,6 +925,21 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 						</Button>
 					</div>
 				</div>
+			)}
+
+			{/* Field Overwrite Dialog */}
+			{pendingProjectSelection && (
+				<FieldOverwriteDialog
+					isOpen={showOverwriteDialog}
+					onClose={handleOverwriteCancel}
+					onAccept={handleOverwriteAccept}
+					fieldsToOverwrite={{
+						bookingName: bookingName.trim() || undefined,
+						companyName: companyName.trim() || undefined,
+						contactNumber: contactNumber.trim() || undefined,
+					}}
+					projectClientName={projects.find((p) => p.id.toString() === pendingProjectSelection)?.Client?.name || "Project Client"}
+				/>
 			)}
 
 			{/* Email Result Dialog */}

@@ -8,8 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { createAppointmentBooking, getUserProjects } from "@/app/(main)/appointment-bookings/actions"
+import { createAppointmentBooking, getUserProjects, getProjectUsersEmails } from "@/app/(main)/appointment-bookings/actions"
 import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
+import { EmailListInput } from "./EmailListInput"
+import { FieldOverwriteDialog } from "./FieldOverwriteDialog"
 import { format, subMinutes } from "date-fns"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import {
@@ -60,11 +62,20 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 	const [appointmentType, setAppointmentType] = useState<string>("OTHERS")
 	const [isLoadingProjects, setIsLoadingProjects] = useState(true)
 	const [error, setError] = useState<string | null>(null)
-	const [notifyClient, setNotifyClient] = useState(false)
-	const [clientEmail, setClientEmail] = useState("")
+	const [clientEmails, setClientEmails] = useState<string[]>([""])
 	const [showResultDialog, setShowResultDialog] = useState(false)
 	const [emailResult, setEmailResult] = useState<{ success: boolean; message: string } | null>(null)
-	const [reminders, setReminders] = useState<Array<{ offsetMinutes: number; recipientEmail: string }>>([]) // Store reminders with emails
+	const [reminders, setReminders] = useState<Array<{ offsetMinutes: number; recipientEmails: string[] }>>([])
+	
+	// New fields
+	const [bookingName, setBookingName] = useState("")
+	const [companyName, setCompanyName] = useState("")
+	const [contactNumber, setContactNumber] = useState("")
+	const [remarks, setRemarks] = useState("")
+	
+	// Overwrite dialog state
+	const [showOverwriteDialog, setShowOverwriteDialog] = useState(false)
+	const [pendingProjectSelection, setPendingProjectSelection] = useState<string | null>(null)
 
 	// Fetch user's accessible projects
 	useEffect(() => {
@@ -81,16 +92,64 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 		fetchProjects()
 	}, [enhancedUser?.id])
 
-	// Auto-fill email when project is selected
+	// Auto-fill fields when project is selected
 	useEffect(() => {
-		if (selectedProject && selectedProject !== "") {
-			const project = projects.find((p: any) => p.id.toString() === selectedProject)
-			if (project?.Client?.email) {
-				setClientEmail(project.Client.email)
+		const handleProjectSelection = async () => {
+			if (selectedProject && selectedProject !== "") {
+				const project = projects.find((p) => p.id.toString() === selectedProject)
+				if (project?.Client) {
+					// Check if fields are already filled - show overwrite dialog
+					const hasFilledFields = bookingName.trim() || companyName.trim() || contactNumber.trim()
+					
+					if (hasFilledFields) {
+						setPendingProjectSelection(selectedProject)
+						setShowOverwriteDialog(true)
+						return
+					}
+
+					// Auto-fill fields with project client info
+					setBookingName(project.Client.name || "")
+					setCompanyName(project.Client.company || project.Client.name || "")
+					setContactNumber(project.Client.phone || "")
+
+					// Auto-fill first email with project client email
+					const projectClientEmail = project.Client.email || ""
+					if (projectClientEmail) {
+						setClientEmails([projectClientEmail])
+					}
+
+					// Fetch and add project users' emails
+					try {
+						const projectUserEmails = await getProjectUsersEmails(project.id)
+						const allEmails = new Set([projectClientEmail, ...projectUserEmails].filter(Boolean))
+						const allEmailsArray = Array.from(allEmails)
+						setClientEmails(allEmailsArray)
+
+						// Auto-add 24h reminder if no reminders exist, with all project emails
+						if (reminders.length === 0) {
+							setReminders([{ offsetMinutes: 24 * 60, recipientEmails: allEmailsArray.length > 0 ? allEmailsArray : [projectClientEmail].filter(Boolean) }])
+						} else {
+							// Update existing reminder emails with all project emails
+							setReminders(prev => prev.map(r => ({
+								...r,
+								recipientEmails: r.recipientEmails.length > 0 ? r.recipientEmails : allEmailsArray.length > 0 ? allEmailsArray : [projectClientEmail].filter(Boolean)
+							})))
+						}
+					} catch (error) {
+						console.error("Error fetching project users emails:", error)
+					}
+				}
+			} else {
+				// Reset fields when no project selected
+				setBookingName("")
+				setCompanyName("")
+				setContactNumber("")
+				setClientEmails([""])
+				setReminders([]) // Clear reminders when no project
 			}
-		} else {
-			setClientEmail("")
 		}
+
+		handleProjectSelection()
 	}, [selectedProject, projects])
 
   // Get user name from session
@@ -138,20 +197,95 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
     ? `${totalHours}h ${remainingMinutes > 0 ? `${remainingMinutes}m` : ''}`.trim()
     : `${remainingMinutes}m`
 
+	const handleOverwriteAccept = () => {
+		if (pendingProjectSelection) {
+			const project = projects.find((p) => p.id.toString() === pendingProjectSelection)
+			if (project?.Client) {
+				setBookingName(project.Client.name || "")
+				setCompanyName(project.Client.company || project.Client.name || "")
+				setContactNumber(project.Client.phone || "")
+
+				const projectClientEmail = project.Client.email || ""
+				if (projectClientEmail) {
+					setClientEmails([projectClientEmail])
+				}
+
+				// Fetch and add project users' emails
+				getProjectUsersEmails(project.id).then((projectUserEmails) => {
+					const allEmails = new Set([projectClientEmail, ...projectUserEmails].filter(Boolean))
+					setClientEmails(Array.from(allEmails))
+				}).catch((error) => {
+					console.error("Error fetching project users emails:", error)
+				})
+			}
+		}
+		setShowOverwriteDialog(false)
+		setPendingProjectSelection(null)
+	}
+
+	const handleOverwriteCancel = () => {
+		setShowOverwriteDialog(false)
+		setPendingProjectSelection(null)
+		// Revert project selection
+		setSelectedProject("")
+	}
+
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
 		
-		// Validate email if notify client is checked
-		if (notifyClient) {
-			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-			if (!clientEmail || !emailRegex.test(clientEmail)) {
-				setError("Please enter a valid email address to notify the client")
+		// Validation: If no project, require bookingName, companyName, contactNumber
+		if (!selectedProject || selectedProject === "") {
+			if (!bookingName.trim()) {
+				setError("Booking name is required when no project is selected")
+				return
+			}
+			if (!companyName.trim()) {
+				setError("Company name is required when no project is selected")
+				return
+			}
+			if (!contactNumber.trim()) {
+				setError("Contact number is required when no project is selected")
 				return
 			}
 		}
 
-		// Validate reminders for duplicates before submitting
-		if (reminders.length > 0) {
+		// Validation: Email is always required
+		const validEmails = clientEmails.filter(email => {
+			const trimmed = email.trim()
+			if (!trimmed) return false
+			const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+			return emailRegex.test(trimmed)
+		})
+
+		if (validEmails.length === 0) {
+			setError("At least one valid email address is required")
+			return
+		}
+
+		// Validate reminders: at least one required if project is selected
+		if (selectedProject && selectedProject !== "") {
+			if (reminders.length === 0) {
+				setError("At least one reminder is required when a project is selected")
+				setIsSubmitting(false)
+				return
+			}
+
+			// Validate all reminders have at least one valid email
+			const invalidReminders = reminders.filter(r => {
+				if (!r.recipientEmails || r.recipientEmails.length === 0) return true
+				const validEmails = r.recipientEmails.filter(email => {
+					const trimmed = email.trim()
+					return trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+				})
+				return validEmails.length === 0
+			})
+			if (invalidReminders.length > 0) {
+				setError("All reminders must have at least one valid email address")
+				setIsSubmitting(false)
+				return
+			}
+
+			// Validate for duplicates
 			const reminderOffsets = reminders.map(r => r.offsetMinutes)
 			const uniqueOffsets = new Set(reminderOffsets)
 			if (uniqueOffsets.size !== reminderOffsets.length) {
@@ -166,8 +300,9 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 
 		try {
 			// Create bookings for each group of consecutive slots
-			let emailSentCount = 0
-			let emailFailedCount = 0
+			let totalEmailSentCount = 0
+			let totalEmailFailedCount = 0
+			let uniqueRecipientCount = validEmails.length // Will be updated from first result
 
 			for (const group of slotGroups) {
 				const formData = new FormData()
@@ -176,8 +311,8 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				formData.append("attendees", attendees || "1")
 				
 				// Add project ID
-					if (selectedProject) {
-						formData.append("projectId", selectedProject)
+				if (selectedProject) {
+					formData.append("projectId", selectedProject)
 				}
 
 				formData.append("bookedBy", userName)
@@ -187,11 +322,19 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				formData.append("purpose", purpose)
 				formData.append("appointmentType", appointmentType)
 
-				if (notifyClient) {
-					formData.append("notifyClient", "true")
-					formData.append("clientEmail", clientEmail)
-				}
-				if (reminders.length > 0) {
+				// New fields
+				formData.append("bookingName", bookingName)
+				formData.append("companyName", companyName)
+				formData.append("contactNumber", contactNumber)
+				formData.append("remarks", remarks)
+				
+				// Multiple emails (always required)
+				formData.append("clientEmails", JSON.stringify(validEmails))
+
+				// Reminders are required when project is selected
+				if (selectedProject && selectedProject !== "") {
+					formData.append("reminderOffsets", JSON.stringify(reminders))
+				} else if (reminders.length > 0) {
 					formData.append("reminderOffsets", JSON.stringify(reminders))
 				}
 
@@ -205,38 +348,36 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				}
 
 				// Track email sending results
-				if (notifyClient) {
-					if (result.emailSent) {
-						emailSentCount++
-					} else if (result.emailError) {
-						emailFailedCount++
-					}
+				if (result.emailSentCount) {
+					totalEmailSentCount += result.emailSentCount
+				}
+				if (result.emailFailedCount) {
+					totalEmailFailedCount += result.emailFailedCount
+				}
+
+				// Get unique recipient count from first result (accounts for project users added server-side)
+				if (result.uniqueRecipientCount && uniqueRecipientCount === validEmails.length) {
+					uniqueRecipientCount = result.uniqueRecipientCount
 				}
 			}
 
 			// Show dialog for email results
-			if (notifyClient) {
-				if (emailSentCount > 0 && emailFailedCount === 0) {
-					setEmailResult({
-						success: true,
-						message: `Appointment confirmation email sent successfully to ${clientEmail}`,
-					})
-					setShowResultDialog(true)
-				} else if (emailFailedCount > 0) {
-					setEmailResult({
-						success: false,
-						message: `Could not send confirmation email to ${clientEmail}. Please check if the email address is correct.`,
-					})
-					setShowResultDialog(true)
-				} else {
-					// No email results, proceed normally
-					onSuccess?.()
-					onClose()
-				}
+			if (totalEmailSentCount > 0 && totalEmailFailedCount === 0) {
+				setEmailResult({
+					success: true,
+					message: `Appointment confirmation emails sent successfully to ${uniqueRecipientCount} recipient${uniqueRecipientCount !== 1 ? 's' : ''}`,
+				})
+				setShowResultDialog(true)
+			} else if (totalEmailFailedCount > 0) {
+				setEmailResult({
+					success: false,
+					message: `Failed to send confirmation emails to ${totalEmailFailedCount} recipient${totalEmailFailedCount !== 1 ? 's' : ''}. ${totalEmailSentCount > 0 ? `${uniqueRecipientCount} email${uniqueRecipientCount !== 1 ? 's' : ''} sent successfully.` : ''}`,
+				})
+				setShowResultDialog(true)
 			} else {
-				// No email notification, proceed normally
-			onSuccess?.()
-			onClose()
+				// No email results, proceed normally
+				onSuccess?.()
+				onClose()
 			}
 		} catch (error) {
 			console.error("Failed to create bookings:", error)
@@ -278,7 +419,7 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				<div className="space-y-2">
 					<Label htmlFor="appointmentType">Appointment Type</Label>
 					<Select value={appointmentType} onValueChange={setAppointmentType}>
-						<SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+						<SelectTrigger className="w-full bg-background border-2 border-accent">
 							<SelectValue placeholder="Select appointment type" />
 						</SelectTrigger>
 						<SelectContent>
@@ -292,27 +433,118 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				</div>
 
 				{/* Project dropdown */}
-					<div className="space-y-2">
-						<Label htmlFor="project">Project (Optional)</Label>
-						{isLoadingProjects ? (
-							<div className="text-sm text-muted-foreground">Loading projects...</div>
-						) : projects.length > 0 ? (
-							<Select value={selectedProject} onValueChange={setSelectedProject}>
-								<SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-									<SelectValue placeholder="Select a project (optional)" />
-								</SelectTrigger>
-								<SelectContent>
-									{projects.map((project) => (
-										<SelectItem key={project.id} value={project.id.toString()}>
-											{project.name}{project.clientName ? ` (${project.clientName})` : ''}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						) : (
-							<div className="text-sm text-muted-foreground">No projects available</div>
-						)}
-					</div>
+				<div className="space-y-2">
+					<Label htmlFor="project">Project (Optional)</Label>
+					{isLoadingProjects ? (
+						<div className="text-sm text-muted-foreground">Loading projects...</div>
+					) : projects.length > 0 ? (
+						<Select value={selectedProject} onValueChange={setSelectedProject}>
+							<SelectTrigger className="w-full bg-background border-2 border-accent">
+								<SelectValue placeholder="Select a project (optional)" />
+							</SelectTrigger>
+							<SelectContent>
+								{projects.map((project) => (
+									<SelectItem key={project.id} value={project.id.toString()}>
+										{project.name}{project.clientName ? ` (${project.clientName})` : ''}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					) : (
+						<div className="text-sm text-muted-foreground">No projects available</div>
+					)}
+				</div>
+
+				{/* New fields - conditional required */}
+				{(!selectedProject || selectedProject === "") && (
+					<>
+						<div className="space-y-2">
+							<Label htmlFor="bookingName">
+								Booking Name <span className="text-destructive">*</span>
+							</Label>
+							<Input
+								id="bookingName"
+								type="text"
+								value={bookingName}
+								onChange={(e) => setBookingName(e.target.value)}
+								placeholder="Enter booking name"
+								required={!selectedProject || selectedProject === ""}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="companyName">
+								Company Name <span className="text-destructive">*</span>
+							</Label>
+							<Input
+								id="companyName"
+								type="text"
+								value={companyName}
+								onChange={(e) => setCompanyName(e.target.value)}
+								placeholder="Enter company name"
+								required={!selectedProject || selectedProject === ""}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="contactNumber">
+								Contact Number <span className="text-destructive">*</span>
+							</Label>
+							<Input
+								id="contactNumber"
+								type="tel"
+								value={contactNumber}
+								onChange={(e) => setContactNumber(e.target.value)}
+								placeholder="Enter contact number"
+								required={!selectedProject || selectedProject === ""}
+							/>
+						</div>
+					</>
+				)}
+
+				{/* Show fields even when project selected (read-only, showing project client info) */}
+				{selectedProject && selectedProject !== "" && (
+					<>
+						<div className="space-y-2">
+							<Label htmlFor="bookingName">Booking Name</Label>
+							<Input
+								id="bookingName"
+								type="text"
+								value={bookingName}
+								onChange={(e) => setBookingName(e.target.value)}
+								placeholder="Auto-filled from project"
+								readOnly
+								className="bg-muted"
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="companyName">Company Name</Label>
+							<Input
+								id="companyName"
+								type="text"
+								value={companyName}
+								onChange={(e) => setCompanyName(e.target.value)}
+								placeholder="Auto-filled from project"
+								readOnly
+								className="bg-muted"
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="contactNumber">Contact Number</Label>
+							<Input
+								id="contactNumber"
+								type="tel"
+								value={contactNumber}
+								onChange={(e) => setContactNumber(e.target.value)}
+								placeholder="Auto-filled from project"
+								readOnly
+								className="bg-muted"
+							/>
+						</div>
+					</>
+				)}
 
 				<div className="space-y-2">
 					<Label htmlFor="purpose">Purpose</Label>
@@ -325,60 +557,36 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 					/>
 				</div>
 
-					<div className="space-y-2">
-						<Label htmlFor="attendees">Number of Attendees</Label>
-						<Input
-							id="attendees"
-							type="number"
-							value={attendees}
-							onChange={(e) => setAttendees(e.target.value)}
-							required
-							min="1"
+				<div className="space-y-2">
+					<Label htmlFor="attendees">Number of Attendees</Label>
+					<Input
+						id="attendees"
+						type="number"
+						value={attendees}
+						onChange={(e) => setAttendees(e.target.value)}
+						required
+						min="1"
 						placeholder="Number of attendees"
-						/>
-					</div>
+					/>
+				</div>
 
-					<div className="space-y-2">
-						<div className="flex items-center space-x-2">
-							<Checkbox
-								id="notifyClient"
-								checked={notifyClient}
-								onCheckedChange={(checked) => setNotifyClient(checked === true)}
-							/>
-							<Label htmlFor="notifyClient" className="cursor-pointer">
-								Notify client via email
-							</Label>
-						</div>
-					</div>
+				<div className="space-y-2">
+					<Label htmlFor="remarks">Remarks (Optional)</Label>
+					<Textarea
+						id="remarks"
+						value={remarks}
+						onChange={(e) => setRemarks(e.target.value)}
+						placeholder="Any additional remarks or notes"
+						rows={2}
+					/>
+				</div>
 
-					{notifyClient && (
-						<div className="space-y-2">
-							<Label htmlFor="clientEmail">
-								Client Email <span className="text-red-500">*</span>
-							</Label>
-							<Input
-								id="clientEmail"
-								type="email"
-								value={clientEmail}
-								onChange={(e) => setClientEmail(e.target.value)}
-								placeholder="client@example.com"
-								required={notifyClient}
-								className={!clientEmail ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}
-							/>
-							{!clientEmail && (
-								<p className="text-xs text-red-500 font-medium">
-									⚠ Email is required to notify the client
-								</p>
-							)}
-							{clientEmail && (
-								<p className="text-xs text-muted-foreground">
-									{selectedProject && selectedProject !== ""
-										? "Email auto-filled from project client. You can edit it if needed."
-										: "Enter the client's email address to send confirmation."}
-								</p>
-							)}
-						</div>
-					)}
+				{/* Email addresses - always required */}
+				<EmailListInput
+					emails={clientEmails}
+					onChange={setClientEmails}
+					required
+				/>
 
 					{/* Reminder Settings - Only show if project is selected */}
 					{selectedProject && selectedProject !== "" && slots.length > 0 && (
@@ -410,9 +618,9 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 														if (reminders.some(r => r.offsetMinutes === minutes)) {
 															return // Already exists, don't add
 														}
-														const project = projects.find(p => p.id.toString() === selectedProject)
-														const defaultEmail = project?.Client?.email || clientEmail || ""
-														setReminders([...reminders, { offsetMinutes: minutes, recipientEmail: defaultEmail }])
+														// Use all emails from clientEmails (which includes all project emails)
+														const defaultEmails = clientEmails.filter(e => e.trim())
+														setReminders([...reminders, { offsetMinutes: minutes, recipientEmails: defaultEmails.length > 0 ? defaultEmails : [""] }])
 													}
 												}}
 												className="text-xs"
@@ -469,16 +677,15 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 																×
 															</Button>
 														</div>
-														<Input
-															type="email"
-															value={reminder.recipientEmail}
-															onChange={(e) => {
+														<EmailListInput
+															emails={reminder.recipientEmails}
+															onChange={(emails) => {
 																const updated = [...reminders]
-																updated[index].recipientEmail = e.target.value
+																updated[index].recipientEmails = emails
 																setReminders(updated)
 															}}
-															placeholder="Email address"
-															className="h-8 text-xs"
+															required
+															className="mt-2"
 														/>
 													</div>
 												)
@@ -525,6 +732,21 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 					</Button>
 				</div>
 			</form>
+
+			{/* Field Overwrite Dialog */}
+			{pendingProjectSelection && (
+				<FieldOverwriteDialog
+					isOpen={showOverwriteDialog}
+					onClose={handleOverwriteCancel}
+					onAccept={handleOverwriteAccept}
+					fieldsToOverwrite={{
+						bookingName: bookingName.trim() || undefined,
+						companyName: companyName.trim() || undefined,
+						contactNumber: contactNumber.trim() || undefined,
+					}}
+					projectClientName={projects.find((p) => p.id.toString() === pendingProjectSelection)?.Client?.name || "Project Client"}
+				/>
+			)}
 
 			{/* Email Result Dialog */}
 			<Dialog open={showResultDialog} onOpenChange={(open) => {

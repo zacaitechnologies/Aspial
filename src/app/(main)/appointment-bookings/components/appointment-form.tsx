@@ -77,7 +77,7 @@ export function AppointmentForm({ appointment, onClose, onSuccess }: Appointment
           <div className="space-y-2">
             <Label htmlFor="appointmentType">Appointment Type *</Label>
             <Select value={appointmentType} onValueChange={setAppointmentType} required>
-              <SelectTrigger className="w-full bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+              <SelectTrigger className="w-full bg-background border-2 border-accent">
                 <SelectValue placeholder="Select appointment type" />
               </SelectTrigger>
               <SelectContent>

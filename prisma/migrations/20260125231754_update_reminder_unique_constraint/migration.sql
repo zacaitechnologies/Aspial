@@ -1,0 +1,5 @@
+-- DropIndex
+DROP INDEX "appointment_booking_reminders_appointmentBookingId_offsetMi_key";
+
+-- RenameIndex
+ALTER INDEX "appointment_booking_reminders_appointmentBookingId_offsetMinute" RENAME TO "appointment_booking_reminders_appointmentBookingId_offsetMi_key";

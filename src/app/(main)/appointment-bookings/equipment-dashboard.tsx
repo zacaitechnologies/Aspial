@@ -12,11 +12,12 @@ import { DatePicker } from "@/app/(main)/appointment-bookings/components/date-pi
 import AppointmentBookingEmailHistoryDialog from "@/app/(main)/appointment-bookings/components/AppointmentBookingEmailHistoryDialog"
 import SendAppointmentReminderDialog from "@/app/(main)/appointment-bookings/components/SendAppointmentReminderDialog"
 import EditAppointmentRemindersDialog from "@/app/(main)/appointment-bookings/components/EditAppointmentRemindersDialog"
+import BookingDetailsDialog from "@/app/(main)/appointment-bookings/components/BookingDetailsDialog"
 import { deleteAppointment, cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
 import { cn } from "@/lib/utils"
 import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
-import { Edit, Trash2, Plus, Calendar, Clock, User, Search, List, Users as UsersIcon, Mail, Send, Bell } from "lucide-react"
+import { Edit, Trash2, Plus, Calendar, Clock, User, Search, List, Users as UsersIcon, Mail, Send, Bell, Info } from "lucide-react"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,7 +36,7 @@ interface Appointment {
   bookings?: AppointmentBooking[]
 }
 
-interface AppointmentBooking {
+export interface AppointmentBooking {
 	id: number
 	bookedBy: string
 	startDate: Date
@@ -45,6 +46,10 @@ interface AppointmentBooking {
 	status: string
 	appointmentId: number | null
 	attendees: number | null
+	bookingName: string | null
+	companyName: string | null
+	contactNumber: string | null
+	remarks: string | null
 	appointment?: {
 		id: number
 		name: string
@@ -59,6 +64,7 @@ interface AppointmentBooking {
 			id: string
 			name: string
 			email: string
+			phone: string | null
 			company: string | null
 		} | null
 	} | null
@@ -82,9 +88,19 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [showAppointmentForm, setShowAppointmentForm] = useState(false)
   const [activeTab, setActiveTab] = useState("appointment-booking")
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  // Fix hydration: use stable initial date
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    return now
+  })
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
+  
+  // Safety checks: ensure arrays are always defined
+  const safeAppointments = Array.isArray(appointments) ? appointments : []
+  const safeBookings = Array.isArray(bookings) ? bookings : []
+  const safeUserProjectIds = Array.isArray(userProjectIds) ? userProjectIds : []
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState("")
@@ -107,6 +123,10 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
   // Edit reminders dialog state
   const [showEditRemindersDialog, setShowEditRemindersDialog] = useState(false)
   const [selectedEditRemindersBookingId, setSelectedEditRemindersBookingId] = useState<number | null>(null)
+  
+  // Booking details dialog state
+  const [showBookingDetailsDialog, setShowBookingDetailsDialog] = useState(false)
+  const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<AppointmentBooking | null>(null)
 
   // Get user name for filtering bookings
   const userName = enhancedUser?.profile 
@@ -119,7 +139,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
 
   // Filter appointments based on search and filters
   const getFilteredAppointments = () => {
-    return appointments.filter(appointment => {
+    return safeAppointments.filter(appointment => {
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase()
@@ -151,10 +171,10 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
 
   // Get all user bookings for pagination
   const getAllUserBookings = () => {
-    const userBookings = bookings.filter(booking => {
+    const userBookings = safeBookings.filter(booking => {
       const isUserBooking = booking.bookedBy === userName
       const isUserProjectBooking = booking.project && 
-        userProjectIds.includes(booking.project.id)
+        safeUserProjectIds.includes(booking.project.id)
       
       return isUserBooking || isUserProjectBooking
     }).map(booking => ({
@@ -162,7 +182,8 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
       itemName: booking.project?.clientName || booking.appointment?.name || 'Appointment',
       itemLocation: booking.appointment?.location,
       itemBrand: booking.appointment?.brand,
-      project: booking.project
+      project: booking.project,
+      reminders: Array.isArray(booking.reminders) ? booking.reminders : []
     }))
     
     return userBookings.sort((a, b) => 
@@ -251,20 +272,20 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
         <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} bg-transparent border-primary border transition-all duration-300 ease-in-out`}>
           <TabsTrigger 
             value="appointment-booking" 
-            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
           >
             Book Appointments
           </TabsTrigger>
           <TabsTrigger 
             value="my-bookings" 
-            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
           >
             My Bookings
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger 
               value="manage-appointments" 
-              className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-white"
+              className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
             >
               Manage Appointments
             </TabsTrigger>
@@ -272,7 +293,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
         </TabsList>
         {/* Sliding indicator */}
         <div 
-          className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
+          className={`absolute top-1 h-[calc(100%-8px)] bg-primary transition-all duration-300 ease-in-out rounded-md z-0 ${
             isAdmin ? (
               activeTab === "appointment-booking" ? "left-1 w-[calc(33.33%-4px)]" : 
               activeTab === "my-bookings" ? "left-[calc(33.33%+2px)] w-[calc(33.33%-4px)]" : 
@@ -282,7 +303,6 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
               "left-[calc(50%+2px)] w-[calc(50%-4px)]"
             )
           }`}
-          style={{ backgroundColor: "#202F21" }}
         />
       </div>
 
@@ -290,7 +310,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
       <TabsContent value="appointment-booking" className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-semibold">Book Appointments</h2>
-          <Button onClick={handleRefresh} className="text-white" style={{ backgroundColor: "#202F21" }}>
+          <Button onClick={handleRefresh} className="bg-primary text-primary-foreground">
             <Clock className="w-4 h-4 mr-2" />
             Refresh
           </Button>
@@ -300,19 +320,18 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
         <div className="space-y-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: "#898D74" }} />
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search appointments..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white border-2"
-                style={{ borderColor: "#BDC4A5" }}
+                className="pl-10 bg-background border-2 border-accent"
               />
             </div>
             <Select value={selectedAppointmentType} onValueChange={setSelectedAppointmentType}>
-              <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-                <List className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
+              <SelectTrigger className="w-48 bg-background border-2 border-accent">
+                <List className="w-4 h-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -336,7 +355,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
               />
             </div>
             <div className="text-sm text-muted-foreground">
-              Showing {filteredAppointments.length} of {appointments.length} appointments
+              Showing {filteredAppointments.length} of {safeAppointments.length} appointments
             </div>
           </div>
 
@@ -355,7 +374,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
             <User className="w-5 h-5" />
             My Bookings
           </h2>
-          <Button onClick={handleRefresh} className="text-white" style={{ backgroundColor: "#202F21" }}>
+          <Button onClick={handleRefresh} className="bg-primary text-primary-foreground">
             <Clock className="w-4 h-4 mr-2" />
             Refresh
           </Button>
@@ -365,19 +384,18 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
         <div className="space-y-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="flex-1 relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: "#898D74" }} />
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search bookings..."
                 value={bookingSearchQuery}
                 onChange={(e) => setBookingSearchQuery(e.target.value)}
-                className="pl-10 bg-white border-2"
-                style={{ borderColor: "#BDC4A5" }}
+                className="pl-10 bg-background border-2 border-accent"
               />
             </div>
             <Select value={bookingTypeFilter} onValueChange={setBookingTypeFilter}>
-              <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-                <List className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
+              <SelectTrigger className="w-48 bg-background border-2 border-accent">
+                <List className="w-4 h-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
@@ -390,8 +408,8 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
               </SelectContent>
             </Select>
             <Select value={bookingStatusFilter} onValueChange={setBookingStatusFilter}>
-              <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-                <UsersIcon className="w-4 h-4 mr-2" style={{ color: "#898D74" }} />
+              <SelectTrigger className="w-48 bg-background border-2 border-accent">
+                <UsersIcon className="w-4 h-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -456,6 +474,18 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                           variant="ghost"
                           size="sm"
                           onClick={() => {
+                            setSelectedBookingForDetails(booking)
+                            setShowBookingDetailsDialog(true)
+                          }}
+                          className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                          title="View booking details"
+                        >
+                          <Info className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
                             setSelectedBookingId(booking.id)
                             setShowEmailHistoryDialog(true)
                           }}
@@ -482,7 +512,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                       </Badge>
                       <Badge 
                         variant="secondary"
-                        className={hasPassed ? "bg-gray-100 text-gray-800" : "bg-green-100 text-green-800"}
+                        className={hasPassed ? "bg-muted text-muted-foreground" : "bg-[var(--color-chart-3)] text-primary-foreground"}
                       >
                         {hasPassed ? 'Expired' : 'Active'}
                       </Badge>
@@ -600,7 +630,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
             <h2 className="text-2xl font-semibold">Manage Appointments ({appointments.length})</h2>
             <Dialog open={showAppointmentForm} onOpenChange={setShowAppointmentForm}>
               <DialogTrigger asChild>
-                <Button className="text-white" style={{ backgroundColor: "#202F21" }}>
+                <Button className="bg-primary text-primary-foreground">
                   <Plus className="w-5 h-5 mr-2" />
                   Add Appointment
                 </Button>
@@ -622,7 +652,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {appointments.map((appointment) => {
+            {safeAppointments.map((appointment) => {
               const appointmentConfig = APPOINTMENT_TYPES[appointment.appointmentType as keyof typeof APPOINTMENT_TYPES] || APPOINTMENT_TYPES.OTHERS
               
               return (
@@ -634,7 +664,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                         <div className="flex items-center gap-2 mt-2">
                           <Badge 
                             variant="secondary"
-                            className={appointment.isAvailable ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
+                            className={appointment.isAvailable ? "bg-[var(--color-chart-3)] text-primary-foreground" : "bg-muted text-muted-foreground"}
                           >
                             {appointment.isAvailable ? "Available" : "Unavailable"}
                           </Badge>
@@ -766,6 +796,18 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
           }}
         />
       )}
+
+      {/* Booking Details Dialog */}
+      <BookingDetailsDialog
+        isOpen={showBookingDetailsDialog}
+        onOpenChange={(open) => {
+          setShowBookingDetailsDialog(open)
+          if (!open) {
+            setSelectedBookingForDetails(null)
+          }
+        }}
+        booking={selectedBookingForDetails}
+      />
     </Tabs>
   )
 }
