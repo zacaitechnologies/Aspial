@@ -24,19 +24,19 @@ export function CalendarDay({
 
   return (
     <div
-      className={`calendar-day h-24 border border-gray-100 p-1 cursor-pointer relative ${
-        isToday ? "bg-blue-50 border-blue-200" : ""
+      className={`calendar-day h-24 border border-border p-1 cursor-pointer relative ${
+        isToday ? "bg-primary/10 border-primary/30" : ""
       }`}
       onClick={() => onDateClick(dateString)}
     >
-      <div className={`text-sm font-medium mb-1 ${isToday ? "text-blue-600" : "text-gray-700"}`}>
+      <div className={`text-sm font-medium mb-1 ${isToday ? "text-primary" : "text-foreground"}`}>
         {day}
       </div>
       <div className="space-y-1">
         {dayBookings.slice(0, 2).map((booking) => (
           <div
             key={booking.id}
-            className={`text-xs px-1 py-0.5 rounded text-white truncate ${booking.color} cursor-pointer`}
+            className={`text-xs px-1 py-0.5 rounded text-primary-foreground truncate ${booking.color} cursor-pointer`}
             onClick={(e) => {
               e.stopPropagation()
               onBookingClick(booking)
@@ -46,7 +46,7 @@ export function CalendarDay({
           </div>
         ))}
         {dayBookings.length > 2 && (
-          <div className="text-xs text-gray-500 px-1">
+          <div className="text-xs text-muted-foreground px-1">
             +{dayBookings.length - 2} more
           </div>
         )}

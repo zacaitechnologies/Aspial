@@ -329,7 +329,7 @@ export async function fetchAllBookings(
 						appointmentType: 'OTHERS', // Tasks map to OTHERS appointment type
 						location: task.project?.name || 'Unknown Project',
 						attendees: 1,
-						color: isOverdue ? "bg-red-600" : APPOINTMENT_TYPES.OTHERS.color,
+						color: isOverdue ? "bg-destructive" : APPOINTMENT_TYPES.OTHERS.color,
 						projectId: task.project?.id,
 						projectName: task.project?.name || null,
 						clientName: clientName,
@@ -362,7 +362,7 @@ export async function fetchAllBookings(
 							appointmentType: 'OTHERS', // Tasks map to OTHERS appointment type
 							location: task.project?.name || 'Unknown Project',
 							attendees: 1,
-							color: isOverdue ? "bg-red-600" : APPOINTMENT_TYPES.OTHERS.color,
+							color: isOverdue ? "bg-destructive" : APPOINTMENT_TYPES.OTHERS.color,
 							projectId: task.project?.id,
 							projectName: task.project?.name || null,
 							clientName: clientName,
