@@ -20,6 +20,10 @@ interface AppointmentBooking {
 	status: string
 	appointmentId: number | null
 	attendees: number | null
+	bookingName: string | null
+	companyName: string | null
+	contactNumber: string | null
+	remarks: string | null
 	appointment?: {
 		id: number
 		name: string
@@ -30,7 +34,20 @@ interface AppointmentBooking {
 		id: number
 		name: string
 		clientName: string | null
+		Client?: {
+			id: string
+			name: string
+			email: string
+			phone: string | null
+			company: string | null
+		} | null
 	} | null
+	reminders?: {
+		id: number
+		offsetMinutes: number
+		remindAt: Date
+		status: string
+	}[]
 }
 
 interface Appointment {

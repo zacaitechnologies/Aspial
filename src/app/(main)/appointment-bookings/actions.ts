@@ -949,6 +949,7 @@ export async function getAppointmentBookingWithDetails(
 								id: true,
 								name: true,
 								email: true,
+								phone: true,
 								company: true,
 							},
 						},

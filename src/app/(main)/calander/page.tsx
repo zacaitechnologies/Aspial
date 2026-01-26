@@ -2,6 +2,9 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { fetchAllBookings, getUserProjects, checkIsAdmin } from "./actions"
 import CalendarClient from "./components/CalendarClient"
 
+// Force dynamic rendering since we use cookies for authentication
+export const dynamic = 'force-dynamic'
+
 // Server Component - fetches data on server for fast initial load
 export default async function OrganizationCalendar() {
 	const user = await getCachedUser()
