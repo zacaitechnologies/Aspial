@@ -86,9 +86,9 @@ export default function ProjectCollaboratorsDialog({
       console.log("Fetching permissions for project:", projectId);
       
       // Try to fetch all data
-      let permissionsData: any[] = [];
-      let availableUsersData: any[] = [];
-      let invitationsData: any[] = [];
+      let permissionsData: ProjectPermission[] = [];
+      let availableUsersData: AvailableUser[] = [];
+      let invitationsData: ProjectInvitation[] = [];
       
       // Fetch project permissions (current collaborators)
       try {
@@ -150,8 +150,8 @@ export default function ProjectCollaboratorsDialog({
       }
       
       // Set all the data
-      setPermissions(permissionsData as ProjectPermission[]);
-      setAvailableUsers(availableUsersData as AvailableUser[]);
+      setPermissions(permissionsData);
+      setAvailableUsers(availableUsersData);
       setInvitations(invitationsData as ProjectInvitation[]);
       
       console.log("Dialog is working - permissions:", permissionsData.length, "users:", availableUsersData.length, "invitations:", invitationsData.length);

@@ -8,7 +8,6 @@ export type ProjectWithQuotations = {
   endDate: Date | null;
   created_at: Date;
   updated_at: Date;
-  priority: string;
   taskCount?: number;
   clientName?: string;
   clientId?: string;
@@ -315,4 +314,168 @@ export type AvailableProject = {
   clientId: string | null;
   created_at: Date;
   quotationCount: number;
+};
+
+// Complaint types
+export type Complaint = {
+  id: number;
+  date: Date;
+  customer: string;
+  reason: string;
+  userId: string;
+  projectId: number | null;
+  created_at: Date;
+  updated_at: Date;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  project?: {
+    id: number;
+    name: string;
+  } | null;
+};
+
+// Quotation service types for project display
+export type QuotationService = {
+  id: number;
+  service: {
+    id: number;
+    name: string;
+    description: string;
+    basePrice: number;
+    ServiceToTag?: Array<{
+      service_tags: {
+        id: number;
+        name: string;
+        color: string | null;
+      };
+    }>;
+  };
+};
+
+export type CustomService = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  status: string;
+};
+
+export type ProjectQuotation = {
+  id: number;
+  name: string;
+  description: string;
+  totalPrice: number;
+  status: string;
+  services?: QuotationService[];
+  customServices?: CustomService[];
+};
+
+// Return type for getProjectById
+export type ProjectWithDetails = {
+  project: {
+    id: number;
+    name: string;
+    description: string | null;
+    status: string;
+    startDate: Date | null;
+    endDate: Date | null;
+    created_at: Date;
+    updated_at: Date;
+    clientName: string | null;
+    clientId: string | null;
+    taskCount: number;
+    createdByUser: {
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+    Client: {
+      name: string;
+    } | null;
+    quotations: Array<{
+      id: number;
+      name: string;
+      totalPrice: number;
+      workflowStatus: string;
+      paymentStatus: string;
+      services: Array<{
+        id: number;
+        service: {
+          id: number;
+          name: string;
+          description: string;
+          basePrice: number;
+          ServiceToTag?: Array<{
+            service_tags: {
+              id: number;
+              name: string;
+              color: string | null;
+            };
+          }>;
+        };
+      }>;
+      customServices: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        price: number;
+        status: string;
+      }>;
+    }>;
+  };
+  collaborators: Array<{
+    isOwner: boolean;
+    canEdit: boolean;
+    canView: boolean;
+    user: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+  }>;
+  taskStats: {
+    total: number;
+    todo: number;
+    inProgress: number;
+    done: number;
+  };
+  complaints: Complaint[];
+  userPermission: {
+    isOwner: boolean;
+    canEdit: boolean;
+    canView: boolean;
+    isAdmin: boolean;
+  } | null;
+};
+
+// Return type for getProjectsPaginated
+export type ProjectsPaginatedResult = {
+  projects: Array<{
+    id: number;
+    name: string;
+    description: string | null;
+    status: string;
+    startDate: Date | null;
+    endDate: Date | null;
+    created_at: Date;
+    updated_at: Date;
+    taskCount: number;
+    isOwner: boolean;
+    createdByUser: {
+      firstName: string;
+      lastName: string;
+    };
+    Client: {
+      name: string;
+    } | null;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 };

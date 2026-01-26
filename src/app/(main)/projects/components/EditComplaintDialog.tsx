@@ -122,8 +122,7 @@ export default function EditComplaintDialog({
 						<Button
 							type="submit"
 							disabled={loading}
-							style={{ backgroundColor: "#202F21" }}
-							className="text-white"
+							className="bg-primary text-primary-foreground"
 						>
 							{loading ? (
 								<>

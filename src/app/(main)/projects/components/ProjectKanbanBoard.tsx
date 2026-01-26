@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, User, Target, ChevronDown, ClipboardList } from "lucide-react";
@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { TaskWithAssignee, Milestone } from "../types";
+import { TaskWithAssignee, Milestone, TaskStatus } from "../types";
 import { getProjectTasks, getProjectCollaborators } from "../task-actions";
 import { getProjectMilestones } from "../milestone-actions";
 import { TaskForm } from "./TaskForm";
@@ -38,7 +38,7 @@ interface KanbanBoardProps {
   onTasksUpdated?: () => void; // Callback to refresh taskStats in parent
 }
 
-export function KanbanBoard({
+const KanbanBoardComponent = memo(function KanbanBoard({
   projectId,
   sortBy = "createDate",
   sortOrder = "desc",
@@ -87,7 +87,7 @@ export function KanbanBoard({
   }, [projectId]);
 
   // Refresh all data function (without notifying parent - call onTasksUpdated explicitly when needed)
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     try {
       const [projectTasks, collaborators, projectMilestones] =
         await Promise.all([
@@ -101,69 +101,91 @@ export function KanbanBoard({
     } catch (error) {
       console.error("Error fetching data:", error);
     }
-  };
+  }, [projectId]);
 
-  const getTasksForColumn = (columnId: string) => {
-    let columnTasks = tasks.filter((task) => task.status === columnId);
+  // Memoize filtered and sorted tasks per column to prevent recalculation
+  const tasksByColumn = useMemo(() => {
+    const columns: Record<string, TaskWithAssignee[]> = {
+      todo: [],
+      in_progress: [],
+      done: [],
+    };
+
+    let filteredTasks = tasks;
 
     // Filter by task ownership if "my" filter is selected
     if (taskFilter === "my" && userId) {
-      columnTasks = columnTasks.filter(
+      filteredTasks = tasks.filter(
         (task) => task.assigneeId === userId || task.creatorId === userId
       );
     }
 
-    // Sort tasks based on props
-    return columnTasks.sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortBy) {
-        case "dueDate":
-          const aDueDate = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-          const bDueDate = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-          comparison = aDueDate - bDueDate;
-          break;
-        case "createDate":
-          const aCreateDate = new Date(a.createdAt).getTime();
-          const bCreateDate = new Date(b.createdAt).getTime();
-          comparison = aCreateDate - bCreateDate;
-          break;
-        case "priority":
-          const priorityOrder = { high: 3, medium: 2, low: 1 };
-          const aPriority =
-            priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          const bPriority =
-            priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-          comparison = aPriority - bPriority;
-          break;
+    // Group by status
+    filteredTasks.forEach((task) => {
+      if (task.status in columns) {
+        columns[task.status].push(task);
       }
-
-      return sortOrder === "asc" ? comparison : -comparison;
     });
-  };
 
-  const handleTaskCreated = async (newTask: TaskWithAssignee) => {
+    // Sort each column
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    Object.keys(columns).forEach((status) => {
+      columns[status].sort((a, b) => {
+        let comparison = 0;
+
+        switch (sortBy) {
+          case "dueDate":
+            const aDueDate = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+            const bDueDate = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+            comparison = aDueDate - bDueDate;
+            break;
+          case "createDate":
+            const aCreateDate = new Date(a.createdAt).getTime();
+            const bCreateDate = new Date(b.createdAt).getTime();
+            comparison = aCreateDate - bCreateDate;
+            break;
+          case "priority":
+            const aPriority =
+              priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+            const bPriority =
+              priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+            comparison = aPriority - bPriority;
+            break;
+        }
+
+        return sortOrder === "asc" ? comparison : -comparison;
+      });
+    });
+
+    return columns;
+  }, [tasks, taskFilter, userId, sortBy, sortOrder]);
+
+  const getTasksForColumn = useCallback((columnId: string) => {
+    return tasksByColumn[columnId] || [];
+  }, [tasksByColumn]);
+
+  const handleTaskCreated = useCallback(async (newTask: TaskWithAssignee) => {
     setTasks((prev) => [...prev, newTask]);
     // Refresh milestones to update task counts and notify parent
     await refreshData();
     onTasksUpdatedRef.current?.();
-  };
+  }, []);
 
-  const handleTaskUpdated = async (updatedTask: TaskWithAssignee) => {
+  const handleTaskUpdated = useCallback(async (updatedTask: TaskWithAssignee) => {
     setTasks((prev) =>
       prev.map((task) => (task.id === updatedTask.id ? updatedTask : task))
     );
     // Refresh milestones to update task counts and notify parent
     await refreshData();
     onTasksUpdatedRef.current?.();
-  };
+  }, []);
 
-  const handleTaskDeleted = async (taskId: number) => {
+  const handleTaskDeleted = useCallback(async (taskId: number) => {
     setTasks((prev) => prev.filter((task) => task.id !== taskId));
     // Refresh milestones to update task counts and notify parent
     await refreshData();
     onTasksUpdatedRef.current?.();
-  };
+  }, []);
 
   const handleMilestoneCreated = (newMilestone: Milestone) => {
     setMilestones((prev) => [...prev, newMilestone]);
@@ -199,18 +221,18 @@ export function KanbanBoard({
     e.preventDefault();
   };
 
-  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
+  const handleDrop = async (e: React.DragEvent, newStatus: TaskStatus) => {
     e.preventDefault();
     const taskId = parseInt(e.dataTransfer.getData("text/plain"));
 
     try {
       const { updateTaskStatus } = await import("../task-actions");
-      await updateTaskStatus(taskId, newStatus as any);
+      await updateTaskStatus(taskId, newStatus);
 
       // Update local state
       setTasks((prev) =>
         prev.map((task) =>
-          task.id === taskId ? { ...task, status: newStatus as any } : task
+          task.id === taskId ? { ...task, status: newStatus } : task
         )
       );
 
@@ -358,13 +380,13 @@ export function KanbanBoard({
                 variant="secondary"
                 className="bg-blue-100 text-blue-600 border-blue-200"
               >
-                {getTasksForColumn("todo").length}
+                {tasksByColumn.todo.length}
               </Badge>
             </h3>
           </div>
 
-          {getTasksForColumn("todo").length > 0 ? (
-            getTasksForColumn("todo").map((task) => (
+          {tasksByColumn.todo.length > 0 ? (
+            tasksByColumn.todo.map((task) => (
               <TaskCard
                 key={task.id}
                 task={task}
@@ -432,13 +454,13 @@ export function KanbanBoard({
                 variant="secondary"
                 className="bg-green-100 text-green-600 border-green-200"
               >
-                {getTasksForColumn("done").length}
+                {tasksByColumn.done.length}
               </Badge>
             </h3>
           </div>
 
-          {getTasksForColumn("done").length > 0 ? (
-            getTasksForColumn("done").map((task) => (
+          {tasksByColumn.done.length > 0 ? (
+            tasksByColumn.done.map((task) => (
               <TaskCard
                 key={task.id}
                 task={task}
@@ -458,4 +480,7 @@ export function KanbanBoard({
       </div>
     </div>
   );
-}
+});
+
+// Export memoized KanbanBoard to prevent unnecessary rerenders when parent rerenders
+export { KanbanBoardComponent as KanbanBoard };

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { getProjectsPaginated } from "../action"
-import type { ProjectWithQuotation } from "../types"
+import type { ProjectsPaginatedResult } from "../types"
 
 interface UseProjectsPaginatedReturn {
-  projects: ProjectWithQuotation[]
+  projects: ProjectsPaginatedResult['projects']
   isLoading: boolean
   page: number
   pageSize: number
@@ -21,7 +21,7 @@ const CACHE_DURATION = 3 * 60 * 1000 // 3 minutes for active session
 
 // Cache structure: Map<cacheKey, {data, timestamp}>
 interface CacheEntry {
-  data: any
+  data: ProjectsPaginatedResult
   timestamp: number
 }
 
@@ -35,7 +35,7 @@ export function useProjectsPaginated(
   searchQuery?: string,
   statusFilter?: string
 ): UseProjectsPaginatedReturn {
-  const [projects, setProjects] = useState<ProjectWithQuotation[]>([])
+  const [projects, setProjects] = useState<ProjectsPaginatedResult['projects']>([])
   const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(initialPage)
   const [pageSize, setPageSize] = useState(initialPageSize)
@@ -100,7 +100,7 @@ export function useProjectsPaginated(
       })
       
       // Update component state
-      setProjects(result.projects as any)
+      setProjects(result.projects)
       setTotal(result.total)
       setTotalPages(result.totalPages)
     } catch (error) {

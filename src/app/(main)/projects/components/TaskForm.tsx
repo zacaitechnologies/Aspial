@@ -29,7 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -74,7 +74,7 @@ interface TaskFormProps {
 }
 
 // Reusable form field components
-const TitleField = ({ form }: { form: any }) => (
+const TitleField = ({ form }: { form: UseFormReturn<TaskFormData> }) => (
   <FormField
     control={form.control}
     name="title"
@@ -90,7 +90,7 @@ const TitleField = ({ form }: { form: any }) => (
   />
 );
 
-const MilestoneField = ({ form, availableMilestones }: { form: any; availableMilestones?: Milestone[] }) => (
+const MilestoneField = ({ form, availableMilestones }: { form: UseFormReturn<TaskFormData>; availableMilestones?: Milestone[] }) => (
   <FormField
     control={form.control}
     name="milestoneId"
@@ -118,7 +118,7 @@ const MilestoneField = ({ form, availableMilestones }: { form: any; availableMil
   />
 );
 
-const DescriptionField = ({ form }: { form: any }) => (
+const DescriptionField = ({ form }: { form: UseFormReturn<TaskFormData> }) => (
   <FormField
     control={form.control}
     name="description"
@@ -128,7 +128,7 @@ const DescriptionField = ({ form }: { form: any }) => (
         <FormControl>
           <Textarea
             placeholder="Enter task description"
-            className="min-h-[100px] text-black"
+            className="min-h-[100px]"
             {...field}
           />
         </FormControl>
@@ -138,7 +138,7 @@ const DescriptionField = ({ form }: { form: any }) => (
   />
 );
 
-const PriorityField = ({ form }: { form: any }) => (
+const PriorityField = ({ form }: { form: UseFormReturn<TaskFormData> }) => (
   <FormField
     control={form.control}
     name="priority"
@@ -165,7 +165,7 @@ const PriorityField = ({ form }: { form: any }) => (
   />
 );
 
-const AssigneeField = ({ form, availableUsers }: { form: any; availableUsers: any[] }) => (
+const AssigneeField = ({ form, availableUsers }: { form: UseFormReturn<TaskFormData>; availableUsers: Array<{ id: string; firstName: string; lastName: string; email: string; supabase_id: string }> }) => (
   <FormField
     control={form.control}
     name="assigneeId"
@@ -235,8 +235,8 @@ const TaskFormContent = ({
   onSubmit,
   error
 }: {
-  form: any;
-  availableUsers: any[];
+  form: UseFormReturn<TaskFormData>;
+  availableUsers: Array<{ id: string; firstName: string; lastName: string; email: string; supabase_id: string }>;
   availableMilestones?: Milestone[];
   isSubmitting: boolean;
   isEdit?: boolean;
@@ -320,7 +320,7 @@ export function TaskForm({
         ? new Date(task.dueDate).toISOString().split("T")[0]
         : new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split("T")[0], // Default to 7 days from now
     },
-  } as any);
+  });
 
   const onSubmit = async (data: TaskFormData) => {
     if (!enhancedUser?.id) {

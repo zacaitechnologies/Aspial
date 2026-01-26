@@ -790,14 +790,37 @@ export async function getProjectById(userId: string, projectId: string) {
     },
   });
 
-  // Get task statistics
-  const taskStats = await prisma.task.groupBy({
-    by: ['status'],
-    where: { projectId: parseInt(projectId) },
-    _count: {
-      status: true,
-    },
-  }) as { status: string; _count: { status: number } }[];
+  // Get task statistics and complaints in parallel
+  const [taskStatsResult, complaints] = await Promise.all([
+    prisma.task.groupBy({
+      by: ['status'],
+      where: { projectId: parseInt(projectId) },
+      _count: {
+        status: true,
+      },
+    }),
+    prisma.complaint.findMany({
+      where: {
+        projectId: parseInt(projectId),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        created_at: "desc",
+      },
+    }),
+  ]);
+
+  // Type assertion for task stats (Prisma groupBy returns complex types)
+  const taskStats = taskStatsResult as Array<{ status: string; _count: { status: number } }>;
 
   // Transform task stats
   const stats = {
@@ -831,6 +854,7 @@ export async function getProjectById(userId: string, projectId: string) {
       },
     collaborators,
     taskStats: stats,
+    complaints,
     userPermission: {
       ...userPermission,
       isAdmin,

@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -61,7 +61,7 @@ interface MilestoneFormProps {
 }
 
 // Reusable form field components
-const TitleField = ({ form }: { form: any }) => (
+const TitleField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
   <FormField
     control={form.control}
     name="title"
@@ -77,7 +77,7 @@ const TitleField = ({ form }: { form: any }) => (
   />
 );
 
-const DescriptionField = ({ form }: { form: any }) => (
+const DescriptionField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
   <FormField
     control={form.control}
     name="description"
@@ -97,7 +97,7 @@ const DescriptionField = ({ form }: { form: any }) => (
   />
 );
 
-const PriorityField = ({ form }: { form: any }) => (
+const PriorityField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
   <FormField
     control={form.control}
     name="priority"
@@ -124,7 +124,7 @@ const PriorityField = ({ form }: { form: any }) => (
   />
 );
 
-const StatusField = ({ form }: { form: any }) => (
+const StatusField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
   <FormField
     control={form.control}
     name="status"
@@ -151,7 +151,7 @@ const StatusField = ({ form }: { form: any }) => (
   />
 );
 
-const DueDateField = ({ form }: { form: any }) => (
+const DueDateField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
   <FormField
     control={form.control}
     name="dueDate"
@@ -171,7 +171,7 @@ const DueDateField = ({ form }: { form: any }) => (
   />
 );
 
-const ServiceField = ({ form, availableServices, isLoadingServices }: { form: any; availableServices: any[]; isLoadingServices: boolean }) => (
+const ServiceField = ({ form, availableServices, isLoadingServices }: { form: UseFormReturn<MilestoneFormData>; availableServices: Array<{ id: number; name: string; description: string; basePrice: number }>; isLoadingServices: boolean }) => (
   <FormField
     control={form.control}
     name="serviceId"
@@ -219,7 +219,7 @@ export function MilestoneForm({
 }: MilestoneFormProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [availableServices, setAvailableServices] = useState<any[]>([]);
+  const [availableServices, setAvailableServices] = useState<Array<{ id: number; name: string; description: string; basePrice: number }>>([]);
   const [isLoadingServices, setIsLoadingServices] = useState(true);
 
   const form = useForm<MilestoneFormData>({
@@ -266,14 +266,14 @@ export function MilestoneForm({
 
       if (milestone) {
         // Update existing milestone
-        const updatedMilestone = await updateMilestone(milestone.id, milestoneData as any);
+        const updatedMilestone = await updateMilestone(milestone.id, milestoneData);
         onMilestoneUpdated?.(updatedMilestone);
       } else {
         // Create new milestone
         const newMilestone = await createMilestone({
           ...milestoneData,
           projectId,
-        } as any);
+        });
         onMilestoneCreated?.(newMilestone);
       }
 

@@ -1,12 +1,11 @@
-import { PrismaClient } from "@prisma/client/edge";
-import { withAccelerate } from "@prisma/extension-accelerate";
+import { PrismaClient } from "@prisma/client";
 
 const prismaClientSingleton = () => {
-  // Use Accelerate in production for connection pooling and edge caching
-  // Make sure to set DATABASE_URL to your Prisma Accelerate connection string in production
+  // Direct connection to Supabase PostgreSQL
+  // Make sure DATABASE_URL points to your Supabase direct connection string
   const client = new PrismaClient({
     log: ["error"],
-  }).$extends(withAccelerate());
+  });
   
   return client;
 };

@@ -93,8 +93,7 @@ export default function CreateComplaintDialog({
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
 				<Button
-					style={{ backgroundColor: "#202F21" }}
-					className="flex items-center gap-2 text-white w-full"
+					className="flex items-center gap-2 bg-primary text-primary-foreground w-full"
 				>
 					<AlertCircle className="w-4 h-4" />
 					Report Complaint
@@ -171,8 +170,7 @@ export default function CreateComplaintDialog({
 						<Button
 							type="submit"
 							disabled={loading}
-							style={{ backgroundColor: "#202F21" }}
-							className="text-white"
+							className="bg-primary text-primary-foreground"
 						>
 							{loading ? (
 								<>

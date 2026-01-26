@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { CreateMilestoneData, UpdateMilestoneData, Milestone } from "./types"
+import { CreateMilestoneData, UpdateMilestoneData, Milestone, TaskPriority, MilestoneStatus } from "./types"
 
 // Get all milestones for a project
 export async function getProjectMilestones(projectId: number) {
@@ -86,14 +86,10 @@ export async function createMilestone(data: CreateMilestoneData): Promise<Milest
 
   const newOrder = (maxOrder?.order ?? -1) + 1
 
-  const milestoneData: any = {
+  const milestoneData: CreateMilestoneData & { order: number; dueDate: Date } = {
     ...data,
     order: newOrder,
-  }
-
-  // Handle dueDate - if undefined, set to a default date
-  if (!milestoneData.dueDate) {
-    milestoneData.dueDate = new Date()
+    dueDate: data.dueDate ?? new Date(),
   }
 
   return await prisma.milestone.create({
@@ -130,12 +126,24 @@ export async function createMilestone(data: CreateMilestoneData): Promise<Milest
 
 // Update a milestone
 export async function updateMilestone(milestoneId: number, data: UpdateMilestoneData): Promise<Milestone> {
-  const updateData: any = { ...data }
+  // Prepare update data, filtering out null values (Prisma needs undefined, not null)
+  const updateData: {
+    title?: string;
+    description?: string | null;
+    serviceId?: number;
+    dueDate?: Date;
+    priority?: TaskPriority;
+    status?: MilestoneStatus;
+    order?: number;
+  } = {}
   
-  // Handle dueDate - if null, set to undefined
-  if (updateData.dueDate === null) {
-    updateData.dueDate = undefined
-  }
+  if (data.title !== undefined) updateData.title = data.title
+  if (data.description !== undefined) updateData.description = data.description
+  if (data.serviceId !== undefined && data.serviceId !== null) updateData.serviceId = data.serviceId
+  if (data.dueDate !== undefined && data.dueDate !== null) updateData.dueDate = data.dueDate
+  if (data.priority !== undefined) updateData.priority = data.priority
+  if (data.status !== undefined) updateData.status = data.status
+  if (data.order !== undefined) updateData.order = data.order
 
   return await prisma.milestone.update({
     where: { id: milestoneId },

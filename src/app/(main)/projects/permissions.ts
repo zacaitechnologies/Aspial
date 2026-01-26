@@ -316,13 +316,39 @@ export async function getProjectCreator(projectId: number): Promise<string | nul
   return project?.createdBy || null;
 }
 
-export async function getProjectPermissions(projectId: number) {
+export async function getProjectPermissions(projectId: number): Promise<Array<{
+  id: number;
+  userId: string;
+  projectId: number;
+  canView: boolean;
+  canEdit: boolean;
+  isOwner: boolean;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}>> {
   return await prisma.projectPermission.findMany({
     where: {
       projectId,
     },
-    include: {
-      user: true,
+    select: {
+      id: true,
+      userId: true,
+      projectId: true,
+      canView: true,
+      canEdit: true,
+      isOwner: true,
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
     },
     orderBy: [
       {
@@ -334,7 +360,20 @@ export async function getProjectPermissions(projectId: number) {
         },
       },
     ],
-  })
+  }) as unknown as Array<{
+    id: number;
+    userId: string;
+    projectId: number;
+    canView: boolean;
+    canEdit: boolean;
+    isOwner: boolean;
+    user: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+  }>
 }
 
 export async function getUserProjectPermissions(userId: string) {

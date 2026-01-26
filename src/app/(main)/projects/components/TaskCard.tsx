@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ interface TaskCardProps {
   isProjectCancelled?: boolean;
 }
 
-export function TaskCard({
+export const TaskCard = memo(function TaskCard({
   task,
   availableUsers,
   availableMilestones,
@@ -244,4 +244,4 @@ export function TaskCard({
       />
     </Card>
   );
-}
+});

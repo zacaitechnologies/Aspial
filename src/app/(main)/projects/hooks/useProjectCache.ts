@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { getProjectById } from "../action"
+import { ProjectWithDetails } from "../types"
 
 interface UseProjectCacheReturn {
-  project: any | null
-  collaborators: any[]
-  taskStats: any | null
-  userPermission: any | null
+  project: ProjectWithDetails['project'] | null
+  collaborators: ProjectWithDetails['collaborators']
+  taskStats: ProjectWithDetails['taskStats'] | null
+  complaints: ProjectWithDetails['complaints']
+  userPermission: ProjectWithDetails['userPermission']
   isLoading: boolean
   onRefresh: () => Promise<void>
   invalidateCache: () => void
@@ -18,10 +20,11 @@ const LOCALSTORAGE_MAX_AGE = 2 * 60 * 1000 // 2 minutes max for localStorage (re
 
 // ✅ MODULE-LEVEL MEMORY CACHE (fast access during session) - per project
 const memoryProjectCache: { [key: string]: {
-  project: any
-  collaborators: any[]
-  taskStats: any
-  userPermission: any
+  project: ProjectWithDetails['project']
+  collaborators: ProjectWithDetails['collaborators']
+  taskStats: ProjectWithDetails['taskStats']
+  complaints: ProjectWithDetails['complaints']
+  userPermission: ProjectWithDetails['userPermission']
   timestamp: number
 }} = {}
 const loadingStates: { [key: string]: boolean } = {}
@@ -41,7 +44,7 @@ const loadFromLocalStorage = (cacheKey: string) => {
   return null
 }
 
-const saveToLocalStorage = (cacheKey: string, data: any) => {
+const saveToLocalStorage = (cacheKey: string, data: { project: ProjectWithDetails['project']; collaborators: ProjectWithDetails['collaborators']; taskStats: ProjectWithDetails['taskStats']; complaints: ProjectWithDetails['complaints']; userPermission: ProjectWithDetails['userPermission']; timestamp: number }) => {
   try {
     localStorage.setItem(getStorageKey(cacheKey), JSON.stringify(data))
   } catch (error) {
@@ -84,7 +87,7 @@ export function useProjectCache(userId: string | undefined, projectId: string | 
   // Check if this is the first time mounting with this cache key
   const isFirstMount = !mountedKeys[cacheKey]
   
-  const [project, setProject] = useState<any | null>(() => {
+  const [project, setProject] = useState<ProjectWithDetails['project'] | null>(() => {
     // Try localStorage first, then memory cache
     const stored = loadFromLocalStorage(cacheKey)
     if (stored) {
@@ -94,22 +97,28 @@ export function useProjectCache(userId: string | undefined, projectId: string | 
     return memoryProjectCache[cacheKey]?.project || null
   })
   
-  const [collaborators, setCollaborators] = useState<any[]>(() => {
+  const [collaborators, setCollaborators] = useState<ProjectWithDetails['collaborators']>(() => {
     const stored = loadFromLocalStorage(cacheKey)
     if (stored) return stored.collaborators
     return memoryProjectCache[cacheKey]?.collaborators || []
   })
   
-  const [taskStats, setTaskStats] = useState<any | null>(() => {
+  const [taskStats, setTaskStats] = useState<ProjectWithDetails['taskStats'] | null>(() => {
     const stored = loadFromLocalStorage(cacheKey)
     if (stored) return stored.taskStats
     return memoryProjectCache[cacheKey]?.taskStats || null
   })
   
-  const [userPermission, setUserPermission] = useState<any | null>(() => {
+  const [userPermission, setUserPermission] = useState<ProjectWithDetails['userPermission']>(() => {
     const stored = loadFromLocalStorage(cacheKey)
     if (stored) return stored.userPermission
     return memoryProjectCache[cacheKey]?.userPermission || null
+  })
+  
+  const [complaints, setComplaints] = useState<ProjectWithDetails['complaints']>(() => {
+    const stored = loadFromLocalStorage(cacheKey)
+    if (stored) return stored.complaints
+    return memoryProjectCache[cacheKey]?.complaints || []
   })
   
   const [isLoading, setIsLoading] = useState(true)
@@ -141,6 +150,7 @@ export function useProjectCache(userId: string | undefined, projectId: string | 
         setProject(memCached.project)
         setCollaborators(memCached.collaborators)
         setTaskStats(memCached.taskStats)
+        setComplaints(memCached.complaints)
         setUserPermission(memCached.userPermission)
         setIsLoading(false)
         return
@@ -187,6 +197,7 @@ export function useProjectCache(userId: string | undefined, projectId: string | 
           project: projectData.project,
           collaborators: projectData.collaborators,
           taskStats: projectData.taskStats,
+          complaints: projectData.complaints,
           userPermission: projectData.userPermission,
           timestamp: freshTimestamp
         }
@@ -199,6 +210,7 @@ export function useProjectCache(userId: string | undefined, projectId: string | 
         setProject(projectData.project)
         setCollaborators(projectData.collaborators)
         setTaskStats(projectData.taskStats)
+        setComplaints(projectData.complaints)
         setUserPermission(projectData.userPermission)
         console.log(`✅ FRESH DATA LOADED [${projectId}] and cached (Memory + localStorage)`)
       }
@@ -234,6 +246,7 @@ export function useProjectCache(userId: string | undefined, projectId: string | 
     project,
     collaborators,
     taskStats,
+    complaints,
     userPermission,
     isLoading,
     onRefresh,

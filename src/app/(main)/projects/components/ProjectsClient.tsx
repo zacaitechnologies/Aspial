@@ -12,7 +12,7 @@ import EditProjectDialog from "./EditProjectDialog";
 import ProjectSearchBar from "./ProjectSearchBar";
 import ProjectCollaboratorsDialog from "./ProjectCollaboratorsDialog";
 import { useSession } from "../../contexts/SessionProvider";
-import { ProjectWithQuotation, projectStatusOptions } from "../types";
+import { projectStatusOptions, ProjectsPaginatedResult } from "../types";
 import Link from "next/link";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { ProjectPagination } from "./ProjectPagination";
@@ -20,13 +20,7 @@ import { toast } from "@/components/ui/use-toast";
 import { checkIsAdmin, getUserRole } from "../../actions/admin-actions";
 
 interface ProjectsClientProps {
-  initialData: {
-    projects: any[];
-    total: number;
-    page: number;
-    pageSize: number;
-    totalPages: number;
-  };
+  initialData: ProjectsPaginatedResult;
   userId?: string;
 }
 
@@ -34,7 +28,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
   const { enhancedUser } = useSession();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [projects, setProjects] = useState<ProjectWithQuotation[]>(initialData.projects as any);
+  const [projects, setProjects] = useState<ProjectsPaginatedResult['projects']>(initialData.projects);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(initialData.page);
   const [pageSize, setPageSizeState] = useState(initialData.pageSize);
@@ -42,9 +36,9 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
   const [totalPages, setTotalPages] = useState(initialData.totalPages);
   
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState<ProjectWithQuotation | null>(null);
+  const [editingProject, setEditingProject] = useState<ProjectsPaginatedResult['projects'][0] | null>(null);
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState<ProjectWithQuotation | null>(null);
+  const [selectedProject, setSelectedProject] = useState<ProjectsPaginatedResult['projects'][0] | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -64,7 +58,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
         searchQuery || undefined,
         statusFilter !== "all" ? statusFilter : undefined
       );
-      setProjects(result.projects as any);
+      setProjects(result.projects);
       setTotal(result.total);
       setTotalPages(result.totalPages);
     } catch (error) {
@@ -124,7 +118,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
     setPage(1);
   }, []);
 
-  const getLatestUpdatedTime = (projects: ProjectWithQuotation[]) => {
+  const getLatestUpdatedTime = (projects: ProjectsPaginatedResult['projects']) => {
     if (projects.length === 0) return null;
     const latestProject = projects.reduce((latest, current) => {
       const latestTime = new Date(latest.updated_at).getTime();
@@ -143,7 +137,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
     return { total, newProjects, ongoing, completed };
   }, [projects, total]);
 
-  const handleEditProject = (project: ProjectWithQuotation) => {
+  const handleEditProject = (project: ProjectsPaginatedResult['projects'][0]) => {
     setEditingProject(project);
     setIsEditOpen(true);
   };

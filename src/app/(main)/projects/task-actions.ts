@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { CreateTaskData, UpdateTaskData, TaskWithAssignee } from "./types"
+import { CreateTaskData, UpdateTaskData, TaskWithAssignee, TaskStatus } from "./types"
 import { updateMilestoneStatus } from "./milestone-actions"
 
 // Get all tasks for a project
@@ -183,10 +183,10 @@ export async function deleteTask(taskId: number): Promise<void> {
 }
 
 // Update task status (for drag and drop functionality)
-export async function updateTaskStatus(taskId: number, status: string): Promise<TaskWithAssignee> {
+export async function updateTaskStatus(taskId: number, status: TaskStatus): Promise<TaskWithAssignee> {
   const updatedTask = await prisma.task.update({
     where: { id: taskId },
-    data: { status: status as any },
+    data: { status },
     include: {
       creator: {
         select: {
@@ -237,11 +237,11 @@ export async function reorderTasks(taskIds: number[]): Promise<void> {
 }
 
 // Get tasks by status for a project
-export async function getTasksByStatus(projectId: number, status: string): Promise<TaskWithAssignee[]> {
+export async function getTasksByStatus(projectId: number, status: TaskStatus): Promise<TaskWithAssignee[]> {
   return await prisma.task.findMany({
     where: { 
       projectId,
-      status: status as any,
+      status,
     },
     include: {
       creator: {

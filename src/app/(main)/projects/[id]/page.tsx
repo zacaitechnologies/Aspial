@@ -1,8 +1,8 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { ProjectWithQuotation } from "../types";
-import { getProjectComplaints, reactivateProject } from "../action";
+import { ProjectWithQuotation, Complaint } from "../types";
+import { reactivateProject } from "../action";
 import { useSession } from "../../contexts/SessionProvider";
 import { useProjectCache } from "../hooks/useProjectCache";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,37 +79,30 @@ export default function ProjectPage() {
     tabFromUrl && ["overview", "tasks", "complaints", "contracts"].includes(tabFromUrl) ? tabFromUrl : "overview"
   );
   
-  // Update URL when tab changes
-  const handleTabChange = (tab: "overview" | "tasks" | "complaints" | "contracts") => {
+  // Update URL when tab changes - memoized to prevent rerenders
+  const handleTabChange = useCallback((tab: "overview" | "tasks" | "complaints" | "contracts") => {
     setActiveTab(tab);
     router.push(`/projects/${params.id}?tab=${tab}`, { scroll: false });
-  };
+  }, [params.id, router]);
   const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">(
     "createDate"
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [taskFilter, setTaskFilter] = useState<"all" | "my">("all");
-  const [complaints, setComplaints] = useState<any[]>([]);
-  const [editingComplaint, setEditingComplaint] = useState<any | null>(null);
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [editingComplaint, setEditingComplaint] = useState<Complaint | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteComplaintId, setDeleteComplaintId] = useState<number | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false);
   const [newProjectStatus, setNewProjectStatus] = useState<"planning" | "in_progress" | "on_hold">("in_progress");
   
-  // Derived values from userPermission
-  const isProjectOwner = userPermission?.isOwner || false;
-  const isAdmin = userPermission?.isAdmin || false;
+  // Derived values from userPermission - memoized to prevent recalculation
+  const isProjectOwner = useMemo(() => userPermission?.isOwner || false, [userPermission?.isOwner]);
+  const isAdmin = useMemo(() => userPermission?.isAdmin || false, [userPermission?.isAdmin]);
   
-  // Check if project is cancelled
-  const isProjectCancelled = project?.status === "cancelled";
-
-  // Fetch complaints when project is loaded
-  useEffect(() => {
-    if (project?.id) {
-      getProjectComplaints(project.id).then(setComplaints);
-    }
-  }, [project?.id]);
+  // Check if project is cancelled - memoized
+  const isProjectCancelled = useMemo(() => project?.status === "cancelled", [project?.status]);
 
     // Sync activeTab with URL when URL changes
     useEffect(() => {
@@ -129,7 +122,7 @@ export default function ProjectPage() {
     setIsCollaboratorsOpen(true);
   };
 
-  const handleEditComplaint = (complaint: any) => {
+  const handleEditComplaint = (complaint: Complaint) => {
     setEditingComplaint(complaint);
     setIsEditOpen(true);
   };
@@ -150,11 +143,8 @@ export default function ProjectPage() {
   };
 
   const handleComplaintUpdated = async () => {
-    // Refresh complaints
-    if (project) {
-      const updated = await getProjectComplaints(project.id);
-      setComplaints(updated);
-    }
+    // Refresh project data (which includes complaints)
+    await onRefresh();
   };
 
   const handleReactivateProject = async () => {
@@ -181,35 +171,10 @@ export default function ProjectPage() {
     }
   };
 
-  // Sorting function
-  const sortTasks = (tasks: any[]) => {
-    return [...tasks].sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortBy) {
-        case "dueDate":
-          const aDueDate = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-          const bDueDate = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-          comparison = aDueDate - bDueDate;
-          break;
-        case "createDate":
-          const aCreateDate = new Date(a.createdAt).getTime();
-          const bCreateDate = new Date(b.createdAt).getTime();
-          comparison = aCreateDate - bCreateDate;
-          break;
-        case "priority":
-          const priorityOrder = { high: 3, medium: 2, low: 1 };
-          const aPriority =
-            priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          const bPriority =
-            priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-          comparison = aPriority - bPriority;
-          break;
-      }
-
-      return sortOrder === "asc" ? comparison : -comparison;
-    });
-  };
+  // Memoize onRefresh callback to prevent KanbanBoard rerenders
+  const handleTasksUpdated = useCallback(async () => {
+    await onRefresh();
+  }, [onRefresh]);
 
   if (loading) {
     return (
@@ -372,7 +337,7 @@ export default function ProjectPage() {
                       <div className="flex items-center gap-2">
                         {collaborators
                           .slice(0, 3)
-                          .map((collaborator: any, index: number) => (
+                          .map((collaborator, index: number) => (
                             <Tooltip key={index}>
                               <TooltipTrigger asChild>
                                 <Avatar className="w-8 h-8 cursor-pointer">
@@ -395,7 +360,7 @@ export default function ProjectPage() {
                             </TooltipTrigger>
                             <TooltipContent>
                               <div className="flex flex-col gap-1">
-                                {collaborators.slice(3).map((collaborator: any, index: number) => (
+                                {collaborators.slice(3).map((collaborator, index: number) => (
                                   <p key={index}>{collaborator.user.firstName} {collaborator.user.lastName}</p>
                                 ))}
                               </div>
@@ -441,7 +406,7 @@ export default function ProjectPage() {
                     <CreateComplaintDialog
                       projectId={project.id}
                       projectName={project.name}
-                      clientName={project.clientName}
+                      clientName={project.clientName || undefined}
                       staffMembers={collaborators.map((c) => ({
                         id: c.user.id,
                         firstName: c.user.firstName,
@@ -518,7 +483,7 @@ export default function ProjectPage() {
                         variant="outline"
                         className="text-black border-muted-foreground/30"
                       >
-                        {project.priority || "low"}
+                        N/A
                       </Badge>
                     </div>
                   </div>
@@ -602,7 +567,7 @@ export default function ProjectPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {project.quotations.map((quotation: any) => (
+                  {project.quotations.map((quotation) => (
                     <div key={quotation.id} className="mb-6 last:mb-0">
                       <div className="flex items-center justify-between mb-4">
                         <div>
@@ -612,14 +577,14 @@ export default function ProjectPage() {
                           <div className="flex items-center gap-3 mt-1">
                             <Badge
                               variant={
-                                quotation.status === "accepted"
+                                quotation.workflowStatus === "accepted"
                                   ? "default"
-                                  : quotation.status === "rejected"
+                                  : quotation.workflowStatus === "rejected"
                                   ? "destructive"
                                   : "secondary"
                               }
                             >
-                              {quotation.status}
+                              {quotation.workflowStatus}
                             </Badge>
                             <span className="text-sm font-medium text-green-600">
                               Total: RM {quotation.totalPrice.toFixed(2)}
@@ -635,7 +600,7 @@ export default function ProjectPage() {
                             Standard Services:
                           </h4>
                           <div className="grid gap-3 md:grid-cols-2">
-                            {quotation.services.map((qs: any) => (
+                            {quotation.services.map((qs) => (
                               <div
                                 key={qs.id}
                                 className="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
@@ -653,14 +618,14 @@ export default function ProjectPage() {
                                 </p>
                                 {qs.service.ServiceToTag && qs.service.ServiceToTag.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mt-2">
-                                    {qs.service.ServiceToTag.map((st: any) => (
+                                    {qs.service.ServiceToTag?.map((st) => (
                                       <Badge
                                         key={st.service_tags.id}
-                                        style={{
-                                          backgroundColor: st.service_tags.color || "#3B82F6",
+                                        className={`text-xs ${st.service_tags.color ? '' : 'bg-primary text-primary-foreground'}`}
+                                        style={st.service_tags.color ? {
+                                          backgroundColor: st.service_tags.color,
                                           color: "white",
-                                        }}
-                                        className="text-xs"
+                                        } : undefined}
                                       >
                                         {st.service_tags.name}
                                       </Badge>
@@ -681,7 +646,7 @@ export default function ProjectPage() {
                               Custom Services:
                             </h4>
                             <div className="grid gap-3 md:grid-cols-2">
-                              {quotation.customServices.map((cs: any) => (
+                              {quotation.customServices?.map((cs: { id: string; name: string; description: string | null; price: number; status: string }) => (
                                 <div
                                   key={cs.id}
                                   className="border border-purple-200 rounded-lg p-4 bg-purple-50 hover:bg-purple-100 transition-colors"
@@ -761,7 +726,7 @@ export default function ProjectPage() {
               isProjectCancelled={isProjectCancelled}
               taskFilter={taskFilter}
               userId={enhancedUser?.id}
-              onTasksUpdated={onRefresh}
+              onTasksUpdated={handleTasksUpdated}
             />
           </>
         )}
@@ -832,7 +797,7 @@ export default function ProjectPage() {
         {activeTab === "contracts" && project && (
           <ProjectContracts
             projectId={project.id}
-            userPermission={userPermission}
+            userPermission={userPermission || undefined}
             projectStatus={project.status}
           />
         )}

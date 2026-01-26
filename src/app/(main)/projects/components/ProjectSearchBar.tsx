@@ -55,8 +55,7 @@ export default function ProjectSearchBar({
             placeholder="Search projects..."
             value={localSearchQuery}
             onChange={(e) => setLocalSearchQuery(e.target.value)}
-            className="pl-10 bg-white border-2"
-            style={{ borderColor: "#BDC4A5" }}
+            className="pl-10 bg-background border-2 border-border"
           />
         </div>
       </div>
@@ -67,7 +66,7 @@ export default function ProjectSearchBar({
           value={statusFilter}
           onValueChange={onStatusFilterChange}
         >
-          <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+          <SelectTrigger className="w-48 bg-background border-2 border-border">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>

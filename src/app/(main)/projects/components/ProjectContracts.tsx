@@ -175,11 +175,12 @@ export default function ProjectContracts({
 					variant: "destructive",
 				})
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error("Error uploading contract:", error)
+			const errorMessage = error instanceof Error ? error.message : "Failed to upload contract"
 			toast({
 				title: "Upload failed",
-				description: error.message || "Failed to upload contract",
+				description: errorMessage,
 				variant: "destructive",
 			})
 		} finally {
@@ -234,11 +235,11 @@ export default function ProjectContracts({
 					variant: "destructive",
 				})
 			}
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error("Error deleting contract:", error)
 			toast({
 				title: "Delete failed",
-				description: error.message || "Failed to delete contract",
+				description: error instanceof Error ? error.message : "Failed to delete contract",
 				variant: "destructive",
 			})
 		} finally {

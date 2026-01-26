@@ -111,9 +111,10 @@ export async function uploadContract(
     revalidateTag('projects', "max")
 
     return { success: true, contract }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error uploading contract:", error)
-    return { success: false, error: error.message || "Failed to upload contract" }
+    const errorMessage = error instanceof Error ? error.message : "Failed to upload contract"
+    return { success: false, error: errorMessage }
   }
 }
 
@@ -225,9 +226,10 @@ export async function deleteContract(
     revalidateTag('projects', "max")
 
     return { success: true }
-  } catch (error: any) {
+	} catch (error: unknown) {
     console.error("Error deleting contract:", error)
-    return { success: false, error: error.message || "Failed to delete contract" }
+    const errorMessage = error instanceof Error ? error.message : "Failed to delete contract"
+    return { success: false, error: errorMessage }
   }
 }
 
