@@ -248,7 +248,7 @@ export default function CreateReceiptForm({
 
 		setIsSaving(true)
 		try {
-			await createReceipt({
+			const receipt = await createReceipt({
 				invoiceId: receiptForm.invoiceId,
 				amount: parseFloat(receiptForm.amount),
 				// Only pass createdById if admin selected someone (non-admin will be set to self server-side)
@@ -273,6 +273,7 @@ export default function CreateReceiptForm({
 			setTotalReceipted(0)
 			setRemaining(0)
 
+			// Call onSuccess callback (this will refresh the invoice page)
 			onSuccess()
 			onOpenChange(false)
 		} catch (error: any) {

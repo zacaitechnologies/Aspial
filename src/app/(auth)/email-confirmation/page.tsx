@@ -33,8 +33,9 @@ function EmailConfirmationContent() {
       } else {
         setError(result.error || "Failed to resend confirmation email")
       }
-    } catch (err: any) {
-      setError(err?.message || "An unexpected error occurred")
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+      setError(errorMessage);
     } finally {
       setIsResending(false)
     }
@@ -57,7 +58,7 @@ function EmailConfirmationContent() {
             onClick={() => router.push("/login")}
             variant="ghost"
             size="sm"
-            className="text-white hover:text-white/80 hover:bg-white/10"
+            className="text-primary-foreground hover:text-primary-foreground/80 hover:bg-background/10"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Login
@@ -79,10 +80,10 @@ function EmailConfirmationContent() {
 
           {/* Title Text */}
           <div className="text-center opacity-0 animate-fade-in-down" style={{ animationDelay: '0.3s' }}>
-            <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">
+            <h1 className="text-3xl md:text-4xl font-bold mb-2 text-primary-foreground">
               Email Confirmation Required
             </h1>
-            <p className="text-lg text-white/90">
+            <p className="text-lg text-primary-foreground/90">
               Please confirm your email address to continue
             </p>
           </div>
@@ -90,9 +91,9 @@ function EmailConfirmationContent() {
           {/* Email Display */}
           {email && (
             <div className="opacity-0 animate-fade-in" style={{ animationDelay: '0.4s' }}>
-              <div className="p-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-md">
-                <p className="text-sm text-white/90 text-center">
-                  <strong className="text-white">Email:</strong> {email}
+              <div className="p-4 bg-background/10 backdrop-blur-sm border border-border/20 rounded-md">
+                <p className="text-sm text-primary-foreground/90 text-center">
+                  <strong className="text-primary-foreground">Email:</strong> {email}
                 </p>
               </div>
             </div>
@@ -101,25 +102,25 @@ function EmailConfirmationContent() {
           {/* Messages */}
           <div className="space-y-4 opacity-0 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
             <div className="space-y-2">
-              <p className="text-sm text-white/90 text-center">
+              <p className="text-sm text-primary-foreground/90 text-center">
                 We've sent a confirmation email to your inbox. Please check your email (including your spam folder) and click the confirmation link to verify your account.
               </p>
-              <p className="text-sm text-white/90 text-center">
+              <p className="text-sm text-primary-foreground/90 text-center">
                 If you didn't receive the email, you can resend it using the button below.
               </p>
             </div>
 
             {error && (
-              <div className="bg-red-50/90 border border-red-200 rounded-md p-4 backdrop-blur-sm">
-                <p className="text-red-800 text-sm">{error}</p>
+              <div className="bg-destructive/10 border border-destructive/50 rounded-md p-4 backdrop-blur-sm">
+                <p className="text-destructive text-sm">{error}</p>
               </div>
             )}
 
             {resendSuccess && (
               <div className="bg-green-50/90 border border-green-200 rounded-md p-4 backdrop-blur-sm">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <p className="text-green-800 text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <p className="text-green-800 dark:text-green-200 text-sm">
                     Confirmation email sent successfully! Please check your inbox (including your spam folder).
                   </p>
                 </div>
@@ -132,7 +133,7 @@ function EmailConfirmationContent() {
             <Button
               onClick={handleResend}
               disabled={isResending || !email}
-              className="w-full px-10 py-6 text-lg font-semibold bg-white/95 text-gray-900 hover:bg-white transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-gray-200"
+              className="w-full px-10 py-6 text-lg font-semibold bg-background/95 text-foreground hover:bg-background transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-border"
             >
               {isResending ? (
                 <>
@@ -166,7 +167,7 @@ export default function EmailConfirmationPage() {
         }}
       >
         <div className="flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-white" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary-foreground" />
         </div>
       </div>
     }>

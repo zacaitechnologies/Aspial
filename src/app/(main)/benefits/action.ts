@@ -22,6 +22,12 @@ export interface EmployeeSalesData {
   commissionRate: string
 }
 
+export type ComplaintData = {
+  date: string
+  customer: string | null
+  reason: string | null
+}
+
 // Tier targets based on new company policy (monthly targets)
 const tierTargets = {
   TIER_1: { min: 50000, max: 70000 }, // User fills in their own target within range

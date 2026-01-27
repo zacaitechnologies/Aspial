@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,6 +29,7 @@ export default function ResetPasswordContent() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [redirectCountdown, setRedirectCountdown] = useState(3);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const form = useForm<ResetPasswordValues>({
     resolver: zodResolver(resetPasswordSchema),
@@ -89,7 +90,8 @@ export default function ResetPasswordContent() {
     };
     
     checkAuthentication();
-  }, [code, access_token, refresh_token, supabase.auth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, access_token, refresh_token]);
 
   const onSubmit = (values: ResetPasswordValues) => {
     setError(null);
@@ -114,10 +116,13 @@ export default function ResetPasswordContent() {
           // Password updated successfully
           setIsSuccess(true);
           // Start countdown and redirect
-          const countdownInterval = setInterval(() => {
+          countdownIntervalRef.current = setInterval(() => {
             setRedirectCountdown((prev) => {
               if (prev <= 1) {
-                clearInterval(countdownInterval);
+                if (countdownIntervalRef.current) {
+                  clearInterval(countdownIntervalRef.current);
+                  countdownIntervalRef.current = null;
+                }
                 router.push("/login?message=Password updated successfully");
                 return 0;
               }
@@ -143,25 +148,25 @@ export default function ResetPasswordContent() {
           backgroundRepeat: "no-repeat"
         }}
       >
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+        <div className="bg-card/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
           <div className="text-center">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
-            <h1 className="text-3xl font-bold mb-4 text-brand">
+            <CheckCircle className="w-16 h-16 text-green-500 dark:text-green-400 mx-auto mb-6" />
+            <h1 className="text-3xl font-bold mb-4 text-foreground">
               Password Reset Successfully
             </h1>
-            <p className="text-brand-light text-sm mb-6">
+            <p className="text-muted-foreground text-sm mb-6">
               Your password has been updated successfully. You can now log in with your new password.
             </p>
             <div className="space-y-4">
-              <p className="text-brand text-sm">
+              <p className="text-foreground text-sm">
                 Redirecting to login page in {redirectCountdown} seconds...
               </p>
-              <p className="text-brand-light text-xs">
+              <p className="text-muted-foreground text-xs">
                 If app doesn't redirect you automatically click this link
               </p>
               <Link 
                 href="/login?message=Password updated successfully" 
-                className="block w-full bg-brand text-white py-2 px-4 rounded-md hover:bg-brand/90 transition-colors text-center"
+                className="block w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 transition-colors text-center"
               >
                 Go to Login
               </Link>
@@ -183,28 +188,28 @@ export default function ResetPasswordContent() {
           backgroundRepeat: "no-repeat"
         }}
       >
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+        <div className="bg-card/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
           <div className="text-center">
-            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-6" />
-            <h1 className="text-3xl font-bold mb-4 text-brand">
+            <AlertCircle className="w-16 h-16 text-destructive mx-auto mb-6" />
+            <h1 className="text-3xl font-bold mb-4 text-foreground">
               Error
             </h1>
-            <Alert className="mb-6 border-red-200 bg-red-50">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-600">
+            <Alert className="mb-6 border-destructive/50 bg-destructive/10">
+              <AlertCircle className="h-4 w-4 text-destructive" />
+              <AlertDescription className="text-destructive">
                 {error}
               </AlertDescription>
             </Alert>
             <div className="space-y-4">
               <Link 
                 href="/forgot-password" 
-                className="block w-full bg-brand text-white py-2 px-4 rounded-md hover:bg-brand/90 transition-colors text-center"
+                className="block w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 transition-colors text-center"
               >
                 Request New Reset Link
               </Link>
               <Link 
                 href="/login" 
-                className="block w-full text-brand hover:underline text-center"
+                className="block w-full text-primary hover:underline text-center"
               >
                 Back to Login
               </Link>
@@ -226,13 +231,13 @@ export default function ResetPasswordContent() {
           backgroundRepeat: "no-repeat"
         }}
       >
-        <div className="bg-white/70 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+        <div className="bg-card/70 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
           <div className="text-center">
-            <Loader2 className="w-16 h-16 text-brand mx-auto mb-6 animate-spin" />
-            <h1 className="text-3xl font-bold mb-4 text-brand">
+            <Loader2 className="w-16 h-16 text-primary mx-auto mb-6 animate-spin" />
+            <h1 className="text-3xl font-bold mb-4 text-foreground">
               Verifying
             </h1>
-            <p className="text-brand-light">Verifying your reset link...</p>
+            <p className="text-muted-foreground">Verifying your reset link...</p>
           </div>
         </div>
       </div>
@@ -249,7 +254,7 @@ export default function ResetPasswordContent() {
         backgroundRepeat: "no-repeat"
       }}
     >
-      <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+      <div className="bg-card/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
         {/* Link Icon */}
         <div className="flex justify-center mb-6">
           <Image
@@ -263,19 +268,19 @@ export default function ResetPasswordContent() {
 
         {/* Welcome Text */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-4 text-brand">
+          <h1 className="text-3xl font-bold mb-4 text-foreground">
             Reset Password
           </h1>
-          <p className="text-brand-light text-sm">
+          <p className="text-muted-foreground text-sm">
             Enter your new password below.
           </p>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <Alert className="mb-6 border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-600">
+          <Alert className="mb-6 border-destructive/50 bg-destructive/10">
+            <AlertCircle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="text-destructive">
               {error}
             </AlertDescription>
           </Alert>
@@ -289,7 +294,7 @@ export default function ResetPasswordContent() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-brand font-medium">New Password</FormLabel>
+                  <FormLabel className="text-foreground font-medium">New Password</FormLabel>
                   <FormControl>
                     <PasswordInput 
                       placeholder="Enter new password" 
@@ -306,7 +311,7 @@ export default function ResetPasswordContent() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-brand font-medium">Confirm New Password</FormLabel>
+                  <FormLabel className="text-foreground font-medium">Confirm New Password</FormLabel>
                   <FormControl>
                     <PasswordInput 
                       placeholder="Confirm new password" 
@@ -328,7 +333,7 @@ export default function ResetPasswordContent() {
         <div className="mt-6 text-center">
           <Link 
             href="/login" 
-            className="text-brand hover:underline text-sm"
+            className="text-primary hover:underline text-sm"
           >
             Back to Login
           </Link>

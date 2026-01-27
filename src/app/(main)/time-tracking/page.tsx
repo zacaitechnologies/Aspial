@@ -44,7 +44,6 @@ export default async function TimeTrackingPage() {
     }
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    console.error("Error loading time tracking page:", error)
     return <LoadingSpinner />
   }
 }

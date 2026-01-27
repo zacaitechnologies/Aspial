@@ -22,13 +22,13 @@ import {
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { editQuotationById, getCustomServicesByQuotationId, getAllUsers, getQuotationFullById } from "../action";
+import { editQuotationById, getCustomServicesByQuotationId, getAllUsers, getQuotationFullById, reactivateQuotationCascade } from "../action";
 import { getAllServices } from "../../services/action";
 import { getAllProjects } from "../../projects/action";
 import { useSession } from "../../contexts/SessionProvider";
 import { checkIsAdmin } from "../../actions/admin-actions";
 import type { Services } from "@prisma/client";
-import { QuotationWithServices, EditFormData, workflowStatusOptions, paymentStatusOptions } from "../types";
+import { QuotationWithServices, EditFormData, workflowStatusOptions, paymentStatusOptions, limitedPaymentStatusOptions } from "../types";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import CustomServiceDialog from "./CustomServiceDialog";
@@ -36,6 +36,9 @@ import { Briefcase, Plus } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { getInvoicesForQuotation } from "../action";
+import { getReceiptsForInvoice } from "../../receipts/action";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -56,6 +59,7 @@ export default function EditQuotationForm({
   // Check if quotation is final or cancelled and cannot be edited (unless admin)
   const isFinalQuotation = editingQuotation?.workflowStatus === "final";
   const isCancelledQuotation = editingQuotation?.workflowStatus === "cancelled";
+  const isDraftQuotation = editingQuotation?.workflowStatus === "draft";
   const isNonEditableQuotation = isFinalQuotation || isCancelledQuotation;
   const [isAdmin, setIsAdmin] = useState(false);
   const [services, setServices] = useState<Services[]>([]);
@@ -90,7 +94,11 @@ export default function EditQuotationForm({
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; email: string; supabase_id: string }>>([]);
   const [selectedCreatedById, setSelectedCreatedById] = useState<string>("");
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [activeInvoicesCount, setActiveInvoicesCount] = useState<number | null>(null);
+  const [activeReceiptsCount, setActiveReceiptsCount] = useState<number | null>(null);
   const [fullQuotationData, setFullQuotationData] = useState<QuotationWithServices | null>(null);
+  const [isReactivating, setIsReactivating] = useState(false);
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -108,6 +116,7 @@ export default function EditQuotationForm({
       email: "",
       phone: "",
       company: "",
+      companyRegistrationNumber: "",
       address: "",
       notes: "",
       industry: "",
@@ -135,6 +144,34 @@ export default function EditQuotationForm({
       }
     }
   };
+
+  // Fetch active invoices/receipts count when cancel dialog opens
+  useEffect(() => {
+    if (isCancelDialogOpen && editingQuotation && editForm.workflowStatus === "cancelled" && editingQuotation.workflowStatus !== "cancelled") {
+      const fetchCounts = async () => {
+        try {
+          const invoices = await getInvoicesForQuotation(editingQuotation.id)
+          const activeInvoices = invoices.filter(inv => inv.status === "active")
+          setActiveInvoicesCount(activeInvoices.length)
+          
+          // Get receipts for all active invoices
+          let totalActiveReceipts = 0
+          for (const invoice of activeInvoices) {
+            const receipts = await getReceiptsForInvoice(invoice.id, undefined, true)
+            totalActiveReceipts += receipts.filter(r => r.status === "active").length
+          }
+          setActiveReceiptsCount(totalActiveReceipts)
+        } catch (error) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error("Error fetching invoice/receipt counts:", error)
+          }
+          setActiveInvoicesCount(0)
+          setActiveReceiptsCount(0)
+        }
+      }
+      fetchCounts()
+    }
+  }, [isCancelDialogOpen, editingQuotation, editForm.workflowStatus])
 
   useEffect(() => {
     if (editingQuotation) {
@@ -373,8 +410,11 @@ export default function EditQuotationForm({
     // If finalizing, show confirmation dialog first
     if (workflowStatus === "final") {
       setShowConfirmationDialog(true);
+    } else if (workflowStatus === "cancelled" && editingQuotation.workflowStatus !== "cancelled") {
+      // If cancelling, show cancel confirmation dialog first
+      setIsCancelDialogOpen(true);
     } else {
-      // For draft updates, proceed directly
+      // For other updates, proceed directly
       handleUpdateQuotation(workflowStatus);
     }
   };
@@ -457,17 +497,16 @@ export default function EditQuotationForm({
         });
         projectId = newProject.id;
         
-        // Refresh projects page cache - use setTimeout to ensure the project is fully created
-        setTimeout(() => {
-          router.refresh();
-          // Dispatch custom event to refresh projects page client-side cache
-          // Use a more specific event with detail to ensure it's received
-          const event = new CustomEvent('projectsCacheInvalidate', {
-            detail: { projectId: newProject.id, timestamp: Date.now() }
-          });
-          window.dispatchEvent(event);
+        // Dispatch custom event to refresh projects page client-side cache
+        // Use a more specific event with detail to ensure it's received
+        // Don't use router.refresh() as it causes full page refresh and navigation issues
+        const event = new CustomEvent('projectsCacheInvalidate', {
+          detail: { projectId: newProject.id, timestamp: Date.now() }
+        });
+        window.dispatchEvent(event);
+        if (process.env.NODE_ENV === 'development') {
           console.log('Dispatched projectsCacheInvalidate event after project creation');
-        }, 200);
+        }
       } else if (projectMode === "existing") {
         // Use selected existing project (if any)
         projectId = selectedProjectId || editForm.projectId;
@@ -507,11 +546,14 @@ export default function EditQuotationForm({
         title: "Success",
         description: "Quotation updated successfully.",
       });
-    } catch (error) {
-      console.error("Error updating quotation:", error);
+    } catch (error: unknown) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error updating quotation:", error);
+      }
+      const errorMessage = error instanceof Error ? error.message : "Failed to update quotation. Please try again.";
       toast({
         title: "Error",
-        description: "Failed to update quotation. " + (error as Error).message,
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -519,10 +561,95 @@ export default function EditQuotationForm({
     }
   };
 
+  const handleCancelQuotation = async () => {
+    if (!editingQuotation) return;
+    
+    setIsCancelDialogOpen(false);
+    setIsSaving(true);
+    try {
+      await editQuotationById(editingQuotation.id.toString(), {
+        description: editingQuotation.description,
+        totalPrice: editingQuotation.totalPrice,
+        workflowStatus: "cancelled",
+        paymentStatus: editForm.paymentStatus,
+        clientId: editingQuotation.clientId,
+        projectId: editingQuotation.project?.id || undefined,
+      });
+      
+      let description = "Quotation cancelled successfully.";
+      const invoiceText = activeInvoicesCount && activeInvoicesCount > 0 
+        ? `${activeInvoicesCount} invoice${activeInvoicesCount > 1 ? "s" : ""}` 
+        : null;
+      const receiptText = activeReceiptsCount && activeReceiptsCount > 0 
+        ? `${activeReceiptsCount} receipt${activeReceiptsCount > 1 ? "s" : ""}` 
+        : null;
+      
+      if (invoiceText && receiptText) {
+        description += ` ${invoiceText} and ${receiptText} have also been cancelled.`;
+      } else if (invoiceText) {
+        description += ` ${invoiceText} have also been cancelled.`;
+      } else if (receiptText) {
+        description += ` ${receiptText} have also been cancelled.`;
+      }
+      
+      toast({
+        title: "Success",
+        description,
+      });
+      onSuccess();
+      onOpenChange(false);
+    } catch (error: unknown) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error cancelling quotation:", error);
+      }
+      const errorMessage = error instanceof Error ? error.message : "Failed to cancel quotation. Please try again.";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+      setActiveInvoicesCount(null);
+      setActiveReceiptsCount(null);
+    }
+  };
+
   if (!editingQuotation) return null;
 
-  // For final or cancelled quotations, show read-only view (unless admin)
-  if (isNonEditableQuotation && !isAdmin) {
+  // Check if current user is the quotation owner
+  const isOwner = enhancedUser?.id === editingQuotation.createdBy?.supabase_id;
+
+  // For cancelled quotations, show read-only view (unless admin)
+  if (isCancelledQuotation && !isAdmin) {
+    const handleReactivate = async () => {
+      setIsReactivating(true);
+      try {
+        await reactivateQuotationCascade(editingQuotation.id.toString(), {
+          reactivateInvoices: false,
+          reactivateReceipts: false,
+        });
+        toast({
+          title: "Success",
+          description: "Quotation reactivated successfully.",
+        });
+        onSuccess();
+        onOpenChange(false);
+      } catch (error: unknown) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Error reactivating quotation:", error);
+        }
+        const errorMessage = error instanceof Error ? error.message : "Failed to reactivate quotation. Please try again.";
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setIsReactivating(false);
+      }
+    };
+
     return (
       <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) {
@@ -533,32 +660,196 @@ export default function EditQuotationForm({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {isFinalQuotation ? "Final Quotation" : "Cancelled Quotation"}
+              Cancelled Quotation
             </DialogTitle>
             <DialogDescription>
-              {isFinalQuotation 
-                ? "This quotation has been finalized and cannot be edited."
-                : "This quotation has been cancelled and cannot be edited."}
+              This quotation has been cancelled and cannot be edited.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <div className="space-y-4">
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-700">
-                  ⚠️ {isFinalQuotation 
-                    ? "Final quotations cannot be edited. If you need to make changes, please create a new quotation."
-                    : "Cancelled quotations cannot be edited."}
+                  ⚠️ Cancelled quotations cannot be edited.
                 </p>
               </div>
+              {isOwner && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-700 mb-3">
+                    ℹ️ You can reactivate this quotation since you are the creator.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Close
             </Button>
+            {isOwner && (
+              <Button
+                onClick={handleReactivate}
+                disabled={isReactivating}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {isReactivating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Reactivating...
+                  </>
+                ) : (
+                  "Reactivate Quotation"
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    );
+  }
+
+  // For non-admin users editing finalized quotations, show payment status and optionally workflow status (if unlinked)
+  if (isFinalQuotation && !isAdmin) {
+    const hasProject = editingQuotation.project !== null;
+    const canCancel = !hasProject; // Can cancel if not linked to a project
+    
+    return (
+      <>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsSaving(false);
+        }
+        onOpenChange(open);
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Quotation Status</DialogTitle>
+            <DialogDescription>
+              Update the payment status{canCancel ? " or cancel" : ""} this finalized quotation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-4">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  ℹ️ You can update the payment status for finalized quotations{canCancel ? ". You can also cancel this quotation since it's not linked to a project" : ""}.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-paymentStatus">Payment Status</Label>
+                <Select
+                  value={editForm.paymentStatus}
+                  onValueChange={(value) =>
+                    setEditForm((prev) => ({ ...prev, paymentStatus: value as "unpaid" | "partially_paid" | "fully_paid" }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {limitedPaymentStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {canCancel && (
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-workflowStatus">Workflow Status</Label>
+                  <Select
+                    value={editForm.workflowStatus}
+                    onValueChange={(value) =>
+                      setEditForm((prev) => ({ ...prev, workflowStatus: value as "final" | "cancelled" }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select workflow status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="final">Final</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (isSaving) return;
+                
+                // If cancelling, show confirmation dialog first
+                if (editForm.workflowStatus === "cancelled" && editingQuotation.workflowStatus !== "cancelled") {
+                  setIsCancelDialogOpen(true);
+                  return;
+                }
+                
+                // Otherwise, save directly
+                setIsSaving(true);
+                try {
+                  await editQuotationById(editingQuotation.id.toString(), {
+                    description: editingQuotation.description,
+                    totalPrice: editingQuotation.totalPrice,
+                    workflowStatus: editForm.workflowStatus,
+                    paymentStatus: editForm.paymentStatus,
+                    clientId: editingQuotation.clientId,
+                    projectId: editingQuotation.project?.id || undefined,
+                  });
+                  toast({
+                    title: "Success",
+                    description: "Payment status updated successfully.",
+                  });
+                  onSuccess();
+                  onOpenChange(false);
+                } catch (error: unknown) {
+                  if (process.env.NODE_ENV === 'development') {
+                    console.error("Error updating quotation:", error);
+                  }
+                  const errorMessage = error instanceof Error ? error.message : "Failed to update quotation. Please try again.";
+                  toast({
+                    title: "Error",
+                    description: errorMessage,
+                    variant: "destructive",
+                  });
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+              disabled={isSaving}
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Cancel Quotation Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={isCancelDialogOpen}
+        onClose={() => {
+          setIsCancelDialogOpen(false)
+          setActiveInvoicesCount(null)
+          setActiveReceiptsCount(null)
+        }}
+        onConfirm={handleCancelQuotation}
+        title="Cancel Quotation"
+        description={
+          activeInvoicesCount !== null && activeReceiptsCount !== null && (activeInvoicesCount > 0 || activeReceiptsCount > 0)
+            ? `Are you sure you want to cancel this quotation? This will also automatically cancel ${activeInvoicesCount > 0 ? `${activeInvoicesCount} active invoice${activeInvoicesCount > 1 ? "s" : ""}` : ""}${activeInvoicesCount > 0 && activeReceiptsCount > 0 ? " and " : ""}${activeReceiptsCount > 0 ? `${activeReceiptsCount} active receipt${activeReceiptsCount > 1 ? "s" : ""}` : ""} associated with this quotation. This action cannot be undone.`
+            : "Are you sure you want to cancel this quotation? This action cannot be undone."
+        }
+        confirmText="Cancel Quotation"
+        cancelText="Keep Active"
+        variant="warning"
+        isLoading={isSaving}
+      />
+    </>
     );
   }
 
@@ -826,25 +1117,44 @@ export default function EditQuotationForm({
               <Label htmlFor="edit-workflowStatus">Workflow Status</Label>
               <Select
                 value={editForm.workflowStatus}
-                onValueChange={(value) =>
-                  setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled" }))
-                }
+                onValueChange={(value) => {
+                  // For non-admin users editing draft quotations, only allow "draft" or "cancelled"
+                  if (isDraftQuotation && !isAdmin) {
+                    setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "cancelled" }))
+                  } else {
+                    setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled" }))
+                  }
+                }}
                 disabled={isNonEditableQuotation && !isAdmin}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select workflow status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {workflowStatusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
+                  {isDraftQuotation && !isAdmin ? (
+                    // Non-admin users editing draft quotations can only choose draft or cancelled
+                    <>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </>
+                  ) : (
+                    // Admin users or non-draft quotations can choose all options
+                    workflowStatusOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               {isNonEditableQuotation && !isAdmin && (
                 <p className="text-xs text-muted-foreground">
                   Final and cancelled quotations cannot be edited
+                </p>
+              )}
+              {isDraftQuotation && !isAdmin && (
+                <p className="text-xs text-muted-foreground">
+                  You can only change the workflow status to Draft or Cancelled
                 </p>
               )}
             </div>
@@ -1124,6 +1434,29 @@ export default function EditQuotationForm({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Cancel Quotation Confirmation Dialog */}
+    <ConfirmationDialog
+      isOpen={isCancelDialogOpen}
+      onClose={() => {
+        setIsCancelDialogOpen(false)
+        setActiveInvoicesCount(null)
+        setActiveReceiptsCount(null)
+      }}
+      onConfirm={handleCancelQuotation}
+      title="Cancel Quotation"
+      description={
+        activeInvoicesCount !== null && activeReceiptsCount !== null && (activeInvoicesCount > 0 || activeReceiptsCount > 0)
+          ? `Are you sure you want to cancel this quotation? This will also automatically cancel ${activeInvoicesCount > 0 ? `${activeInvoicesCount} active invoice${activeInvoicesCount > 1 ? "s" : ""}` : ""}${activeInvoicesCount > 0 && activeReceiptsCount > 0 ? " and " : ""}${activeReceiptsCount > 0 ? `${activeReceiptsCount} active receipt${activeReceiptsCount > 1 ? "s" : ""}` : ""} associated with this quotation. This action cannot be undone.`
+          : activeInvoicesCount === null || activeReceiptsCount === null
+          ? "Are you sure you want to cancel this quotation? This action cannot be undone."
+          : "Are you sure you want to cancel this quotation? This action cannot be undone."
+      }
+      confirmText="Cancel Quotation"
+      cancelText="Keep Active"
+      variant="warning"
+      isLoading={isSaving}
+    />
     </>
   );
 }

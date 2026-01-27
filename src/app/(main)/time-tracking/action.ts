@@ -6,6 +6,46 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
+import { 
+  createTimeEntrySchema, 
+  updateTimeEntrySchema,
+  pauseTimeEntrySchema,
+  resumeTimeEntrySchema,
+  stopTimeEntrySchema,
+  type CreateTimeEntryValues,
+  type UpdateTimeEntryValues,
+} from "@/lib/validation"
+import type { TimeEntry, Project, User } from "@prisma/client"
+
+// DTOs for time entries
+export interface TimeEntryDTO {
+  id: number
+  userId: string
+  projectId: number
+  startTime: Date
+  endTime: Date | null
+  duration: number
+  description: string | null
+  isActive: boolean
+  isPause: boolean
+  createdAt: Date
+  updatedAt: Date
+  project: {
+    id: number
+    name: string
+    description: string | null
+  }
+}
+
+export interface TimeEntryWithUserDTO extends TimeEntryDTO {
+  user: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    profilePicture: string | null
+  }
+}
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -19,13 +59,11 @@ export async function getCurrentUser() {
     }
     
     return user
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle redirect errors
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
-      // This is a redirect, not an error - don't log it
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in getCurrentUser:", error)
     throw new Error("Authentication failed")
   }
 }
@@ -61,16 +99,23 @@ export async function getUserWithRole() {
       user: dbUser,
       isAdmin
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
-    console.error("Error in getUserWithRole:", error)
     throw new Error("Failed to get user with role")
   }
 }
 
 // Admin data fetching functions
-export async function fetchAllUserTimeEntries() {
+export async function fetchAllUserTimeEntries(): Promise<TimeEntryWithUserDTO[]> {
+  // Verify admin access
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+  
   const entries = await prisma.timeEntry.findMany({
     include: {
       user: {
@@ -82,17 +127,55 @@ export async function fetchAllUserTimeEntries() {
           profilePicture: true,
         }
       },
-      project: true
+      project: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+        }
+      }
     },
     orderBy: {
       startTime: "desc"
     }
   })
   
-  return entries
+  return entries.map(entry => ({
+    id: entry.id,
+    userId: entry.userId,
+    projectId: entry.projectId,
+    startTime: entry.startTime,
+    endTime: entry.endTime,
+    duration: entry.duration,
+    description: entry.description,
+    isActive: entry.isActive,
+    isPause: entry.isPause,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    project: {
+      id: entry.project.id,
+      name: entry.project.name,
+      description: entry.project.description,
+    },
+    user: {
+      id: entry.user.id,
+      firstName: entry.user.firstName,
+      lastName: entry.user.lastName,
+      email: entry.user.email,
+      profilePicture: entry.user.profilePicture,
+    }
+  }))
 }
 
 export async function fetchAllUsers() {
+  // Verify admin access
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+  
   const users = await prisma.user.findMany({
     select: {
       id: true,
@@ -119,10 +202,27 @@ export async function fetchAllUsers() {
 }
 
 export async function fetchAllProjects() {
+  // Verify admin access
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+  
   const projects = await prisma.project.findMany({
-    include: {
-      quotations: true,
-      createdByUser: true
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      created_at: true,
+      updated_at: true,
+      createdBy: true,
+      clientId: true,
+      clientName: true,
     },
     orderBy: {
       created_at: "desc"
@@ -133,7 +233,15 @@ export async function fetchAllProjects() {
 }
 
 // User-specific data fetching functions
-export async function fetchUserTimeEntries(supabaseId: string) {
+export async function fetchUserTimeEntries(supabaseId: string): Promise<TimeEntryDTO[]> {
+  // Verify the requesting user matches the target user or is admin
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  
+  if (!isAdmin && user.id !== supabaseId) {
+    throw new Error("Unauthorized: Cannot access other user's time entries")
+  }
+  
   const dbUser = await prisma.user.findUnique({
     where: { supabase_id: supabaseId }
   })
@@ -147,17 +255,48 @@ export async function fetchUserTimeEntries(supabaseId: string) {
       userId: dbUser.id
     },
     include: {
-      project: true
+      project: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+        }
+      }
     },
     orderBy: {
       startTime: "desc"
     }
   })
   
-  return entries
+  return entries.map(entry => ({
+    id: entry.id,
+    userId: entry.userId,
+    projectId: entry.projectId,
+    startTime: entry.startTime,
+    endTime: entry.endTime,
+    duration: entry.duration,
+    description: entry.description,
+    isActive: entry.isActive,
+    isPause: entry.isPause,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    project: {
+      id: entry.project.id,
+      name: entry.project.name,
+      description: entry.project.description,
+    }
+  }))
 }
 
 export async function fetchUserProjects(supabaseId: string) {
+  // Verify the requesting user matches the target user or is admin
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  
+  if (!isAdmin && user.id !== supabaseId) {
+    throw new Error("Unauthorized: Cannot access other user's projects")
+  }
+  
   const dbUser = await prisma.user.findUnique({
     where: { supabase_id: supabaseId }
   })
@@ -167,13 +306,23 @@ export async function fetchUserProjects(supabaseId: string) {
   }
   
   // Check if user is admin
-  const admin = await getCachedIsUserAdmin(supabaseId)
+  const targetUserIsAdmin = await getCachedIsUserAdmin(supabaseId)
   
-  if (admin) {
+  if (targetUserIsAdmin) {
     // Admins can see all projects
     const projects = await prisma.project.findMany({
-      include: {
-        quotations: true
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        created_at: true,
+        updated_at: true,
+        createdBy: true,
+        clientId: true,
+        clientName: true,
       },
       orderBy: {
         created_at: "desc"
@@ -194,8 +343,18 @@ export async function fetchUserProjects(supabaseId: string) {
     },
     include: {
       project: {
-        include: {
-          quotations: true
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          created_at: true,
+          updated_at: true,
+          createdBy: true,
+          clientId: true,
+          clientName: true,
         }
       }
     },
@@ -204,13 +363,13 @@ export async function fetchUserProjects(supabaseId: string) {
         created_at: "desc"
       }
     }
-  }) as any;
+  })
   
-  return userPermissions.map((permission: any) => permission.project);
+  return userPermissions.map(permission => permission.project)
 }
 
 // Get active time entry for current user
-export async function getActiveTimeEntry() {
+export async function getActiveTimeEntry(): Promise<TimeEntryDTO | null> {
   try {
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
@@ -233,33 +392,56 @@ export async function getActiveTimeEntry() {
         isActive: true,
       },
       include: {
-        project: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          }
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
     })
 
-    return activeEntry
-  } catch (error: any) {
+    if (!activeEntry) {
+      return null
+    }
+
+    return {
+      id: activeEntry.id,
+      userId: activeEntry.userId,
+      projectId: activeEntry.projectId,
+      startTime: activeEntry.startTime,
+      endTime: activeEntry.endTime,
+      duration: activeEntry.duration,
+      description: activeEntry.description,
+      isActive: activeEntry.isActive,
+      isPause: activeEntry.isPause,
+      createdAt: activeEntry.createdAt,
+      updatedAt: activeEntry.updatedAt,
+      project: {
+        id: activeEntry.project.id,
+        name: activeEntry.project.name,
+        description: activeEntry.project.description,
+      }
+    }
+  } catch (error: unknown) {
     // Handle redirect errors
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in getActiveTimeEntry:", error)
     throw error
   }
 }
 
 // CRUD operations for time entries
-export async function createTimeEntry(data: {
-  projectId: number
-  startTime: Date
-  endTime?: Date
-  duration: number
-  description?: string
-}) {
+export async function createTimeEntry(data: CreateTimeEntryValues): Promise<TimeEntryDTO> {
   try {
+    // Validate input
+    const validatedData = createTimeEntrySchema.parse(data)
+    
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
     
@@ -289,7 +471,7 @@ export async function createTimeEntry(data: {
 
     // Verify project exists
     const project = await prisma.project.findUnique({
-      where: { id: data.projectId },
+      where: { id: validatedData.projectId },
     })
 
     if (!project) {
@@ -299,38 +481,59 @@ export async function createTimeEntry(data: {
     const timeEntry = await prisma.timeEntry.create({
       data: {
         userId: dbUser.id,
-        projectId: data.projectId,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        duration: data.duration,
-        description: data.description,
+        projectId: validatedData.projectId,
+        startTime: validatedData.startTime,
+        endTime: validatedData.endTime,
+        duration: validatedData.duration,
+        description: validatedData.description,
         isActive: true,
         isPause: false,
       },
       include: {
-        project: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          }
+        },
       },
     })
 
     revalidatePath("/time-tracking")
-    return timeEntry
-  } catch (error: any) {
+    
+    return {
+      id: timeEntry.id,
+      userId: timeEntry.userId,
+      projectId: timeEntry.projectId,
+      startTime: timeEntry.startTime,
+      endTime: timeEntry.endTime,
+      duration: timeEntry.duration,
+      description: timeEntry.description,
+      isActive: timeEntry.isActive,
+      isPause: timeEntry.isPause,
+      createdAt: timeEntry.createdAt,
+      updatedAt: timeEntry.updatedAt,
+      project: {
+        id: timeEntry.project.id,
+        name: timeEntry.project.name,
+        description: timeEntry.project.description,
+      }
+    }
+  } catch (error: unknown) {
     // Handle redirect errors
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
-      // This is a redirect, not an error - don't log it
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in createTimeEntry:", error)
     throw error
   }
 }
 
-export async function updateTimeEntry(id: number, data: {
-  endTime?: Date
-  duration: number
-  description?: string
-}) {
+export async function updateTimeEntry(id: number, data: UpdateTimeEntryValues): Promise<TimeEntryDTO> {
   try {
+    // Validate input
+    const validatedData = updateTimeEntrySchema.parse(data)
+    
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
     
@@ -358,9 +561,9 @@ export async function updateTimeEntry(id: number, data: {
     const timeEntry = await prisma.timeEntry.update({
       where: { id },
       data: {
-        endTime: data.endTime,
-        duration: data.duration,
-        description: data.description,
+        endTime: validatedData.endTime,
+        duration: validatedData.duration,
+        description: validatedData.description,
       },
       include: {
         project: {
@@ -374,21 +577,40 @@ export async function updateTimeEntry(id: number, data: {
     })
 
     revalidatePath("/time-tracking")
-    return timeEntry
-  } catch (error: any) {
+    
+    return {
+      id: timeEntry.id,
+      userId: timeEntry.userId,
+      projectId: timeEntry.projectId,
+      startTime: timeEntry.startTime,
+      endTime: timeEntry.endTime,
+      duration: timeEntry.duration,
+      description: timeEntry.description,
+      isActive: timeEntry.isActive,
+      isPause: timeEntry.isPause,
+      createdAt: timeEntry.createdAt,
+      updatedAt: timeEntry.updatedAt,
+      project: {
+        id: timeEntry.project.id,
+        name: timeEntry.project.name,
+        description: timeEntry.project.description,
+      }
+    }
+  } catch (error: unknown) {
     // Handle redirect errors
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
-      // This is a redirect, not an error - don't log it
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in updateTimeEntry:", error)
     throw error
   }
 }
 
 // Pause active time entry
-export async function pauseTimeEntry(id: number, duration: number) {
+export async function pauseTimeEntry(id: number, duration: number): Promise<TimeEntryDTO> {
   try {
+    // Validate input
+    const validatedData = pauseTimeEntrySchema.parse({ id, duration })
+    
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
     
@@ -406,7 +628,7 @@ export async function pauseTimeEntry(id: number, duration: number) {
 
     // Verify the time entry belongs to the user and is active
     const existingEntry = await prisma.timeEntry.findFirst({
-      where: { id, userId: dbUser.id, isActive: true },
+      where: { id: validatedData.id, userId: dbUser.id, isActive: true },
     })
 
     if (!existingEntry) {
@@ -414,30 +636,56 @@ export async function pauseTimeEntry(id: number, duration: number) {
     }
 
     const timeEntry = await prisma.timeEntry.update({
-      where: { id },
+      where: { id: validatedData.id },
       data: {
         isPause: true,
-        duration: duration,
+        duration: validatedData.duration,
       },
       include: {
-        project: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          }
+        },
       },
     })
 
     revalidatePath("/time-tracking")
-    return timeEntry
-  } catch (error: any) {
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+    
+    return {
+      id: timeEntry.id,
+      userId: timeEntry.userId,
+      projectId: timeEntry.projectId,
+      startTime: timeEntry.startTime,
+      endTime: timeEntry.endTime,
+      duration: timeEntry.duration,
+      description: timeEntry.description,
+      isActive: timeEntry.isActive,
+      isPause: timeEntry.isPause,
+      createdAt: timeEntry.createdAt,
+      updatedAt: timeEntry.updatedAt,
+      project: {
+        id: timeEntry.project.id,
+        name: timeEntry.project.name,
+        description: timeEntry.project.description,
+      }
+    }
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in pauseTimeEntry:", error)
     throw error
   }
 }
 
 // Resume paused time entry
-export async function resumeTimeEntry(id: number) {
+export async function resumeTimeEntry(id: number): Promise<TimeEntryDTO> {
   try {
+    // Validate input
+    const validatedData = resumeTimeEntrySchema.parse({ id })
+    
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
     
@@ -455,7 +703,7 @@ export async function resumeTimeEntry(id: number) {
 
     // Verify the time entry belongs to the user and is active but paused
     const existingEntry = await prisma.timeEntry.findFirst({
-      where: { id, userId: dbUser.id, isActive: true, isPause: true },
+      where: { id: validatedData.id, userId: dbUser.id, isActive: true, isPause: true },
     })
 
     if (!existingEntry) {
@@ -464,30 +712,56 @@ export async function resumeTimeEntry(id: number) {
 
     // Update startTime to now so elapsed time calculation works from resume point
     const timeEntry = await prisma.timeEntry.update({
-      where: { id },
+      where: { id: validatedData.id },
       data: {
         isPause: false,
         startTime: new Date(), // Update start time to now for resume calculation
       },
       include: {
-        project: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          }
+        },
       },
     })
 
     revalidatePath("/time-tracking")
-    return timeEntry
-  } catch (error: any) {
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+    
+    return {
+      id: timeEntry.id,
+      userId: timeEntry.userId,
+      projectId: timeEntry.projectId,
+      startTime: timeEntry.startTime,
+      endTime: timeEntry.endTime,
+      duration: timeEntry.duration,
+      description: timeEntry.description,
+      isActive: timeEntry.isActive,
+      isPause: timeEntry.isPause,
+      createdAt: timeEntry.createdAt,
+      updatedAt: timeEntry.updatedAt,
+      project: {
+        id: timeEntry.project.id,
+        name: timeEntry.project.name,
+        description: timeEntry.project.description,
+      }
+    }
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in resumeTimeEntry:", error)
     throw error
   }
 }
 
 // Stop active time entry
-export async function stopTimeEntry(id: number, duration: number) {
+export async function stopTimeEntry(id: number, duration: number): Promise<TimeEntryDTO> {
   try {
+    // Validate input
+    const validatedData = stopTimeEntrySchema.parse({ id, duration })
+    
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
     
@@ -505,7 +779,7 @@ export async function stopTimeEntry(id: number, duration: number) {
 
     // Verify the time entry belongs to the user and is active
     const existingEntry = await prisma.timeEntry.findFirst({
-      where: { id, userId: dbUser.id, isActive: true },
+      where: { id: validatedData.id, userId: dbUser.id, isActive: true },
     })
 
     if (!existingEntry) {
@@ -515,25 +789,48 @@ export async function stopTimeEntry(id: number, duration: number) {
     const endTime = new Date()
 
     const timeEntry = await prisma.timeEntry.update({
-      where: { id },
+      where: { id: validatedData.id },
       data: {
         isActive: false,
         isPause: false,
         endTime: endTime,
-        duration: duration,
+        duration: validatedData.duration,
       },
       include: {
-        project: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          }
+        },
       },
     })
 
     revalidatePath("/time-tracking")
-    return timeEntry
-  } catch (error: any) {
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
+    
+    return {
+      id: timeEntry.id,
+      userId: timeEntry.userId,
+      projectId: timeEntry.projectId,
+      startTime: timeEntry.startTime,
+      endTime: timeEntry.endTime,
+      duration: timeEntry.duration,
+      description: timeEntry.description,
+      isActive: timeEntry.isActive,
+      isPause: timeEntry.isPause,
+      createdAt: timeEntry.createdAt,
+      updatedAt: timeEntry.updatedAt,
+      project: {
+        id: timeEntry.project.id,
+        name: timeEntry.project.name,
+        description: timeEntry.project.description,
+      }
+    }
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in stopTimeEntry:", error)
     throw error
   }
 }
@@ -541,7 +838,7 @@ export async function stopTimeEntry(id: number, duration: number) {
 
 
 // Get time entries for API calls (used by client components)
-export async function getTimeEntries() {
+export async function getTimeEntries(): Promise<TimeEntryDTO[]> {
   try {
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
@@ -577,20 +874,35 @@ export async function getTimeEntries() {
       },
     })
 
-    return timeEntries
-  } catch (error: any) {
+    return timeEntries.map(entry => ({
+      id: entry.id,
+      userId: entry.userId,
+      projectId: entry.projectId,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      duration: entry.duration,
+      description: entry.description,
+      isActive: entry.isActive,
+      isPause: entry.isPause,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      project: {
+        id: entry.project.id,
+        name: entry.project.name,
+        description: entry.project.description,
+      }
+    }))
+  } catch (error: unknown) {
     // Handle redirect errors
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
-      // This is a redirect, not an error - don't log it
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in getTimeEntries:", error)
     throw error
   }
 }
 
 // Get all time entries (including stopped) for current user (used by client components)
-export async function getAllUserTimeEntries() {
+export async function getAllUserTimeEntries(): Promise<TimeEntryDTO[]> {
   try {
     const supabase = await createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
@@ -612,21 +924,42 @@ export async function getAllUserTimeEntries() {
         userId: dbUser.id,
       },
       include: {
-        project: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+          }
+        },
       },
       orderBy: {
         startTime: "desc",
       },
     })
 
-    return timeEntries
-  } catch (error: any) {
+    return timeEntries.map(entry => ({
+      id: entry.id,
+      userId: entry.userId,
+      projectId: entry.projectId,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      duration: entry.duration,
+      description: entry.description,
+      isActive: entry.isActive,
+      isPause: entry.isPause,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      project: {
+        id: entry.project.id,
+        name: entry.project.name,
+        description: entry.project.description,
+      }
+    }))
+  } catch (error: unknown) {
     // Handle redirect errors
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
-      // This is a redirect, not an error - don't log it
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in getAllUserTimeEntries:", error)
     throw error
   }
 } 

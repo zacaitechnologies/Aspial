@@ -66,7 +66,7 @@ export default function LoginPageContent() {
 
           {/* Slogan */}
           <div className="text-center space-y-6 px-4">
-            <p className="text-2xl md:text-3xl text-white font-medium max-w-3xl opacity-0 animate-fade-in-down" style={{ animationDelay: '0.2s' }}>
+            <p className="text-2xl md:text-3xl text-primary-foreground font-medium max-w-3xl opacity-0 animate-fade-in-down" style={{ animationDelay: '0.2s' }}>
               We don't build brands. We build futures together.
             </p>
           </div>
@@ -76,7 +76,7 @@ export default function LoginPageContent() {
             <Button
               onClick={handleGetStarted}
               size="lg"
-              className="px-10 py-6 text-lg font-semibold bg-white/95 text-gray-900 hover:bg-white transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-gray-200"
+              className="px-10 py-6 text-lg font-semibold bg-background/95 text-foreground hover:bg-background transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-border"
             >
               START NOW
             </Button>
@@ -93,7 +93,7 @@ export default function LoginPageContent() {
               onClick={handleBack}
               variant="ghost"
               size="sm"
-              className="text-white hover:text-white/80 hover:bg-white/10"
+              className="text-primary-foreground hover:text-primary-foreground/80 hover:bg-background/10"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -103,8 +103,8 @@ export default function LoginPageContent() {
           {/* Login Content - No Card Background */}
           <div className="space-y-8">
             {showMessage && (
-              <div className="bg-green-50/90 border border-green-200 rounded-md p-4 mb-6 opacity-0 animate-fade-in backdrop-blur-sm">
-                <p className="text-green-800 text-sm">{message}</p>
+              <div className="bg-green-50/90 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-4 mb-6 opacity-0 animate-fade-in backdrop-blur-sm">
+                <p className="text-green-800 dark:text-green-200 text-sm">{message}</p>
               </div>
             )}
 
@@ -121,10 +121,10 @@ export default function LoginPageContent() {
 
             {/* Welcome Text */}
             <div className="text-center opacity-0 animate-fade-in-down" style={{ animationDelay: '0.3s' }}>
-              <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">
+              <h1 className="text-3xl md:text-4xl font-bold mb-2 text-primary-foreground">
                 Welcome Back!
               </h1>
-              <p className="text-lg text-white/90">
+              <p className="text-lg text-primary-foreground/90">
                 Let's Login to Your Account
               </p>
             </div>

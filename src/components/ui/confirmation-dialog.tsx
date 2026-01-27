@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Trash2, Info } from "lucide-react"
@@ -10,10 +10,10 @@ interface ConfirmationDialogProps {
   onClose: () => void
   onConfirm: () => void
   title: string
-  description: string
+  description: string | ReactNode
   confirmText?: string
   cancelText?: string
-  variant?: "danger" | "warning" | "info"
+  variant?: "danger" | "warning" | "info" | "default"
   isLoading?: boolean
 }
 
@@ -65,6 +65,14 @@ export function ConfirmationDialog({
           borderColor: "border-blue-200",
           buttonVariant: "default" as const
         }
+      case "default":
+        return {
+          icon: Info,
+          iconColor: "text-blue-500",
+          bgColor: "bg-blue-50",
+          borderColor: "border-blue-200",
+          buttonVariant: "default" as const
+        }
       default:
         return {
           icon: AlertTriangle,
@@ -89,9 +97,15 @@ export function ConfirmationDialog({
             </div>
             <DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
           </div>
-          <DialogDescription className="text-sm text-muted-foreground mt-2">
-            {description}
-          </DialogDescription>
+          {typeof description === "string" ? (
+            <DialogDescription className="text-sm text-muted-foreground mt-2">
+              {description}
+            </DialogDescription>
+          ) : (
+            <div className="text-sm text-muted-foreground mt-2">
+              {description}
+            </div>
+          )}
         </DialogHeader>
         
         <DialogFooter className="flex gap-2 sm:justify-end">

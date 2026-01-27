@@ -68,11 +68,11 @@ export function LoginForm({
                   <FormControl>
                     <Input
                       placeholder="Username"
-                      className="w-full px-4 py-3 bg-white/95 text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white placeholder:text-gray-500"
+                      className="w-full px-4 py-3 bg-background/95 text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground"
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage className="text-white/90" />
+                  <FormMessage className="text-destructive" />
                 </FormItem>
               )}
             />
@@ -85,11 +85,11 @@ export function LoginForm({
                   <FormControl>
                     <PasswordInput
                       placeholder="Password"
-                      className="w-full px-4 py-3 bg-white/95 text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white placeholder:text-gray-500"
+                      className="w-full px-4 py-3 bg-background/95 text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground"
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage className="text-white/90" />
+                  <FormMessage className="text-destructive" />
                 </FormItem>
               )}
             />
@@ -98,7 +98,7 @@ export function LoginForm({
               <LoadingButton 
                 loading={isPending} 
                 type="submit"
-                className="px-10 py-6 text-lg font-semibold bg-white/95 text-gray-900 hover:bg-white transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-gray-200 uppercase"
+                className="px-10 py-6 text-lg font-semibold bg-background/95 text-foreground hover:bg-background transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-border uppercase"
               >
                 LOGIN
               </LoadingButton>
@@ -107,7 +107,7 @@ export function LoginForm({
             <div className="text-center">
               <Link
                 href="/forgot-password"
-                className="text-sm text-white/80 hover:text-white underline transition-colors"
+                className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
               >
                 Forgot password?
               </Link>

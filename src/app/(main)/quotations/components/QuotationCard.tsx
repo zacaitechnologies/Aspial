@@ -115,7 +115,6 @@ export default function QuotationCard({
     return (
       <Badge
         variant={statusConfig?.color || "secondary"}
-        className={statusConfig?.className}
       >
         {statusConfig?.label || status}
       </Badge>
@@ -127,7 +126,6 @@ export default function QuotationCard({
     return (
       <Badge
         variant={statusConfig?.color || "secondary"}
-        className={statusConfig?.className}
       >
         {statusConfig?.label || status}
       </Badge>
@@ -153,25 +151,37 @@ export default function QuotationCard({
   const hasProject = quotation.project !== null;
   const isProjectCancelled = quotation.project?.status === "cancelled";
   const isFinalQuotation = quotation.workflowStatus === "final";
+  const isDraftQuotation = quotation.workflowStatus === "draft";
   const isEditableQuotation = quotation.workflowStatus === "draft" || 
     quotation.workflowStatus === "accepted" || 
     quotation.workflowStatus === "rejected";
   const isCreator = enhancedUser?.id === quotation.createdBy?.supabase_id;
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isUnlinkProjectDialogOpen, setIsUnlinkProjectDialogOpen] = useState(false);
+  
+  // Only allow deletion if draft and no project
+  const canDelete = isDraftQuotation && !hasProject;
   
   const handleDelete = useCallback(() => {
-    // For final quotations, prevent deletion
-    if (isFinalQuotation) {
-      toast({
-        title: "Cannot delete",
-        description: "Cannot delete final quotations.",
-        variant: "destructive",
-      });
+    if (!canDelete) {
+      if (!isDraftQuotation) {
+        toast({
+          title: "Cannot delete",
+          description: "Only draft quotations can be deleted.",
+          variant: "destructive",
+        });
+      } else if (hasProject) {
+        toast({
+          title: "Cannot delete",
+          description: "Cannot delete a quotation that is linked to a project. Unlink the project first.",
+          variant: "destructive",
+        });
+      }
       return;
     }
     
     setIsDeleteDialogOpen(true);
-  }, [isFinalQuotation]);
+  }, [canDelete, isDraftQuotation, hasProject]);
 
   const confirmDelete = useCallback(() => {
     onDelete(quotation.id.toString());
@@ -375,10 +385,6 @@ export default function QuotationCard({
 
   const handleUnlinkProject = async () => {
     if (!quotation.project) {
-      return;
-    }
-
-    if (!confirm("Are you sure you want to unlink this project from the quotation?")) {
       return;
     }
 
@@ -600,7 +606,7 @@ export default function QuotationCard({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {!hasProject && (
+                {!hasProject && (isCreator || isAdmin) && !isDraftQuotation && (
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
@@ -614,12 +620,12 @@ export default function QuotationCard({
                     Link Project
                   </DropdownMenuItem>
                 )}
-                {hasProject && (
+                {hasProject && (isCreator || isAdmin) && (
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      handleUnlinkProject();
+                      setIsUnlinkProjectDialogOpen(true);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
                     className="cursor-pointer text-red-600"
@@ -862,14 +868,26 @@ export default function QuotationCard({
         onClose={() => setIsDeleteDialogOpen(false)}
         onConfirm={confirmDelete}
         title="Delete Quotation"
-        description={
-          hasProject
-            ? "This quotation has an associated project. Deleting the quotation will also delete the project and all its time entries. Are you sure you want to continue?"
-            : "Are you sure you want to delete this quotation? This action cannot be undone."
-        }
+        description="Are you sure you want to delete this quotation? This action cannot be undone."
         confirmText="Delete"
         cancelText="Cancel"
         variant="danger"
+      />
+
+      {/* Unlink Project Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={isUnlinkProjectDialogOpen}
+        onClose={() => setIsUnlinkProjectDialogOpen(false)}
+        onConfirm={async () => {
+          await handleUnlinkProject();
+          setIsUnlinkProjectDialogOpen(false);
+        }}
+        title="Unlink Project"
+        description="Are you sure you want to unlink this project from the quotation?"
+        confirmText="Unlink"
+        cancelText="Cancel"
+        variant="warning"
+        isLoading={isLinkingProject}
       />
     </Card>
   );

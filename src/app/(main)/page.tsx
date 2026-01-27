@@ -1,27 +1,23 @@
-"use client";
+import { getCachedUser } from "@/lib/auth-cache"
+import { redirect } from "next/navigation"
 
-import { useSession } from "./contexts/SessionProvider";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+export const dynamic = 'force-dynamic'
 
-export default function Home() {
-  const { enhancedUser } = useSession();
-  const router = useRouter();
+export default async function Home() {
+	const user = await getCachedUser()
+	
+	// Redirect to projects if user is authenticated
+	if (user) {
+		redirect("/projects")
+	}
 
-  useEffect(() => {
-    // Redirect to projects if user is authenticated
-    if (enhancedUser) {
-      router.replace("/projects");
-    }
-  }, [enhancedUser, router]);
-
-  // Show loading state while redirecting
-  return (
-    <main className="!p-0 flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
-        <p className="text-gray-600">Redirecting to Projects...</p>
-      </div>
-    </main>
-  );
+	// Show loading state while redirecting (shouldn't reach here if user exists)
+	return (
+		<main className="!p-0 flex items-center justify-center min-h-screen">
+			<div className="text-center">
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+				<p className="text-gray-600">Redirecting to Projects...</p>
+			</div>
+		</main>
+	)
 }

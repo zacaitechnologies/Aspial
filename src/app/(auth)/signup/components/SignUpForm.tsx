@@ -61,14 +61,15 @@ export function SignupForm({
           // (redirect should have been called in signup function)
         }
         // If no result returned, redirect happened successfully (NEXT_REDIRECT was thrown)
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Handle redirect errors - they should propagate, don't catch them
-        if (err?.digest?.startsWith('NEXT_REDIRECT')) {
+        if (err && typeof err === 'object' && 'digest' in err && typeof err.digest === 'string' && err.digest.startsWith('NEXT_REDIRECT')) {
           // Re-throw redirect errors so Next.js can handle them
           throw err;
         }
         // Only catch non-redirect errors
-        setError(err?.message || "An unexpected error occurred");
+        const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+        setError(errorMessage);
       }
     });
   }

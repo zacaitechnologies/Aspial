@@ -2,9 +2,47 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { getInvoiceById, getInvoiceFullById } from "../action"
+import type { InvoiceWithQuotation } from "../types"
+import type { Prisma } from "@prisma/client"
+
+type InvoiceData = Prisma.InvoiceGetPayload<{
+	include: {
+		quotation: {
+			include: {
+				services: {
+					include: {
+						service: true
+					}
+				}
+				project: true
+				createdBy: true
+				Client: true
+				customServices: {
+					include: {
+						createdBy: {
+							select: {
+								firstName: true
+								lastName: true
+								email: true
+							}
+						}
+						reviewedBy: {
+							select: {
+								firstName: true
+								lastName: true
+								email: true
+							}
+						}
+					}
+				}
+			}
+		}
+		createdBy: true
+	}
+}>
 
 interface UseInvoiceCacheReturn {
-	invoice: any | null
+	invoice: InvoiceData | InvoiceWithQuotation | null
 	isLoading: boolean
 	onRefresh: () => Promise<void>
 	invalidateCache: () => void
@@ -19,7 +57,7 @@ const LOCALSTORAGE_MAX_AGE = 30 * 60 * 1000 // 30 minutes max for localStorage
 
 // ✅ MODULE-LEVEL MEMORY CACHE (fast access during session) - per invoice
 const memoryInvoiceCache: { [key: string]: {
-	invoice: any
+	invoice: InvoiceData | InvoiceWithQuotation
 	timestamp: number
 }} = {}
 const loadingStates: { [key: string]: boolean } = {}
@@ -34,16 +72,20 @@ const loadFromLocalStorage = (cacheKey: string) => {
 			return JSON.parse(stored)
 		}
 	} catch (error) {
-		console.error('Error reading invoice from localStorage:', error)
+		if (process.env.NODE_ENV === 'development') {
+			console.error('Error reading invoice from localStorage:', error)
+		}
 	}
 	return null
 }
 
-const saveToLocalStorage = (cacheKey: string, data: any) => {
+const saveToLocalStorage = (cacheKey: string, data: { invoice: InvoiceData | InvoiceWithQuotation; timestamp: number }) => {
 	try {
 		localStorage.setItem(getStorageKey(cacheKey), JSON.stringify(data))
 	} catch (error) {
-		console.error('Error saving invoice to localStorage:', error)
+		if (process.env.NODE_ENV === 'development') {
+			console.error('Error saving invoice to localStorage:', error)
+		}
 	}
 }
 
@@ -54,7 +96,7 @@ export function useInvoiceCache(
 	const { fetchFullData = false } = options
 	const cacheKey = `${invoiceId}${fetchFullData ? '-full' : ''}`
 	
-	const [invoice, setInvoice] = useState<any | null>(() => {
+	const [invoice, setInvoice] = useState<InvoiceData | InvoiceWithQuotation | null>(() => {
 		if (!invoiceId) return null
 		// Only access memory cache during SSR, localStorage will be checked after mount
 		return memoryInvoiceCache[cacheKey]?.invoice || null
@@ -96,7 +138,9 @@ export function useInvoiceCache(
 			// Check memory cache first (fastest)
 			const memCached = memoryInvoiceCache[cacheKey]
 			if (memCached && now - memCached.timestamp < MEMORY_CACHE_DURATION) {
-				console.log(`✅ MEMORY CACHE HIT [Invoice ${invoiceId}] - Instant load (Age: ${Math.floor((now - memCached.timestamp) / 1000)}s)`)
+				if (process.env.NODE_ENV === 'development') {
+					console.log(`✅ MEMORY CACHE HIT [Invoice ${invoiceId}] - Instant load (Age: ${Math.floor((now - memCached.timestamp) / 1000)}s)`)
+				}
 				setInvoice(memCached.invoice)
 				setIsLoading(false)
 				return
@@ -119,12 +163,16 @@ export function useInvoiceCache(
 		
 		// Prevent duplicate simultaneous loads
 		if (loadingStates[cacheKey]) {
-			console.log(`⏳ INVOICE [${invoiceId}]: Already loading, skipping duplicate request`)
+			if (process.env.NODE_ENV === 'development') {
+				console.log(`⏳ INVOICE [${invoiceId}]: Already loading, skipping duplicate request`)
+			}
 			return
 		}
 		
 		const age = memoryInvoiceCache[cacheKey] ? Math.floor((now - memoryInvoiceCache[cacheKey].timestamp) / 1000) : 0
-		console.log(`🔄 FETCHING FRESH DATA [Invoice ${invoiceId}] from API (Previous age: ${age}s)`)
+		if (process.env.NODE_ENV === 'development') {
+			console.log(`🔄 FETCHING FRESH DATA [Invoice ${invoiceId}] from API (Previous age: ${age}s)`)
+		}
 		loadingStates[cacheKey] = true
 		
 		// Only show loading spinner if we don't have ANY cached data
@@ -145,15 +193,19 @@ export function useInvoiceCache(
 				}
 				
 				// Update all caches
-				memoryInvoiceCache[cacheKey] = cacheData
-				saveToLocalStorage(cacheKey, cacheData)
+				memoryInvoiceCache[cacheKey] = cacheData as typeof memoryInvoiceCache[string]
+				saveToLocalStorage(cacheKey, cacheData as any)
 				
 				// Update component state
-				setInvoice(invoiceData)
-				console.log(`✅ FRESH DATA LOADED [Invoice ${invoiceId}] and cached (Memory + localStorage)`)
+				setInvoice(invoiceData as any)
+				if (process.env.NODE_ENV === 'development') {
+					console.log(`✅ FRESH DATA LOADED [Invoice ${invoiceId}] and cached (Memory + localStorage)`)
+				}
 			}
 		} catch (error) {
-			console.error("Error loading invoice:", error)
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error loading invoice:", error)
+			}
 			// If we have cached data, keep showing it (graceful degradation)
 		} finally {
 			setIsLoading(false)
@@ -162,17 +214,23 @@ export function useInvoiceCache(
 	}, [invoiceId, cacheKey, fetchFullData])
 
 	const onRefresh = useCallback(async () => {
-		console.log(`INVOICE [${invoiceId}]: Force refresh requested`)
+		if (process.env.NODE_ENV === 'development') {
+			console.log(`INVOICE [${invoiceId}]: Force refresh requested`)
+		}
 		await loadInvoice(true)
 	}, [loadInvoice, invoiceId])
 
 	const invalidateCache = useCallback(() => {
-		console.log(`🔄 INVOICE [${invoiceId}]: Cache invalidated (Memory + localStorage)`)
+		if (process.env.NODE_ENV === 'development') {
+			console.log(`🔄 INVOICE [${invoiceId}]: Cache invalidated (Memory + localStorage)`)
+		}
 		delete memoryInvoiceCache[cacheKey]
 		try {
 			localStorage.removeItem(getStorageKey(cacheKey))
 		} catch (error) {
-			console.error('Error clearing invoice from localStorage:', error)
+			if (process.env.NODE_ENV === 'development') {
+				console.error('Error clearing invoice from localStorage:', error)
+			}
 		}
 	}, [invoiceId, cacheKey])
 

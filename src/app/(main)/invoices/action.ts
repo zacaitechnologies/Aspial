@@ -4,6 +4,17 @@ import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
+import { Prisma } from "@prisma/client"
+import {
+	createInvoiceSchema,
+	updateInvoiceAdminSchema,
+	sendInvoiceEmailSchema,
+	invoiceIdSchema,
+	searchQuotationsForInvoiceSchema,
+	type CreateInvoiceValues,
+	type UpdateInvoiceAdminValues,
+	type SendInvoiceEmailValues,
+} from "@/lib/validation"
 
 // Internal function - not cached, used by cached version
 async function _getInvoicesPaginatedInternal(
@@ -17,9 +28,9 @@ async function _getInvoicesPaginatedInternal(
 	const { typeFilter } = filters
 
 	// Build where clause
-	const where: any = {}
+	const where: Prisma.InvoiceWhereInput = {}
 	if (typeFilter && typeFilter !== 'all') {
-		where.type = typeFilter
+		where.type = typeFilter as "SO" | "EPO" | "EO"
 	}
 
 	// Execute count and findMany in parallel for better performance
@@ -181,10 +192,13 @@ export async function getInvoiceById(id: string) {
  * Get full invoice data with all related entities
  * Used for PDF generation, email sending, and viewing
  */
-export async function getInvoiceFullById(id: string) {
+export async function getInvoiceFullById(id: unknown) {
 	unstable_noStore()
+	// Validate input with Zod
+	const validatedId = invoiceIdSchema.parse(id)
+	
 	const invoice = await prisma.invoice.findUnique({
-		where: { id },
+		where: { id: validatedId },
 		include: {
 			quotation: {
 				include: {
@@ -234,7 +248,10 @@ export async function getInvoiceFullById(id: string) {
  * EO-N0001 (minimum 4 digits)
  * This function must be called within a transaction to prevent race conditions
  */
-async function generateInvoiceNumber(tx: any, type: "SO" | "EPO" | "EO"): Promise<string> {
+async function generateInvoiceNumber(
+	tx: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
+	type: "SO" | "EPO" | "EO"
+): Promise<string> {
 	// Find the last invoice of this type
 	const lastInvoice = await tx.invoice.findFirst({
 		where: {
@@ -284,16 +301,9 @@ async function generateInvoiceNumber(tx: any, type: "SO" | "EPO" | "EO"): Promis
 	}
 }
 
-export async function createInvoice(data: {
-	quotationId: number
-	type: "SO" | "EPO" | "EO"
-	amount: number
-	createdById?: string // Optional - will be determined server-side based on admin status
-}) {
-	// Validate amount
-	if (data.amount <= 0) {
-		throw new Error("Invoice amount must be greater than 0")
-	}
+export async function createInvoice(data: unknown) {
+	// Validate input with Zod
+	const validatedData = createInvoiceSchema.parse(data) satisfies CreateInvoiceValues
 
 	// Get current user
 	const user = await getCachedUser()
@@ -307,7 +317,7 @@ export async function createInvoice(data: {
 	return await prisma.$transaction(async (tx) => {
 		// Get quotation to validate it exists and check total
 		const quotation = await tx.quotation.findUnique({
-			where: { id: data.quotationId },
+			where: { id: validatedData.quotationId },
 			include: {
 				services: {
 					include: {
@@ -334,7 +344,7 @@ export async function createInvoice(data: {
 			finalCreatedById = user.id
 		} else {
 			// Admin: default to quotation creator, but allow override if provided
-			finalCreatedById = data.createdById || quotation.createdById
+			finalCreatedById = validatedData.createdById ?? quotation.createdById
 		}
 
 		// Validate that the selected user exists
@@ -369,20 +379,22 @@ export async function createInvoice(data: {
 		const grandTotal = subtotal - discountAmount
 
 		// Warn if amount exceeds quotation total (but allow it)
-		if (data.amount > grandTotal) {
+		if (validatedData.amount > grandTotal) {
 			// We'll let the frontend handle the warning, but still allow creation
-			console.warn(`Invoice amount (${data.amount}) exceeds quotation total (${grandTotal})`)
+			if (process.env.NODE_ENV === 'development') {
+				console.warn(`Invoice amount (${validatedData.amount}) exceeds quotation total (${grandTotal})`)
+			}
 		}
 
 		// Generate invoice number within transaction
-		const invoiceNumber = await generateInvoiceNumber(tx, data.type)
+		const invoiceNumber = await generateInvoiceNumber(tx, validatedData.type)
 
 		const invoice = await tx.invoice.create({
 			data: {
 				invoiceNumber,
-				type: data.type,
-				quotationId: data.quotationId,
-				amount: data.amount,
+				type: validatedData.type,
+				quotationId: validatedData.quotationId,
+				amount: validatedData.amount,
 				createdById: finalCreatedById,
 				status: "active",
 			},
@@ -405,15 +417,18 @@ export async function createInvoice(data: {
 }
 
 /**
- * Admin-only: Update invoice (change createdById or status)
+ * Update invoice (change createdById or status)
+ * - Admins can update any invoice and change createdById
+ * - Non-admins can only cancel/reactivate their own invoices (status only)
  */
 export async function updateInvoiceAdmin(
-	invoiceId: string,
-	data: {
-		createdById?: string
-		status?: "active" | "cancelled"
-	}
+	invoiceId: unknown,
+	data: unknown
 ) {
+	// Validate inputs with Zod
+	const validatedInvoiceId = invoiceIdSchema.parse(invoiceId)
+	const validatedData = updateInvoiceAdminSchema.parse(data) satisfies UpdateInvoiceAdminValues
+
 	// Get current user
 	const user = await getCachedUser()
 	if (!user) {
@@ -422,17 +437,55 @@ export async function updateInvoiceAdmin(
 
 	// Check if user is admin
 	const isAdmin = await getCachedIsUserAdmin(user.id)
-	if (!isAdmin) {
-		throw new Error("Only administrators can update invoices")
+
+	// Get the invoice to check ownership and quotation status
+	const existingInvoice = await prisma.invoice.findUnique({
+		where: { id: validatedInvoiceId },
+		select: {
+			createdById: true,
+			status: true,
+			quotationId: true,
+			quotation: {
+				select: {
+					workflowStatus: true,
+				},
+			},
+		},
+	})
+
+	if (!existingInvoice) {
+		throw new Error("Invoice not found")
+	}
+
+	// Block reactivation if quotation is cancelled
+	if (validatedData.status === "active" && existingInvoice.status === "cancelled") {
+		if (existingInvoice.quotation.workflowStatus === "cancelled") {
+			throw new Error("Cannot reactivate invoice because the quotation is cancelled. Please reactivate the quotation first.")
+		}
+	}
+
+	// Non-admins can only update their own invoices
+	if (!isAdmin && existingInvoice.createdById !== user.id) {
+		throw new Error("You can only update your own invoices")
+	}
+
+	// Non-admins cannot change createdById
+	if (!isAdmin && validatedData.createdById !== undefined) {
+		throw new Error("Only administrators can change invoice creator")
 	}
 
 	// Build update data
-	const updateData: any = {}
+	const updateData: Prisma.InvoiceUncheckedUpdateInput = {}
 	
-	if (data.createdById !== undefined) {
+	if (validatedData.createdById !== undefined) {
+		// Only admins can change createdById
+		if (!isAdmin) {
+			throw new Error("Only administrators can change invoice creator")
+		}
+
 		// Validate that the selected user exists
 		const selectedUser = await prisma.user.findUnique({
-			where: { supabase_id: data.createdById },
+			where: { supabase_id: validatedData.createdById },
 			select: { supabase_id: true },
 		})
 
@@ -440,54 +493,189 @@ export async function updateInvoiceAdmin(
 			throw new Error("Selected creator user not found")
 		}
 
-		updateData.createdById = data.createdById
+		updateData.createdById = validatedData.createdById
 	}
 
-	if (data.status !== undefined) {
-		updateData.status = data.status
-	}
-
-	if (Object.keys(updateData).length === 0) {
-		throw new Error("No fields to update")
+	if (validatedData.status !== undefined) {
+		updateData.status = validatedData.status
 	}
 
 	updateData.updated_at = new Date()
 
-	const invoice = await prisma.invoice.update({
-		where: { id: invoiceId },
-		data: updateData,
-		include: {
-			quotation: {
-				include: {
-					Client: true,
+	// Use transaction to update invoice and cancel associated receipts if cancelling
+	const result = await prisma.$transaction(async (tx) => {
+		// If cancelling the invoice, also cancel all associated receipts
+		if (validatedData.status === "cancelled") {
+			await tx.receipt.updateMany({
+				where: {
+					invoiceId: validatedInvoiceId,
+					status: "active", // Only cancel active receipts
 				},
+				data: {
+					status: "cancelled",
+					updated_at: new Date(),
+				},
+			})
+		}
+
+		// If reactivating the invoice, optionally reactivate receipts
+		// Note: Receipt reactivation is handled by a separate function call with reactivateReceipts option
+
+		const invoice = await tx.invoice.update({
+			where: { id: validatedInvoiceId },
+			data: updateData,
+			include: {
+				quotation: {
+					include: {
+						Client: true,
+					},
+				},
+				createdBy: true,
 			},
-			createdBy: true,
-		},
+		})
+
+		return invoice
 	})
 
 	revalidateTag("invoices", { expire: 0 })
+	revalidateTag("receipts", { expire: 0 })
 	revalidatePath("/invoices")
-	revalidatePath(`/invoices/${invoiceId}`)
+	revalidatePath(`/invoices/${validatedInvoiceId}`)
+	revalidatePath("/receipts")
 
-	return invoice
+	return result
+}
+
+/**
+ * Reactivate a cancelled invoice and optionally reactivate related receipts
+ */
+export async function reactivateInvoiceWithReceipts(
+	invoiceId: unknown,
+	options: {
+		reactivateReceipts?: boolean
+	} = {}
+) {
+	// Validate input
+	const validatedInvoiceId = invoiceIdSchema.parse(invoiceId)
+	
+	unstable_noStore()
+	const user = await getCachedUser()
+	if (!user) {
+		throw new Error("User must be authenticated")
+	}
+
+	// Check if user is admin
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+
+	// Get the invoice to check ownership and quotation status
+	const existingInvoice = await prisma.invoice.findUnique({
+		where: { id: validatedInvoiceId },
+		select: {
+			createdById: true,
+			status: true,
+			quotationId: true,
+			quotation: {
+				select: {
+					id: true,
+					workflowStatus: true,
+				},
+			},
+		},
+	})
+
+	if (!existingInvoice) {
+		throw new Error("Invoice not found")
+	}
+
+	if (existingInvoice.status !== "cancelled") {
+		throw new Error("Only cancelled invoices can be reactivated")
+	}
+
+	// Non-admins can only reactivate their own invoices
+	if (!isAdmin && existingInvoice.createdById !== user.id) {
+		throw new Error("You can only reactivate your own invoices")
+	}
+
+	// If quotation is cancelled, reactivate it first
+	if (existingInvoice.quotation.workflowStatus === "cancelled") {
+		const { reactivateQuotationCascade } = await import("../quotations/action")
+		await reactivateQuotationCascade(existingInvoice.quotation.id.toString(), {
+			reactivateInvoices: false, // We'll reactivate this invoice ourselves
+			reactivateReceipts: false, // We'll handle receipts based on options
+		})
+	}
+
+	// Use transaction to reactivate invoice and optionally receipts
+	const result = await prisma.$transaction(async (tx) => {
+		// Reactivate the invoice
+		const invoice = await tx.invoice.update({
+			where: { id: validatedInvoiceId },
+			data: {
+				status: "active",
+				updated_at: new Date(),
+			},
+			include: {
+				quotation: {
+					include: {
+						Client: true,
+					},
+				},
+				createdBy: true,
+			},
+		})
+
+		// Optionally reactivate receipts
+		if (options.reactivateReceipts) {
+			await tx.receipt.updateMany({
+				where: {
+					invoiceId: validatedInvoiceId,
+					status: "cancelled",
+				},
+				data: {
+					status: "active",
+					updated_at: new Date(),
+				},
+			})
+		}
+
+		return invoice
+	})
+
+	revalidateTag("invoices", { expire: 0 })
+	revalidateTag("receipts", { expire: 0 })
+	revalidateTag("quotations", { expire: 0 })
+	revalidatePath("/invoices")
+	revalidatePath(`/invoices/${validatedInvoiceId}`)
+	revalidatePath("/receipts")
+	revalidatePath("/quotations")
+	if (existingInvoice.quotationId) {
+		revalidatePath(`/quotations/${existingInvoice.quotationId}`)
+	}
+
+	return result
 }
 
 /**
  * Send invoice PDF via email
  */
 export async function sendInvoiceEmail(
-	invoiceId: string,
-	recipientEmail: string
+	invoiceId: unknown,
+	recipientEmail: unknown
 ): Promise<{ success: boolean; error?: string }> {
 	try {
+		// Validate inputs with Zod
+		const validatedData = sendInvoiceEmailSchema.parse({
+			invoiceId,
+			recipientEmail,
+		}) satisfies SendInvoiceEmailValues
+
 		const user = await getCachedUser()
 		if (!user) {
 			throw new Error("User must be authenticated to send invoice")
 		}
 
 		// Get invoice with all related data
-		const invoice = await getInvoiceFullById(invoiceId)
+		const invoice = await getInvoiceFullById(validatedData.invoiceId)
 
 		if (!invoice) {
 			return { success: false, error: "Invoice not found" }
@@ -518,7 +706,7 @@ export async function sendInvoiceEmail(
 				invoiceNumber: invoice.invoiceNumber,
 				quotationNumber: invoice.quotation.name,
 				customerName: invoice.quotation.Client?.name || "Valued Customer",
-				customerEmail: recipientEmail,
+				customerEmail: validatedData.recipientEmail,
 				clientCompany: invoice.quotation.Client?.company || "",
 				amount: invoice.amount,
 				pdfBase64: pdfBase64,
@@ -545,7 +733,7 @@ export async function sendInvoiceEmail(
 		await prisma.invoiceEmail.create({
 			data: {
 				invoiceId: invoice.id,
-				recipientEmail: recipientEmail,
+				recipientEmail: validatedData.recipientEmail,
 				sentById: user.id,
 			},
 		})
@@ -561,7 +749,7 @@ export async function sendInvoiceEmail(
  * Get email history for an invoice
  */
 export async function getInvoiceEmailHistory(
-	invoiceId: string
+	invoiceId: unknown
 ): Promise<
 	Array<{
 		id: number
@@ -575,8 +763,11 @@ export async function getInvoiceEmailHistory(
 	}>
 > {
 	try {
+		// Validate input with Zod
+		const validatedInvoiceId = invoiceIdSchema.parse(invoiceId)
+
 		const emails = await prisma.invoiceEmail.findMany({
-			where: { invoiceId },
+			where: { invoiceId: validatedInvoiceId },
 			include: {
 				sentBy: {
 					select: {
@@ -608,20 +799,19 @@ export async function getInvoiceEmailHistory(
 /**
  * Search quotations for invoice creation
  */
-export async function searchQuotationsForInvoice(searchTerm: string) {
+export async function searchQuotationsForInvoice(searchTerm: unknown) {
 	unstable_noStore()
 	
-	if (!searchTerm || searchTerm.trim().length === 0) {
-		return []
-	}
+	// Validate input with Zod
+	const validatedSearchTerm = searchQuotationsForInvoiceSchema.parse(searchTerm)
 
 	const quotations = await prisma.quotation.findMany({
 		where: {
 			OR: [
-				{ name: { contains: searchTerm, mode: "insensitive" } },
-				{ description: { contains: searchTerm, mode: "insensitive" } },
-				{ Client: { name: { contains: searchTerm, mode: "insensitive" } } },
-				{ Client: { company: { contains: searchTerm, mode: "insensitive" } } },
+				{ name: { contains: validatedSearchTerm, mode: "insensitive" } },
+				{ description: { contains: validatedSearchTerm, mode: "insensitive" } },
+				{ Client: { name: { contains: validatedSearchTerm, mode: "insensitive" } } },
+				{ Client: { company: { contains: validatedSearchTerm, mode: "insensitive" } } },
 			],
 		},
 		select: {

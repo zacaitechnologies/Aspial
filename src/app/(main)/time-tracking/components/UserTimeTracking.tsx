@@ -5,13 +5,11 @@ import { ProjectSelector } from "./project-selector"
 import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
-import { TimeEntry, Project } from "@prisma/client"
-import { createTimeEntry, getActiveTimeEntry, pauseTimeEntry, resumeTimeEntry, stopTimeEntry, getAllUserTimeEntries } from "../action"
+import { Project } from "@prisma/client"
+import { createTimeEntry, getActiveTimeEntry, pauseTimeEntry, resumeTimeEntry, stopTimeEntry, getAllUserTimeEntries, type TimeEntryDTO } from "../action"
 
 interface UserTimeTrackingProps {
-  initialTimeEntries: (TimeEntry & {
-    project: Project
-  })[]
+  initialTimeEntries: TimeEntryDTO[]
   initialProjects: Project[]
   userId: string
 }
@@ -43,9 +41,13 @@ export default function UserTimeTracking({
         const activeEntry = await getActiveTimeEntry()
         if (activeEntry) {
           setActiveEntryId(activeEntry.id)
-          setSelectedProject(activeEntry.project)
+          // Find the full project from initialProjects
+          const fullProject = initialProjects.find(p => p.id === activeEntry.project.id)
+          if (fullProject) {
+            setSelectedProject(fullProject)
+          }
           setIsTracking(true)
-          const isPausedValue = (activeEntry as any).isPause ?? false
+          const isPausedValue = activeEntry.isPause ?? false
           setIsPaused(isPausedValue)
           
           const start = new Date(activeEntry.startTime)
@@ -64,7 +66,7 @@ export default function UserTimeTracking({
           }
         }
       } catch (err) {
-        console.error("Failed to load active entry:", err)
+        // Silently handle load error
       } finally {
         setIsLoading(false)
       }
@@ -102,7 +104,7 @@ export default function UserTimeTracking({
       setPausedTime(totalDuration)
       setCurrentSession(totalDuration)
     } catch (err) {
-      console.error("Failed to pause time entry:", err)
+      // Silently handle pause error
     } finally {
       setIsPausing(false)
     }
@@ -120,7 +122,7 @@ export default function UserTimeTracking({
       // Keep pausedTime as the accumulated duration before this resume
       setPausedTime(updatedEntry.duration)
     } catch (err) {
-      console.error("Failed to resume time entry:", err)
+      // Silently handle resume error
     } finally {
       setIsResuming(false)
     }
@@ -154,17 +156,20 @@ export default function UserTimeTracking({
       setIsPaused(false)
       setCurrentSession(0)
       setPausedTime(0)
-    } catch (err: any) {
-      console.error("Failed to start time entry:", err)
-      if (err.message === "User already has an active time entry") {
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string' && err.message === "User already has an active time entry") {
         // Reload active entry
         try {
           const activeEntry = await getActiveTimeEntry()
           if (activeEntry) {
             setActiveEntryId(activeEntry.id)
-            setSelectedProject(activeEntry.project)
+            // Find the full project from initialProjects
+            const fullProject = initialProjects.find(p => p.id === activeEntry.project.id)
+            if (fullProject) {
+              setSelectedProject(fullProject)
+            }
             setIsTracking(true)
-            const isPausedValue = (activeEntry as any).isPause ?? false
+            const isPausedValue = activeEntry.isPause ?? false
             setIsPaused(isPausedValue)
             const start = new Date(activeEntry.startTime)
             const elapsed = Math.floor((Date.now() - start.getTime()) / 1000)
@@ -178,7 +183,7 @@ export default function UserTimeTracking({
             setStartTime(start)
           }
         } catch (loadErr) {
-          console.error("Failed to reload active entry:", loadErr)
+          // Silently handle reload error
         }
       }
     } finally {
@@ -214,7 +219,7 @@ export default function UserTimeTracking({
       setActiveEntryId(null)
       setSelectedProject(null)
     } catch (err) {
-      console.error("Failed to stop time entry:", err)
+      // Silently handle stop error
     } finally {
       setIsStopping(false)
     }
@@ -239,7 +244,7 @@ export default function UserTimeTracking({
           {/* Left Column - Timer Section */}
           <div className="xl:col-span-3 flex flex-col space-y-6">
             <div className="relative">
-              <div className="relative z-10 bg-card-background rounded-lg p-6 border-card-border border-1">
+              <div className="relative z-10 bg-card rounded-lg p-6 border border-border">
                 <ProjectSelector
                   projects={projects}
                   selectedProject={selectedProject}

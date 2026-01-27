@@ -55,8 +55,12 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
         try {
           const hasFullAccess = await checkHasFullAccess(enhancedUser.id);
           setIsAdmin(hasFullAccess);
-        } catch (error) {
-          console.error("Error checking admin status:", error);
+        } catch (error: unknown) {
+          // Gate logging by environment
+          if (process.env.NODE_ENV === 'development') {
+            // eslint-disable-next-line no-console
+            console.error("Error checking admin status:", error);
+          }
         }
       }
     };
@@ -68,13 +72,17 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
     setLoading(true);
     try {
       const result = await getQuotationsPaginatedFresh(page, pageSize, {
-        statusFilter: statusFilter !== "all" ? statusFilter : undefined,
+        statusFilter: statusFilter !== "all" ? (statusFilter as "cancelled" | "draft" | "in_review" | "final" | "accepted" | "rejected") : undefined,
       });
       setQuotations(result.data);
       setTotal(result.total);
       setTotalPages(result.totalPages);
-    } catch (error) {
-      console.error("Error fetching quotations:", error);
+    } catch (error: unknown) {
+      // Gate logging by environment
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error("Error fetching quotations:", error);
+      }
     } finally {
       setLoading(false);
     }
@@ -100,15 +108,24 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
       await deleteQuotationById(quotationId);
       await invalidateQuotationsCache();
       fetchQuotations();
-    } catch (error) {
-      console.error("Error deleting quotation:", error);
+      toast({
+        title: "Success",
+        description: "Quotation deleted successfully.",
+      });
+    } catch (error: unknown) {
+      // Gate logging by environment
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error("Error deleting quotation:", error);
+      }
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete quotation. Please try again.";
       toast({
         title: "Error",
-        description: "Failed to delete quotation. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
-  }, []);
+  }, [fetchQuotations]);
 
   const handleSuccess = useCallback(async () => {
     await invalidateQuotationsCache();
@@ -135,7 +152,7 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
             </p>
           </div>
 
-          <Button onClick={() => setIsCreateOpen(true)} className="text-white" style={{ backgroundColor: "#202F21" }}>
+          <Button onClick={() => setIsCreateOpen(true)}>
             <Plus className="w-5 h-5 mr-2" />
             Create Quotation
           </Button>
@@ -146,7 +163,7 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
           <Filter className="w-4 h-4 text-gray-500" />
           <span className="text-sm font-medium">Filter by status:</span>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+            <SelectTrigger className="w-48">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -163,8 +180,6 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
               variant="outline"
               size="sm"
               onClick={() => setStatusFilter("all")}
-              className="bg-white border-2"
-              style={{ borderColor: "#BDC4A5" }}
             >
               Clear Filter
             </Button>
@@ -221,8 +236,7 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
             <p className="text-muted-foreground">No quotations match the selected filter.</p>
             <Button
               variant="outline"
-              className="mt-4 bg-white border-2"
-              style={{ borderColor: "#BDC4A5" }}
+              className="mt-4"
               onClick={() => setStatusFilter("all")}
             >
               Clear Filter

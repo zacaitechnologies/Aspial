@@ -41,7 +41,9 @@ export default function SendInvoiceDialog({
 			// Always update email when dialog opens or clientEmail changes
 			// This ensures it gets updated when invoice data loads
 			if (clientEmail && clientEmail.trim() !== "") {
-				console.log("SendInvoiceDialog: Setting email to", clientEmail)
+				if (process.env.NODE_ENV === 'development') {
+					console.log("SendInvoiceDialog: Setting email to", clientEmail)
+				}
 				setEmail(clientEmail)
 			} else if (!email || email.trim() === "") {
 				// Only clear if email is empty, otherwise keep user's input
@@ -88,10 +90,11 @@ export default function SendInvoiceDialog({
 					variant: "destructive",
 				})
 			}
-		} catch (error: any) {
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Failed to send invoice."
 			toast({
 				title: "Error",
-				description: error.message || "Failed to send invoice.",
+				description: errorMessage,
 				variant: "destructive",
 			})
 		} finally {

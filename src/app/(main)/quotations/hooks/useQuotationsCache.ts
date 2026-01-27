@@ -23,19 +23,23 @@ let isLoadingQuotations = false
 const STORAGE_KEY = 'quotations-cache'
 const STORAGE_TIMESTAMP_KEY = 'quotations-cache-timestamp'
 
-const loadFromLocalStorage = (userId: string) => {
+const loadFromLocalStorage = (userId: string): { quotations: QuotationWithServices[]; timestamp: number } | null => {
 	try {
 		const cached = localStorage.getItem(`${STORAGE_KEY}-${userId}`)
 		const timestamp = localStorage.getItem(`${STORAGE_TIMESTAMP_KEY}-${userId}`)
 		
 		if (cached && timestamp) {
 			return {
-				quotations: JSON.parse(cached),
-				timestamp: parseInt(timestamp)
+				quotations: JSON.parse(cached) as QuotationWithServices[],
+				timestamp: parseInt(timestamp, 10)
 			}
 		}
-	} catch (error) {
-		console.error('Error reading quotations from localStorage:', error)
+	} catch (error: unknown) {
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.error('Error reading quotations from localStorage:', error)
+		}
 	}
 	return null
 }
@@ -44,8 +48,12 @@ const saveToLocalStorage = (userId: string, quotations: QuotationWithServices[],
 	try {
 		localStorage.setItem(`${STORAGE_KEY}-${userId}`, JSON.stringify(quotations))
 		localStorage.setItem(`${STORAGE_TIMESTAMP_KEY}-${userId}`, timestamp.toString())
-	} catch (error) {
-		console.error('Error saving quotations to localStorage:', error)
+	} catch (error: unknown) {
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.error('Error saving quotations to localStorage:', error)
+		}
 	}
 }
 
@@ -78,7 +86,11 @@ export function useQuotationsCache(userId: string | undefined): UseQuotationsCac
 			// Check memory cache first (fastest)
 			if (now - memoryCacheTimestamp < MEMORY_CACHE_DURATION) {
 				const age = Math.floor((now - memoryCacheTimestamp) / 1000)
-				console.log(`✅ MEMORY CACHE HIT [Quotations] - Instant load (Age: ${age}s)`)
+				// Gate logging by environment
+				if (process.env.NODE_ENV === 'development') {
+					// eslint-disable-next-line no-console
+					console.log(`✅ MEMORY CACHE HIT [Quotations] - Instant load (Age: ${age}s)`)
+				}
 				setQuotations(memoryCachedQuotations)
 				setIsLoading(false)
 				return
@@ -88,7 +100,11 @@ export function useQuotationsCache(userId: string | undefined): UseQuotationsCac
 			const stored = loadFromLocalStorage(userId)
 			if (stored && now - stored.timestamp < LOCALSTORAGE_MAX_AGE) {
 				const age = Math.floor((now - stored.timestamp) / 1000)
-				console.log(`📦 LOCALSTORAGE HIT [Quotations] - Showing stale data (Age: ${age}s) while revalidating...`)
+				// Gate logging by environment
+				if (process.env.NODE_ENV === 'development') {
+					// eslint-disable-next-line no-console
+					console.log(`📦 LOCALSTORAGE HIT [Quotations] - Showing stale data (Age: ${age}s) while revalidating...`)
+				}
 				
 				// Show cached data immediately
 				setQuotations(stored.quotations)
@@ -102,12 +118,20 @@ export function useQuotationsCache(userId: string | undefined): UseQuotationsCac
 		
 		// Prevent duplicate simultaneous loads
 		if (isLoadingQuotations) {
-			console.log(`⏳ QUOTATIONS: Already loading, skipping duplicate request`)
+			// Gate logging by environment
+			if (process.env.NODE_ENV === 'development') {
+				// eslint-disable-next-line no-console
+				console.log(`⏳ QUOTATIONS: Already loading, skipping duplicate request`)
+			}
 			return
 		}
 		
 		const age = memoryCacheTimestamp > 0 ? Math.floor((now - memoryCacheTimestamp) / 1000) : 0
-		console.log(`🔄 FETCHING FRESH DATA [Quotations] from API (Previous age: ${age}s)`)
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.log(`🔄 FETCHING FRESH DATA [Quotations] from API (Previous age: ${age}s)`)
+		}
 		isLoadingQuotations = true
 		
 		// Only show loading spinner if we don't have ANY cached data
@@ -126,9 +150,17 @@ export function useQuotationsCache(userId: string | undefined): UseQuotationsCac
 			
 			// Update component state
 			setQuotations(quotationsData as QuotationWithServices[])
-			console.log(`✅ FRESH DATA LOADED [Quotations] and cached (Memory + localStorage)`)
-		} catch (error) {
-			console.error("Error loading quotations:", error)
+			// Gate logging by environment
+			if (process.env.NODE_ENV === 'development') {
+				// eslint-disable-next-line no-console
+				console.log(`✅ FRESH DATA LOADED [Quotations] and cached (Memory + localStorage)`)
+			}
+		} catch (error: unknown) {
+			// Gate logging by environment
+			if (process.env.NODE_ENV === 'development') {
+				// eslint-disable-next-line no-console
+				console.error("Error loading quotations:", error)
+			}
 			// If we have cached data, keep showing it (graceful degradation)
 		} finally {
 			setIsLoading(false)
@@ -137,20 +169,32 @@ export function useQuotationsCache(userId: string | undefined): UseQuotationsCac
 	}, [userId])
 
 	const onRefresh = useCallback(async () => {
-		console.log(`QUOTATIONS: Force refresh requested`)
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.log(`QUOTATIONS: Force refresh requested`)
+		}
 		await loadQuotations(true)
 	}, [loadQuotations])
 
 	const invalidateCache = useCallback(() => {
-		console.log(`🔄 QUOTATIONS: Cache invalidated (Memory + localStorage)`)
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.log(`🔄 QUOTATIONS: Cache invalidated (Memory + localStorage)`)
+		}
 		memoryCachedQuotations = []
 		memoryCacheTimestamp = 0
 		if (userId) {
 			try {
 				localStorage.removeItem(`${STORAGE_KEY}-${userId}`)
 				localStorage.removeItem(`${STORAGE_TIMESTAMP_KEY}-${userId}`)
-			} catch (error) {
-				console.error('Error clearing quotations from localStorage:', error)
+			} catch (error: unknown) {
+				// Gate logging by environment
+				if (process.env.NODE_ENV === 'development') {
+					// eslint-disable-next-line no-console
+					console.error('Error clearing quotations from localStorage:', error)
+				}
 			}
 		}
 	}, [userId])

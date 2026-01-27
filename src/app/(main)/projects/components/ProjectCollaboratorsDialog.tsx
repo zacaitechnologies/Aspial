@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { 
   getProjectPermissions, 
   removeProjectCollaborator,
@@ -57,6 +57,8 @@ export default function ProjectCollaboratorsDialog({
 }: ProjectCollaboratorsDialogProps) {
   const { enhancedUser } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
+  const userId = enhancedUser?.id;
   const [permissions, setPermissions] = useState<ProjectPermission[]>([]);
   const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
@@ -83,7 +85,9 @@ export default function ProjectCollaboratorsDialog({
     try {
       setLoading(true);
       setLoadingError(null);
-      console.log("Fetching permissions for project:", projectId);
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Fetching permissions for project:", projectId);
+      }
       
       // Try to fetch all data
       let permissionsData: ProjectPermission[] = [];
@@ -92,40 +96,64 @@ export default function ProjectCollaboratorsDialog({
       
       // Fetch project permissions (current collaborators)
       try {
-        console.log("Fetching project permissions...");
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Fetching project permissions...");
+        }
         permissionsData = await getProjectPermissions(projectId);
-        console.log("Permissions data:", permissionsData);
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Permissions data:", permissionsData);
+        }
       } catch (error) {
-        console.error("Failed to fetch permissions:", error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Failed to fetch permissions:", error);
+        }
         permissionsData = [];
       }
       
       // Fetch available users for invitation
       try {
-        console.log("Fetching available users...");
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Fetching available users...");
+        }
         availableUsersData = await getAvailableUsersForProject(projectId);
-        console.log("Available users data:", availableUsersData);
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Available users data:", availableUsersData);
+        }
       } catch (error) {
-        console.error("Failed to fetch available users:", error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Failed to fetch available users:", error);
+        }
         // If this fails, let's try a simpler approach - get all users
         try {
-          console.log("Trying to get all users as fallback...");
+          if (process.env.NODE_ENV === 'development') {
+            console.log("Trying to get all users as fallback...");
+          }
           const { getAllUsers } = await import("../permissions");
           availableUsersData = await getAllUsers();
-          console.log("All users data:", availableUsersData);
+          if (process.env.NODE_ENV === 'development') {
+            console.log("All users data:", availableUsersData);
+          }
         } catch (fallbackError) {
-          console.error("Failed to fetch all users:", fallbackError);
+          if (process.env.NODE_ENV === 'development') {
+            console.error("Failed to fetch all users:", fallbackError);
+          }
           availableUsersData = [];
         }
       }
       
       // Fetch project invitations
       try {
-        console.log("Fetching project invitations...");
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Fetching project invitations...");
+        }
         invitationsData = await getProjectInvitations(projectId);
-        console.log("Invitations data:", invitationsData);
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Invitations data:", invitationsData);
+        }
       } catch (error) {
-        console.error("Failed to fetch invitations:", error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Failed to fetch invitations:", error);
+        }
         invitationsData = [];
       }
       
@@ -135,14 +163,16 @@ export default function ProjectCollaboratorsDialog({
         const creator = await getProjectCreator(projectId);
         setProjectCreatorId(creator);
       } catch (error) {
-        console.error("Failed to fetch project creator:", error);
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Failed to fetch project creator:", error);
+        }
       }
       
       // Check if current user is admin
-      if (enhancedUser?.id) {
+      if (userId) {
         try {
-          const adminStatus = await checkIsAdmin(enhancedUser.id);
-          console.log("User admin status:", adminStatus, "for user:", enhancedUser.id);
+          const adminStatus = await checkIsAdmin(userId);
+          console.log("User admin status:", adminStatus, "for user:", userId);
           setIsUserAdminRole(adminStatus);
         } catch (error) {
           console.error("Failed to check admin status:", error);
@@ -154,10 +184,14 @@ export default function ProjectCollaboratorsDialog({
       setAvailableUsers(availableUsersData);
       setInvitations(invitationsData as ProjectInvitation[]);
       
-      console.log("Dialog is working - permissions:", permissionsData.length, "users:", availableUsersData.length, "invitations:", invitationsData.length);
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Dialog is working - permissions:", permissionsData.length, "users:", availableUsersData.length, "invitations:", invitationsData.length);
+      }
       
     } catch (error) {
-      console.error("Failed to fetch data:", error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to fetch data:", error);
+      }
       setLoadingError(error instanceof Error ? error.message : 'Failed to load collaborators');
       // Set empty arrays to prevent infinite loading
       setPermissions([]);
@@ -166,7 +200,7 @@ export default function ProjectCollaboratorsDialog({
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, userId]);
 
   useEffect(() => {
     if (isOpen && projectId) {
@@ -201,7 +235,9 @@ export default function ProjectCollaboratorsDialog({
       const selectedUser = availableUsers.find(user => user.supabase_id === selectedUserId);
       const userName = selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName}` : 'User';
       
-      console.log("Inviting user:", selectedUserId, "as owner:", makeOwner);
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Inviting user:", selectedUserId, "as owner:", makeOwner);
+      }
       
       // Always grant view and edit permissions, only owner status varies
       const result = await createProjectInvitation(
@@ -213,7 +249,9 @@ export default function ProjectCollaboratorsDialog({
         makeOwner // isOwner - based on checkbox
       );
       
-      console.log("Invitation created successfully:", result);
+      if (process.env.NODE_ENV === 'development') {
+        console.log("Invitation created successfully:", result);
+      }
       
       // Reset form
       setSelectedUserId("");
@@ -225,9 +263,10 @@ export default function ProjectCollaboratorsDialog({
         description: `Invitation sent successfully to ${userName}!`,
       });
       
-      // Close dialog and refresh page
+      // Close dialog and refresh page data
       onOpenChange(false);
-      router.refresh();
+      // Use replace to same URL to trigger server re-render without full refresh
+      router.replace(pathname);
     } catch (error) {
       console.error("Error sending invitation:", error);
       toast({
@@ -264,11 +303,14 @@ export default function ProjectCollaboratorsDialog({
         description: `${userName} has been removed from the project.`,
       });
       
-      // Close dialog and refresh page
+      // Close dialog and refresh page data
       onOpenChange(false);
-      router.refresh();
+      // Use replace to same URL to trigger server re-render without full refresh
+      router.replace(pathname);
     } catch (error) {
-      console.error("Error removing collaborator:", error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error removing collaborator:", error);
+      }
       toast({
         title: "Error",
         description: "Failed to remove collaborator: " + (error instanceof Error ? error.message : "Please try again."),
@@ -304,9 +346,10 @@ export default function ProjectCollaboratorsDialog({
         description: `${userName} has been ${!currentIsOwner ? 'promoted to owner' : 'demoted from owner'}.`,
       });
       
-      // Close dialog and refresh page
+      // Close dialog and refresh page data
       onOpenChange(false);
-      router.refresh();
+      // Use replace to same URL to trigger server re-render without full refresh
+      router.replace(pathname);
     } catch (error) {
       console.error("Error updating permission:", error);
       toast({
@@ -346,7 +389,9 @@ export default function ProjectCollaboratorsDialog({
       onOpenChange(false);
       router.refresh();
     } catch (error) {
-      console.error("Error transferring creator role:", error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Error transferring creator role:", error);
+      }
       toast({
         title: "Error",
         description: "Failed to transfer creator role: " + (error instanceof Error ? error.message : "Please try again."),
@@ -365,7 +410,7 @@ export default function ProjectCollaboratorsDialog({
             <DialogTitle>Loading collaborators...</DialogTitle>
           </DialogHeader>
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--lightGreen)]"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-(var(--lightGreen))"></div>
             <span className="ml-2">Loading project collaborators...</span>
           </div>
         </DialogContent>

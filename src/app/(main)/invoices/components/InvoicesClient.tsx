@@ -2,14 +2,11 @@
 
 import { Button } from "@/components/ui/button"
 import { Plus, FileText, Filter } from "lucide-react"
-import { useState, useCallback, useEffect, useRef } from "react"
-import { usePathname } from "next/navigation"
+import { useState, useCallback, useEffect } from "react"
 import { getInvoicesPaginatedFresh, invalidateInvoicesCache } from "../action"
 import CreateInvoiceForm from "./CreateInvoiceForm"
 import InvoiceCard from "./InvoiceCard"
 import { InvoiceWithQuotation, invoiceTypeOptions } from "../types"
-import { useSession } from "../../contexts/SessionProvider"
-import { checkHasFullAccess } from "../../actions/admin-actions"
 import {
 	Select,
 	SelectContent,
@@ -28,42 +25,29 @@ interface InvoicesClientProps {
 		pageSize: number
 		totalPages: number
 	}
-	userId?: string
+	userId: string
+	isAdmin: boolean
 }
 
-export default function InvoicesClient({ initialData, userId }: InvoicesClientProps) {
-	const { enhancedUser } = useSession()
-	const pathname = usePathname()
-	const prevPathnameRef = useRef<string | null>(null)
+export default function InvoicesClient({ initialData, userId, isAdmin }: InvoicesClientProps) {
+	const [isMounted, setIsMounted] = useState(false)
 	const [isCreateOpen, setIsCreateOpen] = useState(false)
 	const [typeFilter, setTypeFilter] = useState<string>("all")
-	const [isInitialLoad, setIsInitialLoad] = useState(true)
 
-	// State from initial data
+	// State from initial data - use initial data directly, no copying to state unless it changes
 	const [invoices, setInvoices] = useState<InvoiceWithQuotation[]>(initialData.data)
 	const [loading, setLoading] = useState(false)
 	const [page, setPage] = useState(initialData.page)
 	const [pageSize, setPageSizeState] = useState(initialData.pageSize)
 	const [total, setTotal] = useState(initialData.total)
 	const [totalPages, setTotalPages] = useState(initialData.totalPages)
-	const [isAdmin, setIsAdmin] = useState(false)
 
-	// Fetch admin/brand-advisor status once on mount
+	// Prevent hydration errors from Radix UI dynamic IDs
 	useEffect(() => {
-		const fetchAdminStatus = async () => {
-			if (enhancedUser?.id) {
-				try {
-					const hasFullAccess = await checkHasFullAccess(enhancedUser.id)
-					setIsAdmin(hasFullAccess)
-				} catch (error) {
-					console.error("Error checking admin status:", error)
-				}
-			}
-		}
-		fetchAdminStatus()
-	}, [enhancedUser?.id])
+		setIsMounted(true)
+	}, [])
 
-	// Fetch fresh data when filters change
+	// Fetch fresh data - called directly from handlers, not useEffect
 	const fetchInvoices = useCallback(async () => {
 		setLoading(true)
 		try {
@@ -74,85 +58,79 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 			setTotal(result.total)
 			setTotalPages(result.totalPages)
 		} catch (error) {
-			console.error("Error fetching invoices:", error)
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error fetching invoices:", error)
+			}
 		} finally {
 			setLoading(false)
 		}
 	}, [page, pageSize, typeFilter])
 
-	// Refetch when filters/pagination change (but skip initial load since we have server data)
-	useEffect(() => {
-		if (isInitialLoad) {
-			setIsInitialLoad(false)
-			return
-		}
-		fetchInvoices()
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [page, pageSize, typeFilter])
-
 	const handleSuccess = useCallback(async () => {
 		await invalidateInvoicesCache()
-		fetchInvoices()
+		await fetchInvoices()
 	}, [fetchInvoices])
 
-	// Refresh data when navigating to invoices page or back from detail page
-	useEffect(() => {
-		// Check if we navigated to the invoices page (from any other page)
-		if (pathname === '/invoices' && prevPathnameRef.current && prevPathnameRef.current !== '/invoices') {
-			// We navigated to invoices page from another page - refresh the list
-			if (!isInitialLoad) {
-				invalidateInvoicesCache().then(() => {
-					fetchInvoices()
-				})
-			}
-		}
-		// Check if we're coming back from a detail page (pathname changed from /invoices/[id] to /invoices)
-		else if (prevPathnameRef.current && prevPathnameRef.current.startsWith('/invoices/') && pathname === '/invoices' && !isInitialLoad) {
-			// We navigated back from a detail page - refresh the list
-			invalidateInvoicesCache().then(() => {
-				fetchInvoices()
+	// Handle filter changes directly via callbacks - fetch immediately
+	const handleTypeFilterChange = useCallback(async (value: string) => {
+		setTypeFilter(value)
+		setPage(1) // Reset to first page when filter changes
+		setLoading(true)
+		try {
+			const result = await getInvoicesPaginatedFresh(1, pageSize, {
+				typeFilter: value !== "all" ? value : undefined,
 			})
-		}
-		prevPathnameRef.current = pathname
-	}, [pathname, fetchInvoices, isInitialLoad])
-
-	// Refresh data when page becomes visible again (e.g., switching tabs)
-	useEffect(() => {
-		const handleVisibilityChange = () => {
-			if (document.visibilityState === 'visible' && !isInitialLoad) {
-				// Invalidate cache and refresh when page becomes visible
-				invalidateInvoicesCache().then(() => {
-					fetchInvoices()
-				})
+			setInvoices(result.data as InvoiceWithQuotation[])
+			setTotal(result.total)
+			setTotalPages(result.totalPages)
+		} catch (error) {
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error fetching invoices:", error)
 			}
+		} finally {
+			setLoading(false)
 		}
+	}, [pageSize])
 
-		const handleFocus = () => {
-			if (!isInitialLoad) {
-				// Refresh when window regains focus
-				invalidateInvoicesCache().then(() => {
-					fetchInvoices()
-				})
-			}
-		}
-
-		document.addEventListener('visibilitychange', handleVisibilityChange)
-		window.addEventListener('focus', handleFocus)
-
-		return () => {
-			document.removeEventListener('visibilitychange', handleVisibilityChange)
-			window.removeEventListener('focus', handleFocus)
-		}
-	}, [fetchInvoices, isInitialLoad])
-
-	const goToPage = useCallback((newPage: number) => {
+	// Handle page changes - fetch directly
+	const goToPage = useCallback(async (newPage: number) => {
 		setPage(newPage)
-	}, [])
+		setLoading(true)
+		try {
+			const result = await getInvoicesPaginatedFresh(newPage, pageSize, {
+				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+			})
+			setInvoices(result.data as InvoiceWithQuotation[])
+			setTotal(result.total)
+			setTotalPages(result.totalPages)
+		} catch (error) {
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error fetching invoices:", error)
+			}
+		} finally {
+			setLoading(false)
+		}
+	}, [pageSize, typeFilter])
 
-	const setPageSize = useCallback((size: number) => {
+	const setPageSize = useCallback(async (size: number) => {
 		setPageSizeState(size)
 		setPage(1)
-	}, [])
+		setLoading(true)
+		try {
+			const result = await getInvoicesPaginatedFresh(1, size, {
+				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+			})
+			setInvoices(result.data as InvoiceWithQuotation[])
+			setTotal(result.total)
+			setTotalPages(result.totalPages)
+		} catch (error) {
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error fetching invoices:", error)
+			}
+		} finally {
+			setLoading(false)
+		}
+	}, [typeFilter])
 
 	return (
 		<>
@@ -171,11 +149,12 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 					</Button>
 				</div>
 
-				{/* Filter Section */}
+			{/* Filter Section */}
+			{isMounted && (
 				<div className="mb-6 flex items-center gap-3">
 					<Filter className="w-4 h-4 text-gray-500" />
 					<span className="text-sm font-medium">Filter by type:</span>
-					<Select value={typeFilter} onValueChange={setTypeFilter}>
+					<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
 						<SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
 							<SelectValue placeholder="All types" />
 						</SelectTrigger>
@@ -192,7 +171,7 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() => setTypeFilter("all")}
+							onClick={() => handleTypeFilterChange("all")}
 							className="bg-white border-2"
 							style={{ borderColor: "#BDC4A5" }}
 						>
@@ -203,6 +182,7 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 						Showing {invoices.length} of {total} invoices
 					</span>
 				</div>
+			)}
 
 				{/* Invoices List - Keep previous list visible during loading */}
 				<div className="relative">
@@ -213,6 +193,7 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 								invoice={invoice}
 								onRefresh={handleSuccess}
 								isAdmin={isAdmin}
+								userId={userId}
 							/>
 						))}
 					</div>
@@ -251,7 +232,7 @@ export default function InvoicesClient({ initialData, userId }: InvoicesClientPr
 							variant="outline"
 							className="mt-4 bg-white border-2"
 							style={{ borderColor: "#BDC4A5" }}
-							onClick={() => setTypeFilter("all")}
+							onClick={() => handleTypeFilterChange("all")}
 						>
 							Clear Filter
 						</Button>

@@ -62,6 +62,7 @@ export default function CreateQuotationForm({
       email: "",
       phone: "",
       company: "",
+      companyRegistrationNumber: "",
       address: "",
       notes: "",
       industry: "",
@@ -326,6 +327,7 @@ export default function CreateQuotationForm({
               email: quotationForm.newClient.email,
               phone: quotationForm.newClient.phone,
               company: quotationForm.newClient.company,
+              companyRegistrationNumber: quotationForm.newClient.companyRegistrationNumber,
               address: quotationForm.newClient.address,
               notes: quotationForm.newClient.notes,
               industry: quotationForm.newClient.industry,
@@ -369,17 +371,16 @@ export default function CreateQuotationForm({
         });
         projectId = newProject.id;
         
-        // Refresh projects page cache - use setTimeout to ensure the project is fully created
-        setTimeout(() => {
-          router.refresh();
-          // Dispatch custom event to refresh projects page client-side cache
-          // Use a more specific event with detail to ensure it's received
-          const event = new CustomEvent('projectsCacheInvalidate', {
-            detail: { projectId: newProject.id, timestamp: Date.now() }
-          });
-          window.dispatchEvent(event);
+        // Dispatch custom event to refresh projects page client-side cache
+        // Use a more specific event with detail to ensure it's received
+        // Don't use router.refresh() as it causes full page refresh and navigation issues
+        const event = new CustomEvent('projectsCacheInvalidate', {
+          detail: { projectId: newProject.id, timestamp: Date.now() }
+        });
+        window.dispatchEvent(event);
+        if (process.env.NODE_ENV === 'development') {
           console.log('Dispatched projectsCacheInvalidate event after project creation');
-        }, 200);
+        }
       } else if (projectMode === "existing") {
         // Use selected existing project
         projectId = selectedProjectId;

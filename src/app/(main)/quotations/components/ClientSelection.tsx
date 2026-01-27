@@ -19,7 +19,7 @@ interface Client {
   id: string;
   name: string;
   email: string;
-  company: string | null;
+  company: string | null | undefined;
 }
 
 interface NewClientData {
@@ -27,6 +27,7 @@ interface NewClientData {
   email: string;
   phone?: string;
   company?: string;
+  companyRegistrationNumber?: string;
   address?: string;
   notes?: string;
   industry?: string;
@@ -227,6 +228,18 @@ export default function ClientSelection({
                       handleNewClientDataChange("company", e.target.value)
                     }
                     placeholder="Enter company name"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-client-company-registration-number">Company Registration Number</Label>
+                  <Input
+                    id="new-client-company-registration-number"
+                    value={newClientData?.companyRegistrationNumber || ""}
+                    onChange={(e) =>
+                      handleNewClientDataChange("companyRegistrationNumber", e.target.value)
+                    }
+                    placeholder="Enter company registration number"
                   />
                 </div>
               </div>

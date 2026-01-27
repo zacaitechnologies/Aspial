@@ -28,6 +28,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getQuotationById, getAllUsers } from "../../quotations/action"
 import { checkIsAdmin } from "../../actions/admin-actions"
+import type { QuotationWithServices } from "../../quotations/types"
 
 interface CreateInvoiceFormProps {
 	isOpen: boolean
@@ -72,7 +73,9 @@ export default function CreateInvoiceForm({
 						setUsers(allUsers)
 					}
 				} catch (error) {
-					console.error("Error checking admin status:", error)
+					if (process.env.NODE_ENV === 'development') {
+						console.error("Error checking admin status:", error)
+					}
 				}
 			}
 		}
@@ -91,14 +94,14 @@ export default function CreateInvoiceForm({
 	useEffect(() => {
 		if (selectedQuotation) {
 			// Calculate grand total including custom services and discount
-			const regularServices = selectedQuotation.services?.filter((qs: any) => !qs.customServiceId) || []
+			const regularServices = selectedQuotation.services?.filter((qs: QuotationWithServices['services'][0]) => !qs.customServiceId) || []
 			const servicesTotal = regularServices.reduce(
-				(sum: number, serviceItem: any) => sum + (serviceItem.service?.basePrice || 0),
+				(sum: number, serviceItem: QuotationWithServices['services'][0]) => sum + (serviceItem.service?.basePrice || 0),
 				0
 			)
 			const approvedCustomServicesTotal = (selectedQuotation.customServices || [])
-				.filter((cs: any) => cs.status === "APPROVED")
-				.reduce((sum: number, cs: any) => sum + (cs.price || 0), 0)
+				.filter((cs: NonNullable<QuotationWithServices['customServices']>[0]) => cs.status === "APPROVED")
+				.reduce((sum: number, cs: NonNullable<QuotationWithServices['customServices']>[0]) => sum + (cs.price || 0), 0)
 			const subtotal = servicesTotal + approvedCustomServicesTotal
 
 			let discountAmount = 0
@@ -141,7 +144,9 @@ export default function CreateInvoiceForm({
 			const results = await searchQuotationsForInvoice(searchQuery)
 			setSearchResults(results)
 		} catch (error) {
-			console.error("Error searching quotations:", error)
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error searching quotations:", error)
+			}
 			toast({
 				title: "Error",
 				description: "Failed to search quotations. Please try again.",
@@ -166,45 +171,33 @@ export default function CreateInvoiceForm({
 	}, [searchQuery, handleSearch])
 
 	const handleQuotationSelect = async (quotationId: number) => {
-		// Find quotation in search results first
-		const quotation = searchResults.find(q => q.id === quotationId)
-		
-		if (quotation) {
-			// If found in search results, use it
-			setSelectedQuotation(quotation)
-			setInvoiceForm(prev => ({ ...prev, quotationId }))
-			// If admin, set default createdById to quotation creator
-			if (isAdmin && quotation.createdBy?.supabase_id) {
-				setSelectedCreatedById(quotation.createdBy.supabase_id)
-			}
-			setSearchQuery("")
-			setSearchResults([])
-		} else {
-			// If not in results (e.g., prefilled from quotation page), fetch it
-			try {
-				const fetchedQuotation = await getQuotationById(quotationId.toString())
-				if (fetchedQuotation) {
-					setSelectedQuotation(fetchedQuotation)
-					setInvoiceForm(prev => ({ ...prev, quotationId }))
-					// If admin, set default createdById to quotation creator
-					if (isAdmin && fetchedQuotation.createdBy?.supabase_id) {
-						setSelectedCreatedById(fetchedQuotation.createdBy.supabase_id)
-					}
-				} else {
-					toast({
-						title: "Error",
-						description: "Quotation not found.",
-						variant: "destructive",
-					})
+		// Always fetch full quotation data to ensure we have all fields needed for calculation
+		// (services, customServices, discountValue, discountType, etc.)
+		try {
+			const fetchedQuotation = await getQuotationById(quotationId.toString())
+			if (fetchedQuotation) {
+				setSelectedQuotation(fetchedQuotation)
+				setInvoiceForm(prev => ({ ...prev, quotationId }))
+				// If admin, set default createdById to quotation creator
+				if (isAdmin && fetchedQuotation.createdBy?.supabase_id) {
+					setSelectedCreatedById(fetchedQuotation.createdBy.supabase_id)
 				}
-			} catch (error) {
-				console.error("Error fetching quotation:", error)
+				setSearchQuery("")
+				setSearchResults([])
+			} else {
 				toast({
 					title: "Error",
-					description: "Failed to fetch quotation details. Please try again.",
+					description: "Quotation not found.",
 					variant: "destructive",
 				})
 			}
+		} catch (error) {
+			console.error("Error fetching quotation:", error)
+			toast({
+				title: "Error",
+				description: "Failed to fetch quotation details. Please try again.",
+				variant: "destructive",
+			})
 		}
 	}
 
@@ -268,11 +261,14 @@ export default function CreateInvoiceForm({
 
 			onSuccess()
 			onOpenChange(false)
-		} catch (error: any) {
-			console.error("Error creating invoice:", error)
+		} catch (error) {
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error creating invoice:", error)
+			}
+			const errorMessage = error instanceof Error ? error.message : "Failed to create invoice. Please try again."
 			toast({
 				title: "Error",
-				description: error.message || "Failed to create invoice. Please try again.",
+				description: errorMessage,
 				variant: "destructive",
 			})
 		} finally {

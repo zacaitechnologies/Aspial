@@ -7,22 +7,22 @@ interface StatsCardProps {
   title: string
   value: string
   icon: LucideIcon
-  color: "blue" | "green" | "amber" | "purple"
+  color: "primary" | "accent" | "secondary" | "muted"
   isActive?: boolean
 }
 
 const colorClasses = {
-  blue: "text-blue-600 bg-blue-50",
-  green: "text-green-600 bg-green-50",
-  amber: "text-amber-600 bg-amber-50",
-  purple: "text-purple-600 bg-purple-50",
+  primary: "text-primary bg-primary/10",
+  accent: "text-accent bg-accent/10",
+  secondary: "text-secondary-foreground bg-secondary",
+  muted: "text-muted-foreground bg-muted",
 }
 
 export function StatsCard({ title, value, icon: Icon, color, isActive }: StatsCardProps) {
   return (
     <Card
       className={`card ${
-        isActive ? "ring-2 ring-purple-500 shadow-lg" : ""
+        isActive ? "ring-2 ring-primary shadow-lg" : ""
       }`}
     >
       <CardContent className="p-6">

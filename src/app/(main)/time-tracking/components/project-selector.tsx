@@ -20,7 +20,7 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, di
   return (
           <div className="space-y-6">
         <div className="flex items-center gap-2 text-lg">
-          <FolderOpen className="h-5 w-5 text-brand" />
+          <FolderOpen className="h-5 w-5 text-primary" />
           Select Project
         </div>
       
@@ -28,12 +28,12 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, di
         <DialogTrigger asChild>
           <Button
             variant="outline"
-            className="w-full justify-between h-12 bg-white/60"
+            className="w-full justify-between h-12 bg-background/60"
             disabled={disabled}
           >
             {selectedProject ? (
               <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-full bg-blue-500" />
+                <div className="w-4 h-4 rounded-full bg-primary" />
                 <div className="text-left">
                   <div className="font-medium">{selectedProject.name}</div>
                   {selectedProject.clientName && (

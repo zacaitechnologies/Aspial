@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useSession } from "../contexts/SessionProvider"
 import { updateProfile, changePassword, uploadProfilePicture, deleteProfilePicture } from "./action"
 import { signout } from "@/lib/auth-actions"
@@ -24,6 +24,7 @@ import Image from "next/image"
 export default function SettingsPage() {
 	const { enhancedUser } = useSession()
 	const router = useRouter()
+	const pathname = usePathname()
 	const [isPending, startTransition] = useTransition()
 
 	// Profile state
@@ -75,7 +76,8 @@ export default function SettingsPage() {
 
 			if (result.success) {
 				setProfileSuccess("Profile updated successfully")
-				router.refresh()
+				// Use replace to same URL to trigger server re-render without full refresh
+				router.replace(pathname)
 				setTimeout(() => setProfileSuccess(""), 3000)
 			} else {
 				setProfileError(result.error || "Failed to update profile")
@@ -157,7 +159,8 @@ export default function SettingsPage() {
 			if (result.success && result.url) {
 				setProfilePicture(result.url)
 				setPictureSuccess("Profile picture updated successfully")
-				router.refresh()
+				// Use replace to same URL to trigger server re-render without full refresh
+				router.replace(pathname)
 				setTimeout(() => setPictureSuccess(""), 3000)
 			} else {
 				setPictureError(result.error || "Failed to upload profile picture")
@@ -183,7 +186,8 @@ export default function SettingsPage() {
 			if (result.success) {
 				setProfilePicture(null)
 				setPictureSuccess("Profile picture removed successfully")
-				router.refresh()
+				// Use replace to same URL to trigger server re-render without full refresh
+				router.replace(pathname)
 				setTimeout(() => setPictureSuccess(""), 3000)
 			} else {
 				setPictureError(result.error || "Failed to delete profile picture")

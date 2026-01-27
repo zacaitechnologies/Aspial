@@ -5,8 +5,8 @@ import { AlertTriangle } from "lucide-react"
 
 interface Complaint {
   date: string
-  customer: string
-  reason: string
+  customer: string | null
+  reason: string | null
 }
 
 interface ComplaintsTrackerProps {
@@ -40,9 +40,9 @@ export function ComplaintsTracker({ complaints }: ComplaintsTrackerProps) {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg font-black text-foreground">{complaint.customer}</span>
+                  <span className="text-lg font-black text-foreground">{complaint.customer || 'Unknown Customer'}</span>
                 </div>
-                <p className="text-sm font-bold text-muted-foreground mb-1">{complaint.reason}</p>
+                <p className="text-sm font-bold text-muted-foreground mb-1">{complaint.reason || 'No reason provided'}</p>
                 <p className="text-xs font-bold text-muted-foreground">Date: {complaint.date}</p>
               </div>
             </div>

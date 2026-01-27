@@ -46,19 +46,19 @@ export default function ForgotPasswordPage() {
           backgroundRepeat: "no-repeat"
         }}
       >
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+        <div className="bg-card/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
           <div className="text-center">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
-            <h1 className="text-3xl font-bold mb-4 text-brand">
+            <CheckCircle className="w-16 h-16 text-green-500 dark:text-green-400 mx-auto mb-6" />
+            <h1 className="text-3xl font-bold mb-4 text-foreground">
               Check Your Email
             </h1>
-            <p className="text-brand-light text-sm mb-6">
+            <p className="text-muted-foreground text-sm mb-6">
               We've sent a password reset link to your email address. Please check your inbox and follow the instructions to reset your password.
             </p>
             <div className="space-y-4">
               <Link 
                 href="/login" 
-                className="block w-full bg-brand text-white py-2 px-4 rounded-md hover:bg-brand/90 transition-colors text-center"
+                className="block w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 transition-colors text-center"
               >
                 Back to Login
               </Link>
@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
                   setIsSuccess(false);
                   form.reset();
                 }}
-                className="block w-full text-brand hover:underline"
+                className="block w-full text-primary hover:underline"
               >
                 Send Another Email
               </button>
@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
         backgroundRepeat: "no-repeat"
       }}
     >
-      <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
+      <div className="bg-card/90 backdrop-blur-sm rounded-lg shadow-lg p-8 w-full max-w-md mx-4">
         {/* Lock Icon */}
         <div className="flex justify-center mb-6">
           <Image
@@ -102,19 +102,19 @@ export default function ForgotPasswordPage() {
 
         {/* Welcome Text */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-4 text-brand">
+          <h1 className="text-3xl font-bold mb-4 text-foreground">
             Forgot Password
           </h1>
-          <p className="text-brand-light text-sm">
+          <p className="text-muted-foreground text-sm">
             Enter your email to receive a reset link.
           </p>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <Alert className="mb-6 border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-600">
+          <Alert className="mb-6 border-destructive/50 bg-destructive/10">
+            <AlertCircle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="text-destructive">
               {error}
             </AlertDescription>
           </Alert>
@@ -128,7 +128,7 @@ export default function ForgotPasswordPage() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-brand font-medium">Email</FormLabel>
+                  <FormLabel className="text-foreground font-medium">Email</FormLabel>
                   <FormControl>
                     <Input 
                       type="email" 
@@ -151,7 +151,7 @@ export default function ForgotPasswordPage() {
         <div className="mt-6 text-center">
           <Link 
             href="/login" 
-            className="text-brand hover:underline text-sm"
+            className="text-primary hover:underline text-sm"
           >
             Back to Login
           </Link>

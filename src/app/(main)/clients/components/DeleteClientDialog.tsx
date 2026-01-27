@@ -33,7 +33,7 @@ export default function DeleteClientDialog({
       await onConfirm()
       onOpenChange(false)
     } catch (error) {
-      console.error("Failed to delete client:", error)
+      // Error handling is done in parent component
     } finally {
       setIsDeleting(false)
     }
@@ -48,10 +48,10 @@ export default function DeleteClientDialog({
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-semibold" style={{ color: "#202F21" }}>
+              <DialogTitle className="text-xl font-semibold text-foreground">
                 Delete Client
               </DialogTitle>
-              <DialogDescription className="text-sm" style={{ color: "#898D74" }}>
+              <DialogDescription className="text-sm text-muted-foreground">
                 This action cannot be undone.
               </DialogDescription>
             </div>
@@ -59,7 +59,7 @@ export default function DeleteClientDialog({
         </DialogHeader>
         
         <div className="py-4">
-          <p className="text-sm" style={{ color: "#202F21" }}>
+          <p className="text-sm text-foreground">
             Are you sure you want to delete <span className="font-semibold">{clientName}</span>? 
             This will permanently remove the client and all associated data.
           </p>
@@ -70,8 +70,7 @@ export default function DeleteClientDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isDeleting}
-            className="border-2 bg-transparent"
-            style={{ borderColor: "#BDC4A5", color: "#202F21" }}
+            className="border-2 bg-transparent border-border text-foreground"
           >
             Cancel
           </Button>

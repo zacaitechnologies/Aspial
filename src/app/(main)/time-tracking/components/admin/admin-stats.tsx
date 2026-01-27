@@ -2,7 +2,8 @@
 
 import { Users, Clock, TrendingUp, Calendar } from "lucide-react"
 import { useMemo } from "react"
-import { TimeEntry, User, Project } from "@prisma/client"
+import { User, Project } from "@prisma/client"
+import type { TimeEntryWithUserDTO } from "../../action"
 
 interface TimeEntryUser {
   id: string
@@ -13,10 +14,7 @@ interface TimeEntryUser {
 }
 
 interface AdminStatsProps {
-  timeEntries: (TimeEntry & {
-    user: TimeEntryUser
-    project: Project
-  })[]
+  timeEntries: TimeEntryWithUserDTO[]
   users: User[]
   projects: Project[]
   selectedPeriod: "week" | "month" | "quarter"
@@ -82,15 +80,15 @@ export function AdminStats({ timeEntries, users, projects, selectedPeriod }: Adm
       {statCards.map((stat, index) => (
         <div
           key={stat.title}
-          className="relative overflow-hidden rounded-2xl bg-[var(--color-card)] p-6 border border-[var(--color-border)] shadow-lg"
+          className="relative overflow-hidden rounded-2xl bg-card p-6 border border-border shadow-lg"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-[var(--color-muted-foreground)] mb-1">{stat.title}</p>
-              <p className="text-3xl font-bold text-[var(--color-foreground)]">{stat.value}</p>
+              <p className="text-sm font-medium text-muted-foreground mb-1">{stat.title}</p>
+              <p className="text-3xl font-bold text-foreground">{stat.value}</p>
             </div>
-            <div className="p-3 rounded-xl bg-[var(--color-secondary)]">
-              <stat.icon className="w-6 h-6 text-[var(--color-secondary-foreground)]" />
+            <div className="p-3 rounded-xl bg-secondary">
+              <stat.icon className="w-6 h-6 text-secondary-foreground" />
             </div>
           </div>
         </div>

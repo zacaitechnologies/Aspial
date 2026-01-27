@@ -8,14 +8,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { History, Clock, Calendar, Filter } from "lucide-react"
 import { formatTime, formatDate } from "../utils"
-import { TimeEntry, Project } from "@prisma/client"
-
-interface TimeEntryWithProject extends TimeEntry {
-  project: Project
-}
+import { Project } from "@prisma/client"
+import type { TimeEntryDTO } from "../action"
 
 interface TimeEntriesProps {
-  entries: TimeEntryWithProject[]
+  entries: TimeEntryDTO[]
   projects: Project[]
 }
 
@@ -57,7 +54,7 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2 text-lg">
-          <History className="h-5 w-5 text-brand" />
+          <History className="h-5 w-5 text-primary" />
           {hasFilters ? "Filtered Entries" : "Today's Entries"}
         </div>
         <Button
@@ -73,7 +70,7 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
 
       {/* Date Range Filters */}
       {showFilters && (
-        <div className="space-y-4 p-4 bg-white/40 rounded-lg border border-white/20 mb-6">
+        <div className="space-y-4 p-4 bg-card/40 rounded-lg border border-border mb-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start-date" className="text-sm font-medium">
@@ -84,7 +81,7 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-white/60"
+                className="bg-background/60"
               />
             </div>
             <div className="space-y-2">
@@ -96,7 +93,7 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="bg-white/60"
+                className="bg-background/60"
               />
             </div>
           </div>
@@ -134,13 +131,13 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
               </p>
             </div>
           ) : (
-            filteredEntries.map((entry: TimeEntryWithProject) => (
+            filteredEntries.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-center justify-between p-4 bg-white/60 rounded-xl border border-white/20 hover:bg-white/80"
+                className="flex items-center justify-between p-4 bg-card/60 rounded-xl border border-border hover:bg-card/80"
               >
                 <div className="flex items-center gap-3 flex-1">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0 bg-blue-500" />
+                  <div className="w-3 h-3 rounded-full flex-shrink-0 bg-primary" />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{entry.project.name}</div>
                     <div className="text-xs text-muted-foreground">

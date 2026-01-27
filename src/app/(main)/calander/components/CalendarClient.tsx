@@ -126,13 +126,21 @@ export default function CalendarClient({
 			}
 			
 			// Filter by task ownership (only for tasks mapped to OTHERS)
+			// This filter applies to both admin and non-admin users
 			if (booking.appointmentType === "OTHERS" && booking.type === "task" && taskOwnershipFilter !== "all") {
 				if (taskOwnershipFilter === "my") {
-					if (booking.assigneeId !== userId && booking.creatorId !== userId) {
+					// Show only tasks where user is either assignee or creator
+					// Handle null/undefined assigneeId properly
+					const isAssignee = booking.assigneeId != null && booking.assigneeId === userId
+					const isCreator = booking.creatorId != null && booking.creatorId === userId
+					if (!isAssignee && !isCreator) {
 						return false
 					}
 				} else if (taskOwnershipFilter === "teammate") {
-					if (booking.assigneeId === userId || booking.creatorId === userId) {
+					// Show only tasks where user is NOT assignee and NOT creator
+					const isAssignee = booking.assigneeId != null && booking.assigneeId === userId
+					const isCreator = booking.creatorId != null && booking.creatorId === userId
+					if (isAssignee || isCreator) {
 						return false
 					}
 				}

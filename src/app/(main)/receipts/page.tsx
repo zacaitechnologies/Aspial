@@ -1,7 +1,7 @@
 import { getCachedUser } from "@/lib/auth-cache"
 import { getReceiptsPaginated } from "./action"
 import ReceiptsClient from "./components/ReceiptsClient"
-import { checkIsOperationUser } from "../actions/admin-actions"
+import { checkIsOperationUser, checkHasFullAccess } from "../actions/admin-actions"
 import AccessDenied from "../components/AccessDenied"
 
 export const dynamic = 'force-dynamic'
@@ -15,8 +15,12 @@ export default async function ReceiptsPage() {
 		return null
 	}
 
-	// Check if user is operation-user (restricted access)
-	const isOperationUser = await checkIsOperationUser(user.id)
+	// Check if user is operation-user (restricted access) and admin status in parallel
+	const [isOperationUser, isAdmin] = await Promise.all([
+		checkIsOperationUser(user.id),
+		checkHasFullAccess(user.id)
+	])
+
 	if (isOperationUser) {
 		return <AccessDenied />
 	}
@@ -24,5 +28,5 @@ export default async function ReceiptsPage() {
 	// Fetch initial data on server with caching enabled for better performance
 	const initialData = await getReceiptsPaginated(1, 10, {}, true)
 
-	return <ReceiptsClient initialData={initialData} userId={user.id} />
+	return <ReceiptsClient initialData={initialData} userId={user.id} isAdmin={isAdmin} />
 }

@@ -6,25 +6,15 @@ import { UserTimeOverview } from "./admin/user-time-overview"
 import { ProjectAnalytics } from "./admin/project-analytics"
 import { RecentActivity } from "./admin/recent-activity"
 import { FloatingElements } from "./floating-elements"
-import { TimeEntry, User, Project } from "@prisma/client"
+import { User, Project } from "@prisma/client"
+import type { TimeEntryWithUserDTO } from "../action"
 
 interface UserWithProfilePicture extends User {
   profilePicture: string | null
 }
 
-interface TimeEntryUser {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
-  profilePicture: string | null
-}
-
 interface AdminTimeTrackingProps {
-  initialTimeEntries: (TimeEntry & {
-    user: TimeEntryUser
-    project: Project
-  })[]
+  initialTimeEntries: TimeEntryWithUserDTO[]
   initialProjects: Project[]
   initialUsers: UserWithProfilePicture[]
 }
@@ -40,32 +30,32 @@ export default function AdminTimeTracking({
   const [selectedPeriod, setSelectedPeriod] = useState<"week" | "month" | "quarter">("week")
 
   return (
-    <div className="min-h-screen bg-[var(--color-background)] p-4 relative">
+    <div className="min-h-screen bg-background p-4 relative">
       <FloatingElements />
       <div className="mx-auto max-w-7xl space-y-8">
         {/* Header */}
         <div className="relative">
-          <div className="relative z-10 bg-[var(--color-card)] rounded-2xl p-8 border border-[var(--color-border)] shadow-xl">
+          <div className="relative z-10 bg-card rounded-2xl p-8 border border-border shadow-xl">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div>
-                <h1 className="text-4xl font-bold text-[var(--color-foreground)]">
+                <h1 className="text-4xl font-bold text-foreground">
                   Admin Dashboard
                 </h1>
-                <p className="text-[var(--color-muted-foreground)] mt-2 text-lg">
+                <p className="text-muted-foreground mt-2 text-lg">
                   Monitor team productivity and time tracking insights
                 </p>
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="flex bg-[var(--color-muted)] rounded-lg p-1 border border-[var(--color-border)]">
+                <div className="flex bg-muted rounded-lg p-1 border border-border">
                   {(["week", "month", "quarter"] as const).map((period) => (
                     <button
                       key={period}
                       onClick={() => setSelectedPeriod(period)}
                       className={`px-4 py-2 rounded-md text-sm font-medium ${
                         selectedPeriod === period
-                          ? "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] shadow-sm"
-                          : "text-[var(--color-muted-foreground)] hover:text-[var(--color-primary)]"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-primary"
                       }`}
                     >
                       {period.charAt(0).toUpperCase() + period.slice(1)}
@@ -97,7 +87,7 @@ export default function AdminTimeTracking({
             />
 
             <ProjectAnalytics 
-              timeEntries={timeEntries} 
+              timeEntries={timeEntries as any} 
               projects={projects} 
               selectedPeriod={selectedPeriod} 
             />

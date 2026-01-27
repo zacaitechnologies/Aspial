@@ -15,8 +15,8 @@ export type InvoiceWithQuotation = {
 		description: string
 		totalPrice: number
 		workflowStatus: string
-		discountValue?: number
-		discountType?: "percentage" | "fixed"
+		discountValue?: number | null
+		discountType?: "percentage" | "fixed" | null
 		duration?: number
 		startDate?: Date
 		endDate?: Date
@@ -24,14 +24,14 @@ export type InvoiceWithQuotation = {
 			id: string
 			name: string
 			email: string
-			phone?: string
-			company?: string
-			companyRegistrationNumber?: string
-			address?: string
-			notes?: string
-			industry?: string
-			yearlyRevenue?: number
-			membershipType?: string
+			phone?: string | null
+			company?: string | null
+			companyRegistrationNumber?: string | null
+			address?: string | null
+			notes?: string | null
+			industry?: string | null
+			yearlyRevenue?: number | null
+			membershipType?: string | null
 		}
 		createdBy: {
 			id: string
@@ -46,14 +46,24 @@ export type InvoiceWithQuotation = {
 			id: number
 			quotationId: number
 			serviceId: number
-			customServiceId?: string
+			customServiceId?: string | null
 			service: {
 				id: number
 				name: string
 				description: string
 				basePrice: number
 			}
-			customService?: any
+			customService?: {
+				id: string
+				quotationId: number
+				name: string
+				description?: string
+				price: number
+				status: string
+				createdById?: string
+				created_at: Date
+				updated_at: Date
+			}
 		}[]
 		customServices?: {
 			id: string

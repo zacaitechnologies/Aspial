@@ -66,10 +66,10 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
       setIsOpen(false)
       onSuccess()
     } catch (error) {
-      console.error("Failed to create client:", error)
+      const message = error instanceof Error ? error.message : "Failed to create client. Please try again."
       toast({
         title: "Error",
-        description: "Failed to create client. Please try again.",
+        description: message,
         variant: "destructive",
       })
     } finally {
@@ -96,14 +96,14 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button className="text-white" style={{ backgroundColor: "#202F21" }}>
+        <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
           <Plus className="w-5 h-5 mr-2" />
           Add Client
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle style={{ color: "#202F21" }}>Add New Client</DialogTitle>
+          <DialogTitle className="text-foreground">Add New Client</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4 py-4">
           <div className="space-y-2">
@@ -207,8 +207,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
             Cancel
           </Button>
           <Button 
-            style={{ backgroundColor: "#202F21" }} 
-            className="text-white"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={handleCreateClient}
             disabled={!formData.name || !formData.email || !formData.companyRegistrationNumber || isCreating}
           >

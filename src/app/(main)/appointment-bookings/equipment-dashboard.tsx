@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AppointmentForm } from "@/app/(main)/appointment-bookings/components/appointment-form"
 import { AppointmentGrid } from "@/app/(main)/appointment-bookings/components/appointment-grid"
-import { DatePicker } from "@/app/(main)/appointment-bookings/components/date-picker"
 import AppointmentBookingEmailHistoryDialog from "@/app/(main)/appointment-bookings/components/AppointmentBookingEmailHistoryDialog"
 import SendAppointmentReminderDialog from "@/app/(main)/appointment-bookings/components/SendAppointmentReminderDialog"
 import EditAppointmentRemindersDialog from "@/app/(main)/appointment-bookings/components/EditAppointmentRemindersDialog"
@@ -347,13 +346,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="max-w-xs">
-              <DatePicker
-                selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
-              />
-            </div>
+          <div className="flex items-center justify-end">
             <div className="text-sm text-muted-foreground">
               Showing {filteredAppointments.length} of {safeAppointments.length} appointments
             </div>

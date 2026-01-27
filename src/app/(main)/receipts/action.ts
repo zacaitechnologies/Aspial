@@ -31,6 +31,7 @@ async function _getReceiptsPaginatedInternal(
 						invoiceNumber: true,
 						type: true,
 						amount: true,
+						status: true,
 						quotation: {
 							select: {
 								id: true,
@@ -80,6 +81,7 @@ async function _getReceiptsPaginatedInternal(
 			invoiceNumber: receipt.invoice.invoiceNumber,
 			type: receipt.invoice.type,
 			amount: receipt.invoice.amount,
+			status: receipt.invoice.status,
 		} : null,
 		quotation: receipt.invoice?.quotation ? {
 			id: receipt.invoice.quotation.id,
@@ -325,7 +327,7 @@ export async function createReceipt(data: {
 	// Check if user is admin
 	const isAdmin = await getCachedIsUserAdmin(user.id)
 
-	return await prisma.$transaction(async (tx) => {
+	const receipt = await prisma.$transaction(async (tx) => {
 		// Get invoice to validate it exists and get quotation creator
 		const invoice = await tx.invoice.findUnique({
 			where: { id: data.invoiceId },
@@ -410,6 +412,12 @@ export async function createReceipt(data: {
 
 		return receipt
 	})
+
+	// Revalidate receipts cache after creation
+	await invalidateReceiptsCache()
+	revalidatePath("/receipts")
+	
+	return receipt
 }
 
 /**
@@ -504,7 +512,9 @@ export async function searchInvoicesForReceipt(searchTerm: string) {
 }
 
 /**
- * Admin-only: Update receipt (change createdById or status)
+ * Update receipt (change createdById or status)
+ * - Admins can update any receipt and change createdById
+ * - Non-admins can only update their own receipts and only change status
  */
 export async function updateReceiptAdmin(
 	receiptId: string,
@@ -521,14 +531,71 @@ export async function updateReceiptAdmin(
 
 	// Check if user is admin
 	const isAdmin = await getCachedIsUserAdmin(user.id)
-	if (!isAdmin) {
-		throw new Error("Only administrators can update receipts")
+
+	// Get the receipt to check ownership and invoice status
+	const existingReceipt = await prisma.receipt.findUnique({
+		where: { id: receiptId },
+		select: {
+			createdById: true,
+			status: true,
+			invoiceId: true,
+			invoice: {
+				select: {
+					id: true,
+					status: true,
+					quotationId: true,
+					quotation: {
+						select: {
+							id: true,
+							workflowStatus: true,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	if (!existingReceipt) {
+		throw new Error("Receipt not found")
+	}
+
+	// If reactivating a cancelled receipt, automatically reactivate parent invoice and quotation if needed
+	if (data.status === "active" && existingReceipt.status === "cancelled") {
+		if (existingReceipt.invoice.status === "cancelled") {
+			// Invoice is cancelled, reactivate it (which will also reactivate quotation if needed)
+			const { reactivateInvoiceWithReceipts } = await import("../invoices/action")
+			await reactivateInvoiceWithReceipts(existingReceipt.invoice.id, {
+				reactivateReceipts: false, // We'll reactivate this receipt ourselves
+			})
+		} else if (existingReceipt.invoice.quotation.workflowStatus === "cancelled") {
+			// Only quotation is cancelled, reactivate it
+			const { reactivateQuotationCascade } = await import("../quotations/action")
+			await reactivateQuotationCascade(existingReceipt.invoice.quotation.id.toString(), {
+				reactivateInvoices: false, // Invoice is already active
+				reactivateReceipts: false, // We'll reactivate this receipt ourselves
+			})
+		}
+	}
+
+	// Non-admins can only update their own receipts
+	if (!isAdmin && existingReceipt.createdById !== user.id) {
+		throw new Error("You can only update your own receipts")
+	}
+
+	// Non-admins cannot change createdById
+	if (!isAdmin && data.createdById !== undefined) {
+		throw new Error("Only administrators can change receipt creator")
 	}
 
 	// Build update data
 	const updateData: any = {}
 	
 	if (data.createdById !== undefined) {
+		// Only admins can change createdById
+		if (!isAdmin) {
+			throw new Error("Only administrators can change receipt creator")
+		}
+
 		// Validate that the selected user exists
 		const selectedUser = await prisma.user.findUnique({
 			where: { supabase_id: data.createdById },
@@ -570,8 +637,15 @@ export async function updateReceiptAdmin(
 	})
 
 	revalidateTag("receipts", { expire: 0 })
+	revalidateTag("invoices", { expire: 0 })
+	revalidateTag("quotations", { expire: 0 })
 	revalidatePath("/receipts")
 	revalidatePath(`/receipts/${receiptId}`)
+	revalidatePath("/invoices")
+	if (existingReceipt.invoiceId) {
+		revalidatePath(`/invoices/${existingReceipt.invoiceId}`)
+	}
+	revalidatePath("/quotations")
 
 	return receipt
 }

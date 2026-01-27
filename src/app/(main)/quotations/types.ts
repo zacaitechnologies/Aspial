@@ -44,7 +44,17 @@ export type QuotationWithServices = {
     serviceId: number;
     customServiceId?: string;
     service: Services;
-    customService?: any;
+    customService?: {
+      id: string;
+      quotationId: number;
+      name: string;
+      description?: string;
+      price: number;
+      status: string;
+      createdById?: string;
+      created_at: Date;
+      updated_at: Date;
+    };
   }[];
   customServices?: {
     id: string;
@@ -83,6 +93,7 @@ export type QuotationFormData = {
     email: string;
     phone?: string;
     company?: string;
+    companyRegistrationNumber?: string;
     address?: string;
     notes?: string;
     industry?: string;
@@ -115,6 +126,7 @@ export type EditFormData = {
     email: string;
     phone?: string;
     company?: string;
+    companyRegistrationNumber?: string;
     address?: string;
     notes?: string;
     industry?: string;
@@ -131,19 +143,26 @@ export type EditFormData = {
 };
 
 export const workflowStatusOptions = [
-  { value: "draft", label: "Draft", color: "default" as const, className: "bg-gray-200 text-gray-800" },
-  { value: "in_review", label: "In Review", color: "default" as const, className: "bg-blue-500 text-white" },
-  { value: "final", label: "Final", color: "default" as const, className: "bg-purple-600 text-white" },
-  { value: "accepted", label: "Accepted", color: "default" as const, className: "bg-green-600 text-white hover:bg-green-700" },
-  { value: "rejected", label: "Rejected", color: "destructive" as const, className: "" },
-  { value: "cancelled", label: "Cancelled", color: "destructive" as const, className: "bg-red-600 text-white" },
+  { value: "draft", label: "Draft", color: "secondary" as const },
+  { value: "in_review", label: "In Review", color: "default" as const },
+  { value: "final", label: "Final", color: "default" as const },
+  { value: "accepted", label: "Accepted", color: "default" as const },
+  { value: "rejected", label: "Rejected", color: "destructive" as const },
+  { value: "cancelled", label: "Cancelled", color: "destructive" as const },
 ] as const;
 
 export const paymentStatusOptions = [
-  { value: "unpaid", label: "Unpaid", color: "destructive" as const, className: "" },
-  { value: "partially_paid", label: "Partially Paid", color: "secondary" as const, className: "bg-yellow-500 text-white" },
-  { value: "deposit_paid", label: "Deposit Paid", color: "default" as const, className: "bg-orange-500 text-white" },
-  { value: "fully_paid", label: "Fully Paid", color: "default" as const, className: "bg-green-600 text-white" },
+  { value: "unpaid", label: "Unpaid", color: "destructive" as const },
+  { value: "partially_paid", label: "Partially Paid", color: "secondary" as const },
+  { value: "deposit_paid", label: "Deposit Paid", color: "default" as const },
+  { value: "fully_paid", label: "Fully Paid", color: "default" as const },
+] as const;
+
+// Limited payment status options for non-admin users editing finalized quotations
+export const limitedPaymentStatusOptions = [
+  { value: "unpaid", label: "Unpaid", color: "destructive" as const },
+  { value: "partially_paid", label: "Partially Paid", color: "secondary" as const },
+  { value: "fully_paid", label: "Fully Paid", color: "default" as const },
 ] as const;
 
 // Backwards compatibility - use workflow status

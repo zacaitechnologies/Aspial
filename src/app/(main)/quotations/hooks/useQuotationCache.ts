@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from "react"
 import { getQuotationById, getQuotationFullById } from "../action"
 
+import type { QuotationWithServices } from "../types"
+
 interface UseQuotationCacheReturn {
-	quotation: any | null
+	quotation: QuotationWithServices | null
 	isLoading: boolean
 	onRefresh: () => Promise<void>
 	invalidateCache: () => void
@@ -19,7 +21,7 @@ const LOCALSTORAGE_MAX_AGE = 30 * 60 * 1000 // 30 minutes max for localStorage
 
 // ✅ MODULE-LEVEL MEMORY CACHE (fast access during session) - per quotation
 const memoryQuotationCache: { [key: string]: {
-	quotation: any
+	quotation: QuotationWithServices
 	timestamp: number
 }} = {}
 const loadingStates: { [key: string]: boolean } = {}
@@ -27,23 +29,31 @@ const loadingStates: { [key: string]: boolean } = {}
 // ✅ LOCALSTORAGE HELPERS (persistent across browser restarts)
 const getStorageKey = (cacheKey: string) => `quotation-cache-${cacheKey}`
 
-const loadFromLocalStorage = (cacheKey: string) => {
+const loadFromLocalStorage = (cacheKey: string): { quotation: QuotationWithServices; timestamp: number } | null => {
 	try {
 		const stored = localStorage.getItem(getStorageKey(cacheKey))
 		if (stored) {
-			return JSON.parse(stored)
+			return JSON.parse(stored) as { quotation: QuotationWithServices; timestamp: number }
 		}
-	} catch (error) {
-		console.error('Error reading quotation from localStorage:', error)
+	} catch (error: unknown) {
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.error('Error reading quotation from localStorage:', error)
+		}
 	}
 	return null
 }
 
-const saveToLocalStorage = (cacheKey: string, data: any) => {
+const saveToLocalStorage = (cacheKey: string, data: { quotation: QuotationWithServices; timestamp: number }) => {
 	try {
 		localStorage.setItem(getStorageKey(cacheKey), JSON.stringify(data))
-	} catch (error) {
-		console.error('Error saving quotation to localStorage:', error)
+	} catch (error: unknown) {
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.error('Error saving quotation to localStorage:', error)
+		}
 	}
 }
 
@@ -54,7 +64,7 @@ export function useQuotationCache(
 	const { fetchFullData = false } = options
 	const cacheKey = `${quotationId}${fetchFullData ? '-full' : ''}`
 	
-	const [quotation, setQuotation] = useState<any | null>(() => {
+	const [quotation, setQuotation] = useState<QuotationWithServices | null>(() => {
 		if (!quotationId) return null
 		// Only access memory cache during SSR, localStorage will be checked after mount
 		return memoryQuotationCache[cacheKey]?.quotation || null
@@ -96,7 +106,11 @@ export function useQuotationCache(
 			// Check memory cache first (fastest)
 			const memCached = memoryQuotationCache[cacheKey]
 			if (memCached && now - memCached.timestamp < MEMORY_CACHE_DURATION) {
-				console.log(`✅ MEMORY CACHE HIT [Quotation ${quotationId}] - Instant load (Age: ${Math.floor((now - memCached.timestamp) / 1000)}s)`)
+				// Gate logging by environment
+				if (process.env.NODE_ENV === 'development') {
+					// eslint-disable-next-line no-console
+					console.log(`✅ MEMORY CACHE HIT [Quotation ${quotationId}] - Instant load (Age: ${Math.floor((now - memCached.timestamp) / 1000)}s)`)
+				}
 				setQuotation(memCached.quotation)
 				setIsLoading(false)
 				return
@@ -106,7 +120,11 @@ export function useQuotationCache(
 			const stored = loadFromLocalStorage(cacheKey)
 			if (stored && now - stored.timestamp < LOCALSTORAGE_MAX_AGE) {
 				const age = Math.floor((now - stored.timestamp) / 1000)
-				console.log(`📦 LOCALSTORAGE HIT [Quotation ${quotationId}] - Showing stale data (Age: ${age}s) while revalidating...`)
+				// Gate logging by environment
+				if (process.env.NODE_ENV === 'development') {
+					// eslint-disable-next-line no-console
+					console.log(`📦 LOCALSTORAGE HIT [Quotation ${quotationId}] - Showing stale data (Age: ${age}s) while revalidating...`)
+				}
 				
 				// Show cached data immediately
 				setQuotation(stored.quotation)
@@ -119,12 +137,20 @@ export function useQuotationCache(
 		
 		// Prevent duplicate simultaneous loads
 		if (loadingStates[cacheKey]) {
-			console.log(`⏳ QUOTATION [${quotationId}]: Already loading, skipping duplicate request`)
+			// Gate logging by environment
+			if (process.env.NODE_ENV === 'development') {
+				// eslint-disable-next-line no-console
+				console.log(`⏳ QUOTATION [${quotationId}]: Already loading, skipping duplicate request`)
+			}
 			return
 		}
 		
 		const age = memoryQuotationCache[cacheKey] ? Math.floor((now - memoryQuotationCache[cacheKey].timestamp) / 1000) : 0
-		console.log(`🔄 FETCHING FRESH DATA [Quotation ${quotationId}] from API (Previous age: ${age}s)`)
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.log(`🔄 FETCHING FRESH DATA [Quotation ${quotationId}] from API (Previous age: ${age}s)`)
+		}
 		loadingStates[cacheKey] = true
 		
 		// Only show loading spinner if we don't have ANY cached data
@@ -150,10 +176,18 @@ export function useQuotationCache(
 				
 				// Update component state
 				setQuotation(quotationData)
-				console.log(`✅ FRESH DATA LOADED [Quotation ${quotationId}] and cached (Memory + localStorage)`)
+				// Gate logging by environment
+				if (process.env.NODE_ENV === 'development') {
+					// eslint-disable-next-line no-console
+					console.log(`✅ FRESH DATA LOADED [Quotation ${quotationId}] and cached (Memory + localStorage)`)
+				}
 			}
-		} catch (error) {
-			console.error("Error loading quotation:", error)
+		} catch (error: unknown) {
+			// Gate logging by environment
+			if (process.env.NODE_ENV === 'development') {
+				// eslint-disable-next-line no-console
+				console.error("Error loading quotation:", error)
+			}
 			// If we have cached data, keep showing it (graceful degradation)
 		} finally {
 			setIsLoading(false)
@@ -162,17 +196,29 @@ export function useQuotationCache(
 	}, [quotationId, cacheKey])
 
 	const onRefresh = useCallback(async () => {
-		console.log(`QUOTATION [${quotationId}]: Force refresh requested`)
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.log(`QUOTATION [${quotationId}]: Force refresh requested`)
+		}
 		await loadQuotation(true)
 	}, [loadQuotation, quotationId])
 
 	const invalidateCache = useCallback(() => {
-		console.log(`🔄 QUOTATION [${quotationId}]: Cache invalidated (Memory + localStorage)`)
+		// Gate logging by environment
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.log(`🔄 QUOTATION [${quotationId}]: Cache invalidated (Memory + localStorage)`)
+		}
 		delete memoryQuotationCache[cacheKey]
 		try {
 			localStorage.removeItem(getStorageKey(cacheKey))
-		} catch (error) {
-			console.error('Error clearing quotation from localStorage:', error)
+		} catch (error: unknown) {
+			// Gate logging by environment
+			if (process.env.NODE_ENV === 'development') {
+				// eslint-disable-next-line no-console
+				console.error('Error clearing quotation from localStorage:', error)
+			}
 		}
 	}, [quotationId, cacheKey])
 

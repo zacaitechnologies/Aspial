@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useEffect } from "react"
 import { User, Clock, TrendingUp } from "lucide-react"
-import { TimeEntry, User as UserType, Project } from "@prisma/client"
+import { User as UserType, Project } from "@prisma/client"
+import type { TimeEntryWithUserDTO } from "../../action"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface UserWithProfilePicture extends UserType {
@@ -18,10 +19,7 @@ interface TimeEntryUser {
 }
 
 interface UserTimeOverviewProps {
-  timeEntries: (TimeEntry & {
-    user: TimeEntryUser
-    project: Project
-  })[]
+  timeEntries: TimeEntryWithUserDTO[]
   users: UserWithProfilePicture[]
   projects: Project[]
   selectedPeriod: "week" | "month" | "quarter"
@@ -101,19 +99,19 @@ export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod 
 
   return (
     <div className="relative">
-      <div className="relative z-10 bg-[var(--color-card)] rounded-2xl p-6 border border-[var(--color-border)] shadow-xl">
+      <div className="relative z-10 bg-card rounded-2xl p-6 border border-border shadow-xl">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-[var(--color-secondary)] rounded-lg">
-            <User className="w-5 h-5 text-[var(--color-secondary-foreground)]" />
+          <div className="p-2 bg-secondary rounded-lg">
+            <User className="w-5 h-5 text-secondary-foreground" />
           </div>
-          <h2 className="text-xl font-semibold text-[var(--color-foreground)]">Team Overview</h2>
+          <h2 className="text-xl font-semibold text-foreground">Team Overview</h2>
         </div>
 
         <div className="space-y-4">
           {userStats.map((stat, index) => (
             <div
               key={stat.user.id}
-              className="flex items-center justify-between p-4 bg-[var(--color-muted)] rounded-xl border border-[var(--color-border)]"
+              className="flex items-center justify-between p-4 bg-muted rounded-xl border border-border"
             >
               <div className="flex items-center gap-4">
                 <div className="relative">
@@ -122,44 +120,44 @@ export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod 
                       src={stat.user.profilePicture || undefined} 
                       alt={`${stat.user.firstName} ${stat.user.lastName}`} 
                     />
-                    <AvatarFallback className="bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)] font-semibold">
+                    <AvatarFallback className="bg-secondary text-secondary-foreground font-semibold">
                       {stat.user.firstName.charAt(0).toUpperCase()}
                       {stat.user.lastName.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   {index < 3 && (
-                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-[var(--color-accent)] rounded-full flex items-center justify-center text-xs font-bold text-[var(--color-accent-foreground)]">
+                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent rounded-full flex items-center justify-center text-xs font-bold text-accent-foreground">
                       {index + 1}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-[var(--color-foreground)]">{`${stat.user.firstName} ${stat.user.lastName}`}</h3>
-                  <p className="text-sm text-[var(--color-muted-foreground)]">{stat.user.email}</p>
+                  <h3 className="font-semibold text-foreground">{`${stat.user.firstName} ${stat.user.lastName}`}</h3>
+                  <p className="text-sm text-muted-foreground">{stat.user.email}</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-6 text-sm">
                 <div className="text-center">
-                  <div className="flex items-center gap-1 text-[var(--color-primary)] font-semibold">
+                  <div className="flex items-center gap-1 text-primary font-semibold">
                     <Clock className="w-4 h-4" />
                     {stat.totalHours}h
                   </div>
-                  <p className="text-[var(--color-muted-foreground)] text-xs">Total Hours</p>
+                  <p className="text-muted-foreground text-xs">Total Hours</p>
                 </div>
 
                 <div className="text-center">
-                  <div className="flex items-center gap-1 text-[var(--color-accent)] font-semibold">
+                  <div className="flex items-center gap-1 text-accent font-semibold">
                     <TrendingUp className="w-4 h-4" />
                     {stat.projectsWorked}
                   </div>
-                  <p className="text-[var(--color-muted-foreground)] text-xs">Projects</p>
+                  <p className="text-muted-foreground text-xs">Projects</p>
                 </div>
 
                 <div className="text-center min-w-[80px]">
-                  <p className="text-[var(--color-foreground)] font-medium text-xs">{formatLastActivity(stat.lastActivity)}</p>
-                  <p className="text-[var(--color-muted-foreground)] text-xs">Last Active</p>
+                  <p className="text-foreground font-medium text-xs">{formatLastActivity(stat.lastActivity)}</p>
+                  <p className="text-muted-foreground text-xs">Last Active</p>
                 </div>
               </div>
             </div>
@@ -168,8 +166,8 @@ export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod 
 
         {userStats.length === 0 && (
           <div className="text-center py-12">
-            <User className="w-12 h-12 text-[var(--color-muted-foreground)] mx-auto mb-4" />
-            <p className="text-[var(--color-muted-foreground)]">No user activity found for this period</p>
+            <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No user activity found for this period</p>
           </div>
         )}
       </div>

@@ -50,7 +50,9 @@ export default function EmailHistoryDialog({
 			const history = await getInvoiceEmailHistory(invoiceId)
 			setEmails(history)
 		} catch (error) {
-			console.error("Error loading email history:", error)
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error loading email history:", error)
+			}
 		} finally {
 			setIsLoading(false)
 		}

@@ -116,7 +116,11 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
       setTotal(result.total)
       setTotalPages(result.totalPages)
     } catch (error) {
-      console.error("Error fetching clients:", error)
+      // Error handling is done via toast in parent or action
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error("Error fetching clients:", error)
+      }
     } finally {
       setLoading(false)
     }
@@ -204,10 +208,10 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
         description: "Client deleted successfully.",
       })
     } catch (error) {
-      console.error("Failed to delete client:", error)
+      const message = error instanceof Error ? error.message : "Failed to delete client. Please try again."
       toast({
         title: "Error",
-        description: "Failed to delete client. Please try again.",
+        description: message,
         variant: "destructive",
       })
     }
@@ -234,15 +238,15 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
   const avgValue = totalClients > 0 ? totalValue / totalClients : 0
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#F0E8D8" }}>
+    <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold mb-2" style={{ color: "#202F21" }}>
+            <h1 className="text-4xl font-bold mb-2 text-foreground">
               Client Management
             </h1>
-            <p className="text-lg" style={{ color: "#898D74" }}>
+            <p className="text-lg text-muted-foreground">
               Manage your client relationships and track business opportunities
             </p>
           </div>
@@ -280,29 +284,29 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
           <TabsContent value="clients" className="space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+          <Card className="bg-card border-2 border-border">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium" style={{ color: "#898D74" }}>Total Clients</p>
-                  <p className="text-3xl font-bold" style={{ color: "#202F21" }}>{totalClients}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Clients</p>
+                  <p className="text-3xl font-bold text-foreground">{totalClients}</p>
                 </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#BDC4A5" }}>
-                  <Building2 className="w-6 h-6" style={{ color: "#202F21" }} />
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-accent">
+                  <Building2 className="w-6 h-6 text-foreground" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+          <Card className="bg-card border-2 border-border">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium" style={{ color: "#898D74" }}>Member Clients</p>
-                  <p className="text-3xl font-bold" style={{ color: "#202F21" }}>{memberClients}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Member Clients</p>
+                  <p className="text-3xl font-bold text-foreground">{memberClients}</p>
                 </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#898D74" }}>
-                  <Building2 className="w-6 h-6 text-white" />
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-secondary">
+                  <Building2 className="w-6 h-6 text-secondary-foreground" />
                 </div>
               </div>
             </CardContent>
@@ -350,15 +354,14 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
 
           {/* Sorting Controls */}
           <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium" style={{ color: "#202F21" }}>Sort by:</Label>
+            <Label className="text-sm font-medium text-foreground">Sort by:</Label>
             {(["name", "yearlyRevenue", "totalValue", "created_at"] as SortOption[]).map((option) => (
               <Button
                 key={option}
                 variant="outline"
                 size="sm"
                 onClick={() => handleSort(option)}
-                className={`border-2 ${sortBy === option ? "bg-[#BDC4A5] text-[#202F21]" : "bg-white"}`}
-                style={{ borderColor: "#BDC4A5" }}
+                className={`border-2 border-border ${sortBy === option ? "bg-accent text-foreground" : "bg-card"}`}
               >
                 {option === "name" ? "Name" : option === "yearlyRevenue" ? "Revenue" : option === "totalValue" ? "Total Purchased" : "Date Added"}
                 {sortBy === option && (sortDirection === "asc" ? <ArrowUp className="w-4 h-4 ml-1" /> : <ArrowDown className="w-4 h-4 ml-1" />)}
@@ -371,12 +374,11 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
         <div className="relative">
           <div className={`grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 ${loading ? "opacity-50 pointer-events-none" : ""}`}>
             {clients.map((client) => (
-              <Card key={client.id} className="card bg-white border-2 flex flex-col h-full overflow-hidden" style={{ borderColor: "#BDC4A5" }}>
+              <Card key={client.id} className="card bg-card border-2 border-border flex flex-col h-full overflow-hidden">
                 <CardHeader className="block!">
                   <div className="flex items-center gap-2 mb-2 w-full">
                     <h3 
-                      className="text-xl font-semibold truncate flex-1 min-w-0" 
-                      style={{ color: "#202F21" }} 
+                      className="text-xl font-semibold truncate flex-1 min-w-0 text-foreground" 
                       title={client.company || client.name}
                     >
                       {client.company || client.name}
@@ -491,9 +493,9 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
 
           {/* Loading Indicator */}
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
-              <div className="flex flex-col items-center gap-3" style={{ color: "#202F21" }}>
-                <div className="h-10 w-10 border-4 border-[#BDC4A5] border-t-[#202F21] rounded-full animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center bg-card/20 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3 text-foreground">
+                <div className="h-10 w-10 border-4 border-accent border-t-primary rounded-full animate-spin" />
                 <p className="text-sm font-medium">Loading clients…</p>
               </div>
             </div>

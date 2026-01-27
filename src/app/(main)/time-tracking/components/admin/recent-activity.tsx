@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useEffect } from "react"
 import { Activity, Clock } from "lucide-react"
-import { TimeEntry, User as UserType, Project } from "@prisma/client"
+import { User as UserType, Project } from "@prisma/client"
+import type { TimeEntryWithUserDTO } from "../../action"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface UserWithProfilePicture extends UserType {
@@ -18,10 +19,7 @@ interface TimeEntryUser {
 }
 
 interface RecentActivityProps {
-  timeEntries: (TimeEntry & {
-    user: TimeEntryUser
-    project: Project
-  })[]
+  timeEntries: TimeEntryWithUserDTO[]
   users: UserWithProfilePicture[]
   projects: Project[]
 }
@@ -88,26 +86,26 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
 
   return (
     <div className="relative h-full">
-      <div className="relative z-10 bg-[var(--color-card)] rounded-2xl p-6 border border-[var(--color-border)] shadow-xl h-full">
+      <div className="relative z-10 bg-card rounded-2xl p-6 border border-border shadow-xl h-full">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-[var(--color-secondary)] rounded-lg">
-            <Activity className="w-5 h-5 text-[var(--color-secondary-foreground)]" />
+          <div className="p-2 bg-secondary rounded-lg">
+            <Activity className="w-5 h-5 text-secondary-foreground" />
           </div>
-          <h2 className="text-xl font-semibold text-[var(--color-foreground)]">Recent Activity</h2>
+          <h2 className="text-xl font-semibold text-foreground">Recent Activity</h2>
         </div>
 
         <div className="space-y-3 max-h-[600px] overflow-y-auto">
           {recentActivities.map((activity) => (
             <div
               key={activity.id}
-              className="flex items-start gap-3 p-3 bg-[var(--color-muted)] rounded-lg border border-[var(--color-border)]"
+              className="flex items-start gap-3 p-3 bg-muted rounded-lg border border-border"
             >
               <Avatar className="w-8 h-8 flex-shrink-0">
                 <AvatarImage 
                   src={activity.user?.profilePicture || undefined} 
                   alt={`${activity.user?.firstName} ${activity.user?.lastName}`} 
                 />
-                <AvatarFallback className="bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)] text-sm font-semibold">
+                <AvatarFallback className="bg-secondary text-secondary-foreground text-sm font-semibold">
                   {activity.user?.firstName.charAt(0).toUpperCase()}
                   {activity.user?.lastName.charAt(0).toUpperCase()}
                 </AvatarFallback>
@@ -115,18 +113,18 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-[var(--color-foreground)] text-sm">{`${activity.user?.firstName} ${activity.user?.lastName}`}</span>
-                  <span className="text-[var(--color-muted-foreground)] text-xs">worked on</span>
+                  <span className="font-medium text-foreground text-sm">{`${activity.user?.firstName} ${activity.user?.lastName}`}</span>
+                  <span className="text-muted-foreground text-xs">worked on</span>
                 </div>
 
                 <div className="flex items-center gap-2 mb-2">
                   <div
-                    className="w-3 h-3 rounded-full flex-shrink-0 bg-[var(--color-accent)]"
+                    className="w-3 h-3 rounded-full flex-shrink-0 bg-accent"
                   />
-                  <span className="text-sm text-[var(--color-foreground)] font-medium truncate">{activity.project?.name}</span>
+                  <span className="text-sm text-foreground font-medium truncate">{activity.project?.name}</span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-[var(--color-muted-foreground)]">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {formatDuration(activity.duration)}
@@ -140,8 +138,8 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
 
         {recentActivities.length === 0 && (
           <div className="text-center py-12">
-            <Activity className="w-12 h-12 text-[var(--color-muted-foreground)] mx-auto mb-4" />
-            <p className="text-[var(--color-muted-foreground)]">No recent activity found</p>
+            <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No recent activity found</p>
           </div>
         )}
       </div>

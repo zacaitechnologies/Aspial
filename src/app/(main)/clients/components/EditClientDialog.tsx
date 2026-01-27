@@ -93,11 +93,11 @@ export default function EditClientDialog({
       
       onOpenChange(false)
       onSuccess()
-    } catch (error: any) {
-      console.error("Failed to update client:", error)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update client. You can only edit clients that you created."
       toast({
         title: "Error",
-        description: error?.message || "Failed to update client. You can only edit clients that you created.",
+        description: message,
         variant: "destructive",
       })
     } finally {
@@ -116,7 +116,7 @@ export default function EditClientDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] rounded-lg">
         <div className="custom-scrollbar overflow-y-auto max-h-[calc(90vh-4rem)] pr-2">
           <DialogHeader className="sticky top-0 bg-background z-10 pb-4">
-            <DialogTitle style={{ color: "#202F21" }}>Edit Client</DialogTitle>
+            <DialogTitle className="text-foreground">Edit Client</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-4">
             <div className="space-y-2">
@@ -221,8 +221,7 @@ export default function EditClientDialog({
               Cancel
             </Button>
             <Button 
-              style={{ backgroundColor: "#202F21" }} 
-              className="text-white"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={handleUpdateClient}
               disabled={!formData.name || !formData.email || !formData.companyRegistrationNumber || isUpdating}
             >

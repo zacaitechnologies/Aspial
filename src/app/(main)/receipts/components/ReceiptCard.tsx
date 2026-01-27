@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,8 +24,6 @@ import {
 import { ReceiptWithInvoice } from "../types"
 import { generateReceiptPDF } from "../utils/pdfExport"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
-import { checkIsAdmin } from "../../actions/admin-actions"
-import { useSession } from "../../contexts/SessionProvider"
 import {
 	Dialog,
 	DialogContent,
@@ -48,39 +46,22 @@ import ReceiptEmailHistoryDialog from "./ReceiptEmailHistoryDialog"
 interface ReceiptCardProps {
 	receipt: ReceiptWithInvoice
 	onRefresh?: () => void
+	isAdmin: boolean
+	userId: string
 }
 
 export default function ReceiptCard({
 	receipt,
 	onRefresh,
+	isAdmin,
+	userId,
 }: ReceiptCardProps) {
+	const isOwner = receipt.createdBy?.supabase_id === userId
 	const router = useRouter()
-	const { enhancedUser } = useSession()
 	const [isExportingPDF, setIsExportingPDF] = useState(false)
 	const [isSendReceiptDialogOpen, setIsSendReceiptDialogOpen] = useState(false)
 	const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false)
-	const [mounted, setMounted] = useState(false)
-	const [isAdmin, setIsAdmin] = useState(false)
 	const [isTogglingStatus, setIsTogglingStatus] = useState(false)
-
-	// Check admin status
-	useEffect(() => {
-		const checkAdmin = async () => {
-			if (enhancedUser?.id) {
-				try {
-					const adminStatus = await checkIsAdmin(enhancedUser.id)
-					setIsAdmin(adminStatus)
-				} catch (error) {
-					console.error("Error checking admin status:", error)
-				}
-			}
-		}
-		checkAdmin()
-	}, [enhancedUser?.id])
-
-	useEffect(() => {
-		setMounted(true)
-	}, [])
 
 	const getStatusBadge = (status: string) => {
 		if (status === "cancelled") {
@@ -147,11 +128,10 @@ export default function ReceiptCard({
 									RM{receipt.amount.toFixed(2)}
 								</p>
 							</div>
-						</div>
+					</div>
 
-						{/* Three Dot Dropdown Menu */}
-						{mounted ? (
-							<DropdownMenu>
+					{/* Three Dot Dropdown Menu */}
+					<DropdownMenu>
 								<DropdownMenuTrigger asChild>
 									<Button
 										variant="ghost"
@@ -218,7 +198,9 @@ export default function ReceiptCard({
 													description: "PDF exported successfully.",
 												})
 											} catch (error) {
-												console.error("Error exporting PDF:", error)
+												if (process.env.NODE_ENV === 'development') {
+													console.error("Error exporting PDF:", error)
+												}
 												toast({
 													title: "Error",
 													description: "Failed to export PDF. Please try again.",
@@ -244,7 +226,7 @@ export default function ReceiptCard({
 											</>
 										)}
 									</DropdownMenuItem>
-									{isAdmin && (
+									{(isAdmin || isOwner) && (
 										<>
 											<DropdownMenuSeparator />
 											<DropdownMenuItem
@@ -263,11 +245,13 @@ export default function ReceiptCard({
 														if (onRefresh) {
 															onRefresh()
 														}
-													} catch (error: any) {
-														console.error("Error toggling receipt status:", error)
+													} catch (error) {
+														if (process.env.NODE_ENV === 'development') {
+															console.error("Error toggling receipt status:", error)
+														}
 														toast({
 															title: "Error",
-															description: error.message || "Failed to update receipt status. Please try again.",
+															description: error instanceof Error ? error.message : "Failed to update receipt status. Please try again.",
 															variant: "destructive",
 														})
 													} finally {
@@ -299,16 +283,6 @@ export default function ReceiptCard({
 									)}
 								</DropdownMenuContent>
 							</DropdownMenu>
-						) : (
-							<Button
-								variant="ghost"
-								size="sm"
-								className="h-8 w-8 p-0 hover:bg-gray-100 cursor-pointer"
-								disabled
-							>
-								<MoreVertical className="w-4 h-4 text-gray-600" />
-							</Button>
-						)}
 					</div>
 				</div>
 			</CardContent>

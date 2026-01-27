@@ -7,6 +7,18 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache } from "next/cache"
+import { 
+  createClientSchema, 
+  updateClientSchema, 
+  clientFiltersSchema,
+  salesDataFiltersSchema,
+  type CreateClientValues,
+  type UpdateClientValues,
+  type ClientFilters,
+  type SalesDataFilters
+} from "@/lib/validation"
+import { z } from "zod"
+import type { InvoiceStatus, Prisma } from "@prisma/client"
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -20,13 +32,15 @@ export async function getCurrentUser() {
     }
     
     return user
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle redirect errors
-    if (error.digest?.startsWith('NEXT_REDIRECT')) {
-      // This is a redirect, not an error - don't log it
+    if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
-    console.error("Error in getCurrentUser:", error)
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error("Error in getCurrentUser:", error)
+    }
     throw new Error("Authentication failed")
   }
 }
@@ -65,7 +79,6 @@ export async function getAllClients() {
     
     // Handle empty database gracefully
     if (!clients || clients.length === 0) {
-      console.log("No clients found in database - returning empty array");
       return [];
     }
     
@@ -82,7 +95,7 @@ export async function getAllClients() {
       yearlyRevenue: client.yearlyRevenue || undefined,
       membershipType: client.membershipType,
       quotationsCount: client.quotations.length,
-      totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
+      totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
       created_at: client.created_at.toISOString(),
       createdById: client.createdById,
       createdBy: client.createdBy ? {
@@ -92,16 +105,15 @@ export async function getAllClients() {
         email: client.createdBy.email,
       } : undefined,
     }))
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
-    console.error("Error in getAllClients:", error);
-    console.error("Error details:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    throw new Error(`Failed to fetch clients: ${error.message}`)
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error("Error in getAllClients:", error);
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    throw new Error(`Failed to fetch clients: ${message}`)
   }
 }
 
@@ -127,7 +139,11 @@ async function _getClientsPaginatedInternal(
   } = filters
 
   // Build where clause
-  const where: any = {}
+  const where: {
+    OR?: Array<{ name?: { contains: string; mode: 'insensitive' }; email?: { contains: string; mode: 'insensitive' }; company?: { contains: string; mode: 'insensitive' } }>
+    industry?: string
+    membershipType?: 'MEMBER' | 'NON_MEMBER'
+  } = {}
 
   if (searchTerm) {
     where.OR = [
@@ -195,7 +211,7 @@ async function _getClientsPaginatedInternal(
       yearlyRevenue: client.yearlyRevenue || undefined,
       membershipType: client.membershipType,
       quotationsCount: client.quotations.length,
-      totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
+      totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
       created_at: client.created_at.toISOString(),
       createdById: client.createdById,
       createdBy: client.createdBy ? {
@@ -335,10 +351,14 @@ export async function getClientsPaginated(
       filters.sortBy || "created_at",
       filters.sortDirection || "desc"
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (isRedirectError(error)) throw error
-    console.error('Error in getClientsPaginated:', error)
-    throw new Error(`Failed to fetch clients: ${error.message}`)
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error in getClientsPaginated:', error)
+    }
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    throw new Error(`Failed to fetch clients: ${message}`)
   }
 }
 
@@ -406,28 +426,23 @@ export async function getClientById(id: string) {
     }
     
     return client
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
-    console.error("Error in getClientById:", error)
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error("Error in getClientById:", error)
+    }
     throw new Error("Failed to fetch client")
   }
 }
 
-export async function createCustomerClient(data: {
-  name: string
-  email: string
-  phone?: string
-  company?: string
-  companyRegistrationNumber?: string
-  address?: string
-  notes?: string
-  industry?: string
-  yearlyRevenue?: number
-  membershipType: "MEMBER" | "NON_MEMBER"
-}) {
+export async function createCustomerClient(data: unknown) {
   try {
-    const supabaseUser = await getCurrentUser() // Ensure user is authenticated
+    // Validate input
+    const validatedData = createClientSchema.parse(data)
+    
+    await getCurrentUser() // Ensure user is authenticated
     const user = await getCachedUser() // Get Supabase user
     
     if (!user) {
@@ -446,27 +461,34 @@ export async function createCustomerClient(data: {
     
     const client = await prisma.client.create({
       data: {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        company: data.company,
-        companyRegistrationNumber: data.companyRegistrationNumber,
-        address: data.address,
-        notes: data.notes,
-        industry: data.industry,
-        yearlyRevenue: data.yearlyRevenue,
-        membershipType: data.membershipType,
+        name: validatedData.name,
+        email: validatedData.email,
+        phone: validatedData.phone,
+        company: validatedData.company,
+        companyRegistrationNumber: validatedData.companyRegistrationNumber,
+        address: validatedData.address,
+        notes: validatedData.notes,
+        industry: validatedData.industry,
+        yearlyRevenue: validatedData.yearlyRevenue,
+        membershipType: validatedData.membershipType,
         createdById: dbUser.id,
-      } as any
+      }
     })
     
     revalidatePath("/clients")
+    revalidateTag("clients", { expire: 0 })
     return client
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
-    console.error("Error in createClient:", error)
-    throw error
+    if (error instanceof z.ZodError) {
+      throw new Error(`Validation failed: ${error.errors.map(e => e.message).join(', ')}`)
+    }
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error("Error in createClient:", error)
+    }
+    throw error instanceof Error ? error : new Error("Failed to create client")
   }
 }
 
@@ -483,6 +505,9 @@ export async function updateClient(id: string, data: {
   membershipType?: "MEMBER" | "NON_MEMBER"
 }) {
   try {
+    // Validate input
+    const validatedData = updateClientSchema.parse(data)
+    
     const user = await getCurrentUser() // Ensure user is authenticated
     
     // Get database user ID from Supabase ID
@@ -527,28 +552,35 @@ export async function updateClient(id: string, data: {
     const updatedClient = await prisma.client.update({
       where: { id },
       data: {
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        company: data.company,
-        companyRegistrationNumber: data.companyRegistrationNumber,
-        address: data.address,
-        notes: data.notes,
-        industry: data.industry,
-        yearlyRevenue: data.yearlyRevenue,
-        membershipType: data.membershipType,
+        name: validatedData.name,
+        email: validatedData.email,
+        phone: validatedData.phone,
+        company: validatedData.company,
+        companyRegistrationNumber: validatedData.companyRegistrationNumber,
+        address: validatedData.address,
+        notes: validatedData.notes,
+        industry: validatedData.industry,
+        yearlyRevenue: validatedData.yearlyRevenue,
+        membershipType: validatedData.membershipType,
         updated_at: new Date(),
       }
     })
     
     revalidatePath("/clients")
     revalidatePath(`/clients/${id}`)
+    revalidateTag("clients", { expire: 0 })
     return updatedClient
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
-    console.error("Error in updateClient:", error)
-    throw error
+    if (error instanceof z.ZodError) {
+      throw new Error(`Validation failed: ${error.errors.map(e => e.message).join(', ')}`)
+    }
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error("Error in updateClient:", error)
+    }
+    throw error instanceof Error ? error : new Error("Failed to update client")
   }
 }
 
@@ -710,11 +742,15 @@ export async function deleteClient(id: string) {
     })
     
     revalidatePath("/clients")
-  } catch (error: any) {
+    revalidateTag("clients", { expire: 0 })
+  } catch (error: unknown) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
-    console.error("Error in deleteClient:", error)
-    throw error
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error("Error in deleteClient:", error)
+    }
+    throw error instanceof Error ? error : new Error("Failed to delete client")
   }
 }
 
@@ -756,8 +792,11 @@ export async function getCurrentUserId(): Promise<string | null> {
     })
     
     return dbUser?.id || null
-  } catch (error) {
-    console.error('Error getting current user ID:', error)
+  } catch (error: unknown) {
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error getting current user ID:', error)
+    }
     return null
   }
 }
@@ -839,13 +878,11 @@ export async function getAllAdvisors() {
 }
 
 // Get sales data by time period and advisor (based on invoices)
-export async function getSalesData(filters: {
-  year?: number
-  month?: number
-  advisorId?: string
-  viewMode?: 'monthly' | 'yearly'
-}) {
+export async function getSalesData(filters: unknown) {
   try {
+    // Validate input
+    const validatedFilters = salesDataFiltersSchema.parse(filters)
+    
     const user = await getCachedUser()
     if (!user) {
       throw new Error('User not authenticated')
@@ -854,38 +891,26 @@ export async function getSalesData(filters: {
     // Check if user is admin
     const isAdmin = await checkIsAdmin(user.id)
     
-    const { year, month, advisorId, viewMode = 'yearly' } = filters
+    const { year, month, advisorId, viewMode = 'yearly' } = validatedFilters
     
     // Build where clause for invoices
-    const where: any = {
-      status: "active", // Exclude cancelled invoices
-    }
-    
-    // Filter by invoice created date
-    if (year) {
-      const startDate = new Date(year, month !== undefined ? month : 0, 1)
-      const endDate = month !== undefined 
-        ? new Date(year, month + 1, 0, 23, 59, 59, 999)
-        : new Date(year, 11, 31, 23, 59, 59, 999)
-      
-      where.created_at = {
-        gte: startDate,
-        lte: endDate,
-      }
-    }
-    
-    // Filter by advisor (creator of quotation that the invoice references)
-    // For non-admin users, always filter by their own supabase_id (ignore advisorId parameter)
-    if (!isAdmin) {
-      where.quotation = {
-        createdById: user.id // Quotation.createdById references User.supabase_id
-      }
-    } else if (advisorId && advisorId !== 'all') {
-      // For admin users, filter by selected advisor if provided
-      // Quotation.createdById references User.supabase_id, so use advisorId directly
-      where.quotation = {
-        createdById: advisorId
-      }
+    const where: Prisma.InvoiceWhereInput = {
+      status: "active" as InvoiceStatus, // Exclude cancelled invoices
+      ...(year && {
+        created_at: {
+          gte: new Date(year, month !== undefined ? month : 0, 1),
+          lte: month !== undefined 
+            ? new Date(year, month + 1, 0, 23, 59, 59, 999)
+            : new Date(year, 11, 31, 23, 59, 59, 999),
+        }
+      }),
+      // Filter by advisor (creator of quotation that the invoice references)
+      // For non-admin users, always filter by their own supabase_id (ignore advisorId parameter)
+      ...((!isAdmin || (advisorId && advisorId !== 'all')) && {
+        quotation: {
+          createdById: !isAdmin ? user.id : advisorId // Quotation.createdById references User.supabase_id
+        }
+      })
     }
     
     // Get invoices with quotation, client, and advisor info
@@ -918,7 +943,37 @@ export async function getSalesData(filters: {
       orderBy: {
         created_at: 'desc'
       }
-    })
+    }) as Array<{
+      id: string
+      invoiceNumber: string
+      type: string
+      quotationId: number
+      amount: number
+      createdById: string
+      status: InvoiceStatus
+      created_at: Date
+      updated_at: Date
+      quotation: {
+        id: number
+        name: string
+        clientId: string
+        createdById: string
+        Client: {
+          id: string
+          name: string
+          email: string
+          company: string | null
+          membershipType: string | null
+        }
+        createdBy: {
+          id: string
+          supabase_id: string
+          firstName: string
+          lastName: string
+          email: string
+        }
+      }
+    }>
     
     // Calculate totals
     const totalSales = invoices.reduce((sum, inv) => sum + inv.amount, 0)
@@ -1002,8 +1057,14 @@ export async function getSalesData(filters: {
       })),
       salesByAdvisor: Object.values(salesByAdvisor).sort((a, b) => b.totalSales - a.totalSales),
     }
-  } catch (error) {
-    console.error('Error getting sales data:', error)
-    throw error
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      throw new Error(`Validation failed: ${error.errors.map(e => e.message).join(', ')}`)
+    }
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error getting sales data:', error)
+    }
+    throw error instanceof Error ? error : new Error("Failed to get sales data")
   }
 }
