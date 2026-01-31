@@ -2,6 +2,9 @@ import { getCachedUser } from "@/lib/auth-cache";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 
+// Uses cookies (getCachedUser) — must be dynamic so build does not try to statically render
+export const dynamic = "force-dynamic";
+
 export default async function DebugUserPage() {
   const supabaseUser = await getCachedUser();
   
