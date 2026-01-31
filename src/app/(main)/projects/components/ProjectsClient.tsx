@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, DollarSign, Clock } from "lucide-react";
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { format } from "date-fns";
-import { cancelProject, getProjectsPaginatedFresh, invalidateProjectsCache } from "../action";
+import { useState, useMemo, useEffect, useCallback, useRef, useTransition } from "react";
+import { cancelProject, getProjectsPaginated, invalidateProjectsCache } from "../action";
+import { formatDateStringNumeric, formatLocalDate, formatLocalDateTimeForDisplay } from "@/lib/date-utils";
 import EditProjectDialog from "./EditProjectDialog";
 import ProjectSearchBar from "./ProjectSearchBar";
 import ProjectCollaboratorsDialog from "./ProjectCollaboratorsDialog";
@@ -17,19 +17,24 @@ import Link from "next/link";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { ProjectPagination } from "./ProjectPagination";
 import { toast } from "@/components/ui/use-toast";
-import { checkIsAdmin, getUserRole } from "../../actions/admin-actions";
 
 interface ProjectsClientProps {
   initialData: ProjectsPaginatedResult;
   userId?: string;
+  initialIsAdmin?: boolean;
+  initialUserRole?: string | null;
 }
 
-export default function ProjectsClient({ initialData, userId }: ProjectsClientProps) {
+export default function ProjectsClient({ 
+  initialData, 
+  userId, 
+  initialIsAdmin = false,
+  initialUserRole = null 
+}: ProjectsClientProps) {
   const { enhancedUser } = useSession();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [projects, setProjects] = useState<ProjectsPaginatedResult['projects']>(initialData.projects);
-  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(initialData.page);
   const [pageSize, setPageSizeState] = useState(initialData.pageSize);
   const [total, setTotal] = useState(initialData.total);
@@ -41,17 +46,36 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
   const [selectedProject, setSelectedProject] = useState<ProjectsPaginatedResult['projects'][0] | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [userSystemRole, setUserSystemRole] = useState<string | null>(null);
+  
+  // Use server-provided role info (no client fetch needed)
+  const isAdmin = initialIsAdmin;
+  const userSystemRole = initialUserRole;
+  
+  // Track initial mount to skip redundant fetch
+  const isInitialMount = useRef(true);
+  // Track if we have valid initial data
+  const hasInitialData = useRef(initialData.projects.length > 0 || initialData.total === 0);
 
-  // Fetch fresh data when filters change
-  const fetchProjects = useCallback(async (forceRefresh = false) => {
+  // Gate date display behind mount so we use local time (correct for Malaysia); avoids hydration mismatch
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  
+  // Use transition for smoother loading states
+  const [isPending, startTransition] = useTransition();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Combined loading state
+  const loading = isPending || isRefreshing;
+
+  // Fetch projects using cached endpoint (tag-based revalidation)
+  const fetchProjects = useCallback(async () => {
     const currentUserId = userId || enhancedUser?.id;
     if (!currentUserId) return;
 
-    setLoading(true);
     try {
-      const result = await getProjectsPaginatedFresh(
+      const result = await getProjectsPaginated(
         currentUserId,
         page,
         pageSize,
@@ -62,51 +86,51 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
       setTotal(result.total);
       setTotalPages(result.totalPages);
     } catch (error) {
-      console.error("Error fetching projects:", error);
-    } finally {
-      setLoading(false);
+      // Silent fail - data will remain stale but UI won't break
     }
   }, [userId, enhancedUser?.id, page, pageSize, searchQuery, statusFilter]);
 
-  // Refetch when filters/pagination change
+  // Fetch when filters/pagination change (skip initial if we have server data)
   useEffect(() => {
-    fetchProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, searchQuery, statusFilter]);
-
-  // Fetch admin status and user role once on mount
-  useEffect(() => {
-    const fetchUserRoleStatus = async () => {
-      if (enhancedUser?.id) {
-        try {
-          const [isAdminCheck, systemRole] = await Promise.all([
-            checkIsAdmin(enhancedUser.id),
-            getUserRole(enhancedUser.id)
-          ]);
-          setIsAdmin(isAdminCheck);
-          setUserSystemRole(systemRole);
-        } catch (error) {
-          console.error("Error checking admin status:", error);
-        }
-      }
-    };
-    fetchUserRoleStatus();
-  }, [enhancedUser?.id, enhancedUser?.profile?.staffRole?.roleName]);
+    // Skip initial fetch if server already provided data
+    if (isInitialMount.current && hasInitialData.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    isInitialMount.current = false;
+    
+    // Use transition for non-blocking UI updates
+    startTransition(() => {
+      fetchProjects();
+    });
+  }, [page, pageSize, searchQuery, statusFilter, fetchProjects]);
 
   // Listen for cache invalidation events
   useEffect(() => {
     const handleCacheInvalidate = async () => {
+      // Invalidate server cache, then refetch (will get fresh data due to tag revalidation)
       await invalidateProjectsCache();
-      await fetchProjects(true);
+      setIsRefreshing(true);
+      try {
+        await fetchProjects();
+      } finally {
+        setIsRefreshing(false);
+      }
     };
 
     window.addEventListener('projectsCacheInvalidate', handleCacheInvalidate);
     return () => window.removeEventListener('projectsCacheInvalidate', handleCacheInvalidate);
   }, [fetchProjects]);
 
+  // Manual refresh: invalidate cache then refetch
   const onRefresh = useCallback(async () => {
     await invalidateProjectsCache();
-    await fetchProjects(true);
+    setIsRefreshing(true);
+    try {
+      await fetchProjects();
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [fetchProjects]);
 
   const goToPage = useCallback((newPage: number) => {
@@ -214,7 +238,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
           Hi, {enhancedUser?.profile?.firstName}{getRoleText()}! Welcome Back!
         </p>
         <p className="text-sm font-light text-primary">
-          Last Updated: {latestUpdatedTime ? format(latestUpdatedTime, "dd/MM/yyyy, h:mm:ss a") : "No projects"}
+          Last Updated: {!isMounted ? "--" : latestUpdatedTime ? formatLocalDateTimeForDisplay(latestUpdatedTime) : "No projects"}
         </p>
 
         <p className="text-lg w-200 mb-2 mt-4 font-bold text-primary">Project Status:</p>
@@ -285,8 +309,8 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
           </div>
         </div>
 
-        {/* Projects Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Projects Grid - reserve min height to prevent layout jump */}
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[200px] transition-opacity duration-200 ${loading ? 'opacity-60' : 'opacity-100'}`}>
           {showEmptyState ? (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-primary">
               <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
@@ -294,7 +318,19 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
               <p className="text-sm text-primary/70">This may take a few seconds the first time.</p>
             </div>
           ) : (
-            projects.map((project) => (
+            projects.map((project) => {
+              // After mount use local time so Malaysia (and other TZ) see correct calendar day; before mount show placeholder for hydration
+              const startDisplay = !isMounted
+                ? "--"
+                : project.startDate
+                  ? formatDateStringNumeric(formatLocalDate(new Date(project.startDate)))
+                  : "Not set";
+              const endDisplay = !isMounted
+                ? "--"
+                : project.endDate
+                  ? formatDateStringNumeric(formatLocalDate(new Date(project.endDate)))
+                  : "Not set";
+              return (
               <Card key={project.id} className="card flex flex-col h-full">
                 <CardHeader>
                   <div className="flex justify-between items-start gap-3">
@@ -335,8 +371,7 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
                     <div className="flex items-center gap-2 text-sm">
                       <Clock className="w-4 h-4 text-muted-foreground" />
                       <span className="text-muted-foreground">
-                        {project.startDate ? format(new Date(project.startDate), "dd/MM/yyyy") : "Not set"} -{" "}
-                        {project.endDate ? format(new Date(project.endDate), "dd/MM/yyyy") : "Not set"}
+                        {startDisplay} - {endDisplay}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
@@ -348,7 +383,8 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
                   </div>
                 </CardContent>
               </Card>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -401,14 +437,18 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
         />
       </div>
 
-      {loading && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-[2px]">
-          <div className="flex flex-col items-center gap-3 text-primary">
-            <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-            <p className="text-sm font-medium">Refreshing projects…</p>
-          </div>
+      {/* Loading overlay with smooth fade transition */}
+      <div 
+        className={`pointer-events-none absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-[2px] transition-opacity duration-200 ${
+          loading ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        aria-hidden={!loading}
+      >
+        <div className="flex flex-col items-center gap-3 text-primary">
+          <div className="h-10 w-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+          <p className="text-sm font-medium">Refreshing projects…</p>
         </div>
-      )}
+      </div>
     </div>
   );
 }

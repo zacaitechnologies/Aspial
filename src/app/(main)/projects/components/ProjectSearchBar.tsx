@@ -28,11 +28,11 @@ export default function ProjectSearchBar({
 }: ProjectSearchBarProps) {
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
 
-  // Debounce search input
+  // Debounce search input (350ms for snappy but not excessive fetches)
   useEffect(() => {
     const timer = setTimeout(() => {
       onSearchChange(localSearchQuery);
-    }, 500); // 500ms delay
+    }, 350);
 
     return () => clearTimeout(timer);
   }, [localSearchQuery, onSearchChange]);

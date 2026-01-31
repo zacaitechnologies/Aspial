@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { getCachedUser } from "@/lib/auth-cache";
-import { clearAdminCache } from "@/lib/admin-cache";
+import { getCachedIsUserAdmin, getCachedUserRole } from "@/lib/admin-cache";
 import { getProjectsPaginated } from "./action";
 import ProjectsClient from "./components/ProjectsClient";
 
@@ -16,11 +16,12 @@ export default async function ProjectsPage() {
     return null;
   }
 
-  // Ensure fresh admin check on this page so role changes / new users are recognized
-  await clearAdminCache(user.id);
-
-  // Fetch initial data on server - cached for 30 seconds
-  const initialData = await getProjectsPaginated(user.id, 1, 10);
+  // Fetch initial data and role info in parallel on server (all cached, fast)
+  const [initialData, isAdmin, userRole] = await Promise.all([
+    getProjectsPaginated(user.id, 1, 10),
+    getCachedIsUserAdmin(user.id),
+    getCachedUserRole(user.id)
+  ]);
 
   return (
     <Suspense fallback={
@@ -31,7 +32,12 @@ export default async function ProjectsPage() {
         </div>
       </div>
     }>
-      <ProjectsClient initialData={initialData} userId={user.id} />
+      <ProjectsClient 
+        initialData={initialData} 
+        userId={user.id} 
+        initialIsAdmin={isAdmin}
+        initialUserRole={userRole}
+      />
     </Suspense>
   );
 }

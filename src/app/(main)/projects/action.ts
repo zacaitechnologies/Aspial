@@ -193,8 +193,8 @@ async function _getProjectsPaginatedInternal(
   if (isAdmin) {
     const whereClause = buildWhereClause()
     
-    // Execute all queries in parallel for better performance
-    const [total, projects, userPermissions] = await Promise.all([
+    // First, fetch count and projects in parallel
+    const [total, projects] = await Promise.all([
       prisma.project.count({ where: whereClause }),
       prisma.project.findMany({
         where: whereClause,
@@ -227,46 +227,40 @@ async function _getProjectsPaginatedInternal(
         orderBy: { created_at: "desc" },
         skip,
         take: pageSize,
-      }),
-      // Pre-fetch permissions in parallel
-      prisma.projectPermission.findMany({
-        where: {
-          userId,
-          OR: [
-            { isOwner: true },
-            { canEdit: true }
-          ]
-        },
-        select: {
-          projectId: true,
-          isOwner: true,
-          canEdit: true
-        }
       })
     ])
 
-    // Create ownership map
+    // Then fetch permissions only for the current page's project IDs (not all permissions)
+    const projectIds = projects.map(p => p.id)
+    const userPermissions = projectIds.length > 0 
+      ? await prisma.projectPermission.findMany({
+          where: {
+            userId,
+            projectId: { in: projectIds },
+            OR: [
+              { isOwner: true },
+              { canEdit: true }
+            ]
+          },
+          select: {
+            projectId: true,
+            isOwner: true,
+            canEdit: true
+          }
+        })
+      : []
+
+    // Create ownership map from permissions
     const ownershipMap: { [key: number]: boolean } = {}
-    const permissionProjectIds = new Set(userPermissions.map(p => p.projectId))
-    
     userPermissions.forEach(permission => {
       ownershipMap[permission.projectId] = permission.isOwner || permission.canEdit
-    })
-
-    // Filter permissions to only those in current page
-    const projectIds = projects.map(p => p.id)
-    const filteredOwnershipMap: { [key: number]: boolean } = {}
-    projectIds.forEach(id => {
-      if (permissionProjectIds.has(id)) {
-        filteredOwnershipMap[id] = ownershipMap[id]
-      }
     })
 
     return {
       projects: projects.map(project => ({
         ...project,
         taskCount: project._count.tasks,
-        isOwner: filteredOwnershipMap[project.id] || false
+        isOwner: ownershipMap[project.id] || false
       })),
       total,
       page,
@@ -672,9 +666,14 @@ export async function deleteProject(id: string, userId: string) {
     throw new Error("Only administrators can permanently delete projects");
   }
   
-  return await prisma.project.delete({
+  const result = await prisma.project.delete({
     where: { id: Number.parseInt(id) },
   });
+
+  // Invalidate cache
+  revalidateTag('projects', { expire: 0 })
+
+  return result;
 }
 
 export async function getProjectById(userId: string, projectId: string) {
