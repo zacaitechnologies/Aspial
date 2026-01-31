@@ -41,7 +41,7 @@ interface KanbanBoardProps {
 const KanbanBoardComponent = memo(function KanbanBoard({
   projectId,
   sortBy = "createDate",
-  sortOrder = "desc",
+  sortOrder = "asc",
   onSortByChange,
   onSortOrderChange,
   isProjectCancelled = false,

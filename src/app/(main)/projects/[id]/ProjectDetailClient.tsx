@@ -77,7 +77,7 @@ export default function ProjectDetailClient({
 	const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false)
 	const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "complaints" | "contracts">(initialTab)
 	const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">("createDate")
-	const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+	const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
 	const [taskFilter, setTaskFilter] = useState<"all" | "my">("all")
 	const [complaints, setComplaints] = useState<Complaint[]>(initialProjectData.complaints)
 	const [editingComplaint, setEditingComplaint] = useState<Complaint | null>(null)
