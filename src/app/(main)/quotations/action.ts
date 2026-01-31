@@ -316,25 +316,19 @@ const getCachedQuotationsPaginated = unstable_cache(
   }
 )
 
-// Client-side version that bypasses cache
-// Note: unstable_noStore() is required here because we need fresh user-specific data
-// for operation-users who have project-based filtering. Tag-based revalidation
-// would require separate cache keys per user, which is not practical.
+// Client-side version: use cache when useCache is true (e.g. initial load); otherwise fresh for user-specific filtering
 export async function getQuotationsPaginated(
   page: number = 1,
   pageSize: number = 10,
   filters: QuotationFilters = {},
   useCache: boolean = false
 ) {
-  unstable_noStore()
-  // Get current user for filtering
-  const user = await getCachedUser()
-  const userId = user?.id
-  
   if (useCache) {
-    // Note: Cache doesn't include userId, so operation-users should use non-cached version
     return await getCachedQuotationsPaginated(page, pageSize, filters)
   }
+  unstable_noStore()
+  const user = await getCachedUser()
+  const userId = user?.id
   return await _getQuotationsPaginatedInternal(page, pageSize, filters, userId)
 }
 

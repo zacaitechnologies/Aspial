@@ -1,6 +1,6 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import type { AppointmentType } from "@/app/(main)/calander/constants"
@@ -151,6 +151,7 @@ export async function createAppointment(formData: FormData) {
       },
     })
     revalidatePath("/appointment-bookings")
+    revalidateTag("appointment-bookings", { expire: 0 })
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -179,6 +180,7 @@ export async function updateAppointment(id: number, formData: FormData) {
       },
     })
     revalidatePath("/appointment-bookings")
+    revalidateTag("appointment-bookings", { expire: 0 })
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -192,6 +194,7 @@ export async function deleteAppointment(id: number) {
       where: { id },
     })
     revalidatePath("/appointment-bookings")
+    revalidateTag("appointment-bookings", { expire: 0 })
     return { success: true }
   } catch (error) {
     console.error(error)
@@ -459,6 +462,7 @@ export async function createAppointmentBooking(formData: FormData) {
 		}
 
 		revalidatePath("/appointment-bookings")
+    revalidateTag("appointment-bookings", { expire: 0 })
 		return { 
 			success: true,
 			emailSent: emailSentCount > 0,
@@ -481,6 +485,7 @@ export async function cancelAppointmentBooking(id: number) {
 		})
 
     revalidatePath("/appointment-bookings")
+    revalidateTag("appointment-bookings", { expire: 0 })
 		return { success: true }
 	} catch (error) {
 		console.error(error)
@@ -782,6 +787,7 @@ export async function updateBookingReminders(
 		}
 
 		revalidatePath("/appointment-bookings")
+    revalidateTag("appointment-bookings", { expire: 0 })
 		return { success: true }
 	} catch (error: unknown) {
 		console.error("Error updating reminders:", error)
@@ -798,6 +804,7 @@ export async function deleteReminder(reminderId: number) {
 			where: { id: reminderId },
 		})
 		revalidatePath("/appointment-bookings")
+    revalidateTag("appointment-bookings", { expire: 0 })
 		return { success: true }
 	} catch (error: unknown) {
 		console.error("Error deleting reminder:", error)
@@ -866,6 +873,7 @@ export async function updateReminderEmail(
 		}
 
 		revalidatePath("/appointment-bookings")
+    revalidateTag("appointment-bookings", { expire: 0 })
 		return { success: true }
 	} catch (error: unknown) {
 		console.error("Error updating reminder emails:", error)

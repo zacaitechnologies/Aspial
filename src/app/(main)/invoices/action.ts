@@ -123,7 +123,7 @@ const getCachedInvoicesPaginated = unstable_cache(
 	}
 )
 
-// Client-side version that bypasses cache
+// Client-side version: use cache when useCache is true (e.g. initial load)
 export async function getInvoicesPaginated(
 	page: number = 1,
 	pageSize: number = 10,
@@ -132,10 +132,10 @@ export async function getInvoicesPaginated(
 	} = {},
 	useCache: boolean = false
 ) {
-	unstable_noStore()
 	if (useCache) {
 		return await getCachedInvoicesPaginated(page, pageSize, filters)
 	}
+	unstable_noStore()
 	return await _getInvoicesPaginatedInternal(page, pageSize, filters)
 }
 

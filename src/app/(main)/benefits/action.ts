@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { formatLocalDate } from "@/lib/date-utils"
-import { unstable_noStore, revalidateTag } from "next/cache"
+import { unstable_noStore, unstable_cache, revalidateTag } from "next/cache"
 
 export interface MonthlyPerformance {
   month: string
@@ -569,17 +569,15 @@ export interface UserBenefitsSummary {
   needsTierSelection: boolean
 }
 
-// Internal function - not cached, used by cached version
+// Internal function - batched queries to avoid N+1
 async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYear()): Promise<UserBenefitsSummary[]> {
-  // Get only users with brand-advisor role (admin view shows brand advisors only)
+  const startOfYear = new Date(year, 0, 1)
+  const endOfYear = new Date(year, 11, 31, 23, 59, 59)
+
   const users = await prisma.user.findMany({
     where: {
       userRoles: {
-        some: {
-          role: {
-            slug: 'brand-advisor',
-          },
-        },
+        some: { role: { slug: 'brand-advisor' } },
       },
     },
     select: {
@@ -590,79 +588,112 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
       email: true,
       profilePicture: true,
     },
-    orderBy: {
-      firstName: 'asc',
-    },
+    orderBy: { firstName: 'asc' },
   })
 
-  // Fetch data for each user in parallel (all three calls per user are parallelized)
-  const usersBenefitsPromises = users.map(async (user) => {
-    try {
-      // Execute all three calls in parallel for each user
-      const [salesData, complaints, tierSelection] = await Promise.all([
-        getEmployeeSalesData(user.id, year),
-        getEmployeeComplaints(user.id),
-        getUserTierSelection(user.id, year),
-      ])
+  if (users.length === 0) return []
 
-      const totalStars = salesData.monthlyData.reduce((sum, month) => sum + month.stars, 0)
-      const starsAfterComplaints = totalStars - complaints.length
-      
-      // Calculate tier monthly target
-      const tierMonthlyTarget = getTierMonthlyTarget(tierSelection.tier || 'TIER_1', tierSelection.customTarget || undefined)
+  const supabaseIds = users.map((u) => u.supabase_id)
+  const userIds = users.map((u) => u.id)
 
-      return {
-        userId: user.id,
-        userName: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        profilePicture: user.profilePicture,
-        currentYearlySales: salesData.currentYearlySales,
-        currentLevel: salesData.currentLevel,
-        commissionRate: salesData.commissionRate,
-        totalStars,
-        complaintsCount: complaints.length,
-        starsAfterComplaints,
-        selectedTier: tierSelection.tier,
-        customTarget: tierSelection.customTarget,
-        tierMonthlyTarget,
-        needsTierSelection: tierSelection.needsSelection,
-      }
-    } catch (error) {
-      console.error(`Error fetching benefits for user ${user.id}:`, error)
-      return {
-        userId: user.id,
-        userName: `${user.firstName} ${user.lastName}`,
-        email: user.email,
-        profilePicture: user.profilePicture,
-        currentYearlySales: 0,
-        currentLevel: 0,
-        commissionRate: '3%', // Fixed at 3% for all tiers
-        totalStars: 0,
-        complaintsCount: 0,
-        starsAfterComplaints: 0,
-        selectedTier: null,
-        customTarget: null,
-        tierMonthlyTarget: 60000,
-        needsTierSelection: true,
-      }
+  const [invoices, complaints, tierSelections] = await Promise.all([
+    prisma.invoice.findMany({
+      where: {
+        status: 'active',
+        created_at: { gte: startOfYear, lte: endOfYear },
+        quotation: { createdById: { in: supabaseIds } },
+      },
+      select: {
+        amount: true,
+        created_at: true,
+        quotation: { select: { createdById: true } },
+      },
+    }),
+    prisma.complaint.findMany({
+      where: {
+        userId: { in: userIds },
+        date: { gte: startOfYear, lte: endOfYear },
+      },
+      select: { userId: true },
+    }),
+    prisma.tierSelection.findMany({
+      where: { userId: { in: userIds }, year },
+    }),
+  ])
+
+  const salesBySupabaseId = new Map<string, { yearly: number; byMonth: number[] }>()
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  supabaseIds.forEach((sid) => {
+    salesBySupabaseId.set(sid, { yearly: 0, byMonth: Array(12).fill(0) })
+  })
+  invoices.forEach((inv) => {
+    const createdById = inv.quotation?.createdById
+    if (!createdById) return
+    const entry = salesBySupabaseId.get(createdById)
+    if (!entry) return
+    const d = new Date(inv.created_at)
+    if (d.getFullYear() === year) {
+      entry.byMonth[d.getMonth()] += inv.amount
+      entry.yearly += inv.amount
     }
   })
 
-  return await Promise.all(usersBenefitsPromises)
+  const complaintsByUserId = new Map<string, number>()
+  userIds.forEach((id) => complaintsByUserId.set(id, 0))
+  complaints.forEach((c) => {
+    complaintsByUserId.set(c.userId, (complaintsByUserId.get(c.userId) ?? 0) + 1)
+  })
+
+  const tierByUserId = new Map<string, { tier: string | null; customTarget: number | null }>()
+  tierSelections.forEach((t) => {
+    tierByUserId.set(t.userId, { tier: t.tier, customTarget: t.customTarget })
+  })
+
+  return users.map((user) => {
+    const sales = salesBySupabaseId.get(user.supabase_id) ?? { yearly: 0, byMonth: Array(12).fill(0) }
+    const complaintsCount = complaintsByUserId.get(user.id) ?? 0
+    const tier = tierByUserId.get(user.id)
+    const tierMonthlyTarget = getTierMonthlyTarget(tier?.tier ?? 'TIER_1', tier?.customTarget ?? undefined)
+    const monthlyData = sales.byMonth.map((salesVal, i) => ({
+      month: monthNames[i],
+      sales: salesVal,
+      level: calculateLevel(salesVal, true),
+      stars: calculateStars(salesVal),
+      year,
+    }))
+    const totalStars = monthlyData.reduce((sum, m) => sum + m.stars, 0)
+    const starsAfterComplaints = Math.max(0, totalStars - complaintsCount)
+    return {
+      userId: user.id,
+      userName: `${user.firstName} ${user.lastName}`,
+      email: user.email,
+      profilePicture: user.profilePicture,
+      currentYearlySales: sales.yearly,
+      currentLevel: calculateLevel(sales.yearly, false),
+      commissionRate: '3%',
+      totalStars,
+      complaintsCount,
+      starsAfterComplaints,
+      selectedTier: tier?.tier ?? null,
+      customTarget: tier?.customTarget ?? null,
+      tierMonthlyTarget,
+      needsTierSelection: !tier?.tier,
+    }
+  })
 }
 
 export async function getAllUsersBenefits(year: number = new Date().getFullYear()): Promise<UserBenefitsSummary[]> {
   try {
-    // Disable server-side caching for real-time data
-    unstable_noStore()
-
-    // Use cached auth - deduplicates within same request
     await getCachedUser()
-
-    // Return fresh data without server-side caching
-    return await _getAllUsersBenefitsInternal(year)
+    return await unstable_cache(
+      () => _getAllUsersBenefitsInternal(year),
+      ['benefits', 'all-users', String(year)],
+      { revalidate: 60, tags: ['benefits'] }
+    )()
   } catch (error) {
-    console.error('Error fetching all users benefits:', error)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error fetching all users benefits:', error)
+    }
     return []
   }
 }

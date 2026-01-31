@@ -126,10 +126,13 @@ export default function EditQuotationForm({
     },
   });
 
+  // Defer heavy fetches until dialog is open so list page stays fast
   useEffect(() => {
-    fetchServices();
-    checkAdminAndFetchUsers();
-  }, []);
+    if (isOpen) {
+      fetchServices();
+      checkAdminAndFetchUsers();
+    }
+  }, [isOpen]);
 
   const checkAdminAndFetchUsers = async () => {
     if (enhancedUser?.id) {
@@ -174,40 +177,51 @@ export default function EditQuotationForm({
     }
   }, [isCancelDialogOpen, editingQuotation, editForm.workflowStatus])
 
+  // Show form immediately with list data; load full data and custom services in parallel in background
   useEffect(() => {
-    if (editingQuotation) {
-      // Fetch full quotation data if we don't have complete service data
-      const hasIncompleteServices = editingQuotation.services.some(
-        (qs) => !qs.service || !qs.service.id || Object.keys(qs.service).length === 0
-      );
-      
-      if (hasIncompleteServices) {
-        setIsLoadingFullData(true);
-        getQuotationFullById(editingQuotation.id.toString())
-          .then((fullData) => {
-            if (fullData) {
-              setFullQuotationData(fullData);
-              // Use full data for form initialization
-              initializeFormWithQuotation(fullData);
-            } else {
-              // Fallback to partial data if full fetch fails
-              initializeFormWithQuotation(editingQuotation);
-            }
-          })
-          .catch((error) => {
-            console.error("Error fetching full quotation data:", error);
-            // Fallback to partial data on error
-            initializeFormWithQuotation(editingQuotation);
-          })
-          .finally(() => {
-            setIsLoadingFullData(false);
-          });
-      } else {
-        // We have complete data, use it directly
-        setFullQuotationData(editingQuotation);
-        initializeFormWithQuotation(editingQuotation);
-      }
+    if (!editingQuotation) return;
+
+    setIsLoadingFullData(false); // Form shows immediately; no blocking spinner
+
+    const hasIncompleteServices = editingQuotation.services.some(
+      (qs) => !qs.service || !qs.service.id || Object.keys(qs.service).length === 0
+    );
+
+    // Always show form immediately (no loading gate)
+    setFullQuotationData(editingQuotation);
+    initializeFormWithQuotation(editingQuotation);
+
+    if (hasIncompleteServices) {
+      // Load full data and custom services in parallel; update form when done
+      let cancelled = false;
+      Promise.all([
+        getQuotationFullById(editingQuotation.id.toString()),
+        getCustomServicesByQuotationId(editingQuotation.id),
+      ])
+        .then(([fullData, customServicesResult]) => {
+          if (cancelled) return;
+          if (fullData) {
+            setFullQuotationData(fullData);
+            initializeFormWithQuotation(fullData);
+          }
+          setCustomServices(customServicesResult);
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            console.error("Error fetching full quotation or custom services:", error);
+            setCustomServices([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoadingFullData(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }
+
+    // Complete data: only fetch custom services in background
+    fetchCustomServices(editingQuotation.id);
   }, [editingQuotation]);
 
   const initializeFormWithQuotation = (quotation: QuotationWithServices) => {
@@ -277,9 +291,6 @@ export default function EditQuotationForm({
 
     // Set client mode based on whether there's an existing client
     setClientMode(quotation.clientId ? "existing" : "new");
-
-    // Fetch custom services for this quotation
-    fetchCustomServices(quotation.id);
   };
 
   const fetchCustomServices = async (quotationId: number) => {

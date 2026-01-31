@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_noStore } from "next/cache"
+import { unstable_cache, revalidateTag } from "next/cache"
 
 // Helper function to transform Prisma service data to include tags
 function transformService(service: any) {
@@ -81,14 +81,12 @@ export async function getServicesPaginated(
     searchQuery?: string
   } = {}
 ) {
-  // Disable server-side caching for real-time data
-  unstable_noStore()
-
-  // Use cached auth - deduplicates within same request
   await getCachedUser()
-
-  // Return fresh data without server-side caching
-  return await _getServicesPaginatedInternal(page, pageSize, filters)
+  return await unstable_cache(
+    () => _getServicesPaginatedInternal(page, pageSize, filters),
+    ["services-paginated", String(page), String(pageSize), filters.searchQuery ?? ""],
+    { revalidate: 30, tags: ["services"] }
+  )()
 }
 
 export async function searchServices(query: string) {
@@ -117,9 +115,11 @@ export async function addService(data: {
   description: string
   basePrice: number
 }) {
-  return await prisma.services.create({
+  const result = await prisma.services.create({
     data,
   })
+  revalidateTag("services", { expire: 0 })
+  return result
 }
 
 export async function editServiceById(
@@ -130,14 +130,18 @@ export async function editServiceById(
     basePrice: number
   },
 ) {
-  return await prisma.services.update({
+  const result = await prisma.services.update({
     where: { id: Number.parseInt(id) },
     data,
   })
+  revalidateTag("services", { expire: 0 })
+  return result
 }
 
 export async function deleteServiceById(id: string) {
-  return await prisma.services.delete({
+  const result = await prisma.services.delete({
     where: { id: Number.parseInt(id) },
   })
+  revalidateTag("services", { expire: 0 })
+  return result
 } 

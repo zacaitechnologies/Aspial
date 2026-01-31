@@ -394,6 +394,7 @@ export default function InvoiceCard({
 				isOpen={isCreateReceiptDialogOpen}
 				onOpenChange={setIsCreateReceiptDialogOpen}
 				prefilledInvoiceId={invoice.id}
+				prefetchedInvoice={invoice}
 				onSuccess={() => {
 					if (onRefresh) {
 						onRefresh()

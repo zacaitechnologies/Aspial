@@ -307,42 +307,34 @@ export async function getProjectCollaborators(projectId: number) {
   return permissions.map(permission => permission.user)
 }
 
-// Get all tasks for a user (across all projects they have access to)
-export async function getAllUserTasks(userId: string): Promise<TaskWithAssignee[]> {
+// Get all tasks for a user (across all projects they have access to). Optional date range filters by task overlap.
+export async function getAllUserTasks(
+  userId: string,
+  dateRange?: { start: Date; end: Date }
+): Promise<TaskWithAssignee[]> {
   try {
-    console.log('getAllUserTasks called with userId:', userId)
-    
-    // Check if userId is valid
     if (!userId || userId.trim() === '') {
-      console.log('Invalid userId, returning empty array')
       return []
     }
-    
-    // First get all projects the user has access to
+
     const userWithRoles = await prisma.user.findUnique({
       where: { supabase_id: userId },
       include: { userRoles: { include: { role: true } } },
     })
 
-    console.log('User with roles:', userWithRoles)
-
     const isAdmin = userWithRoles?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
-    console.log('Is admin:', isAdmin)
 
     let projectIds: number[]
 
     if (isAdmin) {
-      // Admin can see all projects
       const allProjects = await prisma.project.findMany({
         select: { id: true },
       })
       projectIds = allProjects.map(p => p.id)
-      console.log('Admin - all project IDs:', projectIds)
     } else {
-      // Get projects user has permissions for
       const userPermissions = await prisma.projectPermission.findMany({
-        where: { 
-          userId, 
+        where: {
+          userId,
           OR: [
             { isOwner: true },
             { canView: true }
@@ -351,19 +343,22 @@ export async function getAllUserTasks(userId: string): Promise<TaskWithAssignee[
         select: { projectId: true },
       })
       projectIds = userPermissions.map(p => p.projectId)
-      console.log('Non-admin - accessible project IDs:', projectIds)
     }
 
     if (projectIds.length === 0) {
-      console.log('No projects found for user')
       return []
     }
 
-    // Get all tasks from these projects
+    const whereClause: { projectId: { in: number[] }; dueDate?: unknown; startDate?: unknown } = {
+      projectId: { in: projectIds },
+    }
+    if (dateRange) {
+      whereClause.dueDate = { gte: dateRange.start }
+      whereClause.startDate = { lte: dateRange.end }
+    }
+
     const tasks = await prisma.task.findMany({
-      where: { 
-        projectId: { in: projectIds },
-      },
+      where: whereClause as { projectId: { in: number[] }; dueDate?: { gte: Date }; startDate?: { lte: Date } },
       include: {
         creator: {
           select: {
@@ -396,12 +391,11 @@ export async function getAllUserTasks(userId: string): Promise<TaskWithAssignee[
       ],
     }) as TaskWithAssignee[]
 
-    console.log('Found tasks with due dates:', tasks.length)
-    console.log('Tasks:', tasks)
-
     return tasks
   } catch (error) {
-    console.error('Error in getAllUserTasks:', error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error in getAllUserTasks:", error)
+    }
     throw error
   }
 }

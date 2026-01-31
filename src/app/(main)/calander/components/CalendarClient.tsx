@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -13,7 +13,7 @@ import { ExportCalendarDialog } from "./ExportCalendarDialog"
 import { ViewSwitcher } from "./ViewSwitcher"
 import { WeekView } from "./WeekView"
 import { DayView } from "./DayView"
-import { type CalendarBooking } from "../actions"
+import { fetchAllBookings, type CalendarBooking } from "../actions"
 import { APPOINTMENT_TYPES, type AppointmentType } from "../constants"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
@@ -79,10 +79,28 @@ export default function CalendarClient({
 	const [isDateEventsDialogOpen, setIsDateEventsDialogOpen] = useState(false)
 	const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
 
-	// Use props directly instead of copying to state
-	const bookings = initialBookings
 	const isAdmin = initialIsAdmin
 	const projects = initialProjects
+
+	function getRangeKey(start: Date, end: Date) {
+		return `${start.getTime()}_${end.getTime()}`
+	}
+
+	// Bookings state: start with initial (current month), update when range changes
+	const [bookings, setBookings] = useState<CalendarBooking[]>(initialBookings)
+	const rangeCacheRef = useRef<Map<string, CalendarBooking[]>>(new Map())
+	const initialRangeKeyRef = useRef<string | null>(null)
+
+	// Seed cache with initial month on first run
+	if (initialRangeKeyRef.current === null) {
+		const now = new Date()
+		const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+		monthStart.setHours(0, 0, 0, 0)
+		const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+		monthEnd.setHours(23, 59, 59, 999)
+		initialRangeKeyRef.current = getRangeKey(monthStart, monthEnd)
+		rangeCacheRef.current.set(initialRangeKeyRef.current, initialBookings)
+	}
 
 	// Memoize date range calculation
 	const dateRange = useMemo(() => {
@@ -107,6 +125,51 @@ export default function CalendarClient({
 			return { start: dayStart, end: dayEnd }
 		}
 	}, [viewMode, currentDate])
+
+	// Fetch bookings for visible range when it changes; use cache and prefetch adjacent month
+	useEffect(() => {
+		const key = getRangeKey(dateRange.start, dateRange.end)
+		const cached = rangeCacheRef.current.get(key)
+		if (cached) {
+			setBookings(cached)
+			return
+		}
+		let cancelled = false
+		fetchAllBookings(userId, userName, { start: dateRange.start, end: dateRange.end }).then((data) => {
+			if (!cancelled) {
+				rangeCacheRef.current.set(key, data)
+				setBookings(data)
+			}
+		})
+		// Prefetch adjacent month for faster navigation
+		if (viewMode === "month") {
+			const prevMonthEnd = new Date(dateRange.start)
+			prevMonthEnd.setDate(0)
+			prevMonthEnd.setHours(23, 59, 59, 999)
+			const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1)
+			prevMonthStart.setHours(0, 0, 0, 0)
+			const prevKey = getRangeKey(prevMonthStart, prevMonthEnd)
+			if (!rangeCacheRef.current.has(prevKey)) {
+				fetchAllBookings(userId, userName, { start: prevMonthStart, end: prevMonthEnd }).then((data) => {
+					rangeCacheRef.current.set(prevKey, data)
+				})
+			}
+			const nextMonthStart = new Date(dateRange.end)
+			nextMonthStart.setDate(nextMonthStart.getDate() + 1)
+			nextMonthStart.setHours(0, 0, 0, 0)
+			const nextMonthEnd = new Date(nextMonthStart.getFullYear(), nextMonthStart.getMonth() + 1, 0)
+			nextMonthEnd.setHours(23, 59, 59, 999)
+			const nextKey = getRangeKey(nextMonthStart, nextMonthEnd)
+			if (!rangeCacheRef.current.has(nextKey)) {
+				fetchAllBookings(userId, userName, { start: nextMonthStart, end: nextMonthEnd }).then((data) => {
+					rangeCacheRef.current.set(nextKey, data)
+				})
+			}
+		}
+		return () => {
+			cancelled = true
+		}
+	}, [dateRange.start.getTime(), dateRange.end.getTime(), viewMode, userId, userName])
 
 	// Memoize filtered bookings based on all filters
 	const filteredBookings = useMemo(() => {

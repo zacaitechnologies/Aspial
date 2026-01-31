@@ -949,6 +949,54 @@ export async function getProjectComplaints(projectId: number) {
 	}
 }
 
+/** Lightweight fetch for complaints after mutations; checks user access. */
+export async function getComplaintsForProject(userId: string, projectId: string) {
+	if (!userId || !projectId) return []
+	const isAdmin = await getCachedIsUserAdmin(userId)
+	const perm = await prisma.projectPermission.findUnique({
+		where: { userId_projectId: { userId, projectId: parseInt(projectId) } },
+		select: { projectId: true },
+	})
+	if (!isAdmin && !perm) return []
+	try {
+		return await getProjectComplaints(parseInt(projectId))
+	} catch {
+		return []
+	}
+}
+
+/** Lightweight fetch for task stats after mutations; checks user access. */
+export async function getProjectTaskStats(userId: string, projectId: string): Promise<{ total: number; todo: number; inProgress: number; done: number }> {
+	const empty = { total: 0, todo: 0, inProgress: 0, done: 0 }
+	if (!userId || !projectId) return empty
+	const isAdmin = await getCachedIsUserAdmin(userId)
+	const perm = await prisma.projectPermission.findUnique({
+		where: { userId_projectId: { userId, projectId: parseInt(projectId) } },
+		select: { projectId: true },
+	})
+	if (!isAdmin && !perm) return empty
+	try {
+		const taskStatsResult = await prisma.task.groupBy({
+			by: ["status"],
+			where: { projectId: parseInt(projectId) },
+			_count: { status: true },
+		})
+		const stats = { total: 0, todo: 0, inProgress: 0, done: 0 }
+		;(taskStatsResult as Array<{ status: string; _count: { status: number } }>).forEach((stat) => {
+			const count = stat._count.status
+			stats.total += count
+			switch (stat.status) {
+				case "todo": stats.todo = count; break
+				case "in_progress": stats.inProgress = count; break
+				case "done": stats.done = count; break
+			}
+		})
+		return stats
+	} catch {
+		return empty
+	}
+}
+
 export async function getUserComplaintCount(userId: string): Promise<number> {
 	try {
 		const count = await prisma.complaint.findMany({

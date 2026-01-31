@@ -71,52 +71,47 @@ export async function getCurrentUser() {
 export async function getUserWithRole() {
   try {
     const user = await getCurrentUser()
-    
-    const dbUser = await prisma.user.findUnique({
-      where: { supabase_id: user.id },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        supabase_id: true,
-        profilePicture: true,
-        userRoles: {
-          include: {
-            role: true
-          }
-        }
-      }
-    })
-    
-    if (!dbUser) {
-      return redirect("/login")
-    }
-    
-    const isAdmin = dbUser.userRoles.some(userRole => userRole.role.slug === "admin")
-    
-    return {
-      user: dbUser,
-      isAdmin
-    }
+    const [isAdmin, dbUser] = await Promise.all([
+      getCachedIsUserAdmin(user.id),
+      prisma.user.findUnique({
+        where: { supabase_id: user.id },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+          profilePicture: true,
+        },
+      }),
+    ])
+    if (!dbUser) return redirect("/login")
+    return { user: dbUser, isAdmin }
   } catch (error: unknown) {
-    // Handle redirect errors
-    if (isRedirectError(error)) throw error;
+    if (isRedirectError(error)) throw error
     throw new Error("Failed to get user with role")
   }
 }
 
-// Admin data fetching functions
-export async function fetchAllUserTimeEntries(): Promise<TimeEntryWithUserDTO[]> {
-  // Verify admin access
+// Admin data fetching functions - optional limit and date range for faster initial load
+const DEFAULT_ENTRIES_LIMIT = 100
+const DEFAULT_ENTRIES_DAYS = 30
+
+export async function fetchAllUserTimeEntries(
+  limit: number = DEFAULT_ENTRIES_LIMIT,
+  rangeDays: number = DEFAULT_ENTRIES_DAYS
+): Promise<TimeEntryWithUserDTO[]> {
   const user = await getCurrentUser()
   const isAdmin = await getCachedIsUserAdmin(user.id)
-  
-  if (!isAdmin) {
-    throw new Error("Unauthorized: Admin access required")
-  }
-  
+  if (!isAdmin) throw new Error("Unauthorized: Admin access required")
+
+  const rangeStart = new Date()
+  rangeStart.setDate(rangeStart.getDate() - rangeDays)
+  rangeStart.setHours(0, 0, 0, 0)
+
   const entries = await prisma.timeEntry.findMany({
+    where: { startTime: { gte: rangeStart } },
+    take: limit,
     include: {
       user: {
         select: {
@@ -125,19 +120,17 @@ export async function fetchAllUserTimeEntries(): Promise<TimeEntryWithUserDTO[]>
           lastName: true,
           email: true,
           profilePicture: true,
-        }
+        },
       },
       project: {
         select: {
           id: true,
           name: true,
           description: true,
-        }
-      }
+        },
+      },
     },
-    orderBy: {
-      startTime: "desc"
-    }
+    orderBy: { startTime: "desc" },
   })
   
   return entries.map(entry => ({
@@ -233,39 +226,42 @@ export async function fetchAllProjects() {
 }
 
 // User-specific data fetching functions
-export async function fetchUserTimeEntries(supabaseId: string): Promise<TimeEntryDTO[]> {
-  // Verify the requesting user matches the target user or is admin
+export async function fetchUserTimeEntries(
+  supabaseId: string,
+  limit: number = DEFAULT_ENTRIES_LIMIT,
+  rangeDays: number = DEFAULT_ENTRIES_DAYS
+): Promise<TimeEntryDTO[]> {
   const user = await getCurrentUser()
   const isAdmin = await getCachedIsUserAdmin(user.id)
-  
   if (!isAdmin && user.id !== supabaseId) {
     throw new Error("Unauthorized: Cannot access other user's time entries")
   }
-  
+
   const dbUser = await prisma.user.findUnique({
-    where: { supabase_id: supabaseId }
+    where: { supabase_id: supabaseId },
   })
-  
-  if (!dbUser) {
-    throw new Error("User not found")
-  }
-  
+  if (!dbUser) throw new Error("User not found")
+
+  const rangeStart = new Date()
+  rangeStart.setDate(rangeStart.getDate() - rangeDays)
+  rangeStart.setHours(0, 0, 0, 0)
+
   const entries = await prisma.timeEntry.findMany({
     where: {
-      userId: dbUser.id
+      userId: dbUser.id,
+      startTime: { gte: rangeStart },
     },
+    take: limit,
     include: {
       project: {
         select: {
           id: true,
           name: true,
           description: true,
-        }
-      }
+        },
+      },
     },
-    orderBy: {
-      startTime: "desc"
-    }
+    orderBy: { startTime: "desc" },
   })
   
   return entries.map(entry => ({

@@ -1,9 +1,10 @@
 "use server"
 
-import { unstable_noStore } from "next/cache"
+import { unstable_cache } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { formatLocalDate, formatLocalDateTime } from "@/lib/date-utils"
 import { getAllUserTasks } from "../projects/task-actions"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { APPOINTMENT_TYPES, type AppointmentType } from "./constants"
 
 interface AppointmentBooking {
@@ -54,31 +55,8 @@ const bookingTypes = {
 	task: { color: "bg-yellow-500", label: "Task" },
 }
 
-// Check if user is admin
 export async function checkIsAdmin(userId: string): Promise<boolean> {
-	try {
-		const userWithRoles = await prisma.user.findUnique({
-			where: { supabase_id: userId },
-			include: {
-				userRoles: {
-					include: {
-						role: true
-					}
-				}
-			}
-		})
-
-		if (!userWithRoles) {
-			return false
-		}
-
-		return userWithRoles.userRoles.some(
-			(userRole) => userRole.role.slug === 'admin'
-		)
-	} catch (error) {
-		console.error('Error checking admin status:', error)
-		return false
-	}
+	return getCachedIsUserAdmin(userId)
 }
 
 // Get user's project IDs
@@ -162,52 +140,45 @@ export async function getUserProjects(userId: string): Promise<{ id: number; nam
 	}
 }
 
-// Fetch all bookings with permission filtering
-export async function fetchAllBookings(
+// Internal: fetch bookings for a date range (or all if no range). Used by fetchAllBookings and cached fetch.
+async function _fetchBookingsInRange(
 	userId: string,
-	userName: string
+	userName: string,
+	range?: { start: Date; end: Date }
 ): Promise<CalendarBooking[]> {
-	// Prevent caching to ensure real-time appointment booking data
-	unstable_noStore()
-	
-	try {
-		if (!userId || !userName) {
-			console.error('User ID and name are required')
-			return []
-		}
+	if (!userId || !userName) return []
 
-		// Check if user is admin
-		const isAdmin = await checkIsAdmin(userId)
-		console.log('User is admin:', isAdmin)
+	const isAdmin = await checkIsAdmin(userId)
+	const userProjectIds = await getUserProjectIds(userId)
+	const calendarBookings: CalendarBooking[] = []
 
-		// Get user's project IDs
-		const userProjectIds = await getUserProjectIds(userId)
-		console.log('User project IDs:', userProjectIds)
+	const appointmentWhere: { status: string; startDate?: { lte: Date }; endDate?: { gte: Date } } = {
+		status: "active",
+	}
+	if (range) {
+		appointmentWhere.startDate = { lte: range.end }
+		appointmentWhere.endDate = { gte: range.start }
+	}
 
-		const calendarBookings: CalendarBooking[] = []
-
-		// Fetch unified appointment bookings with project info
-		const appointmentBookings = await prisma.appointmentBooking.findMany({
-			where: {
-				status: 'active'
+	const appointmentBookings = await prisma.appointmentBooking.findMany({
+		where: appointmentWhere,
+		include: {
+			appointment: {
+				select: {
+					name: true,
+					location: true,
+					brand: true
+				}
 			},
-			include: {
-				appointment: {
-					select: {
-						name: true,
-						location: true,
-						brand: true
-					}
-				},
-				project: {
-					select: {
-						id: true,
-						name: true,
-						clientName: true
-					}
+			project: {
+				select: {
+					id: true,
+					name: true,
+					clientName: true
 				}
 			}
-		})
+		}
+	})
 
 		// Transform unified appointment bookings - Filter for staff users
 		appointmentBookings.forEach((booking) => {
@@ -276,11 +247,9 @@ export async function fetchAllBookings(
 			})
 		})
 
-		// Fetch and transform tasks - already filtered by user permissions in getAllUserTasks
+		// Fetch and transform tasks - filtered by range when provided
 		try {
-			console.log('Fetching tasks for user:', userId)
-			const tasks = await getAllUserTasks(userId)
-			console.log('Fetched tasks:', tasks.length)
+			const tasks = await getAllUserTasks(userId, range ?? undefined)
 
 			// Batch fetch client names for all projects
 			const projectIds = Array.from(new Set(tasks.map(t => t.project?.id).filter((id): id is number => id !== undefined)))
@@ -387,14 +356,36 @@ export async function fetchAllBookings(
 					}
 				}
 			})
-			console.log('Total calendar bookings after tasks:', calendarBookings.length)
 		} catch (error) {
-			console.error('Error fetching tasks:', error)
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error fetching tasks:", error)
+			}
 		}
 
-		return calendarBookings
+	return calendarBookings
+}
+
+// Fetch all bookings with permission filtering. Optional range limits to that date range and enables caching.
+export async function fetchAllBookings(
+	userId: string,
+	userName: string,
+	range?: { start: Date; end: Date }
+): Promise<CalendarBooking[]> {
+	try {
+		if (range) {
+			const startISO = range.start.toISOString()
+			const endISO = range.end.toISOString()
+			return await unstable_cache(
+				() => _fetchBookingsInRange(userId, userName, range),
+				["calendar", userId, startISO, endISO],
+				{ revalidate: 60, tags: ["calendar"] }
+			)()
+		}
+		return await _fetchBookingsInRange(userId, userName)
 	} catch (error) {
-		console.error('Error fetching bookings:', error)
+		if (process.env.NODE_ENV === "development") {
+			console.error("Error fetching bookings:", error)
+		}
 		return []
 	}
 }

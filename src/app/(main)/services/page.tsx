@@ -44,15 +44,8 @@ function ServicesPageContent() {
     return <AccessDenied />
   }
 
-  // Invalidate cache when switching tabs to ensure fresh data if needed
   const handleTabChange = (value: string) => {
     setActiveTab(value)
-    // Invalidate cache when switching tabs to ensure fresh data if needed
-    if (value === "services") {
-      services.invalidateCache()
-    } else if (value === "tags") {
-      serviceTags.invalidateCache()
-    }
   }
 
   return (

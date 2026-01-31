@@ -35,6 +35,8 @@ interface CreateInvoiceFormProps {
 	onOpenChange: (open: boolean) => void
 	onSuccess: () => void
 	prefilledQuotationId?: number
+	/** When opening from a quotation card, pass the quotation to avoid refetch and speed up popup */
+	prefetchedQuotation?: QuotationWithServices | null
 }
 
 export default function CreateInvoiceForm({
@@ -42,6 +44,7 @@ export default function CreateInvoiceForm({
 	onOpenChange,
 	onSuccess,
 	prefilledQuotationId,
+	prefetchedQuotation,
 }: CreateInvoiceFormProps) {
 	const { enhancedUser } = useSession()
 	const [invoiceForm, setInvoiceForm] = useState<InvoiceFormData>({
@@ -60,35 +63,41 @@ export default function CreateInvoiceForm({
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
 	const [selectedCreatedById, setSelectedCreatedById] = useState<string>("")
 
-	// Check admin status and fetch users
+	// Defer admin/users fetch until dialog is open so list page stays fast
 	useEffect(() => {
+		if (!isOpen || !enhancedUser?.id) return
 		const checkAdminAndFetchUsers = async () => {
-			if (enhancedUser?.id) {
-				try {
-					const adminStatus = await checkIsAdmin(enhancedUser.id)
-					setIsAdmin(adminStatus)
-					
-					if (adminStatus) {
-						const allUsers = await getAllUsers()
-						setUsers(allUsers)
-					}
-				} catch (error) {
-					if (process.env.NODE_ENV === 'development') {
-						console.error("Error checking admin status:", error)
-					}
+			try {
+				const adminStatus = await checkIsAdmin(enhancedUser.id)
+				setIsAdmin(adminStatus)
+				if (adminStatus) {
+					const allUsers = await getAllUsers()
+					setUsers(allUsers)
+				}
+			} catch (error) {
+				if (process.env.NODE_ENV === 'development') {
+					console.error("Error checking admin status:", error)
 				}
 			}
 		}
 		checkAdminAndFetchUsers()
-	}, [enhancedUser?.id])
+	}, [isOpen, enhancedUser?.id])
 
-	// Load prefilled quotation if provided
+	// Load prefilled quotation: use prefetched when available to avoid slow fetch
 	useEffect(() => {
-		if (prefilledQuotationId && isOpen) {
-			// Fetch quotation details
-			handleQuotationSelect(prefilledQuotationId)
+		if (!prefilledQuotationId || !isOpen) return
+		if (prefetchedQuotation && prefetchedQuotation.id === prefilledQuotationId) {
+			setSelectedQuotation(prefetchedQuotation)
+			setInvoiceForm(prev => ({ ...prev, quotationId: prefilledQuotationId }))
+			if (prefetchedQuotation.createdBy?.supabase_id) {
+				setSelectedCreatedById(prefetchedQuotation.createdBy.supabase_id)
+			}
+			setSearchQuery("")
+			setSearchResults([])
+			return
 		}
-	}, [prefilledQuotationId, isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+		handleQuotationSelect(prefilledQuotationId)
+	}, [prefilledQuotationId, isOpen, prefetchedQuotation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Calculate quotation grand total when quotation is selected.
 	// Use stored totalPrice as primary (source of truth on quotation); fall back to recalculated from line items

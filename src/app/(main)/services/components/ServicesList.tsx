@@ -17,6 +17,9 @@ import {
 import { deleteService, searchServices, getServiceDeletionImpact, type DeletionImpact } from "../service-actions";
 import { Service } from "../types";
 import ServiceForm from "./ServiceForm";
+
+const SEARCH_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const searchResultCache = new Map<string, { data: Service[]; timestamp: number }>();
 import React from "react";
 import { useServicesCacheContext } from "../contexts/ServicesCacheContext";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -79,7 +82,16 @@ export default function ServicesList({
 
       setIsSearching(true);
       try {
-        const searchResults = await searchServices(searchQuery);
+        const cacheKey = searchQuery.trim().toLowerCase();
+        const now = Date.now();
+        const cached = searchResultCache.get(cacheKey);
+        let searchResults: Service[];
+        if (cached && now - cached.timestamp < SEARCH_CACHE_TTL) {
+          searchResults = cached.data;
+        } else {
+          searchResults = await searchServices(searchQuery);
+          searchResultCache.set(cacheKey, { data: searchResults, timestamp: now });
+        }
         // Apply tag filter to search results
         let filtered = searchResults;
         if (selectedTagFilter !== "all") {
@@ -90,7 +102,9 @@ export default function ServicesList({
         }
         setFilteredServices(filtered);
       } catch (error) {
-        console.error("Error searching services:", error);
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error searching services:", error);
+        }
       } finally {
         setIsSearching(false);
       }

@@ -35,6 +35,8 @@ interface CreateReceiptFormProps {
 	onOpenChange: (open: boolean) => void
 	onSuccess: () => void
 	prefilledInvoiceId?: string
+	/** When opening from an invoice card, pass the invoice to avoid refetch and speed up popup */
+	prefetchedInvoice?: { id: string; amount: number; createdBy?: { supabase_id: string } | null; createdById?: string } | null
 }
 
 export default function CreateReceiptForm({
@@ -42,6 +44,7 @@ export default function CreateReceiptForm({
 	onOpenChange,
 	onSuccess,
 	prefilledInvoiceId,
+	prefetchedInvoice,
 }: CreateReceiptFormProps) {
 	const { enhancedUser } = useSession()
 	const [receiptForm, setReceiptForm] = useState<ReceiptFormData>({
@@ -61,33 +64,43 @@ export default function CreateReceiptForm({
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
 	const [selectedCreatedById, setSelectedCreatedById] = useState<string>("")
 
-	// Check admin status and fetch users
+	// Defer admin/users fetch until dialog is open so list page stays fast
 	useEffect(() => {
+		if (!isOpen || !enhancedUser?.id) return
 		const checkAdminAndFetchUsers = async () => {
-			if (enhancedUser?.id) {
-				try {
-					const adminStatus = await checkIsAdmin(enhancedUser.id)
-					setIsAdmin(adminStatus)
-					
-					if (adminStatus) {
-						const allUsers = await getAllUsers()
-						setUsers(allUsers)
-					}
-				} catch (error) {
+			try {
+				const adminStatus = await checkIsAdmin(enhancedUser.id)
+				setIsAdmin(adminStatus)
+				if (adminStatus) {
+					const allUsers = await getAllUsers()
+					setUsers(allUsers)
+				}
+			} catch (error) {
+				if (process.env.NODE_ENV === "development") {
 					console.error("Error checking admin status:", error)
 				}
 			}
 		}
 		checkAdminAndFetchUsers()
-	}, [enhancedUser?.id])
+	}, [isOpen, enhancedUser?.id])
 
-	// Load prefilled invoice if provided
+	// Load prefilled invoice: use prefetched when available to avoid slow fetch
 	useEffect(() => {
-		if (prefilledInvoiceId && isOpen) {
-			// Fetch invoice details
-			handleInvoiceSelect(prefilledInvoiceId)
+		if (!prefilledInvoiceId || !isOpen) return
+		if (prefetchedInvoice && String(prefetchedInvoice.id) === String(prefilledInvoiceId)) {
+			setSelectedInvoice(prefetchedInvoice as any)
+			setReceiptForm(prev => ({ ...prev, invoiceId: prefilledInvoiceId }))
+			if (prefetchedInvoice.createdBy?.supabase_id) {
+				setSelectedCreatedById(prefetchedInvoice.createdBy.supabase_id)
+			} else if (prefetchedInvoice.createdById) {
+				setSelectedCreatedById(prefetchedInvoice.createdById)
+			}
+			setSearchQuery("")
+			setSearchResults([])
+			return
 		}
-	}, [prefilledInvoiceId, isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+		handleInvoiceSelect(prefilledInvoiceId)
+	}, [prefilledInvoiceId, isOpen, prefetchedInvoice?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Load receipt summary when invoice is selected
 	useEffect(() => {
@@ -113,7 +126,9 @@ export default function CreateReceiptForm({
 						}
 					}
 				} catch (error) {
-					console.error("Error loading receipt summary:", error)
+					if (process.env.NODE_ENV === "development") {
+						console.error("Error loading receipt summary:", error)
+					}
 				}
 			}
 			loadSummary()
@@ -147,7 +162,9 @@ export default function CreateReceiptForm({
 			const results = await searchInvoicesForReceipt(searchQuery)
 			setSearchResults(results)
 		} catch (error) {
-			console.error("Error searching invoices:", error)
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error searching invoices:", error)
+			}
 			toast({
 				title: "Error",
 				description: "Failed to search invoices. Please try again.",
@@ -208,7 +225,9 @@ export default function CreateReceiptForm({
 					})
 				}
 			} catch (error) {
-				console.error("Error fetching invoice:", error)
+				if (process.env.NODE_ENV === "development") {
+					console.error("Error fetching invoice:", error)
+				}
 				toast({
 					title: "Error",
 					description: "Failed to fetch invoice details. Please try again.",
@@ -276,11 +295,13 @@ export default function CreateReceiptForm({
 			// Call onSuccess callback (this will refresh the invoice page)
 			onSuccess()
 			onOpenChange(false)
-		} catch (error: any) {
-			console.error("Error creating receipt:", error)
+		} catch (error: unknown) {
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error creating receipt:", error)
+			}
 			toast({
 				title: "Error",
-				description: error.message || "Failed to create receipt. Please try again.",
+				description: error instanceof Error ? error.message : "Failed to create receipt. Please try again.",
 				variant: "destructive",
 			})
 		} finally {

@@ -161,75 +161,76 @@ async function _getClientsPaginatedInternal(
     where.membershipType = membershipType
   }
 
-  // Handle sorting: totalValue is a computed field, so we need to fetch all matching records,
-  // compute it, sort in memory, then paginate
   const isTotalValueSort = sortBy === 'totalValue'
-  
   let total: number
   let clients: any[]
-  
+
   if (isTotalValueSort) {
-    // For totalValue sorting, we need to fetch all matching records, compute totalValue,
-    // sort in memory, then paginate
-    total = await prisma.client.count({ where })
-    
-    const allClients = await prisma.client.findMany({
-      where,
-      include: {
-        quotations: {
-          select: {
-            id: true,
-            totalPrice: true,
-          },
-        },
-        projects: {
-          select: {
-            id: true,
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          }
-        }
-      },
+    // totalValue sort: get filtered client ids, aggregate in DB, then fetch only the page of clients
+    const [totalCount, filteredIds] = await Promise.all([
+      prisma.client.count({ where }),
+      prisma.client.findMany({ where, select: { id: true } }),
+    ])
+    total = totalCount
+    const ids = filteredIds.map((c) => c.id)
+    const idSet = new Set(ids)
+    const quotationSums =
+      ids.length === 0
+        ? []
+        : await prisma.quotation.groupBy({
+            by: ['clientId'],
+            _sum: { totalPrice: true },
+            where: { clientId: { in: ids } },
+          })
+    const sumByClient = new Map<string, number>()
+    quotationSums.forEach((row) => {
+      if (row.clientId && idSet.has(row.clientId)) {
+        sumByClient.set(row.clientId, row._sum.totalPrice ?? 0)
+      }
     })
-    
-    // Transform and sort in memory
-    const transformed = allClients.map(client => ({
-      id: client.id,
-      name: client.name,
-      email: client.email,
-      phone: client.phone || undefined,
-      company: client.company || undefined,
-      address: client.address || undefined,
-      notes: client.notes || undefined,
-      industry: client.industry || undefined,
-      yearlyRevenue: client.yearlyRevenue || undefined,
-      membershipType: client.membershipType,
-      quotationsCount: client.quotations.length,
-      totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
-      created_at: client.created_at.toISOString(),
-      createdById: client.createdById,
-      createdBy: client.createdBy ? {
-        id: client.createdBy.id,
-        firstName: client.createdBy.firstName,
-        lastName: client.createdBy.lastName,
-        email: client.createdBy.email,
-      } : undefined,
-    }))
-    
-    // Sort by totalValue
-    transformed.sort((a, b) => {
-      const comparison = a.totalValue - b.totalValue
-      return sortDirection === 'asc' ? comparison : -comparison
-    })
-    
-    // Apply pagination
-    clients = transformed.slice(skip, skip + pageSize)
+    const sortedIds = filteredIds
+      .map((c) => ({ id: c.id, totalValue: sumByClient.get(c.id) ?? 0 }))
+      .sort((a, b) => (sortDirection === 'asc' ? a.totalValue - b.totalValue : b.totalValue - a.totalValue))
+      .slice(skip, skip + pageSize)
+      .map((x) => x.id)
+    if (sortedIds.length === 0) {
+      clients = []
+    } else {
+      const pageClients = await prisma.client.findMany({
+        where: { id: { in: sortedIds } },
+        include: {
+          quotations: { select: { id: true, totalPrice: true } },
+          projects: { select: { id: true } },
+          createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        },
+      })
+      const orderMap = new Map(sortedIds.map((id, i) => [id, i]))
+      pageClients.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0))
+      clients = pageClients.map((client) => ({
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        phone: client.phone || undefined,
+        company: client.company || undefined,
+        address: client.address || undefined,
+        notes: client.notes || undefined,
+        industry: client.industry || undefined,
+        yearlyRevenue: client.yearlyRevenue || undefined,
+        membershipType: client.membershipType,
+        quotationsCount: client.quotations.length,
+        totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
+        created_at: client.created_at.toISOString(),
+        createdById: client.createdById,
+        createdBy: client.createdBy
+          ? {
+              id: client.createdBy.id,
+              firstName: client.createdBy.firstName,
+              lastName: client.createdBy.lastName,
+              email: client.createdBy.email,
+            }
+          : undefined,
+      }))
+    }
   } else {
     // For database fields, use Prisma's orderBy
     const [totalCount, fetchedClients] = await Promise.all([

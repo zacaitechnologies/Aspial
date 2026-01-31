@@ -3,26 +3,30 @@ import { fetchAllBookings, getUserProjects, checkIsAdmin } from "./actions"
 import CalendarClient from "./components/CalendarClient"
 
 // Force dynamic rendering since we use cookies for authentication
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-// Server Component - fetches data on server for fast initial load
+// Server Component - fetches data on server for fast initial load (current month only)
 export default async function OrganizationCalendar() {
 	const user = await getCachedUser()
-	
+
 	if (!user) {
 		return null
 	}
 
-	// Get user name for filtering bookings
 	const userName = user.email || user.id
 
-	// Fetch all data in parallel
+	// Initial range: current month for fast first load
+	const now = new Date()
+	const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+	monthStart.setHours(0, 0, 0, 0)
+	const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+	monthEnd.setHours(23, 59, 59, 999)
+
 	const [isAdmin, bookings] = await Promise.all([
 		checkIsAdmin(user.id),
-		fetchAllBookings(user.id, userName)
+		fetchAllBookings(user.id, userName, { start: monthStart, end: monthEnd }),
 	])
 
-	// Fetch projects only if not admin (in parallel with other operations)
 	const projects = isAdmin ? [] : await getUserProjects(user.id)
 
 	return (

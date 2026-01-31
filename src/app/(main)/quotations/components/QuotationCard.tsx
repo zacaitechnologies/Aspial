@@ -851,6 +851,7 @@ export default function QuotationCard({
           isOpen={isCreateInvoiceDialogOpen}
           onOpenChange={setIsCreateInvoiceDialogOpen}
           prefilledQuotationId={quotation.id}
+          prefetchedQuotation={quotation}
           onSuccess={() => {
             if (onRefresh) {
               onRefresh();

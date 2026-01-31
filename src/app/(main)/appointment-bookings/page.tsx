@@ -5,7 +5,7 @@ import { Suspense } from "react"
 import { BookingDashboardWrapper } from "./booking-dashboard-wrapper"
 import { prisma } from "@/lib/prisma";
 import { getCachedUser } from "@/lib/auth-cache"
-import { unstable_noStore } from "next/cache"
+import { unstable_cache } from "next/cache"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 
@@ -130,17 +130,20 @@ async function _getBookingsInternal() {
 	})
 }
 
-// Cached versions
 async function getAppointments() {
-	// Disable server-side caching for real-time data
-	unstable_noStore()
-	return await _getAppointmentsInternal()
+	return await unstable_cache(
+		_getAppointmentsInternal,
+		["appointment-bookings", "appointments"],
+		{ revalidate: 60, tags: ["appointment-bookings"] }
+	)()
 }
 
 async function getBookings() {
-	// Disable server-side caching for real-time data
-	unstable_noStore()
-	return await _getBookingsInternal()
+	return await unstable_cache(
+		_getBookingsInternal,
+		["appointment-bookings", "bookings"],
+		{ revalidate: 60, tags: ["appointment-bookings"] }
+	)()
 }
 
 // Cannot cache this - it uses cookies/auth which is dynamic
@@ -184,9 +187,11 @@ async function getUserWithRole() {
 
 async function getUserProjectIds(userId: string) {
 	try {
-		// Disable server-side caching for real-time data
-		unstable_noStore()
-		return await _getUserProjectIdsInternal(userId)
+		return await unstable_cache(
+			() => _getUserProjectIdsInternal(userId),
+			["appointment-bookings", "user-projects", userId],
+			{ revalidate: 60, tags: ["appointment-bookings", "projects"] }
+		)()
 	} catch (error) {
 		console.error('Error fetching user project IDs:', error)
 		return []

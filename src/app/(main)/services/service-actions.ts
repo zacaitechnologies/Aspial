@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { createClient } from "@/utils/supabase/server"
+import { revalidateTag } from "next/cache"
+import { checkIsAdmin } from "../actions/admin-actions"
 import { CreateServiceData, UpdateServiceData, CreateServiceTagData, UpdateServiceTagData, Service, ServiceTag } from "./types"
 
 const SERVICE_IMAGES_BUCKET = "service"
@@ -25,7 +27,9 @@ function transformServiceTag(tag: any): ServiceTag {
 
 // Service Tag Actions
 export async function createServiceTag(data: CreateServiceTagData): Promise<ServiceTag> {
-  const isAdmin = await checkIsAdmin()
+  const user = await getCachedUser()
+  if (!user?.id) throw new Error("Unauthorized")
+  const isAdmin = await checkIsAdmin(user.id)
   if (!isAdmin) {
     throw new Error("Unauthorized: Admin access required")
   }
@@ -43,7 +47,7 @@ export async function createServiceTag(data: CreateServiceTagData): Promise<Serv
       }
     },
   })
-  
+  revalidateTag("service-tags", { expire: 0 })
   return transformServiceTag(tag)
 }
 
@@ -78,7 +82,9 @@ export async function getServiceTagById(id: number): Promise<ServiceTag | null> 
 }
 
 export async function updateServiceTag(id: number, data: UpdateServiceTagData): Promise<ServiceTag> {
-  const isAdmin = await checkIsAdmin()
+  const user = await getCachedUser()
+  if (!user?.id) throw new Error("Unauthorized")
+  const isAdmin = await checkIsAdmin(user.id)
   if (!isAdmin) {
     throw new Error("Unauthorized: Admin access required")
   }
@@ -276,7 +282,9 @@ export async function getServiceDeletionImpact(id: number): Promise<DeletionImpa
 }
 
 export async function deleteServiceTag(id: number): Promise<void> {
-  const isAdmin = await checkIsAdmin()
+  const user = await getCachedUser()
+  if (!user?.id) throw new Error("Unauthorized")
+  const isAdmin = await checkIsAdmin(user.id)
   if (!isAdmin) {
     throw new Error("Unauthorized: Admin access required")
   }
@@ -284,11 +292,14 @@ export async function deleteServiceTag(id: number): Promise<void> {
   await prisma.serviceTag.delete({
     where: { id },
   })
+  revalidateTag("service-tags", { expire: 0 })
 }
 
 // Service Actions
 export async function createService(data: CreateServiceData): Promise<Service> {
-  const isAdmin = await checkIsAdmin()
+  const user = await getCachedUser()
+  if (!user?.id) throw new Error("Unauthorized")
+  const isAdmin = await checkIsAdmin(user.id)
   if (!isAdmin) {
     throw new Error("Unauthorized: Admin access required")
   }
@@ -313,7 +324,7 @@ export async function createService(data: CreateServiceData): Promise<Service> {
       }
     },
   })
-  
+  revalidateTag("services", { expire: 0 })
   return transformService(service)
 }
 
@@ -348,7 +359,9 @@ export async function getServiceById(id: number): Promise<Service | null> {
 }
 
 export async function updateService(id: number, data: UpdateServiceData): Promise<Service> {
-  const isAdmin = await checkIsAdmin()
+  const user = await getCachedUser()
+  if (!user?.id) throw new Error("Unauthorized")
+  const isAdmin = await checkIsAdmin(user.id)
   if (!isAdmin) {
     throw new Error("Unauthorized: Admin access required")
   }
@@ -379,12 +392,14 @@ export async function updateService(id: number, data: UpdateServiceData): Promis
       }
     },
   })
-  
+  revalidateTag("services", { expire: 0 })
   return transformService(service)
 }
 
 export async function deleteService(id: number): Promise<void> {
-  const isAdmin = await checkIsAdmin()
+  const user = await getCachedUser()
+  if (!user?.id) throw new Error("Unauthorized")
+  const isAdmin = await checkIsAdmin(user.id)
   if (!isAdmin) {
     throw new Error("Unauthorized: Admin access required")
   }
@@ -392,6 +407,7 @@ export async function deleteService(id: number): Promise<void> {
   await prisma.services.delete({
     where: { id },
   })
+  revalidateTag("services", { expire: 0 })
 }
 
 // Get services by tag
@@ -439,33 +455,6 @@ export async function searchServices(query: string): Promise<Service[]> {
   return services.map(transformService)
 }
 
-// Check if current user is admin
-export async function checkIsAdmin(): Promise<boolean> {
-  try {
-    const user = await getCachedUser()
-    
-    const userWithRoles = await prisma.user.findUnique({
-      where: { supabase_id: user.id },
-      include: {
-        userRoles: {
-          include: {
-            role: true
-          }
-        }
-      }
-    })
-    
-    if (!userWithRoles) {
-      return false
-    }
-    
-    return userWithRoles.userRoles.some((userRole) => userRole.role.slug === "admin")
-  } catch (error) {
-    console.error("Error checking admin status:", error)
-    return false
-  }
-}
-
 /**
  * Upload a service image to Supabase storage
  */
@@ -474,7 +463,9 @@ export async function uploadServiceImage(
   formData: FormData
 ): Promise<{ success: boolean; error?: string; imageUrl?: string }> {
   try {
-    const isAdmin = await checkIsAdmin()
+    const user = await getCachedUser()
+    if (!user?.id) return { success: false, error: "Unauthorized" }
+    const isAdmin = await checkIsAdmin(user.id)
     if (!isAdmin) {
       return { success: false, error: "Unauthorized: Admin access required" }
     }
@@ -486,7 +477,6 @@ export async function uploadServiceImage(
       return { success: false, error: "User not authenticated. Please log in again." }
     }
 
-    const user = await getCachedUser()
     if (!user) {
       return { success: false, error: "User not found in database" }
     }

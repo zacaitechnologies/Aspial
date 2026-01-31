@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Complaint, ProjectWithDetails } from "../types"
-import { reactivateProject, deleteComplaint, getProjectById } from "../action"
+import { reactivateProject, deleteComplaint, getComplaintsForProject, getProjectTaskStats } from "../action"
 import { useSession } from "../../contexts/SessionProvider"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -110,12 +110,14 @@ export default function ProjectDetailClient({
 	}
 
 	const handleDeleteComplaint = async () => {
-		if (!deleteComplaintId) return
+		if (!deleteComplaintId || !enhancedUser?.id || !params.id) return
 
 		try {
 			const result = await deleteComplaint(deleteComplaintId)
 			if (result.success) {
-				setComplaints((prev) => prev.filter((c) => c.id !== deleteComplaintId))
+				const list = await getComplaintsForProject(enhancedUser.id, params.id as string)
+				setComplaints(list)
+				setProjectData((prev) => ({ ...prev, complaints: list }))
 				setIsDeleteConfirmOpen(false)
 				setDeleteComplaintId(null)
 			}
@@ -127,17 +129,14 @@ export default function ProjectDetailClient({
 	}
 
 	const handleComplaintUpdated = useCallback(async () => {
-		// Refresh project data (which includes complaints)
 		if (!enhancedUser?.id || !params.id) return
 		try {
-			const updatedData = await getProjectById(enhancedUser.id, params.id as string)
-			if (updatedData) {
-				setProjectData(updatedData)
-				setComplaints(updatedData.complaints)
-			}
+			const list = await getComplaintsForProject(enhancedUser.id, params.id as string)
+			setComplaints(list)
+			setProjectData((prev) => ({ ...prev, complaints: list }))
 		} catch (error) {
 			if (process.env.NODE_ENV === 'development') {
-				console.error("Error refreshing project data:", error)
+				console.error("Error refreshing complaints:", error)
 			}
 		}
 	}, [enhancedUser?.id, params.id])
@@ -147,15 +146,10 @@ export default function ProjectDetailClient({
 
 		try {
 			await reactivateProject(project.id.toString(), enhancedUser.id, newProjectStatus)
-
-			// Refresh project data
-			if (enhancedUser.id && params.id) {
-				const updatedData = await getProjectById(enhancedUser.id, params.id as string)
-				if (updatedData) {
-					setProjectData(updatedData)
-				}
-			}
-
+			setProjectData((prev) => ({
+				...prev,
+				project: { ...prev.project, status: newProjectStatus },
+			}))
 			setIsReactivateDialogOpen(false)
 			toast({
 				title: "Success",
@@ -173,17 +167,15 @@ export default function ProjectDetailClient({
 		}
 	}
 
-	// Memoize onRefresh callback to prevent KanbanBoard rerenders
+	// Memoize onRefresh callback to prevent KanbanBoard rerenders; only refetch task stats
 	const handleTasksUpdated = useCallback(async () => {
 		if (!enhancedUser?.id || !params.id) return
 		try {
-			const updatedData = await getProjectById(enhancedUser.id, params.id as string)
-			if (updatedData) {
-				setProjectData(updatedData)
-			}
+			const taskStats = await getProjectTaskStats(enhancedUser.id, params.id as string)
+			setProjectData((prev) => ({ ...prev, taskStats }))
 		} catch (error) {
 			if (process.env.NODE_ENV === 'development') {
-				console.error("Error refreshing project data:", error)
+				console.error("Error refreshing task stats:", error)
 			}
 		}
 	}, [enhancedUser?.id, params.id])

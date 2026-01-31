@@ -49,7 +49,6 @@ export function useServicesPaginated(
       // Check cache
       const cached = cache.get(cacheKey)
       if (!forceRefresh && cached && now - cached.timestamp < CACHE_DURATION) {
-        console.log(`✅ SERVICES CACHE HIT - Page ${targetPage}`)
         setServices(cached.data)
         setTotal(cached.total)
         setTotalPages(cached.totalPages)
@@ -61,7 +60,6 @@ export function useServicesPaginated(
         return
       }
 
-      console.log(`❌ SERVICES CACHE MISS - Loading page ${targetPage}`)
       isCurrentlyLoading = true
       setIsLoading(true)
 
@@ -113,7 +111,6 @@ export function useServicesPaginated(
   }, [loadServices, page, pageSize])
 
   const invalidateCache = useCallback(() => {
-    console.log('🔄 SERVICES: Cache invalidated')
     cache.clear()
   }, [])
 
