@@ -3,6 +3,52 @@ import autoTable from "jspdf-autotable"
 import type { ReceiptWithInvoice } from "../types"
 import { getReceiptFullById, getReceiptsForInvoice } from "../action"
 
+/** Quotation shape returned by getReceiptFullById (includes services). Used only for PDF generation. */
+interface QuotationWithServices {
+	services: Array<{
+		customServiceId?: string | null
+		service: { basePrice: number; name: string; description?: string | null }
+	}>
+	customServices?: Array<{ status: string; price: number; name: string; description?: string | null }>
+	discountValue?: number | null
+	discountType?: string | null
+	Client?: { name?: string; company?: string; phone?: string; email?: string } | null
+	createdBy?: { firstName?: string; lastName?: string } | null
+}
+
+/** Logo path relative to project root (public folder). */
+const LOGO_PATH = "public/images/mainlogo.png"
+
+/**
+ * Load ASPIAL logo as base64 data URL for use in jsPDF.
+ * Works in Node (server) and browser (client export).
+ */
+async function getLogoBase64(): Promise<string | null> {
+	if (typeof window === "undefined") {
+		try {
+			const path = await import("path")
+			const fs = await import("fs")
+			const logoPath = path.join(process.cwd(), LOGO_PATH)
+			const buf = fs.readFileSync(logoPath)
+			return `data:image/png;base64,${buf.toString("base64")}`
+		} catch {
+			return null
+		}
+	}
+	try {
+		const res = await fetch("/images/mainlogo.png")
+		const blob = await res.blob()
+		return new Promise<string | null>((resolve) => {
+			const reader = new FileReader()
+			reader.onloadend = () => resolve(reader.result as string)
+			reader.onerror = () => resolve(null)
+			reader.readAsDataURL(blob)
+		})
+	} catch {
+		return null
+	}
+}
+
 // Type definitions for jsPDF autoTable and extension
 declare module "jspdf" {
 	interface jsPDF {
@@ -85,90 +131,112 @@ function formatDate(date: Date): string {
 }
 
 // Primary color from CSS: #202F21 (dark green)
-// RGB: 32, 47, 33
 const PRIMARY_COLOR: [number, number, number] = [32, 47, 33]
 const WHITE: [number, number, number] = [255, 255, 255]
 const BLACK: [number, number, number] = [0, 0, 0]
 
-// Add header to every page (adapted for receipt)
-function addReceiptHeader(doc: jsPDF, pageNumber: number, totalPages: number, receiptNumber: string, receiptDate: string, advisorName: string) {
+// Logo and header dimensions
+const LOGO_HEADER_WIDTH = 38
+const LOGO_HEADER_HEIGHT = 16
+const HEADER_HEIGHT = 24
+const CONTENT_START_Y = 30
+const TEXT_SAFETY = 12
+
+// Add header to every page (logo on left, company info to the right)
+function addReceiptHeader(
+	doc: jsPDF,
+	_pageNumber: number,
+	_totalPages: number,
+	_receiptNumber: string,
+	_receiptDate: string,
+	_advisorName: string,
+	logoBase64: string | null
+) {
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const margin = 20
-	
+
 	// Dark green header background
 	doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2])
-	doc.rect(0, 0, pageWidth, 45, "F")
-	
-	// Left side - Company header - white text on dark green background
-	doc.setFontSize(12)
-	doc.setFont("helvetica", "bold")
+	doc.rect(0, 0, pageWidth, HEADER_HEIGHT, "F")
+
 	doc.setTextColor(WHITE[0], WHITE[1], WHITE[2])
-	doc.text("ASPIAL", margin, 15)
-	
-	doc.setFontSize(9)
+
+	// Logo on left side
+	const logoStartX = margin
+	const logoY = 4
+	if (logoBase64) {
+		try {
+			doc.addImage(logoBase64, "PNG", logoStartX, logoY, LOGO_HEADER_WIDTH, LOGO_HEADER_HEIGHT)
+		} catch {
+			// If image fails, fall back to text-only
+		}
+	}
+
+	// Company info to the right of the logo
+	const textStartX = logoStartX + LOGO_HEADER_WIDTH + 6
+	const textWidth = pageWidth - textStartX - margin
+	doc.setFontSize(8)
 	doc.setFont("helvetica", "normal")
-	doc.text("ASPIAL PRODUCTION SDN BHD (202001019933 (1376253-A))", margin, 22)
-	doc.text("2A, JALAN DATO' ABU BAKAR, JALAN 16/1, SECTION 16,", margin, 28)
-	doc.text("46350 PETALING JAYA, SELANGOR,", margin, 34)
-	doc.text("Phone: 016-5323453 Fax: 03-78770323 Email: aspialproduction@gmail.com", margin, 40)
-	
-	// Title - white text, left side
-	doc.setFontSize(16)
-	doc.setFont("helvetica", "bold")
-	doc.text("# RECEIPT", margin, 50)
-	
-	// Page number in header - white text, right-aligned
-	doc.setFontSize(9)
-	doc.setFont("helvetica", "normal")
-	doc.text(`PAGE NO : ${pageNumber} of ${totalPages}`, pageWidth - margin, 50, { align: "right" })
-	
-	// Reset text color to black for content below
+	let headerY = 7
+	const companyLines = [
+		"ASPIAL PRODUCTION SDN BHD (202001019933 (1376253-A))",
+		"2A, JALAN DATO' ABU BAKAR, JALAN 16/1, SECTION 16, 46350 PETALING JAYA, SELANGOR",
+		"Phone: 016-5323453 Fax: 03-78770323 Email: aspialproduction@gmail.com",
+	]
+	for (const text of companyLines) {
+		const wrapped = doc.splitTextToSize(text, textWidth)
+		for (const line of wrapped) {
+			if (headerY > HEADER_HEIGHT - 3) break
+			doc.text(line, textStartX, headerY)
+			headerY += 5
+		}
+	}
+
 	doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 }
 
 /**
  * Generate receipt PDF with full data fetching
- * This is a wrapper that ensures all required data is loaded before generating the PDF
  */
 export async function generateReceiptPDFWithFetch(receiptId: string) {
-	// Fetch full receipt data
 	const fullReceipt = await getReceiptFullById(receiptId)
 	
 	if (!fullReceipt) {
 		throw new Error("Receipt not found")
 	}
 	
-	// Generate PDF using the internal function
-	return await generateReceiptPDFInternal(fullReceipt as any)
+	return await generateReceiptPDFInternal(fullReceipt as ReceiptWithInvoice)
 }
 
 /**
  * Internal PDF generation function
- * Assumes receipt has full invoice and quotation data with services loaded
  */
-async function generateReceiptPDFInternal(receipt: any) {
+async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	const doc = new jsPDF()
+	const logoBase64 = await getLogoBase64()
 	const invoice = receipt.invoice
-	const quotation = invoice?.quotation
+	const quotationRaw = invoice?.quotation
 	
-	if (!quotation || !quotation.services) {
+	if (!quotationRaw || !(quotationRaw as unknown as QuotationWithServices).services) {
 		throw new Error("Quotation data not available")
 	}
-	
+	const quotation = quotationRaw as unknown as QuotationWithServices
+
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const pageHeight = doc.internal.pageSize.getHeight()
 	const margin = 20
-	let currentY = 60 // Start after header
+	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
+	let currentY = CONTENT_START_Y
 	
 	// Calculate quotation totals
-	const regularServices = quotation.services.filter((qs: any) => !qs.customServiceId)
+	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
 	const servicesTotal = regularServices.reduce(
-		(sum: number, serviceItem: any) => sum + serviceItem.service.basePrice,
+		(sum: number, serviceItem: { service: { basePrice: number } }) => sum + serviceItem.service.basePrice,
 		0
 	)
 	const approvedCustomServicesTotal = (quotation.customServices || [])
-		.filter((cs: any) => cs.status === "APPROVED")
-		.reduce((sum: number, cs: any) => sum + cs.price, 0)
+		.filter((cs: { status: string }) => cs.status === "APPROVED")
+		.reduce((sum: number, cs: { price: number }) => sum + cs.price, 0)
 	const subtotal = servicesTotal + approvedCustomServicesTotal
 	
 	let discountAmount = 0
@@ -183,14 +251,13 @@ async function generateReceiptPDFInternal(receipt: any) {
 	const receiptAmount = receipt.amount
 	const invoiceAmount = invoice.amount
 	
-	// Get receipts created at or before this receipt's creation time to calculate remaining amount
-	// This gives us the historical balance at the time this receipt was created
+	// Get receipts to calculate remaining
 	const receiptCreatedAt = new Date(receipt.created_at)
 	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
-	const totalReceived = allReceipts.reduce((sum: number, r: any) => sum + r.amount, 0)
+	const totalReceived = allReceipts.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0)
 	const remainingAmount = invoiceAmount - totalReceived
 	
-	// Get advisor name (createdBy)
+	// Get advisor name
 	const advisorName = quotation.createdBy
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 		: 'ADMIN'
@@ -201,11 +268,10 @@ async function generateReceiptPDFInternal(receipt: any) {
 	const clientPhone = quotation.Client?.phone || ''
 	const clientEmail = quotation.Client?.email || ''
 	
-	// Prepare header data
 	const receiptDate = formatDate(new Date(receipt.created_at))
 	
 	// Add header to first page
-	addReceiptHeader(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName)
+	addReceiptHeader(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
 	
 	// Receipt details section - two columns layout
 	doc.setFontSize(10)
@@ -213,7 +279,7 @@ async function generateReceiptPDFInternal(receipt: any) {
 	
 	const leftCol = margin
 	const rightCol = pageWidth - margin
-	let leftY = currentY
+	let leftY = currentY + 3 // Offset to align with right column
 	let rightY = currentY
 	
 	// Left side - Big bolded RECEIPT label
@@ -260,64 +326,44 @@ async function generateReceiptPDFInternal(receipt: any) {
 	doc.text(`RECEIPT NO : ${receipt.receiptNumber}`, rightCol, rightY, { align: "right" })
 	rightY += 5
 	
-	doc.text(`INVOICE NO : ${invoice.invoiceNumber}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	
 	doc.text(`DATE : ${receiptDate}`, rightCol, rightY, { align: "right" })
 	rightY += 5
 	
-	// Ensure advisor name doesn't overflow - split if too long
-	const maxAdvisorWidth = pageWidth - 2 * margin - 60 // Leave space for "ADVISOR : " label
-	const advisorLines = doc.splitTextToSize(advisorName, maxAdvisorWidth)
-	if (advisorLines.length > 1) {
-		// If advisor name is too long, show it on multiple lines
-		doc.text(`ADVISOR :`, rightCol, rightY, { align: "right" })
-		rightY += 5
-		advisorLines.forEach((line: string) => {
-			doc.text(line, rightCol, rightY, { align: "right" })
-			rightY += 5
-		})
-	} else {
-		doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" })
-		rightY += 5
-	}
+	doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" })
+	rightY += 5
 	
 	doc.text(`PAGE NO : 1 of 1`, rightCol, rightY, { align: "right" })
 	
-	// Use the maximum Y position from both columns
 	currentY = Math.max(leftY, rightY) + 8
 	
-	// Combine all services (from quotation)
+	// Combine all services
 	const allServices = [
-		...regularServices.map((s: any) => ({
+		...regularServices.map((s) => ({
 			name: s.service.name,
-			description: s.service.description || "",
+			description: s.service.description ?? "",
 			price: s.service.basePrice,
-			type: "service",
 		})),
-		...(quotation.customServices || []).filter((cs: any) => cs.status === "APPROVED").map((cs: any) => ({
+		...(quotation.customServices || []).filter((cs) => cs.status === "APPROVED").map((cs) => ({
 			name: cs.name,
-			description: cs.description || "",
+			description: cs.description ?? "",
 			price: cs.price,
-			type: "custom",
 		})),
 	]
 	
-	// Services table - create a row for each service
-	const tableData: any[] = []
+	// Services table
+	const tableData: (string | number)[][] = []
 	const rowHeights: number[] = []
 	const descCellWidth = 110 - 6
 	
-	// Calculate row height for each service and create table rows
-	allServices.forEach((service, index) => {
+	allServices.forEach((service: { name: string; description: string; price: number }, index: number) => {
 		const nameLines = doc.splitTextToSize(service.name, descCellWidth)
 		let totalLines = nameLines.length
 		
 		if (service.description) {
 			const processedDesc = service.description
 				.split('\n')
-				.map((line: string) => line.trim().replace(/^[-•*]\s*/, ''))
-				.filter((line: string) => line.length > 0)
+				.map(line => line.trim().replace(/^[-•*]\s*/, ''))
+				.filter(line => line.length > 0)
 				.join('\n')
 			const descLines = doc.splitTextToSize(processedDesc, descCellWidth)
 			totalLines += descLines.length
@@ -336,22 +382,11 @@ async function generateReceiptPDFInternal(receipt: any) {
 		])
 	})
 	
-	// If no individual services, show combined total
 	if (allServices.length === 0) {
-		const packageQty = 1.00
-		const pricePerPackage = subtotal
-		const total = quotationGrandTotal
-		tableData.push([
-			"1",
-			"",
-			packageQty.toFixed(2),
-			pricePerPackage.toFixed(2),
-			total.toFixed(2)
-		])
+		tableData.push(["1", "", "1.00", subtotal.toFixed(2), quotationGrandTotal.toFixed(2)])
 		rowHeights.push(15)
 	}
 	
-	// Add table
 	if (tableData.length > 0) {
 		autoTable(doc, {
 			startY: currentY,
@@ -396,12 +431,12 @@ async function generateReceiptPDFInternal(receipt: any) {
 					}
 				}
 			},
-			willDrawCell: (data: any) => {
+			willDrawCell: (data: { row: { index: number }; cell: { height: number } }) => {
 				if (data.row.index >= 0 && rowHeights[data.row.index]) {
 					data.cell.height = rowHeights[data.row.index]
 				}
 			},
-			didDrawCell: (data: any) => {
+			didDrawCell: (data: { column: { index: number }; row: { index: number; section: string }; cell: { width: number; x: number; y: number; height: number } }) => {
 				if (data.column.index === 1 && data.row.index >= 0 && data.row.section === 'body') {
 					const serviceIndex = data.row.index
 					const service = allServices[serviceIndex]
@@ -425,16 +460,12 @@ async function generateReceiptPDFInternal(receipt: any) {
 						
 						if (service.description) {
 							y += 2
-						}
-						
-						if (service.description) {
 							doc.setFont("helvetica", "normal")
 							doc.setFontSize(9)
-							doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 							let processedDesc = service.description
 								.split('\n')
-								.map((line: string) => line.trim().replace(/^[-•*]\s*/, ''))
-								.filter((line: string) => line.length > 0)
+								.map(line => line.trim().replace(/^[-•*]\s*/, ''))
+								.filter(line => line.length > 0)
 								.join('\n')
 							
 							if (!processedDesc || processedDesc.trim().length === 0) {
@@ -455,68 +486,70 @@ async function generateReceiptPDFInternal(receipt: any) {
 					}
 				}
 			},
-			didDrawPage: (data: any) => {
+			didDrawPage: (data: { pageNumber: number }) => {
 				const totalPages = doc.getNumberOfPages()
-				addReceiptHeader(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName)
+				addReceiptHeader(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
 			},
 		})
 		
-		currentY = (doc as any).lastAutoTable.finalY + 10
+		currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+		currentY += 10
 	}
 	
-	// Get final total pages
+	// Get final total pages and update headers
 	const totalPages = doc.getNumberOfPages()
-	
-	// Update page numbers on all pages (only update header, PAGE NO in details section is already correct)
 	for (let i = 1; i <= totalPages; i++) {
 		doc.setPage(i)
-		addReceiptHeader(doc, i, totalPages, receipt.receiptNumber, receiptDate, advisorName)
+		addReceiptHeader(doc, i, totalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
+		
+		if (i === 1) {
+			doc.setFontSize(10)
+			doc.setFont("helvetica", "normal")
+			doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
+			let rightY = CONTENT_START_Y
+			rightY += 5
+			rightY += 5
+			rightY += 5
+			doc.text(`PAGE NO : ${i} of ${totalPages}`, rightCol, rightY, { align: "right" })
+		}
 	}
 	
-	// Go back to last page for totals
 	doc.setPage(totalPages)
 	
-	// Check if we need a new page for totals
 	if (currentY > pageHeight - 80) {
 		doc.addPage()
 		const newTotalPages = doc.getNumberOfPages()
-		addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName)
-		currentY = 60
+		addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
+		currentY = CONTENT_START_Y
 	}
 	
 	// Totals section
 	doc.setFontSize(10)
 	doc.setFont("helvetica", "normal")
 	
-	// Total original price
 	doc.text("TOTAL ORIGINAL PRICE:", margin, currentY)
 	doc.text(`RM${subtotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
-	// Discount (if applicable)
 	if (discountAmount > 0) {
 		doc.text("TOTAL DISCOUNT:", margin, currentY)
 		doc.text(`RM${discountAmount.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 		currentY += 7
 	}
 	
-	// After discount price
 	doc.text("AFTER DISCOUNT PRICE:", margin, currentY)
 	doc.text(`RM${quotationGrandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
-	// Amount in words (for receipt amount)
-	doc.setFont("helvetica", "normal")
-	doc.setFontSize(10)
 	const amountInWords = numberToWords(receiptAmount)
 	const wordsText = `RINGGIT MALAYSIA : ${amountInWords} ONLY`
-	const wordsLines = doc.splitTextToSize(wordsText, pageWidth - 2 * margin)
+	const wordsLines = doc.splitTextToSize(wordsText, contentWidth)
 	wordsLines.forEach((line: string) => {
 		if (currentY > pageHeight - 30) {
 			doc.addPage()
 			const newTotalPages = doc.getNumberOfPages()
-			addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName)
-			currentY = 60
+			addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
+			currentY = CONTENT_START_Y
 		}
 		doc.text(line, margin, currentY)
 		currentY += 5
@@ -527,14 +560,14 @@ async function generateReceiptPDFInternal(receipt: any) {
 	if (currentY > pageHeight - 40) {
 		doc.addPage()
 		const newTotalPages = doc.getNumberOfPages()
-		addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName)
-		currentY = 60
+		addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
+		currentY = CONTENT_START_Y
 	}
 	
 	autoTable(doc, {
 		startY: currentY,
-		head: [["Amount Received", "Remaining Amount"]],
-		body: [[receiptAmount.toFixed(2), Math.max(0, remainingAmount).toFixed(2)]],
+		head: [["Amount Received", "Balance"]],
+		body: [[`RM${receiptAmount.toFixed(2)}`, `RM${Math.max(0, remainingAmount).toFixed(2)}`]],
 		theme: "grid",
 		headStyles: {
 			fillColor: PRIMARY_COLOR,
@@ -558,20 +591,19 @@ async function generateReceiptPDFInternal(receipt: any) {
 			lineWidth: 0.1,
 			lineColor: [0, 0, 0],
 		},
-		didDrawPage: (data: any) => {
+		didDrawPage: (data: { pageNumber: number }) => {
 			const totalPages = doc.getNumberOfPages()
-			addReceiptHeader(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName)
+			addReceiptHeader(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
 		},
 	})
 	
-	// Final update of page numbers
+	// Final update of page numbers (NO T&C for receipts)
 	const finalTotalPages = doc.getNumberOfPages()
 	for (let i = 1; i <= finalTotalPages; i++) {
 		doc.setPage(i)
-		addReceiptHeader(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName)
+		addReceiptHeader(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
 	}
 	
-	// Save the PDF
 	const fileName = `receipt-${receipt.receiptNumber}-${
 		quotation.Client?.company?.replace(/\s+/g, "-") || "client"
 	}.pdf`
@@ -580,43 +612,30 @@ async function generateReceiptPDFInternal(receipt: any) {
 
 /**
  * Generate receipt PDF (public export)
- * This is the public interface that accepts a receipt object
- * It will use existing data if available, or fetch full data if needed
  */
-export async function generateReceiptPDF(receipt: any) {
-	// Check if invoice has quotation with services loaded with full service data
-	if (
-		receipt.invoice &&
-		receipt.invoice.quotation &&
-		receipt.invoice.quotation.services &&
-		receipt.invoice.quotation.services.length > 0
-	) {
-		// Check if services have the service object loaded (full data)
-		const hasFullServiceData = receipt.invoice.quotation.services.every(
-			(qs: any) => qs.service && qs.service.basePrice !== undefined
-		)
-		
-		if (hasFullServiceData) {
-			return await generateReceiptPDFInternal(receipt)
-		}
-	}
-	
-	// Fetch full receipt data if invoice/quotation/services not fully loaded
+export async function generateReceiptPDF(receipt: ReceiptWithInvoice) {
+	// Always fetch full data to ensure services are loaded
 	const fullReceipt = await getReceiptFullById(receipt.id)
 	if (!fullReceipt) {
 		throw new Error("Receipt not found")
 	}
 	
-	return await generateReceiptPDFInternal(fullReceipt as any)
+	return await generateReceiptPDFInternal(fullReceipt as ReceiptWithInvoice)
 }
 
 /**
  * Generate receipt PDF as base64 string for email attachment
- * This expects a full receipt object with all related data already loaded
  */
-export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
+export async function generateReceiptPDFBase64(receipt: ReceiptWithInvoice): Promise<string> {
+	// Always fetch full data
+	const fullReceipt = await getReceiptFullById(receipt.id)
+	if (!fullReceipt) {
+		throw new Error("Receipt not found")
+	}
+
 	const doc = new jsPDF()
-	const invoice = receipt.invoice
+	const logoBase64 = await getLogoBase64()
+	const invoice = fullReceipt.invoice
 	const quotation = invoice?.quotation
 	
 	if (!quotation || !quotation.services) {
@@ -626,17 +645,18 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const pageHeight = doc.internal.pageSize.getHeight()
 	const margin = 20
-	let currentY = 60
+	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
+	let currentY = CONTENT_START_Y
 	
-	// Calculate quotation totals
-	const regularServices = quotation.services.filter((qs: any) => !qs.customServiceId)
+	// Calculate totals
+	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
 	const servicesTotal = regularServices.reduce(
-		(sum: number, serviceItem: any) => sum + serviceItem.service.basePrice,
+		(sum: number, serviceItem: { service: { basePrice: number } }) => sum + serviceItem.service.basePrice,
 		0
 	)
 	const approvedCustomServicesTotal = (quotation.customServices || [])
-		.filter((cs: any) => cs.status === "APPROVED")
-		.reduce((sum: number, cs: any) => sum + cs.price, 0)
+		.filter((cs: { status: string }) => cs.status === "APPROVED")
+		.reduce((sum: number, cs: { price: number }) => sum + cs.price, 0)
 	const subtotal = servicesTotal + approvedCustomServicesTotal
 	
 	let discountAmount = 0
@@ -648,47 +668,40 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 	}
 	
 	const quotationGrandTotal = subtotal - discountAmount
-	const receiptAmount = receipt.amount
+	const receiptAmount = fullReceipt.amount
 	const invoiceAmount = invoice.amount
 	
-	// Get receipts created at or before this receipt's creation time to calculate remaining amount
-	// This gives us the historical balance at the time this receipt was created
-	const receiptCreatedAt = new Date(receipt.created_at)
+	const receiptCreatedAt = new Date(fullReceipt.created_at)
 	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
-	const totalReceived = allReceipts.reduce((sum: number, r: any) => sum + r.amount, 0)
+	const totalReceived = allReceipts.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0)
 	const remainingAmount = invoiceAmount - totalReceived
 	
-	// Get advisor name
 	const advisorName = quotation.createdBy
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 		: 'ADMIN'
 	
-	// Get client info
 	const clientName = quotation.Client?.name || ''
 	const clientCompany = quotation.Client?.company || ''
 	const clientPhone = quotation.Client?.phone || ''
 	const clientEmail = quotation.Client?.email || ''
 	
-	const receiptDate = formatDate(new Date(receipt.created_at))
+	const receiptDate = formatDate(new Date(fullReceipt.created_at))
 	
-	addReceiptHeader(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName)
+	addReceiptHeader(doc, 1, 1, fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
 	
-	// Receipt details section
 	doc.setFontSize(10)
 	doc.setFont("helvetica", "normal")
 	
 	const leftCol = margin
 	const rightCol = pageWidth - margin
-	let leftY = currentY
+	let leftY = currentY + 4
 	let rightY = currentY
 	
-	// Left side - Big bolded RECEIPT label
 	doc.setFont("helvetica", "bold")
 	doc.setFontSize(20)
 	doc.text("RECEIPT", leftCol, leftY)
 	leftY += 8
 	
-	// Left side - Bill To
 	if (clientCompany) {
 		doc.setFont("helvetica", "bold")
 		doc.setFontSize(11)
@@ -702,116 +715,52 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 	}
 	leftY += 5
 	
-	if (clientName) {
-		doc.text(`ATTN TO: ${clientName}`, leftCol, leftY)
-	} else {
-		doc.text(`ATTN TO :`, leftCol, leftY)
-	}
+	doc.text(clientName ? `ATTN TO: ${clientName}` : `ATTN TO :`, leftCol, leftY)
 	leftY += 5
-	
-	if (clientPhone) {
-		doc.text(`TEL NO: ${clientPhone}`, leftCol, leftY)
-	} else {
-		doc.text(`TEL NO :`, leftCol, leftY)
-	}
+	doc.text(clientPhone ? `TEL NO: ${clientPhone}` : `TEL NO :`, leftCol, leftY)
 	leftY += 5
+	doc.text(clientEmail ? `EMAIL: ${clientEmail}` : `EMAIL :`, leftCol, leftY)
 	
-	if (clientEmail) {
-		doc.text(`EMAIL: ${clientEmail}`, leftCol, leftY)
-	} else {
-		doc.text(`EMAIL :`, leftCol, leftY)
-	}
-	
-	// Right side - Receipt details
-	doc.text(`RECEIPT NO : ${receipt.receiptNumber}`, rightCol, rightY, { align: "right" })
+	doc.text(`RECEIPT NO : ${fullReceipt.receiptNumber}`, rightCol, rightY, { align: "right" })
 	rightY += 5
-	
-	doc.text(`INVOICE NO : ${invoice.invoiceNumber}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	
 	doc.text(`DATE : ${receiptDate}`, rightCol, rightY, { align: "right" })
 	rightY += 5
-	
-	// Ensure advisor name doesn't overflow - split if too long
-	const maxAdvisorWidth = pageWidth - 2 * margin - 60 // Leave space for "ADVISOR : " label
-	const advisorLines = doc.splitTextToSize(advisorName, maxAdvisorWidth)
-	if (advisorLines.length > 1) {
-		// If advisor name is too long, show it on multiple lines
-		doc.text(`ADVISOR :`, rightCol, rightY, { align: "right" })
-		rightY += 5
-		advisorLines.forEach((line: string) => {
-			doc.text(line, rightCol, rightY, { align: "right" })
-			rightY += 5
-		})
-	} else {
-		doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" })
-		rightY += 5
-	}
-	
+	doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" })
+	rightY += 5
 	doc.text(`PAGE NO : 1 of 1`, rightCol, rightY, { align: "right" })
 	
 	currentY = Math.max(leftY, rightY) + 8
 	
-	// Services table - create a row for each service
 	const allServices = [
-		...regularServices.map((s: any) => ({
+		...regularServices.map((s: { service: { name: string; description?: string; basePrice: number } }) => ({
 			name: s.service.name,
 			description: s.service.description || "",
 			price: s.service.basePrice,
-			type: "service",
 		})),
-		...(quotation.customServices || []).filter((cs: any) => cs.status === "APPROVED").map((cs: any) => ({
+		...(quotation.customServices || []).filter((cs: { status: string }) => cs.status === "APPROVED").map((cs: { name: string; description?: string; price: number }) => ({
 			name: cs.name,
 			description: cs.description || "",
 			price: cs.price,
-			type: "custom",
 		})),
 	]
 	
-	const tableData: any[] = []
+	const tableData: (string | number)[][] = []
 	const rowHeights: number[] = []
 	const descCellWidth = 110 - 6
 	
-	// Calculate row height for each service and create table rows
-	allServices.forEach((service, index) => {
+	allServices.forEach((service: { name: string; description: string; price: number }, index: number) => {
 		const nameLines = doc.splitTextToSize(service.name, descCellWidth)
 		let totalLines = nameLines.length
-		
 		if (service.description) {
-			const processedDesc = service.description
-				.split('\n')
-				.map((line: string) => line.trim().replace(/^[-•*]\s*/, ''))
-				.filter((line: string) => line.length > 0)
-				.join('\n')
-			const descLines = doc.splitTextToSize(processedDesc, descCellWidth)
-			totalLines += descLines.length
-			totalLines += 0.5
+			const processedDesc = service.description.split('\n').map(line => line.trim().replace(/^[-•*]\s*/, '')).filter(line => line.length > 0).join('\n')
+			totalLines += doc.splitTextToSize(processedDesc, descCellWidth).length + 0.5
 		}
-		
-		const rowHeight = Math.max(20, totalLines * 5 + 12)
-		rowHeights.push(rowHeight)
-		
-		tableData.push([
-			String(index + 1),
-			"",
-			"1.00",
-			service.price.toFixed(2),
-			service.price.toFixed(2)
-		])
+		rowHeights.push(Math.max(20, totalLines * 5 + 12))
+		tableData.push([String(index + 1), "", "1.00", service.price.toFixed(2), service.price.toFixed(2)])
 	})
 	
-	// If no individual services, show combined total
 	if (allServices.length === 0) {
-		const packageQty = 1.00
-		const pricePerPackage = subtotal
-		const total = quotationGrandTotal
-		tableData.push([
-			"1",
-			"",
-			packageQty.toFixed(2),
-			pricePerPackage.toFixed(2),
-			total.toFixed(2)
-		])
+		tableData.push(["1", "", "1.00", subtotal.toFixed(2), quotationGrandTotal.toFixed(2)])
 		rowHeights.push(15)
 	}
 	
@@ -821,214 +770,133 @@ export async function generateReceiptPDFBase64(receipt: any): Promise<string> {
 			head: [["No", "Description", "Package", "Price/Package", "Total"]],
 			body: tableData,
 			theme: "grid",
-			headStyles: {
-				fillColor: PRIMARY_COLOR,
-				textColor: WHITE,
-				fontSize: 9,
-				fontStyle: "bold",
-				lineWidth: 0.1,
-			},
-			bodyStyles: {
-				fontSize: 9,
-				textColor: BLACK,
-				lineWidth: 0.1,
-			},
+			headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
+			bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
 			columnStyles: {
 				0: { cellWidth: (pageWidth - 2 * margin) / 15 * 1, halign: "center" },
-				1: { 
-					cellWidth: (pageWidth - 2 * margin) / 15 * 7, 
-					cellPadding: { top: 5, right: 3, bottom: 5, left: 3 },
-					valign: 'top'
-				},
+				1: { cellWidth: (pageWidth - 2 * margin) / 15 * 7, cellPadding: { top: 5, right: 3, bottom: 5, left: 3 }, valign: 'top' },
 				2: { cellWidth: (pageWidth - 2 * margin) / 15 * 2, halign: "right" },
 				3: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" },
 				4: { cellWidth: (pageWidth - 2 * margin) / 15 * 2, halign: "right" },
 			},
 			margin: { left: margin, right: margin },
-			styles: {
-				cellPadding: 3,
-				lineWidth: 0.1,
-				lineColor: [0, 0, 0],
-				overflow: 'linebreak',
-			},
+			styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: 'linebreak' },
 			didParseCell: (data: any) => {
 				if (data.row.index >= 0 && rowHeights[data.row.index]) {
 					data.cell.minHeight = rowHeights[data.row.index]
-					if (data.table.body[data.row.index]) {
-						data.table.body[data.row.index].height = rowHeights[data.row.index]
-					}
+					if (data.table.body[data.row.index]) data.table.body[data.row.index].height = rowHeights[data.row.index]
 				}
 			},
-			willDrawCell: (data: any) => {
-				if (data.row.index >= 0 && rowHeights[data.row.index]) {
-					data.cell.height = rowHeights[data.row.index]
-				}
+			willDrawCell: (data: { row: { index: number }; cell: { height: number } }) => {
+				if (data.row.index >= 0 && rowHeights[data.row.index]) data.cell.height = rowHeights[data.row.index]
 			},
-			didDrawCell: (data: any) => {
+			didDrawCell: (data: { column: { index: number }; row: { index: number; section: string }; cell: { width: number; x: number; y: number; height: number } }) => {
 				if (data.column.index === 1 && data.row.index >= 0 && data.row.section === 'body') {
-					const serviceIndex = data.row.index
-					const service = allServices[serviceIndex]
-					
+					const service = allServices[data.row.index]
 					if (service) {
 						const cellWidth = data.cell.width - 6
 						const x = data.cell.x + 3
 						let y = data.cell.y + 5
-						const cellHeight = rowHeights[serviceIndex] || data.cell.height || 20
-						const maxY = data.cell.y + cellHeight - 5
+						const maxY = data.cell.y + (rowHeights[data.row.index] || data.cell.height || 20) - 5
 						
 						doc.setFont("helvetica", "bold")
 						doc.setFontSize(9)
 						doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-						const nameLines = doc.splitTextToSize(service.name, cellWidth)
-						nameLines.forEach((line: string) => {
-							if (y >= maxY) return
-							doc.text(line, x, y)
-							y += 4
-						})
+						doc.splitTextToSize(service.name, cellWidth).forEach((line: string) => { if (y < maxY) { doc.text(line, x, y); y += 4 } })
 						
 						if (service.description) {
 							y += 2
-						}
-						
-						if (service.description) {
 							doc.setFont("helvetica", "normal")
-							doc.setFontSize(9)
-							doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-							let processedDesc = service.description
-								.split('\n')
-								.map((line: string) => line.trim().replace(/^[-•*]\s*/, ''))
-								.filter((line: string) => line.length > 0)
-								.join('\n')
-							
-							if (!processedDesc || processedDesc.trim().length === 0) {
-								processedDesc = service.description.trim()
-							}
-							
-							if (processedDesc && processedDesc.length > 0) {
-								const descLines = doc.splitTextToSize(processedDesc, cellWidth)
-								descLines.forEach((line: string) => {
-									if (y >= maxY) return
-									doc.text(line, x, y)
-									y += 4
-								})
-							}
+							const desc = service.description.split('\n').map(l => l.trim().replace(/^[-•*]\s*/, '')).filter(l => l.length > 0).join('\n') || service.description.trim()
+							if (desc) doc.splitTextToSize(desc, cellWidth).forEach((line: string) => { if (y < maxY) { doc.text(line, x, y); y += 4 } })
 						}
-						
 						return false
 					}
 				}
 			},
-			didDrawPage: (data: any) => {
-				const totalPages = doc.getNumberOfPages()
-				addReceiptHeader(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName)
+			didDrawPage: (data: { pageNumber: number }) => {
+				addReceiptHeader(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
 			},
 		})
-		
-		currentY = (doc as any).lastAutoTable.finalY + 10
+		currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+		currentY += 10
 	}
 	
 	const totalPages = doc.getNumberOfPages()
-	
 	for (let i = 1; i <= totalPages; i++) {
 		doc.setPage(i)
-		addReceiptHeader(doc, i, totalPages, receipt.receiptNumber, receiptDate, advisorName)
-		
-		// Note: PAGE NO is already in the header, no need to redraw in details section
+		addReceiptHeader(doc, i, totalPages, fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
+		if (i === 1) {
+			doc.setFontSize(10)
+			doc.setFont("helvetica", "normal")
+			doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
+			doc.text(`PAGE NO : ${i} of ${totalPages}`, rightCol, CONTENT_START_Y + 15, { align: "right" })
+		}
 	}
 	
 	doc.setPage(totalPages)
 	
 	if (currentY > pageHeight - 80) {
 		doc.addPage()
-		const newTotalPages = doc.getNumberOfPages()
-		addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName)
-		currentY = 60
+		addReceiptHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
+		currentY = CONTENT_START_Y
 	}
 	
-	// Totals
 	doc.setFontSize(10)
 	doc.setFont("helvetica", "normal")
-	
-	// Total original price
 	doc.text("TOTAL ORIGINAL PRICE:", margin, currentY)
 	doc.text(`RM${subtotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
-	// Discount (if applicable)
 	if (discountAmount > 0) {
 		doc.text("TOTAL DISCOUNT:", margin, currentY)
 		doc.text(`RM${discountAmount.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 		currentY += 7
 	}
 	
-	// After discount price
 	doc.text("AFTER DISCOUNT PRICE:", margin, currentY)
 	doc.text(`RM${quotationGrandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
-	const amountInWords = numberToWords(receiptAmount)
-	const wordsText = `RINGGIT MALAYSIA : ${amountInWords} ONLY`
-	const wordsLines = doc.splitTextToSize(wordsText, pageWidth - 2 * margin)
+	const wordsLines = doc.splitTextToSize(`RINGGIT MALAYSIA : ${numberToWords(receiptAmount)} ONLY`, contentWidth)
 	wordsLines.forEach((line: string) => {
 		if (currentY > pageHeight - 30) {
 			doc.addPage()
-			const newTotalPages = doc.getNumberOfPages()
-			addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName)
-			currentY = 60
+			addReceiptHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
+			currentY = CONTENT_START_Y
 		}
 		doc.text(line, margin, currentY)
 		currentY += 5
 	})
 	currentY += 5
 	
-	// Payment table
 	if (currentY > pageHeight - 40) {
 		doc.addPage()
-		const newTotalPages = doc.getNumberOfPages()
-		addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName)
-		currentY = 60
+		addReceiptHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
+		currentY = CONTENT_START_Y
 	}
 	
 	autoTable(doc, {
 		startY: currentY,
-		head: [["Amount Received", "Remaining Amount"]],
-		body: [[receiptAmount.toFixed(2), Math.max(0, remainingAmount).toFixed(2)]],
+		head: [["Amount Received", "Balance"]],
+		body: [[`RM${receiptAmount.toFixed(2)}`, `RM${Math.max(0, remainingAmount).toFixed(2)}`]],
 		theme: "grid",
-		headStyles: {
-			fillColor: PRIMARY_COLOR,
-			textColor: WHITE,
-			fontSize: 9,
-			fontStyle: "bold",
-			lineWidth: 0.1,
-		},
-		bodyStyles: {
-			fontSize: 9,
-			textColor: BLACK,
-			lineWidth: 0.1,
-		},
-		columnStyles: {
-			0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-			1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-		},
+		headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
+		bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
+		columnStyles: { 0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" }, 1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" } },
 		margin: { left: margin, right: margin },
-		styles: {
-			cellPadding: 5,
-			lineWidth: 0.1,
-			lineColor: [0, 0, 0],
-		},
-		didDrawPage: (data: any) => {
-			const totalPages = doc.getNumberOfPages()
-			addReceiptHeader(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName)
+		styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
+		didDrawPage: (data: { pageNumber: number }) => {
+			addReceiptHeader(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
 		},
 	})
 	
+	// NO T&C for receipts - final page number update only
 	const finalTotalPages = doc.getNumberOfPages()
 	for (let i = 1; i <= finalTotalPages; i++) {
 		doc.setPage(i)
-		addReceiptHeader(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName)
+		addReceiptHeader(doc, i, finalTotalPages, fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
 	}
 	
-	// Return as base64 string
 	return doc.output('datauristring').split(',')[1]
 }
-

@@ -3,6 +3,49 @@ import autoTable from "jspdf-autotable";
 import type { QuotationWithServices } from "../types";
 import { getQuotationFullById } from "../action";
 
+/** Logo path relative to project root (public folder). */
+const LOGO_PATH = "public/images/mainlogo.png";
+
+/**
+ * Load ASPIAL logo as base64 data URL for use in jsPDF.
+ * Works in Node (server) and browser (client export).
+ */
+async function getLogoBase64(): Promise<string | null> {
+  if (typeof window === "undefined") {
+    try {
+      const path = await import("path");
+      const fs = await import("fs");
+      const logoPath = path.join(process.cwd(), LOGO_PATH);
+      const buf = fs.readFileSync(logoPath);
+      return `data:image/png;base64,${buf.toString("base64")}`;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const res = await fetch("/images/mainlogo.png");
+    const blob = await res.blob();
+    return new Promise<string | null>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Terms and conditions text for quotation PDF (points 1-3). */
+const TERMS_AND_CONDITIONS = [
+  "1. Ownership, Usage Rights, and Creator's Rights. All photographs captured by ASPIAL PRODUCTION SDN BHD remain the sole property of the company. Clients are strictly prohibited from selling or utilizing the photographs in contests without prior written consent from ASPIAL PRODUCTION SDN BHD. ASPIAL PRODUCTION SDN BHD reserves the right to employ the photographs/video for advertising, display, website and internet promotion, photographic contests, and any other marketing endeavours deemed appropriate by the company. ASPIAL PRODUCTION SDN BHD retains the rights to the intellectual property created during the provision of services, subject to the terms agreed upon in this agreement.",
+  "2. Liability, Payment, and Confidentiality. ASPIAL PRODUCTION SDN BHD shall not be held liable for any form of loss, damage, or expenses incurred during the photography process or the entirety of the project, including but not limited to indirect or consequential loss, hardware malfunctions, manpower, equipment, scheduling, etc. The initial payment is required to secure the reservation of services and must be remitted upon booking. Confirmed packages are non-refundable, non-exchangeable, and non-transferable. Both parties commit to maintaining the confidentiality of proprietary or sensitive information exchanged during the project. Confidentiality obligations extend beyond the project duration and remain in effect indefinitely, except as required by law or with the express written consent of both parties.",
+  "3. Cancellation, Refunds, and Acceptance. Clients acknowledge that once the project plan/solution is confirmed, significant resources, including manpower, equipment, and scheduling, are allocated accordingly, rendering cancellation impossible. Payments made are non-refundable. By initiating the first payment, the Client confirms understanding and agreement to comply with these terms and conditions.",
+];
+
+/** Payment information (rendered larger for visibility). */
+const PAYMENT_INFO = "4. Payment Information: \n     Bank: Public Bank Berhad \n     Account No: 321-9794-528 \n     Account Name: ASPIAL PRODUCTION SDN BHD";
+
 // Type definitions for jsPDF autoTable and extension
 declare module "jspdf" {
   interface jsPDF {
@@ -90,50 +133,165 @@ const PRIMARY_COLOR: [number, number, number] = [32, 47, 33];
 const WHITE: [number, number, number] = [255, 255, 255];
 const BLACK: [number, number, number] = [0, 0, 0];
 
-// Add header to every page
-function addHeader(doc: jsPDF, pageNumber: number, totalPages: number, quotationName: string, quotationDate: string, advisorName: string) {
+// Logo dimensions (proportional, slightly smaller)
+const LOGO_HEADER_WIDTH = 38;
+const LOGO_HEADER_HEIGHT = 16;
+const HEADER_HEIGHT = 24;
+const CONTENT_START_Y = 30;
+
+// Add header to every page (logo on left, company info to the right; no "# QUOTATION" or page number in header)
+function addHeader(
+  doc: jsPDF,
+  _pageNumber: number,
+  _totalPages: number,
+  _quotationName: string,
+  _quotationDate: string,
+  _advisorName: string,
+  logoBase64: string | null
+) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
-  
+
   // Dark green header background
   doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
-  doc.rect(0, 0, pageWidth, 45, "F");
-  
-  // Left side - Company header - white text on dark green background
-  doc.setFontSize(12);
-  doc.setFont("helvetica", "bold");
+  doc.rect(0, 0, pageWidth, HEADER_HEIGHT, "F");
+
   doc.setTextColor(WHITE[0], WHITE[1], WHITE[2]);
-  doc.text("ASPIAL", margin, 15);
-  
-  doc.setFontSize(9);
+
+  // Logo on left side (at margin), keeping proportions
+  const logoStartX = margin;
+  const logoY = 4;
+  if (logoBase64) {
+    try {
+      doc.addImage(logoBase64, "PNG", logoStartX, logoY, LOGO_HEADER_WIDTH, LOGO_HEADER_HEIGHT);
+    } catch {
+      // If image fails, fall back to text-only
+    }
+  }
+
+  // Company info to the right of the logo (larger font to match logo height)
+  const textStartX = logoStartX + LOGO_HEADER_WIDTH + 6;
+  const textWidth = pageWidth - textStartX - margin;
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.text("ASPIAL PRODUCTION SDN BHD (202001019933 (1376253-A))", margin, 22);
-  doc.text("2A, JALAN DATO' ABU BAKAR, JALAN 16/1, SECTION 16,", margin, 28);
-  doc.text("46350 PETALING JAYA, SELANGOR,", margin, 34);
-  doc.text("Phone: 016-5323453 Fax: 03-78770323 Email: aspialproduction@gmail.com", margin, 40);
-  
-  // Title - white text, left side
-  doc.setFontSize(16);
-  doc.setFont("helvetica", "bold");
-  doc.text("# QUOTATION", margin, 50);
-  
-  // Page number in header - white text, right-aligned
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(`PAGE NO : ${pageNumber} of ${totalPages}`, pageWidth - margin, 50, { align: "right" });
-  
-  // Reset text color to black for content below
+  let headerY = 7;
+  const companyLines = [
+    "ASPIAL PRODUCTION SDN BHD (202001019933 (1376253-A))",
+    "2A, JALAN DATO' ABU BAKAR, JALAN 16/1, SECTION 16, 46350 PETALING JAYA, SELANGOR",
+    "Phone: 016-5323453 Fax: 03-78770323 Email: aspialproduction@gmail.com",
+  ];
+  for (const text of companyLines) {
+    const wrapped = doc.splitTextToSize(text, textWidth);
+    for (const line of wrapped) {
+      if (headerY > HEADER_HEIGHT - 3) break;
+      doc.text(line, textStartX, headerY);
+      headerY += 5;
+    }
+  }
+
   doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
 }
 
 // Helper to check if we need a new page and add header
-function checkAndAddPage(doc: jsPDF, currentY: number, pageHeight: number, quotationName: string, quotationDate: string, advisorName: string, totalPages: number): number {
+function checkAndAddPage(
+  doc: jsPDF,
+  currentY: number,
+  pageHeight: number,
+  quotationName: string,
+  quotationDate: string,
+  advisorName: string,
+  totalPages: number,
+  logoBase64: string | null
+): number {
   if (currentY > pageHeight - 30) {
     const currentPage = doc.getNumberOfPages();
     doc.addPage();
-    addHeader(doc, currentPage + 1, totalPages, quotationName, quotationDate, advisorName);
-    return 60; // Start Y after header
+    addHeader(doc, currentPage + 1, totalPages, quotationName, quotationDate, advisorName, logoBase64);
+    return CONTENT_START_Y;
   }
+  return currentY;
+}
+
+// Content width for text wrapping (keeps margins consistent, avoids overflow)
+const TEXT_SAFETY = 12;
+
+// Add Terms and Conditions section; returns new currentY
+function addTermsAndConditions(
+  doc: jsPDF,
+  startY: number,
+  margin: number,
+  pageWidth: number,
+  pageHeight: number,
+  quotationName: string,
+  quotationDate: string,
+  advisorName: string,
+  logoBase64: string | null
+): number {
+  const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY;
+  let currentY = startY;
+  currentY += 8;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
+  doc.text("Terms And Conditions", margin, currentY);
+  currentY += 6;
+
+  // T&C points 1-3 (font 9pt)
+  for (const paragraph of TERMS_AND_CONDITIONS) {
+    if (currentY > pageHeight - 25) {
+      doc.addPage();
+      const newTotalPages = doc.getNumberOfPages();
+      addHeader(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, logoBase64);
+      currentY = CONTENT_START_Y;
+    }
+    // Re-set font after page break (header changes font)
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
+    const lines = doc.splitTextToSize(paragraph, contentWidth);
+    for (const line of lines) {
+      if (currentY > pageHeight - 25) {
+        doc.addPage();
+        const newTotalPages = doc.getNumberOfPages();
+        addHeader(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, logoBase64);
+        currentY = CONTENT_START_Y;
+        // Re-set font after page break
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
+      }
+      doc.text(line, margin, currentY);
+      currentY += 4.5;
+    }
+    currentY += 3;
+  }
+
+  // Payment Information (larger font for visibility)
+  currentY += 5;
+  if (currentY > pageHeight - 30) {
+    doc.addPage();
+    const newTotalPages = doc.getNumberOfPages();
+    addHeader(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, logoBase64);
+    currentY = CONTENT_START_Y;
+  }
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
+  const paymentLines = doc.splitTextToSize(PAYMENT_INFO, contentWidth);
+  for (const line of paymentLines) {
+    if (currentY > pageHeight - 25) {
+      doc.addPage();
+      const newTotalPages = doc.getNumberOfPages();
+      addHeader(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, logoBase64);
+      currentY = CONTENT_START_Y;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
+    }
+    doc.text(line, margin, currentY);
+    currentY += 5;
+  }
+
   return currentY;
 }
 
@@ -160,15 +318,17 @@ export async function generateQuotationPDFWithFetch(quotationId: number) {
  */
 async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   const doc = new jsPDF();
-  
+  const logoBase64 = await getLogoBase64();
+
   // Use custom services already loaded on the quotation (full fetch includes these)
   const customServices = quotation.customServices ?? [];
-  
+
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
-  let currentY = 60; // Start after header
-  
+  const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY;
+  let currentY = CONTENT_START_Y;
+
   // Calculate totals
   const regularServices = quotation.services.filter((qs) => !qs.customServiceId);
   const servicesTotal = regularServices.reduce(
@@ -207,7 +367,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   const quotationDate = formatDate(new Date(quotation.created_at));
   
   // Add header to first page (we'll update total pages later)
-  addHeader(doc, 1, 1, quotation.name, quotationDate, advisorName);
+  addHeader(doc, 1, 1, quotation.name, quotationDate, advisorName, logoBase64);
   
   // Quotation details section - two columns layout
   doc.setFontSize(10);
@@ -215,7 +375,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   
   const leftCol = margin;
   const rightCol = pageWidth - margin; // Right-aligned from right margin
-  let leftY = currentY;
+  let leftY = currentY + 3; // Offset to align with right column
   let rightY = currentY;
   
   // Left side - Big bolded QUOTATION label
@@ -465,20 +625,20 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
         // Add header on every page
         const pageNum = data.pageNumber;
         const totalPages = doc.getNumberOfPages();
-        addHeader(doc, pageNum, totalPages, quotation.name, quotationDate, advisorName);
+        addHeader(doc, pageNum, totalPages, quotation.name, quotationDate, advisorName, logoBase64);
       },
     });
     
     currentY = (doc as any).lastAutoTable.finalY + 10;
   }
-  
+
   // Get final total pages
   const totalPages = doc.getNumberOfPages();
   
   // Update page numbers on all pages (both in header and below ADVISOR)
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    addHeader(doc, i, totalPages, quotation.name, quotationDate, advisorName);
+    addHeader(doc, i, totalPages, quotation.name, quotationDate, advisorName, logoBase64);
     
     // Update PAGE NO below ADVISOR on first page only
     if (i === 1) {
@@ -486,7 +646,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
       doc.setFont("helvetica", "normal");
       doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
       const rightCol = pageWidth - margin;
-      let rightY = 60; // Start position
+      let rightY = CONTENT_START_Y; // Start position
       rightY += 5; // After QUOTATION NO
       rightY += 5; // After DATE
       rightY += 5; // After ADVISOR
@@ -501,8 +661,8 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   if (currentY > pageHeight - 50) {
     doc.addPage();
     const newTotalPages = doc.getNumberOfPages();
-    addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName);
-    currentY = 60;
+    addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
+    currentY = CONTENT_START_Y;
   }
   
   // Totals
@@ -523,26 +683,45 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   // Split amount in words if too long
   const amountInWords = numberToWords(grandTotal);
   const wordsText = `RINGGIT MALAYSIA : ${amountInWords} ONLY`;
-  const wordsLines = doc.splitTextToSize(wordsText, pageWidth - 2 * margin);
+  const wordsLines = doc.splitTextToSize(wordsText, contentWidth);
   wordsLines.forEach((line: string) => {
     if (currentY > pageHeight - 30) {
       doc.addPage();
       const newTotalPages = doc.getNumberOfPages();
-      addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName);
-      currentY = 60;
+      addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
+      currentY = CONTENT_START_Y;
     }
     doc.text(line, margin, currentY);
     currentY += 5;
   });
   currentY += 5;
-  
+
+  // Horizontal line between totals and Terms & Conditions
+  doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setLineWidth(0.5);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+  currentY += 4;
+
+  // Terms and Conditions
+  currentY = addTermsAndConditions(
+    doc,
+    currentY,
+    margin,
+    pageWidth,
+    pageHeight,
+    quotation.name,
+    quotationDate,
+    advisorName,
+    logoBase64
+  );
+
   // Final update of page numbers on all pages (only in header)
   const finalTotalPages = doc.getNumberOfPages();
   for (let i = 1; i <= finalTotalPages; i++) {
     doc.setPage(i);
-    addHeader(doc, i, finalTotalPages, quotation.name, quotationDate, advisorName);
+    addHeader(doc, i, finalTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
   }
-  
+
   // Save the PDF
   const fileName = `quotation-${quotation.name}-${
     quotation.Client?.company?.replace(/\s+/g, "-") || "client"
@@ -556,21 +735,13 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
  * It will use existing custom services data if available, or fetch if needed
  */
 export async function generateQuotationPDF(quotation: QuotationWithServices) {
-  // List views may provide a lightweight quotation (services without basePrice, etc).
-  // Ensure we have full service details before generating.
-  const hasFullServiceData =
-    quotation.services?.length > 0 &&
-    quotation.services.every((qs) => typeof (qs.service as any)?.basePrice === "number")
-
-  if (!hasFullServiceData) {
-    const fullQuotation = await getQuotationFullById(quotation.id.toString())
-    if (!fullQuotation) {
-      throw new Error("Quotation not found")
-    }
-    return await generateQuotationPDFInternal(fullQuotation)
+  // Always fetch full quotation so services have name, description, basePrice.
+  // List views pass placeholder service data (empty name, basePrice 0).
+  const fullQuotation = await getQuotationFullById(quotation.id.toString())
+  if (!fullQuotation) {
+    throw new Error("Quotation not found")
   }
-
-  return await generateQuotationPDFInternal(quotation)
+  return await generateQuotationPDFInternal(fullQuotation)
 }
 
 /**
@@ -578,29 +749,28 @@ export async function generateQuotationPDF(quotation: QuotationWithServices) {
  * This expects a full quotation object with all related data already loaded
  */
 export async function generateQuotationPDFBase64(quotation: QuotationWithServices): Promise<string> {
-  // Ensure we have full service details (list views may not)
-  const hasFullServiceData =
-    quotation.services?.length > 0 &&
-    quotation.services.every((qs) => typeof (qs.service as any)?.basePrice === "number")
-
-  if (!hasFullServiceData) {
-    const fullQuotation = await getQuotationFullById(quotation.id.toString())
-    if (!fullQuotation) {
-      throw new Error("Quotation not found")
-    }
-    return await generateQuotationPDFBase64(fullQuotation)
+  // Always fetch full quotation so services have name, description, basePrice.
+  // List/email callers may pass data that lacks full service details.
+  const fullQuotation = await getQuotationFullById(quotation.id.toString())
+  if (!fullQuotation) {
+    throw new Error("Quotation not found")
   }
+  return await _generateQuotationPDFBase64Internal(fullQuotation)
+}
 
+async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServices): Promise<string> {
   const doc = new jsPDF();
-  
+  const logoBase64 = await getLogoBase64();
+
   // Use custom services already loaded on the quotation (full fetch includes these)
   const customServices = quotation.customServices ?? [];
-  
+
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
-  let currentY = 60;
-  
+  const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY;
+  let currentY = CONTENT_START_Y;
+
   // Calculate totals
   const regularServices = quotation.services.filter((qs) => !qs.customServiceId);
   const servicesTotal = regularServices.reduce(
@@ -639,7 +809,7 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
   const quotationDate = formatDate(new Date(quotation.created_at));
   
   // Add header to first page (we'll update total pages later)
-  addHeader(doc, 1, 1, quotation.name, quotationDate, advisorName);
+  addHeader(doc, 1, 1, quotation.name, quotationDate, advisorName, logoBase64);
   
   // Quotation details section - two columns layout
   doc.setFontSize(10);
@@ -647,7 +817,7 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
   
   const leftCol = margin;
   const rightCol = pageWidth - margin; // Right-aligned from right margin
-  let leftY = currentY;
+  let leftY = currentY + 4; // Offset to align with right column
   let rightY = currentY;
   
   // Left side - Big bolded QUOTATION label
@@ -896,20 +1066,20 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
       },
       didDrawPage: (data: any) => {
         const totalPages = doc.getNumberOfPages();
-        addHeader(doc, data.pageNumber, totalPages, quotation.name, quotationDate, advisorName);
+        addHeader(doc, data.pageNumber, totalPages, quotation.name, quotationDate, advisorName, logoBase64);
       },
     });
     
     currentY = (doc as any).lastAutoTable.finalY + 10;
   }
-  
+
   // Get final total pages
   const totalPages = doc.getNumberOfPages();
   
   // Update page numbers on all pages (both in header and below ADVISOR)
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    addHeader(doc, i, totalPages, quotation.name, quotationDate, advisorName);
+    addHeader(doc, i, totalPages, quotation.name, quotationDate, advisorName, logoBase64);
     
     // Update PAGE NO below ADVISOR on first page only
     if (i === 1) {
@@ -917,7 +1087,7 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
       doc.setFont("helvetica", "normal");
       doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
       const rightCol = pageWidth - margin;
-      let rightY = 60; // Start position
+      let rightY = CONTENT_START_Y; // Start position
       rightY += 5; // After QUOTATION NO
       rightY += 5; // After DATE
       rightY += 5; // After ADVISOR
@@ -932,8 +1102,8 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
   if (currentY > pageHeight - 50) {
     doc.addPage();
     const newTotalPages = doc.getNumberOfPages();
-    addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName);
-    currentY = 60;
+    addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
+    currentY = CONTENT_START_Y;
   }
   
   // Totals
@@ -960,32 +1130,51 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
   // Split amount in words if too long
   const amountInWords = numberToWords(grandTotal);
   const wordsText = `RINGGIT MALAYSIA : ${amountInWords} ONLY`;
-  const wordsLines = doc.splitTextToSize(wordsText, pageWidth - 2 * margin);
+  const wordsLines = doc.splitTextToSize(wordsText, contentWidth);
   wordsLines.forEach((line: string) => {
     if (currentY > pageHeight - 30) {
       doc.addPage();
       const newTotalPages = doc.getNumberOfPages();
-      addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName);
-      currentY = 60;
+      addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
+      currentY = CONTENT_START_Y;
     }
     doc.text(line, margin, currentY);
     currentY += 5;
   });
   currentY += 5;
-  
+
+  // Horizontal line between totals and Terms & Conditions
+  doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.setLineWidth(0.5);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+  currentY += 4;
+
+  // Terms and Conditions
+  currentY = addTermsAndConditions(
+    doc,
+    currentY,
+    margin,
+    pageWidth,
+    pageHeight,
+    quotation.name,
+    quotationDate,
+    advisorName,
+    logoBase64
+  );
+
   // Final update of page numbers on all pages (both in header and below ADVISOR)
   const finalTotalPages = doc.getNumberOfPages();
   for (let i = 1; i <= finalTotalPages; i++) {
     doc.setPage(i);
-    addHeader(doc, i, finalTotalPages, quotation.name, quotationDate, advisorName);
-    
+    addHeader(doc, i, finalTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
+
     // Update PAGE NO below ADVISOR on first page only
     if (i === 1) {
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
       const rightCol = pageWidth - margin;
-      let rightY = 60; // Start position
+      let rightY = CONTENT_START_Y; // Start position
       rightY += 5; // After QUOTATION NO
       rightY += 5; // After DATE
       rightY += 5; // After ADVISOR
