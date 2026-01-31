@@ -852,6 +852,7 @@ export default function QuotationCard({
           onOpenChange={setIsCreateInvoiceDialogOpen}
           prefilledQuotationId={quotation.id}
           prefetchedQuotation={quotation}
+          isAdminProp={isAdmin}
           onSuccess={() => {
             if (onRefresh) {
               onRefresh();

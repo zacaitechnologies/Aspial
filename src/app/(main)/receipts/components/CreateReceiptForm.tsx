@@ -37,6 +37,8 @@ interface CreateReceiptFormProps {
 	prefilledInvoiceId?: string
 	/** When opening from an invoice card, pass the invoice to avoid refetch and speed up popup */
 	prefetchedInvoice?: { id: string; amount: number; createdBy?: { supabase_id: string } | null; createdById?: string } | null
+	/** Pass isAdmin from parent to skip redundant check (speeds up dialog open) */
+	isAdminProp?: boolean
 }
 
 export default function CreateReceiptForm({
@@ -45,6 +47,7 @@ export default function CreateReceiptForm({
 	onSuccess,
 	prefilledInvoiceId,
 	prefetchedInvoice,
+	isAdminProp,
 }: CreateReceiptFormProps) {
 	const { enhancedUser } = useSession()
 	const [receiptForm, setReceiptForm] = useState<ReceiptFormData>({
@@ -64,9 +67,19 @@ export default function CreateReceiptForm({
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
 	const [selectedCreatedById, setSelectedCreatedById] = useState<string>("")
 
-	// Defer admin/users fetch until dialog is open so list page stays fast
+	// Use isAdminProp if provided (from parent) to skip redundant check
 	useEffect(() => {
 		if (!isOpen || !enhancedUser?.id) return
+		// If isAdminProp is explicitly passed, use it and skip check
+		if (isAdminProp !== undefined) {
+			setIsAdmin(isAdminProp)
+			if (isAdminProp) {
+				// Still need to fetch users for admin
+				getAllUsers().then(setUsers).catch(() => {})
+			}
+			return
+		}
+		// Otherwise, check admin status
 		const checkAdminAndFetchUsers = async () => {
 			try {
 				const adminStatus = await checkIsAdmin(enhancedUser.id)
@@ -82,7 +95,7 @@ export default function CreateReceiptForm({
 			}
 		}
 		checkAdminAndFetchUsers()
-	}, [isOpen, enhancedUser?.id])
+	}, [isOpen, enhancedUser?.id, isAdminProp])
 
 	// Load prefilled invoice: use prefetched when available to avoid slow fetch
 	useEffect(() => {

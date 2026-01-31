@@ -609,6 +609,8 @@ export default function InvoiceDetailClient({
 				isOpen={isCreateReceiptDialogOpen}
 				onOpenChange={setIsCreateReceiptDialogOpen}
 				prefilledInvoiceId={invoice.id}
+				prefetchedInvoice={invoice}
+				isAdminProp={isAdmin}
 				onSuccess={async () => {
 					await handleRefresh()
 					await handleRefreshReceipts()

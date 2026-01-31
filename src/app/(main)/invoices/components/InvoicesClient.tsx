@@ -250,7 +250,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 				/>
 
 				{/* Create Invoice Form */}
-				<CreateInvoiceForm isOpen={isCreateOpen} onOpenChange={setIsCreateOpen} onSuccess={handleSuccess} />
+				<CreateInvoiceForm isOpen={isCreateOpen} onOpenChange={setIsCreateOpen} onSuccess={handleSuccess} isAdminProp={isAdmin} />
 			</div>
 		</>
 	)

@@ -312,85 +312,90 @@ export async function createInvoice(data: unknown) {
 		throw new Error("User must be authenticated to create an invoice")
 	}
 
-	// Check if user is admin
-	const isAdmin = await getCachedIsUserAdmin(user.id)
-
-	return await prisma.$transaction(async (tx) => {
-		// Get quotation to validate it exists and check total
-		const quotation = await tx.quotation.findUnique({
+	// Run all read operations in parallel OUTSIDE the transaction for speed
+	const [isAdmin, quotation] = await Promise.all([
+		getCachedIsUserAdmin(user.id),
+		prisma.quotation.findUnique({
 			where: { id: validatedData.quotationId },
-			include: {
+			select: {
+				id: true,
+				createdById: true,
+				discountValue: true,
+				discountType: true,
 				services: {
-					include: {
-						service: true,
+					where: { customServiceId: null }, // Only regular services
+					select: {
+						service: { select: { basePrice: true } },
 					},
 				},
-				customServices: true,
-				createdBy: {
-					select: {
-						supabase_id: true,
-					},
+				customServices: {
+					where: { status: "APPROVED" }, // Only approved custom services
+					select: { price: true },
 				},
 			},
-		})
+		}),
+	])
 
-		if (!quotation) {
-			throw new Error("Quotation not found")
+	if (!quotation) {
+		throw new Error("Quotation not found")
+	}
+
+	// Determine final createdById based on admin status
+	let finalCreatedById: string
+	if (!isAdmin) {
+		// Non-admin: always use their own ID (ignore any provided createdById)
+		finalCreatedById = user.id
+	} else {
+		// Admin: default to quotation creator, but allow override if provided
+		finalCreatedById = validatedData.createdById ?? quotation.createdById
+	}
+
+	// Validate that the selected user exists (outside transaction)
+	const selectedUser = await prisma.user.findUnique({
+		where: { supabase_id: finalCreatedById },
+		select: { supabase_id: true },
+	})
+
+	if (!selectedUser) {
+		throw new Error("Selected creator user not found")
+	}
+
+	// Calculate quotation grand total (using pre-filtered data from DB)
+	const servicesTotal = quotation.services.reduce(
+		(sum, qs) => sum + qs.service.basePrice,
+		0
+	)
+	const approvedCustomServicesTotal = quotation.customServices.reduce(
+		(sum, cs) => sum + cs.price,
+		0
+	)
+	const subtotal = servicesTotal + approvedCustomServicesTotal
+
+	let discountAmount = 0
+	if (quotation.discountValue && quotation.discountValue > 0) {
+		discountAmount =
+			quotation.discountType === "percentage"
+				? (subtotal * quotation.discountValue) / 100
+				: quotation.discountValue
+	}
+
+	const grandTotal = subtotal - discountAmount
+
+	// Warn if amount exceeds quotation total (but allow it)
+	if (validatedData.amount > grandTotal) {
+		// We'll let the frontend handle the warning, but still allow creation
+		if (process.env.NODE_ENV === 'development') {
+			// eslint-disable-next-line no-console
+			console.warn(`Invoice amount (${validatedData.amount}) exceeds quotation total (${grandTotal})`)
 		}
+	}
 
-		// Determine final createdById based on admin status
-		let finalCreatedById: string
-		if (!isAdmin) {
-			// Non-admin: always use their own ID (ignore any provided createdById)
-			finalCreatedById = user.id
-		} else {
-			// Admin: default to quotation creator, but allow override if provided
-			finalCreatedById = validatedData.createdById ?? quotation.createdById
-		}
-
-		// Validate that the selected user exists
-		const selectedUser = await tx.user.findUnique({
-			where: { supabase_id: finalCreatedById },
-			select: { supabase_id: true },
-		})
-
-		if (!selectedUser) {
-			throw new Error("Selected creator user not found")
-		}
-
-		// Calculate quotation grand total
-		const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
-		const servicesTotal = regularServices.reduce(
-			(sum, serviceItem) => sum + serviceItem.service.basePrice,
-			0
-		)
-		const approvedCustomServicesTotal = quotation.customServices
-			.filter((cs) => cs.status === "APPROVED")
-			.reduce((sum, cs) => sum + cs.price, 0)
-		const subtotal = servicesTotal + approvedCustomServicesTotal
-
-		let discountAmount = 0
-		if (quotation.discountValue && quotation.discountValue > 0) {
-			discountAmount =
-				quotation.discountType === "percentage"
-					? (subtotal * quotation.discountValue) / 100
-					: quotation.discountValue
-		}
-
-		const grandTotal = subtotal - discountAmount
-
-		// Warn if amount exceeds quotation total (but allow it)
-		if (validatedData.amount > grandTotal) {
-			// We'll let the frontend handle the warning, but still allow creation
-			if (process.env.NODE_ENV === 'development') {
-				console.warn(`Invoice amount (${validatedData.amount}) exceeds quotation total (${grandTotal})`)
-			}
-		}
-
-		// Generate invoice number within transaction
+	// Only the write operations need to be in the transaction (for invoice number uniqueness)
+	const invoice = await prisma.$transaction(async (tx) => {
+		// Generate invoice number within transaction to prevent race conditions
 		const invoiceNumber = await generateInvoiceNumber(tx, validatedData.type)
 
-		const invoice = await tx.invoice.create({
+		return tx.invoice.create({
 			data: {
 				invoiceNumber,
 				type: validatedData.type,
@@ -399,22 +404,51 @@ export async function createInvoice(data: unknown) {
 				createdById: finalCreatedById,
 				status: "active",
 			},
-			include: {
+			// Minimal include - only what's needed for immediate return
+			select: {
+				id: true,
+				invoiceNumber: true,
+				type: true,
+				amount: true,
+				status: true,
+				created_at: true,
+				quotationId: true,
+				createdById: true,
 				quotation: {
-					include: {
-						Client: true,
+					select: {
+						id: true,
+						name: true,
+						Client: {
+							select: {
+								id: true,
+								name: true,
+								email: true,
+								company: true,
+							},
+						},
 					},
 				},
-				createdBy: true,
+				createdBy: {
+					select: {
+						supabase_id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
 			},
 		})
-
-		return invoice
+	}, {
+		isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+		maxWait: 5000,
+		timeout: 10000,
 	})
 
 	// Invalidate cache after creating invoice (outside transaction)
 	revalidateTag("invoices", { expire: 0 })
 	revalidatePath("/invoices")
+
+	return invoice
 }
 
 /**
@@ -536,7 +570,7 @@ export async function updateInvoiceAdmin(
 		})
 
 		return invoice
-	})
+	}, { timeout: 15000 }) // Increased timeout for production network latency
 
 	revalidateTag("invoices", { expire: 0 })
 	revalidateTag("receipts", { expire: 0 })
@@ -640,7 +674,7 @@ export async function reactivateInvoiceWithReceipts(
 		}
 
 		return invoice
-	})
+	}, { timeout: 15000 }) // Increased timeout for production network latency
 
 	revalidateTag("invoices", { expire: 0 })
 	revalidateTag("receipts", { expire: 0 })

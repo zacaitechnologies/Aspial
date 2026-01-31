@@ -1137,7 +1137,7 @@ export async function editQuotationById(
     }
 
     return updatedQuotation;
-  })
+  }, { timeout: 15000 }) // Increased timeout for production network latency
 
   // Revalidate caches after cascade cancellation
   if (validatedData.workflowStatus === "cancelled") {
@@ -1321,7 +1321,7 @@ export async function reactivateQuotationCascade(
     }
 
     return reactivatedQuotation
-  })
+  }, { timeout: 15000 }) // Increased timeout for production network latency
 
   // Revalidate caches
   revalidateTag("quotations", { expire: 0 })
@@ -1854,7 +1854,7 @@ export async function updateCustomServiceStatus(
     }
 
     return customService;
-  });
+  }, { timeout: 15000 }); // Increased timeout for production network latency
 }
 
 // Approve custom service

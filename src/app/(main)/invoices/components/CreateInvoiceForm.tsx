@@ -37,6 +37,8 @@ interface CreateInvoiceFormProps {
 	prefilledQuotationId?: number
 	/** When opening from a quotation card, pass the quotation to avoid refetch and speed up popup */
 	prefetchedQuotation?: QuotationWithServices | null
+	/** Pass isAdmin from parent to skip redundant check (speeds up dialog open) */
+	isAdminProp?: boolean
 }
 
 export default function CreateInvoiceForm({
@@ -45,6 +47,7 @@ export default function CreateInvoiceForm({
 	onSuccess,
 	prefilledQuotationId,
 	prefetchedQuotation,
+	isAdminProp,
 }: CreateInvoiceFormProps) {
 	const { enhancedUser } = useSession()
 	const [invoiceForm, setInvoiceForm] = useState<InvoiceFormData>({
@@ -63,9 +66,19 @@ export default function CreateInvoiceForm({
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
 	const [selectedCreatedById, setSelectedCreatedById] = useState<string>("")
 
-	// Defer admin/users fetch until dialog is open so list page stays fast
+	// Use isAdminProp if provided (from parent) to skip redundant check
 	useEffect(() => {
 		if (!isOpen || !enhancedUser?.id) return
+		// If isAdminProp is explicitly passed, use it and skip check
+		if (isAdminProp !== undefined) {
+			setIsAdmin(isAdminProp)
+			if (isAdminProp) {
+				// Still need to fetch users for admin
+				getAllUsers().then(setUsers).catch(() => {})
+			}
+			return
+		}
+		// Otherwise, check admin status
 		const checkAdminAndFetchUsers = async () => {
 			try {
 				const adminStatus = await checkIsAdmin(enhancedUser.id)
@@ -81,7 +94,7 @@ export default function CreateInvoiceForm({
 			}
 		}
 		checkAdminAndFetchUsers()
-	}, [isOpen, enhancedUser?.id])
+	}, [isOpen, enhancedUser?.id, isAdminProp])
 
 	// Load prefilled quotation: use prefetched when available to avoid slow fetch
 	useEffect(() => {

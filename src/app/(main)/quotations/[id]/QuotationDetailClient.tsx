@@ -601,6 +601,8 @@ export default function QuotationDetailClient({
 				isOpen={isCreateInvoiceDialogOpen}
 				onOpenChange={setIsCreateInvoiceDialogOpen}
 				prefilledQuotationId={quotation.id}
+				prefetchedQuotation={quotation}
+				isAdminProp={isAdmin}
 				onSuccess={async () => {
 					await handleRefresh()
 					await handleRefreshInvoices()

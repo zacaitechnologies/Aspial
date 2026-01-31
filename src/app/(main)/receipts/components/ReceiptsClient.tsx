@@ -162,7 +162,7 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 				/>
 
 				{/* Create Receipt Form */}
-				<CreateReceiptForm isOpen={isCreateOpen} onOpenChange={setIsCreateOpen} onSuccess={handleSuccess} />
+				<CreateReceiptForm isOpen={isCreateOpen} onOpenChange={setIsCreateOpen} onSuccess={handleSuccess} isAdminProp={isAdmin} />
 			</div>
 		</>
 	)

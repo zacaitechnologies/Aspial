@@ -5,12 +5,13 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
+import { Prisma } from "@prisma/client"
 
 // Internal function - not cached, used by cached version
 async function _getReceiptsPaginatedInternal(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {} = {}
+	filters: object = {}
 ) {
 	const skip = (page - 1) * pageSize
 
@@ -116,7 +117,7 @@ const getCachedReceiptsPaginated = unstable_cache(
 export async function getReceiptsPaginated(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {} = {},
+	filters: object = {},
 	useCache: boolean = false
 ) {
 	if (useCache) {
@@ -130,7 +131,7 @@ export async function getReceiptsPaginated(
 export async function getReceiptsPaginatedFresh(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {} = {}
+	filters: object = {}
 ) {
 	unstable_noStore()
 	return await _getReceiptsPaginatedInternal(page, pageSize, filters)
@@ -325,71 +326,71 @@ export async function createReceipt(data: {
 		throw new Error("User must be authenticated to create a receipt")
 	}
 
-	// Check if user is admin
-	const isAdmin = await getCachedIsUserAdmin(user.id)
-
-	const receipt = await prisma.$transaction(async (tx) => {
-		// Get invoice to validate it exists and get quotation creator
-		const invoice = await tx.invoice.findUnique({
+	// Run all read operations in parallel OUTSIDE the transaction for speed
+	const [isAdmin, invoice, existingReceipts] = await Promise.all([
+		getCachedIsUserAdmin(user.id),
+		prisma.invoice.findUnique({
 			where: { id: data.invoiceId },
-			include: {
+			select: {
+				id: true,
+				amount: true,
 				quotation: {
-					include: {
-						createdBy: {
-							select: {
-								supabase_id: true,
-							},
-						},
+					select: {
+						createdById: true,
 					},
 				},
 			},
-		})
-
-		if (!invoice) {
-			throw new Error("Invoice not found")
-		}
-
-		// Determine final createdById based on admin status
-		let finalCreatedById: string
-		if (!isAdmin) {
-			// Non-admin: always use their own ID (ignore any provided createdById)
-			finalCreatedById = user.id
-		} else {
-			// Admin: default to quotation creator, but allow override if provided
-			finalCreatedById = data.createdById || invoice.quotation.createdById
-		}
-
-		// Validate that the selected user exists
-		const selectedUser = await tx.user.findUnique({
-			where: { supabase_id: finalCreatedById },
-			select: { supabase_id: true },
-		})
-
-		if (!selectedUser) {
-			throw new Error("Selected creator user not found")
-		}
-
-		// Calculate total receipted amount for this invoice (excluding cancelled receipts)
-		const existingReceipts = await tx.receipt.findMany({
+		}),
+		prisma.receipt.findMany({
 			where: { 
 				invoiceId: data.invoiceId,
 				status: "active", // Only count active receipts
 			},
 			select: { amount: true },
-		})
+		}),
+	])
 
-		const totalReceipted = existingReceipts.reduce((sum, receipt) => sum + receipt.amount, 0)
-		const remaining = invoice.amount - totalReceipted
+	if (!invoice) {
+		throw new Error("Invoice not found")
+	}
 
-		// Warn if amount exceeds remaining (but allow it)
-		if (data.amount > remaining) {
+	// Determine final createdById based on admin status
+	let finalCreatedById: string
+	if (!isAdmin) {
+		// Non-admin: always use their own ID (ignore any provided createdById)
+		finalCreatedById = user.id
+	} else {
+		// Admin: default to quotation creator, but allow override if provided
+		finalCreatedById = data.createdById || invoice.quotation.createdById
+	}
+
+	// Validate that the selected user exists (outside transaction)
+	const selectedUser = await prisma.user.findUnique({
+		where: { supabase_id: finalCreatedById },
+		select: { supabase_id: true },
+	})
+
+	if (!selectedUser) {
+		throw new Error("Selected creator user not found")
+	}
+
+	// Calculate remaining amount
+	const totalReceipted = existingReceipts.reduce((sum, r) => sum + r.amount, 0)
+	const remaining = invoice.amount - totalReceipted
+
+	// Warn if amount exceeds remaining (but allow it)
+	if (data.amount > remaining) {
+		if (process.env.NODE_ENV === 'development') {
 			console.warn(`Receipt amount (${data.amount}) exceeds remaining invoice amount (${remaining})`)
 		}
+	}
 
-		// Generate receipt number within transaction
+	// Only the write operations need to be in the transaction (for receipt number uniqueness)
+	const receipt = await prisma.$transaction(async (tx) => {
+		// Generate receipt number within transaction to prevent race conditions
 		const receiptNumber = await generateReceiptNumber(tx)
 
-		const receipt = await tx.receipt.create({
+		return tx.receipt.create({
 			data: {
 				receiptNumber,
 				invoiceId: data.invoiceId,
@@ -397,21 +398,50 @@ export async function createReceipt(data: {
 				createdById: finalCreatedById,
 				status: "active",
 			},
-			include: {
+			// Minimal select - only what's needed for immediate return
+			select: {
+				id: true,
+				receiptNumber: true,
+				amount: true,
+				status: true,
+				created_at: true,
+				invoiceId: true,
+				createdById: true,
 				invoice: {
-					include: {
+					select: {
+						id: true,
+						invoiceNumber: true,
+						amount: true,
 						quotation: {
-							include: {
-								Client: true,
+							select: {
+								id: true,
+								name: true,
+								Client: {
+									select: {
+										id: true,
+										name: true,
+										email: true,
+										company: true,
+									},
+								},
 							},
 						},
 					},
 				},
-				createdBy: true,
+				createdBy: {
+					select: {
+						supabase_id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
 			},
 		})
-
-		return receipt
+	}, {
+		isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+		maxWait: 5000,
+		timeout: 10000,
 	})
 
 	// Revalidate receipts cache after creation

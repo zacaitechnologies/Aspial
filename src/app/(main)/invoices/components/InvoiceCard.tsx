@@ -395,6 +395,7 @@ export default function InvoiceCard({
 				onOpenChange={setIsCreateReceiptDialogOpen}
 				prefilledInvoiceId={invoice.id}
 				prefetchedInvoice={invoice}
+				isAdminProp={isAdmin}
 				onSuccess={() => {
 					if (onRefresh) {
 						onRefresh()
