@@ -786,7 +786,7 @@ export default function CreateQuotationForm({
             </h4>
             <div className="space-y-2 text-sm text-red-800">
               <p className="font-medium">
-                Save as final quotation cannot be edited further. You will be prompted to select a project next.
+                Save as final quotation cannot be edited further. You can link a project whenever you want from the quotation card.
               </p>
               <p className="font-semibold text-red-900 border-t border-red-200 pt-2 mt-2">
                 ⚠️ Important: Once finalized, you CANNOT add custom services anymore.
@@ -830,7 +830,7 @@ export default function CreateQuotationForm({
           <Button
             onClick={() => {
               setShowConfirmationDialog(false);
-              setShowProjectSelectionDialog(true);
+              handleCreateQuotation("final");
             }}
             disabled={isSaving}
           >

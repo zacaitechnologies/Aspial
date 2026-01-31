@@ -350,17 +350,23 @@ async function _getProjectsPaginatedInternal(
   }
 }
 
-// Server-side cached version for initial page load (30 second cache)
-const getCachedProjectsPaginated = unstable_cache(
-  async (userId: string, page: number, pageSize: number, searchQuery: string, statusFilter: string) => {
-    return await _getProjectsPaginatedInternal(userId, page, pageSize, searchQuery || undefined, statusFilter || undefined)
-  },
-  ["projects-paginated"],
-  { 
-    revalidate: 30, // Cache for 30 seconds
-    tags: ["projects"]
-  }
-)
+// Server-side cached version for initial page load (30 second cache).
+// Key must include userId (and other varying params) so different users don't share the same cached result.
+function getCachedProjectsPaginated(
+  userId: string,
+  page: number,
+  pageSize: number,
+  searchQuery: string,
+  statusFilter: string
+) {
+  return unstable_cache(
+    async () => {
+      return await _getProjectsPaginatedInternal(userId, page, pageSize, searchQuery || undefined, statusFilter || undefined)
+    },
+    ["projects-paginated", userId, String(page), String(pageSize), searchQuery, statusFilter],
+    { revalidate: 30, tags: ["projects"] }
+  )()
+}
 
 export async function getProjectsPaginated(
   userId?: string,

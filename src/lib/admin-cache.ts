@@ -1,6 +1,6 @@
 "use server"
 
-import { isUserAdmin, isUserBrandAdvisor, isUserOperationUser, getUserRole } from "@/app/(main)/projects/permissions"
+import { isUserAdmin, isUserAdminWithExists, isUserBrandAdvisor, isUserOperationUser, getUserRole } from "@/app/(main)/projects/permissions"
 
 // Cache for role checks - shared across all pages
 const roleCache = new Map<string, { 
@@ -13,8 +13,9 @@ const roleCache = new Map<string, {
 const ROLE_CACHE_DURATION = 30 * 1000 // 30 seconds (reduced from 5 minutes)
 
 /**
- * Cached version of isUserAdmin that reduces database queries
- * Cache duration: 5 minutes
+ * Cached version of isUserAdmin that reduces database queries.
+ * Only caches when the user exists in Prisma, so "not admin" for missing users is not cached
+ * (avoids stale false when user was just created/linked).
  */
 export async function getCachedIsUserAdmin(userId: string): Promise<boolean> {
   const now = Date.now()
@@ -24,18 +25,20 @@ export async function getCachedIsUserAdmin(userId: string): Promise<boolean> {
     return cached.isAdmin
   }
   
-  const isAdmin = await isUserAdmin(userId)
-  const isBrandAdvisor = await isUserBrandAdvisor(userId)
-  const isOperationUser = await isUserOperationUser(userId)
-  const role = await getUserRole(userId)
-  
-  roleCache.set(userId, { 
-    isAdmin, 
-    isBrandAdvisor,
-    isOperationUser,
-    role,
-    timestamp: now 
-  })
+  const { isAdmin, userExists } = await isUserAdminWithExists(userId)
+  // Only cache when user exists in DB so we re-check next time if they were just created/linked
+  if (userExists) {
+    const isBrandAdvisor = await isUserBrandAdvisor(userId)
+    const isOperationUser = await isUserOperationUser(userId)
+    const role = await getUserRole(userId)
+    roleCache.set(userId, { 
+      isAdmin, 
+      isBrandAdvisor,
+      isOperationUser,
+      role,
+      timestamp: now 
+    })
+  }
   return isAdmin
 }
 

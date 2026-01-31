@@ -90,10 +90,13 @@ export default function CreateInvoiceForm({
 		}
 	}, [prefilledQuotationId, isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Calculate quotation grand total when quotation is selected
+	// Calculate quotation grand total when quotation is selected.
+	// Use stored totalPrice as primary (source of truth on quotation); fall back to recalculated from line items
+	// when totalPrice is missing/0 (recalculation can be 0 if services are missing or custom services not APPROVED).
 	useEffect(() => {
 		if (selectedQuotation) {
-			// Calculate grand total including custom services and discount
+			const storedTotal = Number(selectedQuotation.totalPrice) || 0
+
 			const regularServices = selectedQuotation.services?.filter((qs: QuotationWithServices['services'][0]) => !qs.customServiceId) || []
 			const servicesTotal = regularServices.reduce(
 				(sum: number, serviceItem: QuotationWithServices['services'][0]) => sum + (serviceItem.service?.basePrice || 0),
@@ -112,8 +115,14 @@ export default function CreateInvoiceForm({
 						: selectedQuotation.discountValue
 			}
 
-			const grandTotal = subtotal - discountAmount
+			const calculatedTotal = Math.max(0, subtotal - discountAmount)
+			// Prefer stored total when it has a value so we don't show 0 when line-item recalculation fails
+			const grandTotal = storedTotal > 0 ? storedTotal : calculatedTotal
 			setQuotationGrandTotal(grandTotal)
+			// Pre-fill invoice amount when quotation total is available
+			if (grandTotal > 0) {
+				setInvoiceForm(prev => ({ ...prev, amount: grandTotal.toFixed(2) }))
+			}
 		}
 	}, [selectedQuotation])
 

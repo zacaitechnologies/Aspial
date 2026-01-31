@@ -186,25 +186,25 @@ export default function ProjectsClient({ initialData, userId }: ProjectsClientPr
 
   const showEmptyState = !projects.length && loading;
 
-  // Determine role display text
+  // Determine role display text. Use profile.userRoles (server-provided) first so first paint matches server and avoids hydration mismatch.
   const getRoleText = () => {
-    // Priority: Staff Role > System Role
     if (enhancedUser?.profile?.staffRole?.roleName) {
       return `, our ${enhancedUser.profile.staffRole.roleName}`;
-    } else if (userSystemRole) {
-      // Format system role for display
-      const roleDisplay = userSystemRole === "brand-advisor" 
+    }
+    const systemRole = userSystemRole ?? enhancedUser?.profile?.userRoles?.[0]?.role?.slug ?? null;
+    if (systemRole) {
+      const roleDisplay = systemRole === "brand-advisor"
         ? "Brand Advisor"
-        : userSystemRole === "operation-user"
+        : systemRole === "operation-user"
         ? "Operation User"
-        : userSystemRole === "admin"
+        : systemRole === "admin"
         ? "Admin"
-        : userSystemRole === "staff"
+        : systemRole === "staff"
         ? "Staff"
-        : userSystemRole;
+        : systemRole;
       return `, our ${roleDisplay}`;
     }
-    return '';
+    return "";
   };
 
   return (

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getCachedUser } from "@/lib/auth-cache";
+import { clearAdminCache } from "@/lib/admin-cache";
 import { getProjectsPaginated } from "./action";
 import ProjectsClient from "./components/ProjectsClient";
 
@@ -14,6 +15,9 @@ export default async function ProjectsPage() {
   if (!user) {
     return null;
   }
+
+  // Ensure fresh admin check on this page so role changes / new users are recognized
+  await clearAdminCache(user.id);
 
   // Fetch initial data on server - cached for 30 seconds
   const initialData = await getProjectsPaginated(user.id, 1, 10);

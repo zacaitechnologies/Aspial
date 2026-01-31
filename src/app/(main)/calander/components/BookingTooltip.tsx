@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { CalendarBooking } from "@/app/(main)/calander/actions"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
@@ -10,7 +11,16 @@ interface BookingTooltipProps {
 }
 
 export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   if (!isVisible) return null
+
+  // Render portal only after mount so server and first client render match (avoids hydration mismatch)
+  if (!mounted) return null
 
   const tooltipContent = (
     <div
@@ -21,7 +31,7 @@ export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
       <div className="space-y-1 text-xs text-gray-600">
         <div className="flex items-center gap-1">
           <Calendar className="w-3 h-3" />
-          {new Date(booking.date).toLocaleDateString()}
+          {new Date(booking.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
         </div>
         <div className="flex items-center gap-1">
           <Clock className="w-3 h-3" />
@@ -42,7 +52,5 @@ export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
     </div>
   )
 
-  return typeof window !== "undefined"
-    ? createPortal(tooltipContent, document.body)
-    : null
+  return createPortal(tooltipContent, document.body)
 } 

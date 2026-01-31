@@ -4,9 +4,17 @@ import { prisma } from "@/lib/prisma"
 import { revalidateTag } from "next/cache"
 
 export async function isUserAdmin(userSupabaseId: string) {
-  // Check if userSupabaseId is valid
+  const result = await isUserAdminWithExists(userSupabaseId)
+  return result.isAdmin
+}
+
+/**
+ * Returns both isAdmin and whether the user exists in Prisma.
+ * Used by admin-cache to avoid caching "not admin" when user is not in DB (e.g. not yet synced).
+ */
+export async function isUserAdminWithExists(userSupabaseId: string): Promise<{ isAdmin: boolean; userExists: boolean }> {
   if (!userSupabaseId || userSupabaseId.trim() === '') {
-    return false
+    return { isAdmin: false, userExists: false }
   }
 
   const userWithRoles = await prisma.user.findUnique({
@@ -14,8 +22,9 @@ export async function isUserAdmin(userSupabaseId: string) {
     include: { userRoles: { include: { role: true } } },
   })
 
-  if (!userWithRoles) return false
-  return userWithRoles.userRoles.some((userRole) => userRole.role.slug === "admin")
+  if (!userWithRoles) return { isAdmin: false, userExists: false }
+  const isAdmin = userWithRoles.userRoles.some((userRole) => userRole.role.slug === "admin")
+  return { isAdmin, userExists: true }
 }
 
 export async function isUserBrandAdvisor(userSupabaseId: string) {
