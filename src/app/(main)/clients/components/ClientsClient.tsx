@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +26,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
-import { deleteClient, getCurrentUserId, getClientsPaginatedFresh, invalidateClientsCache, getClientDeletionImpact, type DeletionImpact } from "../action"
+import { deleteClient, getCurrentUserId, getClientsPaginated, getClientsPaginatedFresh, invalidateClientsCache, getClientDeletionImpact, type DeletionImpact } from "../action"
 import { checkHasFullAccess } from "../../actions/admin-actions"
 import CreateClientDialog from "./CreateClientDialog"
 import EditClientDialog from "./EditClientDialog"
@@ -95,42 +95,125 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
 
   // State from initial data
   const [clients, setClients] = useState<Client[]>(initialData.data)
-  const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(initialData.page)
   const [pageSize, setPageSizeState] = useState(initialData.pageSize)
   const [total, setTotal] = useState(initialData.total)
   const [totalPages, setTotalPages] = useState(initialData.totalPages)
 
-  // Fetch fresh data when filters change
-  const fetchClients = useCallback(async () => {
-    setLoading(true)
-    try {
-      const result = await getClientsPaginatedFresh(page, pageSize, {
-        searchTerm: searchTerm || undefined,
-        industry: industryFilter !== "all" ? industryFilter : undefined,
-        membershipType: membershipFilter,
-        sortBy,
-        sortDirection,
-      })
+  // Debounced search to avoid fetching on every keystroke
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchTerm(searchTerm), 350)
+    return () => clearTimeout(t)
+  }, [searchTerm])
+
+  const isInitialMount = useRef(true)
+  const hasInitialData = useRef(initialData.data.length > 0 || initialData.total === 0)
+  const [isPending, startTransition] = useTransition()
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const loading = isPending || isRefreshing
+
+  const pageCacheRef = useRef<Map<string, { data: Client[]; total: number; totalPages: number }>>(new Map())
+
+  const buildCacheKey = useCallback(
+    (p: number, ps: number, search: string, ind: string, mem: string, sort: string, dir: string) =>
+      `${p}:${ps}:${search}:${ind}:${mem}:${sort}:${dir}`,
+    []
+  )
+
+  const applyResult = useCallback(
+    (result: { data: Client[]; total: number; totalPages: number }) => {
       setClients(result.data)
       setTotal(result.total)
       setTotalPages(result.totalPages)
-    } catch (error) {
-      // Error handling is done via toast in parent or action
-      if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-        console.error("Error fetching clients:", error)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }, [page, pageSize, searchTerm, industryFilter, membershipFilter, sortBy, sortDirection])
+    },
+    []
+  )
 
-  // Refetch when filters/pagination change
+  const fetchClients = useCallback(
+    async (opts: { force?: boolean; targetPage?: number; targetPageSize?: number; targetSearch?: string; targetIndustry?: string; targetMembership?: "all" | "MEMBER" | "NON_MEMBER"; targetSortBy?: SortOption; targetSortDir?: SortDirection } = {}) => {
+      const targetPage = opts.targetPage ?? page
+      const targetPageSize = opts.targetPageSize ?? pageSize
+      const targetSearch = opts.targetSearch ?? debouncedSearchTerm
+      const targetIndustry = opts.targetIndustry ?? industryFilter
+      const targetMembership = opts.targetMembership ?? membershipFilter
+      const targetSortBy = opts.targetSortBy ?? sortBy
+      const targetSortDir = opts.targetSortDir ?? sortDirection
+
+      const cacheKey = buildCacheKey(
+        targetPage,
+        targetPageSize,
+        targetSearch,
+        targetIndustry,
+        targetMembership,
+        targetSortBy,
+        targetSortDir
+      )
+      if (!opts.force) {
+        const cached = pageCacheRef.current.get(cacheKey)
+        if (cached) {
+          applyResult(cached)
+          return
+        }
+      }
+
+      try {
+        const fetcher = opts.force ? getClientsPaginatedFresh : getClientsPaginated
+        const result = await fetcher(targetPage, targetPageSize, {
+          searchTerm: targetSearch || undefined,
+          industry: targetIndustry !== "all" ? targetIndustry : undefined,
+          membershipType: targetMembership,
+          sortBy: targetSortBy,
+          sortDirection: targetSortDir,
+        })
+        pageCacheRef.current.set(cacheKey, { data: result.data, total: result.total, totalPages: result.totalPages })
+        applyResult({ data: result.data, total: result.total, totalPages: result.totalPages })
+      } catch (error) {
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error fetching clients:", error)
+        }
+      }
+    },
+    [
+      page,
+      pageSize,
+      debouncedSearchTerm,
+      industryFilter,
+      membershipFilter,
+      sortBy,
+      sortDirection,
+      buildCacheKey,
+      applyResult,
+    ]
+  )
+
   useEffect(() => {
-    fetchClients()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, searchTerm, industryFilter, membershipFilter, sortBy, sortDirection])
+    if (isInitialMount.current && hasInitialData.current) {
+      isInitialMount.current = false
+      return
+    }
+    isInitialMount.current = false
+    startTransition(() => {
+      void fetchClients()
+    })
+  }, [page, pageSize, debouncedSearchTerm, industryFilter, membershipFilter, sortBy, sortDirection, fetchClients])
+
+  useEffect(() => {
+    const key = buildCacheKey(
+      initialData.page,
+      initialData.pageSize,
+      "",
+      "all",
+      "all",
+      "created_at",
+      "desc"
+    )
+    pageCacheRef.current.set(key, {
+      data: initialData.data,
+      total: initialData.total,
+      totalPages: initialData.totalPages,
+    })
+  }, [buildCacheKey, initialData])
 
   // Check admin/brand-advisor status and get current user ID
   useEffect(() => {
@@ -198,7 +281,12 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
     try {
       await deleteClient(deletingClient.id)
       await invalidateClientsCache()
-      await fetchClients()
+      setIsRefreshing(true)
+      try {
+        await fetchClients({ force: true })
+      } finally {
+        setIsRefreshing(false)
+      }
       setIsDeleteDialogOpen(false)
       setIsWarningDialogOpen(false)
       setDeletingClient(null)
@@ -219,7 +307,12 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
 
   const handleSuccess = async () => {
     await invalidateClientsCache()
-    await fetchClients()
+    setIsRefreshing(true)
+    try {
+      await fetchClients({ force: true })
+    } finally {
+      setIsRefreshing(false)
+    }
   }
 
   const goToPage = useCallback((newPage: number) => {
@@ -370,9 +463,9 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
           </div>
         </div>
 
-        {/* Clients Grid with Loading Overlay */}
-        <div className="relative">
-          <div className={`grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 ${loading ? "opacity-50 pointer-events-none" : ""}`}>
+        {/* Clients Grid with Loading Overlay - list stays visible during load */}
+        <div className="relative min-h-[200px]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 transition-opacity duration-150">
             {clients.map((client) => (
               <Card key={client.id} className="card bg-card border-2 border-border flex flex-col h-full overflow-hidden">
                 <CardHeader className="block!">
