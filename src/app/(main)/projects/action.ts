@@ -472,39 +472,46 @@ export async function canModifyProject(userId: string, projectId: number): Promi
 }
 
 export async function createProject(data: CreateProjectData) {
-  const project = await prisma.project.create({
-    data: {
-      name: data.name,
-      description: data.description,
-      createdBy: data.createdBy,
-      startDate: data.startDate ?? new Date(),
-      endDate: data.endDate ?? new Date(),
-      clientName: data.clientName ?? "",
-      clientId: data.clientId ?? "",
-    },
-  })
+  const project = await prisma.$transaction(async (tx) => {
+    const created = await tx.project.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        createdBy: data.createdBy,
+        startDate: data.startDate ?? new Date(),
+        endDate: data.endDate ?? new Date(),
+        clientName: data.clientName ?? "",
+        clientId: data.clientId ?? "",
+      },
+    })
 
-  // Create owner permission for the project creator
-  await prisma.projectPermission.create({
-    data: {
-      userId: data.createdBy,
-      projectId: project.id,
-      canView: true,
-      canEdit: true,
-      isOwner: true,
-    },
-  })
+    // Create owner permission for the project creator
+    await tx.projectPermission.create({
+      data: {
+        userId: data.createdBy,
+        projectId: created.id,
+        canView: true,
+        canEdit: true,
+        isOwner: true,
+      },
+    })
 
-  // If quotationId is provided, link the quotation to the project
-  if (data.quotationId) {
-    await prisma.quotation.update({
-      where: { id: data.quotationId },
-      data: { projectId: project.id },
-    });
-  }
+    // If quotationId is provided, link the quotation to the project
+    if (data.quotationId) {
+      await tx.quotation.update({
+        where: { id: data.quotationId },
+        data: { projectId: created.id },
+      })
+    }
+
+    return created
+  })
 
   // Invalidate cache
   revalidateTag('projects', { expire: 0 })
+  if (data.quotationId) {
+    revalidateTag('quotations', { expire: 0 })
+  }
 
   return project
 }

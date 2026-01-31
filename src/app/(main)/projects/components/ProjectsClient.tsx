@@ -69,26 +69,92 @@ export default function ProjectsClient({
   // Combined loading state
   const loading = isPending || isRefreshing;
 
-  // Fetch projects using cached endpoint (tag-based revalidation)
-  const fetchProjects = useCallback(async () => {
+  // In-memory page cache to avoid repeat slow fetches
+  const pageCacheRef = useRef<Map<string, ProjectsPaginatedResult>>(new Map());
+  const lastPrefetchKeyRef = useRef<string | null>(null);
+
+  const applyResult = useCallback((result: ProjectsPaginatedResult) => {
+    setProjects(result.projects);
+    setTotal(result.total);
+    setTotalPages(result.totalPages);
+  }, []);
+
+  const buildCacheKey = useCallback(
+    (currentUserId: string, keyPage: number, keyPageSize: number, keySearch: string, keyStatus: string) => {
+      return `${currentUserId}:${keyPage}:${keyPageSize}:${keySearch}:${keyStatus}`;
+    },
+    []
+  );
+
+  // Seed cache with initial server data
+  useEffect(() => {
     const currentUserId = userId || enhancedUser?.id;
     if (!currentUserId) return;
+    const key = buildCacheKey(
+      currentUserId,
+      initialData.page,
+      initialData.pageSize,
+      searchQuery || "",
+      statusFilter || "all"
+    );
+    pageCacheRef.current.set(key, initialData);
+  }, [buildCacheKey, enhancedUser?.id, initialData, searchQuery, statusFilter, userId]);
+
+  type FetchOptions = {
+    targetPage?: number;
+    targetPageSize?: number;
+    targetSearch?: string;
+    targetStatus?: string;
+    populateOnly?: boolean;
+    force?: boolean;
+  };
+
+  // Fetch projects using cached endpoint (tag-based revalidation)
+  const fetchProjects = useCallback(async (options: FetchOptions = {}) => {
+    const currentUserId = userId || enhancedUser?.id;
+    if (!currentUserId) return;
+
+    const effectivePage = options.targetPage ?? page;
+    const effectivePageSize = options.targetPageSize ?? pageSize;
+    const effectiveSearch = options.targetSearch ?? searchQuery;
+    const effectiveStatus = options.targetStatus ?? statusFilter;
+    const normalizedSearch = effectiveSearch || "";
+    const normalizedStatus = effectiveStatus || "all";
+    const cacheKey = buildCacheKey(
+      currentUserId,
+      effectivePage,
+      effectivePageSize,
+      normalizedSearch,
+      normalizedStatus
+    );
+
+    if (!options.force) {
+      const cached = pageCacheRef.current.get(cacheKey);
+      if (cached) {
+        if (!options.populateOnly) {
+          applyResult(cached);
+        }
+        return cached;
+      }
+    }
 
     try {
       const result = await getProjectsPaginated(
         currentUserId,
-        page,
-        pageSize,
-        searchQuery || undefined,
-        statusFilter !== "all" ? statusFilter : undefined
+        effectivePage,
+        effectivePageSize,
+        normalizedSearch || undefined,
+        normalizedStatus !== "all" ? normalizedStatus : undefined
       );
-      setProjects(result.projects);
-      setTotal(result.total);
-      setTotalPages(result.totalPages);
+      pageCacheRef.current.set(cacheKey, result);
+      if (!options.populateOnly) {
+        applyResult(result);
+      }
+      return result;
     } catch (error) {
       // Silent fail - data will remain stale but UI won't break
     }
-  }, [userId, enhancedUser?.id, page, pageSize, searchQuery, statusFilter]);
+  }, [applyResult, buildCacheKey, enhancedUser?.id, page, pageSize, searchQuery, statusFilter, userId]);
 
   // Fetch when filters/pagination change (skip initial if we have server data)
   useEffect(() => {
@@ -101,9 +167,30 @@ export default function ProjectsClient({
     
     // Use transition for non-blocking UI updates
     startTransition(() => {
-      fetchProjects();
+      void fetchProjects();
     });
   }, [page, pageSize, searchQuery, statusFilter, fetchProjects]);
+
+  // Prefetch next page to keep pagination snappy
+  useEffect(() => {
+    const currentUserId = userId || enhancedUser?.id;
+    if (!currentUserId) return;
+    if (page >= totalPages) return;
+
+    const nextPage = page + 1;
+    const key = buildCacheKey(
+      currentUserId,
+      nextPage,
+      pageSize,
+      searchQuery || "",
+      statusFilter || "all"
+    );
+
+    if (lastPrefetchKeyRef.current === key) return;
+    lastPrefetchKeyRef.current = key;
+
+    void fetchProjects({ targetPage: nextPage, populateOnly: true });
+  }, [buildCacheKey, enhancedUser?.id, fetchProjects, page, pageSize, searchQuery, statusFilter, totalPages, userId]);
 
   // Listen for cache invalidation events
   useEffect(() => {

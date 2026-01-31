@@ -89,6 +89,14 @@ export default function QuotationCard({
   } | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedProjectName, setSelectedProjectName] = useState<string>("");
+  const [selectedProjectData, setSelectedProjectData] = useState<{
+    id: number;
+    name: string;
+    description?: string | null;
+    status?: string;
+    startDate?: Date | null;
+    endDate?: Date | null;
+  } | null>(null);
   const [projectMode, setProjectMode] = useState<"existing" | "new">("existing");
   const [isLinkingProject, setIsLinkingProject] = useState(false);
   const [isSendQuotationDialogOpen, setIsSendQuotationDialogOpen] = useState(false);
@@ -149,8 +157,35 @@ export default function QuotationCard({
     return fixedServicesTotal + customServicesTotal;
   })();
 
-  const hasProject = quotation.project !== null;
-  const isProjectCancelled = quotation.project?.status === "cancelled";
+  const [linkedProject, setLinkedProject] = useState<QuotationWithServices["project"]>(quotation.project);
+  const hasProject = linkedProject !== null;
+  const isProjectCancelled = linkedProject?.status === "cancelled";
+  useEffect(() => {
+    setLinkedProject(quotation.project);
+  }, [quotation.project]);
+
+  const normalizeLinkedProject = useCallback(
+    (project: {
+      id: number;
+      name: string;
+      description?: string | null;
+      status?: string;
+      startDate?: Date | null;
+      endDate?: Date | null;
+      created_at?: Date;
+      updated_at?: Date;
+    }): QuotationWithServices["project"] => ({
+      id: project.id,
+      name: project.name,
+      description: project.description ?? undefined,
+      status: project.status ?? "planning",
+      startDate: project.startDate ?? undefined,
+      endDate: project.endDate ?? undefined,
+      created_at: project.created_at ?? new Date(),
+      updated_at: project.updated_at ?? new Date(),
+    }),
+    []
+  );
   const isFinalQuotation = quotation.workflowStatus === "final";
   const isDraftQuotation = quotation.workflowStatus === "draft";
   const isEditableQuotation = quotation.workflowStatus === "draft" || 
@@ -200,6 +235,7 @@ export default function QuotationCard({
     });
     setSelectedProjectId("");
     setSelectedProjectName("");
+    setSelectedProjectData(null);
     setProjectMode("existing");
     setIsProjectSelectionDialogOpen(true);
   }, [quotation.name, quotation.description, quotation.startDate, quotation.endDate]);
@@ -231,7 +267,7 @@ export default function QuotationCard({
       };
 
       // Create the project
-      await createProject(projectData);
+      const newProject = await createProject(projectData);
 
       // Show success message
       toast({
@@ -239,7 +275,10 @@ export default function QuotationCard({
         description: "Project created successfully!",
       });
 
-      window.location.reload();
+      // Update local UI immediately (avoid slow full refresh)
+      setLinkedProject(normalizeLinkedProject(newProject));
+      setIsProjectSelectionDialogOpen(false);
+      onRefresh?.();
     } catch (error) {
       console.error("Error creating project:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to create project. Please try again.";
@@ -284,6 +323,7 @@ export default function QuotationCard({
   const handleProjectSelection = (projectId: number, projectName: string, projectData?: any) => {
     setSelectedProjectId(projectId.toString());
     setSelectedProjectName(projectName);
+    setSelectedProjectData(projectData ?? null);
     
     // Populate newProjectData with selected project's data
     if (projectData) {
@@ -341,8 +381,11 @@ export default function QuotationCard({
           priority: newProjectData.priority,
           clientId: clientId,
           clientName: quotation.Client?.name || "",
+          quotationId: quotation.id,
         });
         projectId = newProject.id;
+        setLinkedProject(normalizeLinkedProject(newProject));
+        // Project already linked via createProject (no extra update needed)
       } else {
         // Use selected existing project
         if (!selectedProjectId) {
@@ -355,10 +398,32 @@ export default function QuotationCard({
           return;
         }
         projectId = parseInt(selectedProjectId);
+        if (selectedProjectData) {
+          setLinkedProject(
+            normalizeLinkedProject({
+              id: selectedProjectData.id,
+              name: selectedProjectData.name,
+              description: selectedProjectData.description,
+              status: selectedProjectData.status,
+              startDate: selectedProjectData.startDate ?? undefined,
+              endDate: selectedProjectData.endDate ?? undefined,
+            })
+          );
+        } else {
+          setLinkedProject(
+            normalizeLinkedProject({
+              id: projectId,
+              name: selectedProjectName,
+              status: "planning",
+            })
+          );
+        }
       }
 
-      // Link project without changing status
-      await updateQuotationProjectId(quotation.id, projectId);
+      // Link project without changing status (skip if created new project)
+      if (projectMode === "existing") {
+        await updateQuotationProjectId(quotation.id, projectId);
+      }
       
       toast({
         title: "Success",
@@ -366,12 +431,8 @@ export default function QuotationCard({
       });
       setIsProjectSelectionDialogOpen(false);
       
-      // Refresh the page to show updated project status
-      if (onRefresh) {
-        onRefresh();
-      } else {
-        window.location.reload();
-      }
+      // Refresh cache in background (avoid blocking UI)
+      onRefresh?.();
     } catch (error) {
       console.error("Error linking project:", error);
       toast({
@@ -385,7 +446,7 @@ export default function QuotationCard({
   };
 
   const handleUnlinkProject = async () => {
-    if (!quotation.project) {
+    if (!linkedProject) {
       return;
     }
 
@@ -399,12 +460,8 @@ export default function QuotationCard({
         description: "Project unlinked successfully!",
       });
       
-      // Refresh the page to show updated project status
-      if (onRefresh) {
-        onRefresh();
-      } else {
-        window.location.reload();
-      }
+      setLinkedProject(null);
+      onRefresh?.();
     } catch (error) {
       console.error("Error unlinking project:", error);
       toast({
@@ -491,12 +548,12 @@ export default function QuotationCard({
                   </div>
                 </>
               )}
-              {quotation.project && (
+              {linkedProject && (
                 <>
                   <span className="text-gray-400">•</span>
                   <div className="flex items-center gap-1">
                     <Briefcase className="w-3 h-3" />
-                    <span className="font-medium text-gray-900">{quotation.project.name}</span>
+                    <span className="font-medium text-gray-900">{linkedProject.name}</span>
                   </div>
                 </>
               )}
