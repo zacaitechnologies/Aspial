@@ -42,6 +42,7 @@ import {
 } from "../types";
 import { createTask, updateTask } from "../task-actions";
 import { useSession } from "../../contexts/SessionProvider";
+import { formatLocalDate } from "@/lib/date-utils";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -314,11 +315,11 @@ export function TaskForm({
       milestoneId: task?.milestoneId?.toString() || "none",
       assigneeId: task?.assigneeId ?? "unassigned",
       startDate: task?.startDate
-        ? new Date(task.startDate).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0],
+        ? formatLocalDate(new Date(task.startDate))
+        : formatLocalDate(new Date()),
       dueDate: task?.dueDate
-        ? new Date(task.dueDate).toISOString().split("T")[0]
-        : new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split("T")[0], // Default to 7 days from now
+        ? formatLocalDate(new Date(task.dueDate))
+        : formatLocalDate(new Date(new Date().setDate(new Date().getDate() + 7))), // Default to 7 days from now
     },
   });
 

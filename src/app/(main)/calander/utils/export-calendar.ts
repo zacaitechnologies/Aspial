@@ -1,4 +1,5 @@
 import * as XLSX from '@e965/xlsx'
+import { parseLocalDateString, formatDateStringDirect } from '@/lib/date-utils'
 import { CalendarBooking } from '../actions'
 import { APPOINTMENT_TYPES } from '../constants'
 
@@ -12,9 +13,9 @@ interface ExportOptions {
 export function exportCalendarToExcel(options: ExportOptions): void {
 	const { bookings, startDate, endDate, exportType } = options
 
-	// Filter bookings within the date range
+	// Filter bookings within the date range (parse YYYY-MM-DD as local)
 	const filteredBookings = bookings.filter((booking) => {
-		const bookingDate = new Date(booking.date)
+		const bookingDate = parseLocalDateString(booking.date)
 		bookingDate.setHours(0, 0, 0, 0)
 		const start = new Date(startDate)
 		start.setHours(0, 0, 0, 0)
@@ -30,7 +31,7 @@ export function exportCalendarToExcel(options: ExportOptions): void {
 	const bookingsByMonth = new Map<string, CalendarBooking[]>()
 	
 	filteredBookings.forEach((booking) => {
-		const bookingDate = new Date(booking.date)
+		const bookingDate = parseLocalDateString(booking.date)
 		const monthKey = `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}`
 		
 		if (!bookingsByMonth.has(monthKey)) {
@@ -55,16 +56,12 @@ export function exportCalendarToExcel(options: ExportOptions): void {
 
 		// Prepare data for Excel
 		const excelData = sortedBookings.map((booking) => {
-			const bookingDate = new Date(booking.date)
+			const bookingDate = parseLocalDateString(booking.date)
 			const appointmentTypeLabel = APPOINTMENT_TYPES[booking.appointmentType]?.label || 'Others'
 			
 			return {
-				'Date': bookingDate.toLocaleDateString('en-US', {
-					year: 'numeric',
-					month: 'short',
-					day: 'numeric',
-				}),
-				'Day': bookingDate.toLocaleDateString('en-US', { weekday: 'short' }),
+				'Date': formatDateStringDirect(booking.date),
+				'Day': formatDateStringDirect(booking.date, { includeWeekday: true }).split(",")[0],
 				'Appointment Type': appointmentTypeLabel,
 				'Title': booking.title,
 				'Description': booking.description || '',
@@ -77,18 +74,10 @@ export function exportCalendarToExcel(options: ExportOptions): void {
 				'Created By': booking.creatorName || '',
 				'Assigned To': booking.assigneeName || '',
 				'Task Start Date': booking.taskStartDate 
-					? new Date(booking.taskStartDate).toLocaleDateString('en-US', {
-							year: 'numeric',
-							month: 'short',
-							day: 'numeric',
-						})
+					? formatDateStringDirect(booking.taskStartDate)
 					: '',
 				'Task Due Date': booking.taskDueDate
-					? new Date(booking.taskDueDate).toLocaleDateString('en-US', {
-							year: 'numeric',
-							month: 'short',
-							day: 'numeric',
-						})
+					? formatDateStringDirect(booking.taskDueDate)
 					: '',
 			}
 		})

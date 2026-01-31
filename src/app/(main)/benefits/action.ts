@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
+import { formatLocalDate } from "@/lib/date-utils"
 import { unstable_noStore, revalidateTag } from "next/cache"
 
 export interface MonthlyPerformance {
@@ -311,7 +312,7 @@ async function _getEmployeeComplaintsInternal(userId: string) {
   })
 
   return complaints.map((complaint) => ({
-    date: complaint.date.toISOString().split("T")[0],
+    date: formatLocalDate(new Date(complaint.date)),
     customer: complaint.customer,
     reason: complaint.reason,
   }))

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import type { AppointmentType } from "@/app/(main)/calander/constants"
+import { formatLocalDateTime, formatLocalDateTimeDisplay } from "@/lib/date-utils"
 
 // Project Actions
 export async function getUserProjects(userId: string) {
@@ -201,8 +202,12 @@ export async function deleteAppointment(id: number) {
 // Unified Appointment Booking Actions
 export async function createAppointmentBooking(formData: FormData) {
 	const bookedBy = formData.get("bookedBy") as string
-	const startDate = new Date(formData.get("startDate") as string)
-	const endDate = new Date(formData.get("endDate") as string)
+	// Parse dates as local time (no timezone conversion)
+	// Input format: YYYY-MM-DDTHH:mm:ss (without Z, so interpreted as local)
+	const startDateStr = formData.get("startDate") as string
+	const endDateStr = formData.get("endDate") as string
+	const startDate = new Date(startDateStr)
+	const endDate = new Date(endDateStr)
 	const purpose = formData.get("purpose") as string
 	const appointmentType = ((formData.get("appointmentType") as string) || 'OTHERS') as AppointmentType
 	const projectIdStr = formData.get("projectId") as string
@@ -311,11 +316,11 @@ export async function createAppointmentBooking(formData: FormData) {
 
 		if (overlappingBookings.length > 0) {
 			const booking = overlappingBookings[0]
-			const bookingStart = new Date(booking.startDate).toLocaleString()
-			const bookingEnd = new Date(booking.endDate).toLocaleString()
+			const bookingStartStr = formatLocalDateTimeDisplay(new Date(booking.startDate))
+			const bookingEndStr = formatLocalDateTimeDisplay(new Date(booking.endDate))
 			return {
 				success: false,
-					error: `This appointment is already booked from ${bookingStart} to ${bookingEnd} by ${booking.bookedBy}`,
+					error: `This appointment is already booked from ${bookingStartStr} to ${bookingEndStr} by ${booking.bookedBy}`,
 				}
 			}
 		}
@@ -393,8 +398,8 @@ export async function createAppointmentBooking(formData: FormData) {
 								appointmentLocation: booking.appointment?.location || null,
 								clientName,
 								clientEmail: recipientEmail,
-								startDate: startDate.toISOString(),
-								endDate: endDate.toISOString(),
+								startDate: formatLocalDateTime(startDate),
+								endDate: formatLocalDateTime(endDate),
 								purpose: purpose || null,
 								bookedBy,
 							}),
@@ -1014,8 +1019,8 @@ export async function sendAppointmentReminder(
 				appointmentLocation: booking.appointment?.location || null,
 				clientName,
 				clientEmail,
-				startDate: booking.startDate.toISOString(),
-				endDate: booking.endDate.toISOString(),
+				startDate: formatLocalDateTime(booking.startDate),
+				endDate: formatLocalDateTime(booking.endDate),
 				purpose: booking.purpose || null,
 				bookedBy: booking.bookedBy,
 			}),

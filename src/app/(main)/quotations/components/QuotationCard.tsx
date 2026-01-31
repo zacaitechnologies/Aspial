@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { formatLocalDate } from "@/lib/date-utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -103,8 +104,8 @@ export default function QuotationCard({
   }>({
     name: quotation.name,
     description: quotation.description,
-    startDate: quotation.startDate ? new Date(quotation.startDate).toISOString().split('T')[0] : "",
-    endDate: quotation.endDate ? new Date(quotation.endDate).toISOString().split('T')[0] : "",
+    startDate: quotation.startDate ? formatLocalDate(new Date(quotation.startDate)) : "",
+    endDate: quotation.endDate ? formatLocalDate(new Date(quotation.endDate)) : "",
     priority: "low"
   });
 
@@ -193,8 +194,8 @@ export default function QuotationCard({
     setNewProjectData({
       name: quotation.name,
       description: quotation.description,
-      startDate: quotation.startDate ? new Date(quotation.startDate).toISOString().split('T')[0] : "",
-      endDate: quotation.endDate ? new Date(quotation.endDate).toISOString().split('T')[0] : "",
+      startDate: quotation.startDate ? formatLocalDate(new Date(quotation.startDate)) : "",
+      endDate: quotation.endDate ? formatLocalDate(new Date(quotation.endDate)) : "",
       priority: "low"
     });
     setSelectedProjectId("");
@@ -290,10 +291,10 @@ export default function QuotationCard({
         name: projectData.name || "",
         description: projectData.description || "",
         startDate: projectData.startDate 
-          ? new Date(projectData.startDate).toISOString().split("T")[0] 
+          ? formatLocalDate(new Date(projectData.startDate)) 
           : "",
         endDate: projectData.endDate 
-          ? new Date(projectData.endDate).toISOString().split("T")[0] 
+          ? formatLocalDate(new Date(projectData.endDate)) 
           : "",
         priority: "low", // Default priority for existing projects (projects don't have priority field)
       });

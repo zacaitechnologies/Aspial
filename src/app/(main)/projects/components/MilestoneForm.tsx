@@ -39,6 +39,7 @@ import {
   milestoneStatusOptions,
 } from "../types";
 import { createMilestone, updateMilestone, getProjectServices } from "../milestone-actions";
+import { formatLocalDate } from "@/lib/date-utils";
 
 const milestoneSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -231,7 +232,7 @@ export function MilestoneForm({
       priority: milestone?.priority || "low",
       status: milestone?.status || "not_started",
       dueDate: milestone?.dueDate 
-        ? new Date(milestone.dueDate).toISOString().split('T')[0]
+        ? formatLocalDate(new Date(milestone.dueDate))
         : "",
     },
   });

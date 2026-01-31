@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
+import { formatLocalDateTime } from "@/lib/date-utils"
 
 // Internal function - not cached, used by cached version
 async function _getReceiptsPaginatedInternal(
@@ -699,7 +700,7 @@ export async function sendReceiptEmail(
 				clientCompany: receipt.invoice.quotation.Client?.company || "",
 				amount: receipt.amount,
 				pdfBase64: pdfBase64,
-				receiptDate: receipt.created_at.toISOString(),
+				receiptDate: formatLocalDateTime(new Date(receipt.created_at)),
 			}),
 		})
 

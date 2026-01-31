@@ -39,6 +39,7 @@ import { toast } from "@/components/ui/use-toast";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { getInvoicesForQuotation } from "../action";
 import { getReceiptsForInvoice } from "../../receipts/action";
+import { formatLocalDate } from "@/lib/date-utils";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -220,7 +221,7 @@ export default function EditQuotationForm({
       discountType: quotation.discountType || "percentage",
       duration: quotation.duration?.toString() || "",
       startDate: quotation.startDate
-        ? new Date(quotation.startDate).toISOString().split("T")[0]
+        ? formatLocalDate(new Date(quotation.startDate))
         : "",
       clientId: quotation.clientId || "",
       projectId: quotation.project?.id || undefined,
@@ -1389,10 +1390,10 @@ export default function EditQuotationForm({
                   name: projectData.name || "",
                   description: projectData.description || "",
                   startDate: projectData.startDate 
-                    ? new Date(projectData.startDate).toISOString().split("T")[0] 
+                    ? formatLocalDate(new Date(projectData.startDate)) 
                     : "",
                   endDate: projectData.endDate 
-                    ? new Date(projectData.endDate).toISOString().split("T")[0] 
+                    ? formatLocalDate(new Date(projectData.endDate)) 
                     : "",
                   priority: "low", // Default priority for existing projects (projects don't have priority field)
                 });

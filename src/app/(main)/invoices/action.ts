@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
+import { formatLocalDateTime } from "@/lib/date-utils"
 import { Prisma } from "@prisma/client"
 import {
 	createInvoiceSchema,
@@ -710,7 +711,7 @@ export async function sendInvoiceEmail(
 				clientCompany: invoice.quotation.Client?.company || "",
 				amount: invoice.amount,
 				pdfBase64: pdfBase64,
-				invoiceDate: invoice.created_at.toISOString(),
+				invoiceDate: formatLocalDateTime(new Date(invoice.created_at)),
 			}),
 		})
 

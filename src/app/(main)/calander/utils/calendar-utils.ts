@@ -2,6 +2,8 @@
  * Calendar utility functions for date calculations and time management
  */
 
+import { formatLocalDate } from "@/lib/date-utils"
+
 export type CalendarView = 'month' | 'week' | 'day'
 
 /**
@@ -41,10 +43,10 @@ export function getWeekDays(date: Date): Date[] {
 }
 
 /**
- * Format date as YYYY-MM-DD
+ * Format date as YYYY-MM-DD (preserves local date, avoids timezone shift)
  */
 export function formatDate(date: Date): string {
-	return date.toISOString().split('T')[0]
+	return formatLocalDate(date)
 }
 
 /**

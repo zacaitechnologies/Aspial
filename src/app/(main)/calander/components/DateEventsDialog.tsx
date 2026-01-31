@@ -1,9 +1,11 @@
 "use client"
 
+import { useMemo, useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon } from "lucide-react"
+import { formatDateStringDirect } from "@/lib/date-utils"
 import { CalendarBooking } from "../actions"
 
 interface DateEventsDialogProps {
@@ -31,15 +33,23 @@ export function DateEventsDialog({
   events,
   onEventClick
 }: DateEventsDialogProps) {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  }
+  // Memoize formatted title so it doesn't recalc on every render during animation
+  const formattedTitle = useMemo(
+    () => formatDateStringDirect(date, { includeWeekday: true, format: "long" }),
+    [date]
+  )
+
+  // Defer painting event list until after open animation starts (smoother zoom)
+  const [showContent, setShowContent] = useState(false)
+  useEffect(() => {
+    if (isOpen) {
+      const id = requestAnimationFrame(() => {
+        setShowContent(true)
+      })
+      return () => cancelAnimationFrame(id)
+    }
+    setShowContent(false)
+  }, [isOpen])
 
   const formatTime = (timeString: string) => {
     if (timeString === "00:00" && events.some(e => e.type === "task")) {
@@ -50,16 +60,18 @@ export function DateEventsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto will-change-transform">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarIcon className="w-5 h-5" />
-            Events for {formatDate(date)}
+            Events for {formattedTitle}
           </DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4">
-          {events.length === 0 ? (
+        <div className={`space-y-4 transition-opacity duration-150 ${showContent ? "opacity-100" : "opacity-0"}`}>
+          {!showContent ? (
+            <div className="min-h-[120px]" aria-hidden />
+          ) : events.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Calendar className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p className="text-lg font-medium">No events scheduled</p>

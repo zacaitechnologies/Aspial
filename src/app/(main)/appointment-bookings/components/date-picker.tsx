@@ -3,7 +3,7 @@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CalendarIcon } from "lucide-react"
-import { format } from "date-fns"
+import { formatLocalDate } from "@/lib/date-utils"
 
 interface DatePickerProps {
   selectedDate: Date
@@ -27,12 +27,12 @@ export function DatePicker({ selectedDate, onDateChange, minDate, maxDate }: Dat
   const getMinDate = () => {
     const today = new Date()
     const min = minDate || today
-    return min > today ? min.toISOString().split('T')[0] : today.toISOString().split('T')[0]
+    return min > today ? formatLocalDate(min) : formatLocalDate(today)
   }
 
   const getMaxDate = () => {
     if (!maxDate) return undefined
-    return maxDate.toISOString().split('T')[0]
+    return formatLocalDate(maxDate)
   }
 
   return (
@@ -44,7 +44,7 @@ export function DatePicker({ selectedDate, onDateChange, minDate, maxDate }: Dat
       <Input
         id="date-picker"
         type="date"
-        value={selectedDate ? selectedDate.toISOString().split('T')[0] : ''}
+        value={selectedDate ? formatLocalDate(selectedDate) : ''}
         onChange={handleDateChange}
         min={getMinDate()}
         max={getMaxDate()}

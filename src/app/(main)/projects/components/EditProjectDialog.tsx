@@ -22,6 +22,7 @@ import { useSession } from "../../contexts/SessionProvider";
 import { updateProject } from "../action";
 import { projectStatusOptions, ProjectFormData } from "../types";
 import { toast } from "@/components/ui/use-toast";
+import { formatLocalDate } from "@/lib/date-utils";
 import { Loader2 } from "lucide-react";
 
 interface EditProjectDialogProps {
@@ -65,8 +66,8 @@ export default function EditProjectDialog({
         name: project.name,
         description: project.description || "",
         status: project.status,
-        startDate: project.startDate ? new Date(project.startDate).toISOString().split('T')[0] : "",
-        endDate: project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : "",
+        startDate: project.startDate ? formatLocalDate(new Date(project.startDate)) : "",
+        endDate: project.endDate ? formatLocalDate(new Date(project.endDate)) : "",
       });
     }
   }, [project]);

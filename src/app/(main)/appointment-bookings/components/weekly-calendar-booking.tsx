@@ -402,8 +402,11 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 				const formData = new FormData()
 
 				formData.append("bookedBy", userName)
-				formData.append("startDate", group[0].start.toISOString())
-				formData.append("endDate", group[group.length - 1].end.toISOString())
+				// Send dates preserving local time (avoid timezone conversion)
+				const startDateTime = group[0].start
+				const endDateTime = group[group.length - 1].end
+				formData.append("startDate", `${startDateTime.getFullYear()}-${String(startDateTime.getMonth() + 1).padStart(2, '0')}-${String(startDateTime.getDate()).padStart(2, '0')}T${String(startDateTime.getHours()).padStart(2, '0')}:${String(startDateTime.getMinutes()).padStart(2, '0')}:${String(startDateTime.getSeconds()).padStart(2, '0')}`)
+				formData.append("endDate", `${endDateTime.getFullYear()}-${String(endDateTime.getMonth() + 1).padStart(2, '0')}-${String(endDateTime.getDate()).padStart(2, '0')}T${String(endDateTime.getHours()).padStart(2, '0')}:${String(endDateTime.getMinutes()).padStart(2, '0')}:${String(endDateTime.getSeconds()).padStart(2, '0')}`)
 				formData.append("purpose", purpose)
 				formData.append("appointmentType", appointment.appointmentType)
 				formData.append("appointmentId", appointment.id.toString())

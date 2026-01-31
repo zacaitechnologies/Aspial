@@ -2,6 +2,7 @@
 
 import { unstable_noStore } from "next/cache"
 import { prisma } from "@/lib/prisma"
+import { formatLocalDate, formatLocalDateTime } from "@/lib/date-utils"
 import { getAllUserTasks } from "../projects/task-actions"
 import { APPOINTMENT_TYPES, type AppointmentType } from "./constants"
 
@@ -243,11 +244,14 @@ export async function fetchAllBookings(
 				location = booking.appointment.location || booking.appointment.brand || 'Appointment'
 			}
 
+			// Format date preserving local timezone (avoid UTC conversion)
+			const dateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+
 			calendarBookings.push({
 				id: `appointment-${booking.id}`,
 				title: title,
 				description: booking.purpose || `Appointment by ${booking.bookedBy}`,
-				date: startDate.toISOString().split('T')[0],
+				date: dateStr,
 				startTime: startDate.toTimeString().slice(0, 5),
 				endTime: endDate.toTimeString().slice(0, 5),
 				type: "appointment",
@@ -266,8 +270,8 @@ export async function fetchAllBookings(
 				isTeamBooking: isProjectBooking && !isUserBooking,
 				originalData: {
 					...booking,
-					startDate: startDate.toISOString(),
-					endDate: endDate.toISOString()
+					startDate: formatLocalDateTime(startDate),
+					endDate: formatLocalDateTime(endDate)
 				}
 			})
 		})
@@ -312,8 +316,13 @@ export async function fetchAllBookings(
 					// Get client name from project
 					const clientName = task.project?.id ? (clientNameMap.get(task.project.id) || null) : null
 					
+					// Format dates preserving local timezone (avoid UTC conversion)
+					const startDateString = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+					const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`
+					const taskStartDateFormatted = startDateString
+					const taskDueDateFormatted = dueDateString
+					
 					// Create calendar booking for start date
-					const startDateString = startDate.toISOString().split('T')[0]
 					const startTaskTitle = isOverdue
 						? `OVERDUE: ${task.title} - ${task.project?.name || 'Unknown Project'} (START)`
 						: `START: ${task.title} - ${task.project?.name || 'Unknown Project'}`
@@ -335,17 +344,16 @@ export async function fetchAllBookings(
 						clientName: clientName,
 						creatorName: creatorName,
 						assigneeName: assigneeName,
-						taskStartDate: startDate.toISOString().split('T')[0],
-						taskDueDate: dueDate.toISOString().split('T')[0],
+						taskStartDate: taskStartDateFormatted,
+						taskDueDate: taskDueDateFormatted,
 						isUserBooking: isUserTask || isCreatorTask,
 						isTeamBooking: !isUserTask && !isCreatorTask,
 						assigneeId: task.assigneeId || null,
 						creatorId: task.creatorId,
-						originalData: { ...task, isOverdue, dueDate: dueDate.toISOString() }
+						originalData: { ...task, isOverdue, dueDate: formatLocalDate(dueDate) }
 					})
 					
 					// Create calendar booking for due date (only if different from start date)
-					const dueDateString = dueDate.toISOString().split('T')[0]
 					if (dueDateString !== startDateString) {
 						const dueTaskTitle = isOverdue
 							? `OVERDUE: ${task.title} - ${task.project?.name || 'Unknown Project'} (DUE)`
@@ -368,13 +376,13 @@ export async function fetchAllBookings(
 							clientName: clientName,
 							creatorName: creatorName,
 							assigneeName: assigneeName,
-							taskStartDate: startDate.toISOString().split('T')[0],
-							taskDueDate: dueDate.toISOString().split('T')[0],
+							taskStartDate: taskStartDateFormatted,
+							taskDueDate: taskDueDateFormatted,
 							isUserBooking: isUserTask || isCreatorTask,
 							isTeamBooking: !isUserTask && !isCreatorTask,
 							assigneeId: task.assigneeId || null,
 							creatorId: task.creatorId,
-							originalData: { ...task, isOverdue, dueDate: dueDate.toISOString() }
+							originalData: { ...task, isOverdue, dueDate: formatLocalDate(dueDate) }
 						})
 					}
 				}

@@ -17,6 +17,7 @@ import { type CalendarBooking } from "../actions"
 import { APPOINTMENT_TYPES, type AppointmentType } from "../constants"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
+import { parseLocalDateString, formatDateStringDirect } from "@/lib/date-utils"
 import { CalendarView, getWeekDays, formatDate } from "../utils/calendar-utils"
 
 interface CalendarClientProps {
@@ -150,10 +151,10 @@ export default function CalendarClient({
 		})
 	}, [bookings, filterType, bookmarkScope, selectedProject, taskOwnershipFilter, isAdmin, userId])
 
-	// Memoize bookings within current date range
+	// Memoize bookings within current date range (parse YYYY-MM-DD as local to avoid timezone shift)
 	const bookingsInDateRange = useMemo(() => {
 		return filteredBookings.filter((booking) => {
-			const bookingDate = new Date(booking.date)
+			const bookingDate = parseLocalDateString(booking.date)
 			bookingDate.setHours(0, 0, 0, 0)
 			return bookingDate >= dateRange.start && bookingDate <= dateRange.end
 		})
@@ -172,11 +173,11 @@ export default function CalendarClient({
 
 		return filteredBookings
 			.filter((booking) => {
-				const bookingDate = new Date(booking.date)
+				const bookingDate = parseLocalDateString(booking.date)
 				bookingDate.setHours(0, 0, 0, 0)
 				return bookingDate >= today && bookingDate >= dateRange.start && bookingDate <= dateRange.end
 			})
-			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+			.sort((a, b) => parseLocalDateString(a.date).getTime() - parseLocalDateString(b.date).getTime())
 	}, [filteredBookings, dateRange])
 
 	// Memoize bookings by date for calendar day view
@@ -478,7 +479,7 @@ export default function CalendarClient({
 													<div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
 														<div className="flex items-center gap-1">
 															<Calendar className="w-3 h-3" />
-															{new Date(booking.date).toLocaleDateString()}
+															{formatDateStringDirect(booking.date)}
 														</div>
 														{booking.type !== "task" && (
 															<>

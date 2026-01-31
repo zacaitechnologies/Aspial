@@ -34,6 +34,7 @@ import { QuotationFormData } from "../types";
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import { toast } from "@/components/ui/use-toast";
+import { formatLocalDate } from "@/lib/date-utils";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -89,9 +90,9 @@ export default function CreateQuotationForm({
   }>({
     name: quotationForm.description || "New Project", // Use description as project name
     description: quotationForm.description,
-    startDate: quotationForm.startDate ? new Date(quotationForm.startDate).toISOString().split('T')[0] : "",
+    startDate: quotationForm.startDate ? formatLocalDate(new Date(quotationForm.startDate)) : "",
     endDate: quotationForm.startDate && quotationForm.duration ? 
-      new Date(new Date(quotationForm.startDate).setMonth(new Date(quotationForm.startDate).getMonth() + parseInt(quotationForm.duration))).toISOString().split('T')[0] : "",
+      formatLocalDate(new Date(new Date(quotationForm.startDate).setMonth(new Date(quotationForm.startDate).getMonth() + parseInt(quotationForm.duration)))) : "",
     priority: "low"
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -126,9 +127,9 @@ export default function CreateQuotationForm({
     setNewProjectData({
       name: quotationForm.description || "New Project", // Use description as project name
       description: quotationForm.description,
-      startDate: quotationForm.startDate ? new Date(quotationForm.startDate).toISOString().split('T')[0] : "",
+      startDate: quotationForm.startDate ? formatLocalDate(new Date(quotationForm.startDate)) : "",
       endDate: quotationForm.startDate && quotationForm.duration ? 
-        new Date(new Date(quotationForm.startDate).setMonth(new Date(quotationForm.startDate).getMonth() + parseInt(quotationForm.duration))).toISOString().split('T')[0] : "",
+        formatLocalDate(new Date(new Date(quotationForm.startDate).setMonth(new Date(quotationForm.startDate).getMonth() + parseInt(quotationForm.duration)))) : "",
       priority: "low"
     });
   }, [quotationForm.description, quotationForm.startDate, quotationForm.duration]);
@@ -863,10 +864,10 @@ export default function CreateQuotationForm({
                   name: projectData.name || "",
                   description: projectData.description || "",
                   startDate: projectData.startDate 
-                    ? new Date(projectData.startDate).toISOString().split("T")[0] 
+                    ? formatLocalDate(new Date(projectData.startDate)) 
                     : "",
                   endDate: projectData.endDate 
-                    ? new Date(projectData.endDate).toISOString().split("T")[0] 
+                    ? formatLocalDate(new Date(projectData.endDate)) 
                     : "",
                   priority: "low", // Default priority for existing projects (projects don't have priority field)
                 });

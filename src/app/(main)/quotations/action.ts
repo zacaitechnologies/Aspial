@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
+import { formatLocalDateTime } from "@/lib/date-utils"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import {
@@ -1936,7 +1937,7 @@ export async function sendQuotationEmail(
         clientCompany: quotation.Client?.company || "",
         totalAmount: quotation.totalPrice,
         pdfBase64: pdfBase64,
-        quotationDate: quotation.created_at.toISOString(),
+        quotationDate: formatLocalDateTime(new Date(quotation.created_at)),
       }),
     })
 

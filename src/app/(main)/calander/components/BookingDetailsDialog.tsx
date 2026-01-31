@@ -2,6 +2,7 @@
 
 import { CalendarBooking } from "@/app/(main)/calander/actions"
 import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
+import { formatDateStringDirect } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
@@ -49,7 +50,7 @@ export function BookingDetailsDialog({
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="w-4 h-4 text-gray-500" />
-                <span>{new Date(booking.date).toLocaleDateString()}</span>
+                <span>{formatDateStringDirect(booking.date)}</span>
               </div>
               {booking.type !== "task" && (
                 <>
@@ -72,13 +73,13 @@ export function BookingDetailsDialog({
                   {booking.taskStartDate && (
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="w-4 h-4 text-gray-500" />
-                      <span>Start: {new Date(booking.taskStartDate).toLocaleDateString()}</span>
+                      <span>Start: {formatDateStringDirect(booking.taskStartDate)}</span>
                     </div>
                   )}
                   {booking.taskDueDate && (
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="w-4 h-4 text-gray-500" />
-                      <span>Due: {new Date(booking.taskDueDate).toLocaleDateString()}</span>
+                      <span>Due: {formatDateStringDirect(booking.taskDueDate)}</span>
                     </div>
                   )}
                   {booking.projectName && (
