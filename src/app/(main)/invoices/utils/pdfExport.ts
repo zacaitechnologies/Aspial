@@ -718,12 +718,25 @@ export async function generateInvoicePDF(invoice: InvoiceWithQuotation) {
  * Generate invoice PDF as base64 string for email attachment
  */
 export async function generateInvoicePDFBase64(invoice: InvoiceWithQuotation): Promise<string> {
-	// Always fetch full data
 	const fullInvoice = await getInvoiceFullById(invoice.id)
 	if (!fullInvoice) {
 		throw new Error("Invoice not found")
 	}
+	return _generateInvoicePDFInternal(fullInvoice as unknown as InvoiceWithQuotation)
+}
 
+/** Full invoice shape returned by getInvoiceFullById (used for from-full PDF generation). */
+type FullInvoiceFromDb = NonNullable<Awaited<ReturnType<typeof getInvoiceFullById>>>
+
+/**
+ * Generate invoice PDF from already-fetched full invoice (no refetch).
+ * Use from send-email flow to avoid duplicate DB round-trip.
+ */
+export async function generateInvoicePDFBase64FromFull(fullInvoice: FullInvoiceFromDb): Promise<string> {
+	return _generateInvoicePDFInternal(fullInvoice as unknown as InvoiceWithQuotation)
+}
+
+async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): Promise<string> {
 	const doc = new jsPDF()
 	const logoBase64 = await getLogoBase64()
 	const quotation = fullInvoice.quotation

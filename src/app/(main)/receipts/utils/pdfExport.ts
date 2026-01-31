@@ -627,21 +627,32 @@ export async function generateReceiptPDF(receipt: ReceiptWithInvoice) {
  * Generate receipt PDF as base64 string for email attachment
  */
 export async function generateReceiptPDFBase64(receipt: ReceiptWithInvoice): Promise<string> {
-	// Always fetch full data
 	const fullReceipt = await getReceiptFullById(receipt.id)
 	if (!fullReceipt) {
 		throw new Error("Receipt not found")
 	}
+	return _generateReceiptPDFBase64Internal(fullReceipt)
+}
 
+/**
+ * Generate receipt PDF from already-fetched full receipt (no refetch).
+ * Use from send-email flow to avoid duplicate DB round-trip.
+ */
+export async function generateReceiptPDFBase64FromFull(fullReceipt: ReceiptWithInvoice): Promise<string> {
+	return _generateReceiptPDFBase64Internal(fullReceipt)
+}
+
+async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice): Promise<string> {
 	const doc = new jsPDF()
 	const logoBase64 = await getLogoBase64()
 	const invoice = fullReceipt.invoice
-	const quotation = invoice?.quotation
-	
-	if (!quotation || !quotation.services) {
+	const quotationRaw = invoice?.quotation
+
+	if (!quotationRaw || !(quotationRaw as unknown as QuotationWithServices).services) {
 		throw new Error("Quotation data not available")
 	}
-	
+	const quotation = quotationRaw as unknown as QuotationWithServices
+
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const pageHeight = doc.internal.pageSize.getHeight()
 	const margin = 20
@@ -732,14 +743,14 @@ export async function generateReceiptPDFBase64(receipt: ReceiptWithInvoice): Pro
 	currentY = Math.max(leftY, rightY) + 8
 	
 	const allServices = [
-		...regularServices.map((s: { service: { name: string; description?: string; basePrice: number } }) => ({
+		...regularServices.map((s) => ({
 			name: s.service.name,
-			description: s.service.description || "",
+			description: (s.service.description ?? "") as string,
 			price: s.service.basePrice,
 		})),
-		...(quotation.customServices || []).filter((cs: { status: string }) => cs.status === "APPROVED").map((cs: { name: string; description?: string; price: number }) => ({
+		...(quotation.customServices || []).filter((cs) => cs.status === "APPROVED").map((cs) => ({
 			name: cs.name,
-			description: cs.description || "",
+			description: (cs.description ?? "") as string,
 			price: cs.price,
 		})),
 	]

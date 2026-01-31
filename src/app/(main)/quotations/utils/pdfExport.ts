@@ -758,6 +758,14 @@ export async function generateQuotationPDFBase64(quotation: QuotationWithService
   return await _generateQuotationPDFBase64Internal(fullQuotation)
 }
 
+/**
+ * Generate quotation PDF from already-fetched full quotation (no refetch).
+ * Use from send-email flow to avoid duplicate DB round-trip.
+ */
+export async function generateQuotationPDFBase64FromFull(quotation: QuotationWithServices): Promise<string> {
+  return _generateQuotationPDFBase64Internal(quotation)
+}
+
 async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServices): Promise<string> {
   const doc = new jsPDF();
   const logoBase64 = await getLogoBase64();

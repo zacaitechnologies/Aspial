@@ -701,9 +701,9 @@ export async function sendReceiptEmail(
 			return { success: false, error: "Receipt not found" }
 		}
 
-		// Generate PDF as base64
-		const { generateReceiptPDFBase64 } = await import("./utils/pdfExport")
-		const pdfBase64 = await generateReceiptPDFBase64(receipt as any)
+		// Generate PDF as base64 (use FromFull to avoid duplicate getReceiptFullById)
+		const { generateReceiptPDFBase64FromFull } = await import("./utils/pdfExport")
+		const pdfBase64 = await generateReceiptPDFBase64FromFull(receipt)
 
 		// Get Supabase URL and anon key
 		const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -736,20 +736,13 @@ export async function sendReceiptEmail(
 
 		if (!response.ok) {
 			const errorData = await response.text()
-			console.error("Error sending email:", errorData)
-			return { success: false, error: `Failed to send email: ${errorData}` }
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error sending email:", errorData)
+			}
+			return { success: false, error: "Failed to send email. Please try again." }
 		}
 
-		// Record the email in database
-		const dbUser = await prisma.user.findUnique({
-			where: { supabase_id: user.id },
-			select: { id: true },
-		})
-
-		if (!dbUser) {
-			return { success: false, error: "User not found in database" }
-		}
-
+		// Record the email in database (sentById references User.supabase_id)
 		await prisma.receiptEmail.create({
 			data: {
 				receiptId: receipt.id,
@@ -759,9 +752,13 @@ export async function sendReceiptEmail(
 		})
 
 		return { success: true }
-	} catch (error: any) {
-		console.error("Error sending receipt email:", error)
-		return { success: false, error: error.message || "Failed to send email" }
+	} catch (error: unknown) {
+		if (process.env.NODE_ENV === "development") {
+			// eslint-disable-next-line no-console
+			console.error("Error sending receipt email:", error)
+		}
+		const errorMessage = error instanceof Error ? error.message : "Failed to send email"
+		return { success: false, error: errorMessage }
 	}
 }
 
@@ -807,8 +804,10 @@ export async function getReceiptEmailHistory(
 				email: email.sentBy.email,
 			},
 		}))
-	} catch (error) {
-		console.error("Error fetching email history:", error)
+	} catch (error: unknown) {
+		if (process.env.NODE_ENV === "development") {
+			console.error("Error fetching email history:", error)
+		}
 		return []
 	}
 }

@@ -1903,9 +1903,9 @@ export async function sendQuotationEmail(
       return { success: false, error: "Only finalized quotations can be sent" }
     }
 
-    // Generate PDF as base64
-    const { generateQuotationPDFBase64 } = await import("./utils/pdfExport")
-    const pdfBase64 = await generateQuotationPDFBase64(quotation)
+    // Generate PDF as base64 (use FromFull to avoid duplicate getQuotationFullById)
+    const { generateQuotationPDFBase64FromFull } = await import("./utils/pdfExport")
+    const pdfBase64 = await generateQuotationPDFBase64FromFull(quotation)
 
     // Get Supabase URL and anon key
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -1945,33 +1945,14 @@ export async function sendQuotationEmail(
       return { success: false, error: "Failed to send email. Please try again." }
     }
 
-    // Record the email in database
-    const dbUser = await prisma.user.findUnique({
-      where: { supabase_id: user.id },
-      select: { id: true },
+    // Record the email in database (sentById references User.supabase_id)
+    await prisma.quotationEmail.create({
+      data: {
+        quotationId: quotation.id,
+        recipientEmail: validated.recipientEmail,
+        sentById: user.id,
+      },
     })
-
-    if (!dbUser) {
-      return { success: false, error: "User not found in database" }
-    }
-
-    // Use type-safe Prisma client - quotationEmail should be available if schema is up to date
-    try {
-      await prisma.quotationEmail.create({
-        data: {
-          quotationId: quotation.id,
-          recipientEmail: validated.recipientEmail,
-          sentById: dbUser.id,
-        },
-      })
-    } catch (dbError: unknown) {
-      // If model doesn't exist, log in dev but don't fail the email send
-      if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
-        console.error("Error recording email in database:", dbError)
-      }
-      // Continue - email was sent successfully, just couldn't record it
-    }
 
     return { success: true }
   } catch (error: unknown) {
