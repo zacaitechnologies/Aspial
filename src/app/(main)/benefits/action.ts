@@ -571,13 +571,13 @@ export interface UserBenefitsSummary {
 
 // Internal function - not cached, used by cached version
 async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYear()): Promise<UserBenefitsSummary[]> {
-  // Get all non-admin users
+  // Get only users with brand-advisor role (admin view shows brand advisors only)
   const users = await prisma.user.findMany({
     where: {
       userRoles: {
-        none: {
+        some: {
           role: {
-            slug: 'admin',
+            slug: 'brand-advisor',
           },
         },
       },

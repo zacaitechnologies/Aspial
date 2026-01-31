@@ -31,6 +31,7 @@ import {
 	type EmployeeSalesData,
 	type UserBenefitsSummary,
 } from "./action"
+import { checkIsOperationUser } from "../actions/admin-actions"
 import { useSession } from "../contexts/SessionProvider"
 
 export default function EmployeeBenefitsPage() {
@@ -47,30 +48,35 @@ export default function EmployeeBenefitsPage() {
   const [showTierModal, setShowTierModal] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isAdminCheckComplete, setIsAdminCheckComplete] = useState(false)
+  const [isOperationUser, setIsOperationUser] = useState<boolean | null>(null)
   const [allUsersBenefits, setAllUsersBenefits] = useState<UserBenefitsSummary[]>([])
   const [adminLoading, setAdminLoading] = useState(false)
 
-  // Check if user is admin
+  // Check if user is admin and operational-user (operational-user has no access)
   useEffect(() => {
-    async function checkAdmin() {
+    async function checkRoles() {
       if (enhancedUser?.id) {
-        const adminStatus = await checkIsAdmin(enhancedUser.id)
+        const [adminStatus, operationStatus] = await Promise.all([
+          checkIsAdmin(enhancedUser.id),
+          checkIsOperationUser(enhancedUser.id),
+        ])
         setIsAdmin(adminStatus)
+        setIsOperationUser(operationStatus)
         setIsAdminCheckComplete(true)
       }
     }
-    checkAdmin()
+    checkRoles()
   }, [enhancedUser?.id])
 
-  // Fetch staff view data (only for non-admin users)
+  // Fetch staff view data (only for non-admin, non-operation users)
   useEffect(() => {
     async function fetchData() {
-      // Wait for admin check to complete
+      // Wait for role check to complete
       if (!isAdminCheckComplete) {
         return
       }
 
-      if (!enhancedUser?.profile?.id || isAdmin) {
+      if (!enhancedUser?.profile?.id || isAdmin || isOperationUser) {
         setLoading(false)
         return
       }
@@ -102,7 +108,7 @@ export default function EmployeeBenefitsPage() {
     }
 
     fetchData()
-  }, [enhancedUser?.profile?.id, isAdmin, isAdminCheckComplete, selectedYear, selectedMonth, viewMode])
+  }, [enhancedUser?.profile?.id, isAdmin, isOperationUser, isAdminCheckComplete, selectedYear, selectedMonth, viewMode])
 
   // Fetch admin view data
   useEffect(() => {
@@ -603,7 +609,14 @@ export default function EmployeeBenefitsPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8 relative z-10">
-        {isAdmin ? (
+        {isAdminCheckComplete && isOperationUser ? (
+          <Card className="p-8 max-w-xl mx-auto text-center bg-background border-2 border-destructive">
+            <h2 className="text-2xl font-bold text-foreground mb-2">Access restricted</h2>
+            <p className="text-muted-foreground">
+              Benefits are not available for your role. Contact an administrator if you need access.
+            </p>
+          </Card>
+        ) : isAdmin ? (
           <>
             {/* Admin View Header */}
             <div className="text-center mb-8">

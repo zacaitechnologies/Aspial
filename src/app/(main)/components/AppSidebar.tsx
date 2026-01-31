@@ -160,17 +160,16 @@ export function AppSidebar() {
             <SidebarMenu>
               {mainNavItems
                 .filter((item) => {
-                  // Operation users can only see: Projects, Appointment Bookings, Time Tracking, Calendar, Benefits
-                  const allowedUrlsForOperationUser = ["/projects", "/appointment-bookings", "/time-tracking", "/calander", "/benefits"];
+                  // Operation users can only see: Projects, Appointment Bookings, Time Tracking, Calendar (no Benefits)
+                  const allowedUrlsForOperationUser = ["/projects", "/appointment-bookings", "/time-tracking", "/calander"];
                   
                   // If role check is still in progress, show only allowed items (safer default)
                   if (isOperationUser === null) {
                     return allowedUrlsForOperationUser.includes(item.url);
                   }
                   
-                  // If user is operation-user, only show allowed items
+                  // If user is operation-user, only show allowed items (Benefits excluded)
                   if (isOperationUser) {
-                    console.log(`🔒 Operation user - filtering out: ${item.title}`);
                     return allowedUrlsForOperationUser.includes(item.url);
                   }
                   
