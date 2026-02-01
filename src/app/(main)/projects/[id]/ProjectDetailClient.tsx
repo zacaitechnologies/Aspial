@@ -599,16 +599,16 @@ export default function ProjectDetailClient({
 															>
 																<div className="flex items-start justify-between mb-2">
 																	<h5 className="font-semibold text-gray-900">
-																		{qs.service.name}
+																		{qs.service?.name ?? ""}
 																	</h5>
 																	<span className="text-sm font-medium text-green-600 whitespace-nowrap ml-2">
-																		RM {qs.service.basePrice.toFixed(2)}
+																		RM {(qs.service?.basePrice ?? 0).toFixed(2)}
 																	</span>
 																</div>
 																<p className="text-sm text-gray-600 mb-2">
-																	{qs.service.description}
+																	{qs.service?.description ?? ""}
 																</p>
-																{qs.service.ServiceToTag && qs.service.ServiceToTag.length > 0 && (
+																{qs.service?.ServiceToTag && qs.service.ServiceToTag.length > 0 && (
 																	<div className="flex flex-wrap gap-1 mt-2">
 																		{qs.service.ServiceToTag?.map((st) => (
 																			<Badge

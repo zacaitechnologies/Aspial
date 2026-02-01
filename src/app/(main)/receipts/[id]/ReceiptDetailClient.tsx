@@ -315,13 +315,13 @@ export default function ReceiptDetailClient({
 												className="flex justify-between items-start p-3 border rounded-lg"
 											>
 												<div className="flex-1">
-													<p className="font-medium">{qs.service.name}</p>
+													<p className="font-medium">{qs.service?.name ?? ""}</p>
 													<p className="text-sm text-muted-foreground">
-														{qs.service.description}
+														{qs.service?.description ?? ""}
 													</p>
 												</div>
 												<Badge variant="outline" className="ml-4">
-													RM{qs.service.basePrice.toFixed(2)}
+													RM{(qs.service?.basePrice ?? 0).toFixed(2)}
 												</Badge>
 											</div>
 										))}

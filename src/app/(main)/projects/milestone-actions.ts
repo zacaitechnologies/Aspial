@@ -297,8 +297,9 @@ export async function getProjectServices(projectId: number) {
   const servicesMap = new Map()
   project.quotations.forEach(quotation => {
     quotation.services.forEach(qs => {
-      if (!servicesMap.has(qs.service.id)) {
-        servicesMap.set(qs.service.id, qs.service)
+      const service = qs.service
+      if (service && !servicesMap.has(service.id)) {
+        servicesMap.set(service.id, service)
       }
     })
   })

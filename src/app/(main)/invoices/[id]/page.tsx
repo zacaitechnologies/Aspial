@@ -42,7 +42,7 @@ export default async function InvoiceDetailPage({
 	if (invoice.quotation) {
 		const regularServices = invoice.quotation.services.filter((qs) => !qs.customServiceId)
 		const servicesTotal = regularServices.reduce(
-			(sum, serviceItem) => sum + serviceItem.service.basePrice,
+			(sum, serviceItem) => sum + (serviceItem.service?.basePrice ?? 0),
 			0
 		)
 		const approvedCustomServicesTotal = (invoice.quotation.customServices || [])

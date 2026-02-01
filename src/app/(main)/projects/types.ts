@@ -416,7 +416,7 @@ export type ProjectWithDetails = {
               color: string | null;
             };
           }>;
-        };
+        } | null;
       }>;
       customServices: Array<{
         id: string;

@@ -362,7 +362,7 @@ export async function createInvoice(data: unknown) {
 
 	// Calculate quotation grand total (using pre-filtered data from DB)
 	const servicesTotal = quotation.services.reduce(
-		(sum, qs) => sum + qs.service.basePrice,
+		(sum, qs) => sum + (qs.service?.basePrice ?? 0),
 		0
 	)
 	const approvedCustomServicesTotal = quotation.customServices.reduce(
