@@ -236,11 +236,11 @@ export default function UserTimeTracking({
   }
 
   return (
-    <div className="h-[calc(100vh-80px)] p-4 relative overflow-hidden">
+    <div className="min-h-[calc(100vh-80px)] p-4 relative overflow-y-auto">
       <FloatingElements />
-      <div className="mx-auto max-w-7xl h-full">
+      <div className="mx-auto max-w-7xl xl:h-full min-h-0">
         {/* Main Content */}
-        <div className="h-full grid grid-cols-1 xl:grid-cols-5 gap-6">
+        <div className="xl:h-full min-h-0 grid grid-cols-1 xl:grid-cols-5 gap-6">
           {/* Left Column - Timer Section */}
           <div className="xl:col-span-3 flex flex-col space-y-6">
             <div className="relative">

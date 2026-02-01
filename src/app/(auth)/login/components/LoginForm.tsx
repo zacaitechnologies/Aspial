@@ -98,7 +98,7 @@ export function LoginForm({
               <LoadingButton 
                 loading={isPending} 
                 type="submit"
-                className="px-10 py-6 text-lg font-semibold bg-background/95 text-foreground hover:bg-background transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 border border-border uppercase"
+                className="px-10 py-6 text-lg font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 uppercase"
               >
                 LOGIN
               </LoadingButton>

@@ -33,35 +33,40 @@ export function TimerDisplay({
   isStopping = false,
 }: TimerDisplayProps) {
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center gap-2 text-lg mb-6">
-        <Timer className="h-5 w-5 text-primary" />
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-2 text-base sm:text-lg mb-4 sm:mb-6 font-semibold text-foreground">
+        <Timer className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
         Timer
       </div>
 
-      {/* Timer Display - Takes up most of the space */}
-      <div className="flex-1 flex flex-col justify-center">
-        <div className="text-center space-y-8">
-          <div className="relative">
+      {/* Timer Display - Responsive size for mobile to desktop */}
+      <div className="flex-1 flex flex-col justify-center min-h-0">
+        <div className="text-center space-y-4 sm:space-y-6 md:space-y-8">
+          <div className="relative w-full min-w-0">
             <div
-              className={`text-8xl font-mono font-bold py-8 px-12 rounded-3xl ${
-                isTracking
+              className={`font-mono font-bold rounded-2xl sm:rounded-3xl
+                text-4xl py-4 px-4
+                sm:text-5xl sm:py-5 sm:px-6
+                md:text-6xl md:py-6 md:px-8
+                lg:text-7xl lg:py-7 lg:px-10
+                xl:text-8xl xl:py-8 xl:px-12
+                ${isTracking
                   ? "text-primary bg-card/60"
                   : "text-muted-foreground bg-card/60"
-              }`}
+                }`}
             >
               {formatTime(currentSession)}
             </div>
           </div>
 
           {/* Timer Control Buttons */}
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-wrap justify-center gap-2 sm:gap-4">
             {!isTracking ? (
               <Button
                 onClick={onStart}
                 disabled={!selectedProject || isStarting}
                 size="lg"
-                className="bg-primary hover:bg-primary/80 text-primary-foreground text-lg px-8 py-3"
+                className="bg-primary hover:bg-primary/80 text-primary-foreground text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3"
               >
                 {isStarting ? (
                   <>
@@ -83,16 +88,16 @@ export function TimerDisplay({
                     disabled={isPausing}
                     size="lg"
                     variant="outline"
-                    className="border-[var(--color-accent)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 text-lg px-8 py-3"
+                    className="border-primary text-primary hover:bg-primary/10 text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 [&_svg]:shrink-0"
                   >
                     {isPausing ? (
                       <>
-                        <div className="h-6 w-6 mr-2 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                        <div className="h-6 w-6 mr-2 shrink-0 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         Pausing...
                       </>
                     ) : (
                       <>
-                        <Pause className="h-6 w-6 mr-2" />
+                        <Pause className="h-6 w-6 mr-2 shrink-0" />
                         Pause
                       </>
                     )}
@@ -103,16 +108,16 @@ export function TimerDisplay({
                     disabled={isResuming}
                     size="lg"
                     variant="outline"
-                    className="border-primary text-primary hover:bg-primary/10 text-lg px-8 py-3"
+                    className="border-primary text-primary hover:bg-primary/10 text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 [&_svg]:shrink-0"
                   >
                     {isResuming ? (
                       <>
-                        <div className="h-6 w-6 mr-2 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                        <div className="h-6 w-6 mr-2 shrink-0 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                         Resuming...
                       </>
                     ) : (
                       <>
-                        <Play className="h-6 w-6 mr-2" />
+                        <Play className="h-6 w-6 mr-2 shrink-0" />
                         Resume
                       </>
                     )}
@@ -123,16 +128,16 @@ export function TimerDisplay({
                   disabled={isStopping}
                   size="lg"
                   variant="destructive"
-                  className="text-lg px-8 py-3"
+                  className="text-destructive-foreground text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 [&_svg]:shrink-0"
                 >
                   {isStopping ? (
                     <>
-                      <div className="h-6 w-6 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="h-6 w-6 mr-2 shrink-0 border-2 border-destructive-foreground border-t-transparent rounded-full animate-spin" />
                       Stopping...
                     </>
                   ) : (
                     <>
-                      <Square className="h-6 w-6 mr-2" />
+                      <Square className="h-6 w-6 mr-2 shrink-0" />
                       Stop
                     </>
                   )}
