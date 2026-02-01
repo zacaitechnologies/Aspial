@@ -5,18 +5,26 @@ import { getInvoiceFullById } from "../action"
 
 /** Logo path relative to project root (public folder). */
 const LOGO_PATH = "public/images/mainlogo.png"
+/** Small logo for PDF (avoids ~17MB PDFs from 3858×1199 full-res embed). Prefer when present. */
+const LOGO_PDF_PATH = "public/images/mainlogo-pdf.png"
+/** Max logo width in pixels when resizing in browser; keeps PDF size small. */
+const LOGO_PDF_MAX_WIDTH = 250
 
 /**
  * Load ASPIAL logo as base64 data URL for use in jsPDF.
- * Works in Node (server) and browser (client export).
+ * Resizes in browser to avoid embedding full-resolution image (~17MB).
+ * Prefers mainlogo-pdf.png on server when present for smaller server-generated PDFs.
  */
 async function getLogoBase64(): Promise<string | null> {
 	if (typeof window === "undefined") {
 		try {
 			const path = await import("path")
 			const fs = await import("fs")
-			const logoPath = path.join(process.cwd(), LOGO_PATH)
-			const buf = fs.readFileSync(logoPath)
+			const cwd = process.cwd()
+			const pdfPath = path.join(cwd, LOGO_PDF_PATH)
+			const mainPath = path.join(cwd, LOGO_PATH)
+			const pathToRead = fs.existsSync(pdfPath) ? pdfPath : mainPath
+			const buf = fs.readFileSync(pathToRead)
 			return `data:image/png;base64,${buf.toString("base64")}`
 		} catch {
 			return null
@@ -25,15 +33,53 @@ async function getLogoBase64(): Promise<string | null> {
 	try {
 		const res = await fetch("/images/mainlogo.png")
 		const blob = await res.blob()
-		return new Promise<string | null>((resolve) => {
+		const dataUrl = await new Promise<string | null>((resolve) => {
 			const reader = new FileReader()
 			reader.onloadend = () => resolve(reader.result as string)
 			reader.onerror = () => resolve(null)
 			reader.readAsDataURL(blob)
 		})
+		if (!dataUrl) return null
+		return await resizeImageDataUrlForPdf(dataUrl, LOGO_PDF_MAX_WIDTH)
 	} catch {
 		return null
 	}
+}
+
+/**
+ * Resize a data URL image to max width for PDF to avoid huge file sizes.
+ * Used in browser only; logo is displayed at ~38×16mm so 250px is sufficient.
+ */
+function resizeImageDataUrlForPdf(dataUrl: string, maxWidth: number): Promise<string | null> {
+	return new Promise((resolve) => {
+		const img = new Image()
+		img.crossOrigin = "anonymous"
+		img.onload = () => {
+			const w = img.naturalWidth
+			const h = img.naturalHeight
+			if (w <= maxWidth) {
+				resolve(dataUrl)
+				return
+			}
+			const canvas = document.createElement("canvas")
+			const scale = maxWidth / w
+			canvas.width = maxWidth
+			canvas.height = Math.round(h * scale)
+			const ctx = canvas.getContext("2d")
+			if (!ctx) {
+				resolve(dataUrl)
+				return
+			}
+			ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+			try {
+				resolve(canvas.toDataURL("image/png"))
+			} catch {
+				resolve(dataUrl)
+			}
+		}
+		img.onerror = () => resolve(dataUrl)
+		img.src = dataUrl
+	})
 }
 
 /** Terms and conditions text (points 1-3). */
@@ -163,7 +209,7 @@ function addInvoiceHeader(
 	const logoY = 4
 	if (logoBase64) {
 		try {
-			doc.addImage(logoBase64, "PNG", logoStartX, logoY, LOGO_HEADER_WIDTH, LOGO_HEADER_HEIGHT)
+			doc.addImage(logoBase64, "PNG", logoStartX, logoY, LOGO_HEADER_WIDTH, LOGO_HEADER_HEIGHT, "logo")
 		} catch {
 			// If image fails, fall back to text-only
 		}

@@ -41,9 +41,9 @@ export type QuotationWithServices = {
   services: {
     id: number;
     quotationId: number;
-    serviceId: number;
+    serviceId: number | null; // null when row links a custom service (customServiceId set)
     customServiceId?: string;
-    service: Services;
+    service: Services | null; // null when customServiceId is set
     customService?: {
       id: string;
       quotationId: number;

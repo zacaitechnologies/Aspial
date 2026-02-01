@@ -96,25 +96,18 @@ export default function CreateInvoiceForm({
 		checkAdminAndFetchUsers()
 	}, [isOpen, enhancedUser?.id, isAdminProp])
 
-	// Load prefilled quotation: use prefetched when available to avoid slow fetch
+	// Load prefilled quotation: always fetch full quotation (services + customServices with real prices)
+	// so invoice total = all standard services + approved custom services. List/prefetched shape often
+	// has service.basePrice = 0, which would show only custom service amount.
+	// Keep dependency array length constant (3 items) to satisfy React's useEffect rules.
 	useEffect(() => {
 		if (!prefilledQuotationId || !isOpen) return
-		if (prefetchedQuotation && prefetchedQuotation.id === prefilledQuotationId) {
-			setSelectedQuotation(prefetchedQuotation)
-			setInvoiceForm(prev => ({ ...prev, quotationId: prefilledQuotationId }))
-			if (prefetchedQuotation.createdBy?.supabase_id) {
-				setSelectedCreatedById(prefetchedQuotation.createdBy.supabase_id)
-			}
-			setSearchQuery("")
-			setSearchResults([])
-			return
-		}
 		handleQuotationSelect(prefilledQuotationId)
 	}, [prefilledQuotationId, isOpen, prefetchedQuotation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Calculate quotation grand total when quotation is selected.
-	// Use stored totalPrice as primary (source of truth on quotation); fall back to recalculated from line items
-	// when totalPrice is missing/0 (recalculation can be 0 if services are missing or custom services not APPROVED).
+	// Include approved custom services (no duration multiplication). Use calculated total when we have
+	// services/customServices data so custom service amount is always included; fall back to stored total only when calculated is 0.
 	useEffect(() => {
 		if (selectedQuotation) {
 			const storedTotal = Number(selectedQuotation.totalPrice) || 0
@@ -138,8 +131,8 @@ export default function CreateInvoiceForm({
 			}
 
 			const calculatedTotal = Math.max(0, subtotal - discountAmount)
-			// Prefer stored total when it has a value so we don't show 0 when line-item recalculation fails
-			const grandTotal = storedTotal > 0 ? storedTotal : calculatedTotal
+			// Use calculated total (includes approved custom services) when available; else stored total
+			const grandTotal = calculatedTotal > 0 ? calculatedTotal : storedTotal
 			setQuotationGrandTotal(grandTotal)
 			// Pre-fill invoice amount when quotation total is available
 			if (grandTotal > 0) {

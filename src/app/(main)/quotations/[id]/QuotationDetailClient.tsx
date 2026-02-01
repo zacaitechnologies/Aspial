@@ -117,8 +117,11 @@ export default function QuotationDetailClient({
 		}
 	}
 
-	// Use quotation's totalPrice directly - always show the full amount regardless of invoices
-	const quotationGrandTotal = quotation?.totalPrice || 0
+	// Total = stored totalPrice (standard services with discount) + approved custom services (no duration multiplication)
+	const approvedCustomTotal = (quotation?.customServices ?? [])
+		.filter((cs) => cs.status === "APPROVED")
+		.reduce((sum, cs) => sum + cs.price, 0)
+	const quotationGrandTotal = (quotation?.totalPrice ?? 0) + approvedCustomTotal
 
 	const handleRefresh = async () => {
 		// Invalidate cache and refresh the page

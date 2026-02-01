@@ -141,19 +141,14 @@ export default function QuotationCard({
     );
   }, []);
 
-  // Calculate grand total including approved custom services
+  // Calculate grand total including approved custom services (custom service price is not multiplied by duration)
   const grandTotal = (() => {
-    // quotation.totalPrice is already the grand total for entire duration (fixed services)
+    // quotation.totalPrice is the total for standard services (with discount)
     const fixedServicesTotal = quotation.totalPrice;
-    
-    // Custom services prices are per month, so multiply by duration
-    const customServicesMonthly = customServices
+    // Approved custom services: add their price once (no duration multiplication)
+    const customServicesTotal = customServices
       .filter((cs) => cs.status === "APPROVED")
       .reduce((sum, cs) => sum + cs.price, 0);
-    
-    const duration = quotation.duration || 1;
-    const customServicesTotal = customServicesMonthly * duration;
-    
     return fixedServicesTotal + customServicesTotal;
   })();
 

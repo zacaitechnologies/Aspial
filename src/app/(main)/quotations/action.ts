@@ -1819,13 +1819,13 @@ export async function updateCustomServiceStatus(
       },
     });
 
-    // If approved, create QuotationService entry
+    // If approved, create QuotationService entry (serviceId omitted for custom services)
     if (validated.status === "APPROVED") {
       await tx.quotationService.create({
         data: {
           quotationId: customService.quotationId,
           customServiceId: validated.customServiceId,
-          serviceId: 1, // Dummy service ID, not used when customServiceId is set
+          // serviceId omitted: custom services are linked via customServiceId only; DB stores NULL
         },
       });
     }

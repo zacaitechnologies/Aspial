@@ -247,13 +247,13 @@ enum PaymentStatus {
 }
 
 model QuotationService {
-  id              Int            @id @default(autoincrement())
+  id              Int             @id @default(autoincrement())
   quotationId     Int
-  serviceId       Int
+  serviceId       Int?            // null when row links a custom service (customServiceId set)
   customServiceId String?
-  customService   CustomService? @relation(fields: [customServiceId], references: [id], onDelete: Cascade)
-  quotation       Quotation      @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  service         Services       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  customService   CustomService?  @relation(fields: [customServiceId], references: [id], onDelete: Cascade)
+  quotation       Quotation       @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  service         Services?       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@unique([quotationId, serviceId])
   @@unique([quotationId, customServiceId])

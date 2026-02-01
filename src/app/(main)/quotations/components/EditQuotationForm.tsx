@@ -351,8 +351,12 @@ export default function EditQuotationForm({
 
   const editTotalPrice = calculateEditTotalPrice();
   const editDiscountedTotal = calculateEditDiscountedTotal();
-  
-  // Calculate approved custom services total
+  const approvedCustomServicesTotal = customServices
+    .filter((cs) => cs.status === "APPROVED")
+    .reduce((sum, cs) => sum + cs.price, 0);
+  const editGrandTotal = editDiscountedTotal + approvedCustomServicesTotal;
+
+  // Calculate approved custom services total (used when saving)
   const calculateApprovedCustomServicesTotal = () => {
     return customServices
       .filter((cs) => cs.status === "APPROVED")
@@ -524,13 +528,9 @@ export default function EditQuotationForm({
         projectId = selectedProjectId || editForm.projectId;
       }
 
-      // Calculate total: sum of services with discount + approved custom services (no duration multiplication)
-      const approvedCustomServicesTotal = calculateApprovedCustomServicesTotal();
-      const total = editDiscountedTotal + approvedCustomServicesTotal;
-
       await editQuotationById(editingQuotation.id.toString(), {
         description: editForm.description,
-        totalPrice: total, // Store total (sum of services with discount + custom services, no duration multiplication)
+        totalPrice: editGrandTotal, // Sum of services (with discount) + approved custom services; no duration multiplication
         workflowStatus: (workflowStatus || editForm.workflowStatus) as "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled",
         paymentStatus: editForm.paymentStatus,
         // If we already created the client (for final quotations with new clients), use the clientId
@@ -1252,28 +1252,36 @@ export default function EditQuotationForm({
             </div>
 
             <div className="grid grid-cols-2 justify-center gap-2">
-              <Label htmlFor="edit-totalPrice">Total Price (Per Month)</Label>
+              <Label htmlFor="edit-totalPrice">Total Price</Label>
               <div className="p-3 bg-muted rounded-md">
                 {editForm.discountValue &&
                 parseFloat(editForm.discountValue) > 0 ? (
                   <div className="text-right">
                     <span className="text-sm text-muted-foreground line-through">
-                      RM{editTotalPrice.toFixed(2)}
+                      RM{(editTotalPrice + approvedCustomServicesTotal).toFixed(2)}
                     </span>
                     <br />
                     <span className="text-lg font-bold text-green-600">
-                      RM{editDiscountedTotal.toFixed(2)}
+                      RM{editGrandTotal.toFixed(2)}
                     </span>
                     <div className="text-xs text-muted-foreground">
                       Discount: RM
                       {(editTotalPrice - editDiscountedTotal).toFixed(2)}
+                      {approvedCustomServicesTotal > 0 && (
+                        <> · Includes RM{approvedCustomServicesTotal.toFixed(2)} from approved custom services</>
+                      )}
                     </div>
                   </div>
                 ) : (
                   <div className="text-right">
                     <span className="text-lg font-bold">
-                      RM{editTotalPrice.toFixed(2)}
+                      RM{editGrandTotal.toFixed(2)}
                     </span>
+                    {approvedCustomServicesTotal > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        Includes RM{approvedCustomServicesTotal.toFixed(2)} from approved custom services
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
