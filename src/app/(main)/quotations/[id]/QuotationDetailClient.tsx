@@ -321,11 +321,16 @@ export default function QuotationDetailClient({
 											</div>
 										))}
 									{quotation.customServices && quotation.customServices
-										.filter((cs) => cs.status === "APPROVED")
 										.map((cs) => (
 											<div
 												key={cs.id}
-												className="flex justify-between items-start p-3 border rounded-lg bg-blue-50"
+												className={`flex justify-between items-start p-3 border rounded-lg ${
+													cs.status === "APPROVED"
+														? "bg-primary/10"
+														: cs.status === "REJECTED"
+															? "bg-muted/50"
+															: "bg-muted/30"
+												}`}
 											>
 												<div className="flex-1">
 													<p className="font-medium">{cs.name}</p>

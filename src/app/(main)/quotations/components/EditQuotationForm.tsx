@@ -356,6 +356,8 @@ export default function EditQuotationForm({
     .reduce((sum, cs) => sum + cs.price, 0);
   const editGrandTotal = editDiscountedTotal + approvedCustomServicesTotal;
 
+  const hasPendingCustomServices = customServices.some((cs) => cs.status === "PENDING");
+
   // Calculate approved custom services total (used when saving)
   const calculateApprovedCustomServicesTotal = () => {
     return customServices
@@ -421,6 +423,16 @@ export default function EditQuotationForm({
         });
         return;
       }
+    }
+
+    // If finalizing, block when there are pending custom services
+    if (workflowStatus === "final" && hasPendingCustomServices) {
+      toast({
+        title: "Cannot finalize",
+        description: "There are pending custom service requests. Please have an admin approve or reject them first.",
+        variant: "destructive",
+      });
+      return;
     }
 
     // If finalizing, show confirmation dialog first
@@ -1289,7 +1301,7 @@ export default function EditQuotationForm({
 
           </div>
 
-          <div className="flex justify-end space-x-2 sticky bottom-0 bg-background pt-4">
+          <div className="flex flex-wrap justify-end gap-x-2 gap-y-1 sticky bottom-0 bg-background pt-4">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
@@ -1305,7 +1317,8 @@ export default function EditQuotationForm({
             {editForm.workflowStatus === "draft" && (
               <Button 
                 onClick={() => handleUpdateQuotationClick("final")}
-                disabled={isSaving}
+                disabled={isSaving || hasPendingCustomServices}
+                title={hasPendingCustomServices ? "Resolve pending custom services first (approve or reject)" : undefined}
               >
                 {isSaving ? "Processing..." : "Finalize Quotation"}
               </Button>
@@ -1317,6 +1330,11 @@ export default function EditQuotationForm({
               >
                 {isSaving ? "Updating..." : "Update Quotation"}
               </Button>
+            )}
+            {editForm.workflowStatus === "draft" && hasPendingCustomServices && (
+              <p className="w-full text-sm text-muted-foreground text-right">
+                Finalize is disabled until all custom service requests are approved or rejected by an admin.
+              </p>
             )}
           </div>
         </div>

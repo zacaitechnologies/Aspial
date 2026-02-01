@@ -185,14 +185,9 @@ const LOGO_HEADER_HEIGHT = 16;
 const HEADER_HEIGHT = 24;
 const CONTENT_START_Y = 30;
 
-// Add header to every page (logo on left, company info to the right; no "# QUOTATION" or page number in header)
+// Add header to every page (logo on left, company info to the right)
 function addHeader(
   doc: jsPDF,
-  _pageNumber: number,
-  _totalPages: number,
-  _quotationName: string,
-  _quotationDate: string,
-  _advisorName: string,
   logoBase64: string | null
 ) {
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -238,22 +233,104 @@ function addHeader(
   doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
 }
 
-// Helper to check if we need a new page and add header
+// Info box dimensions (circled section with QUOTATION NO, DATE, ADVISOR, PAGE NO)
+const INFO_BOX_HEIGHT = 28;
+const INFO_BOX_START_Y = CONTENT_START_Y;
+const CONTENT_AFTER_INFO_BOX_Y = CONTENT_START_Y + INFO_BOX_HEIGHT + 8;
+
+// Add quotation info box to every page (QUOTATION label, Bill To, QUOTATION NO, DATE, ADVISOR, PAGE NO)
+function addQuotationInfoBox(
+  doc: jsPDF,
+  pageNumber: number,
+  totalPages: number,
+  quotationName: string,
+  quotationDate: string,
+  advisorName: string,
+  clientInfo: { name: string; company: string; phone: string; email: string }
+) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  const rightCol = pageWidth - margin;
+  
+  // Clear the area first (white background)
+  doc.setFillColor(255, 255, 255);
+  doc.rect(margin, INFO_BOX_START_Y, pageWidth - 2 * margin, INFO_BOX_HEIGHT, "F");
+  
+  let leftY = INFO_BOX_START_Y + 6;
+  let rightY = INFO_BOX_START_Y + 6;
+  
+  // Left side - Big bolded QUOTATION label
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
+  doc.text("QUOTATION", margin + 3, leftY);
+  leftY += 6;
+  
+  // Left side - Bill To section (smaller font)
+  doc.setFontSize(9);
+  if (clientInfo.company) {
+    doc.setFont("helvetica", "bold");
+    doc.text(`Bill To: ${clientInfo.company}`, margin + 3, leftY);
+    doc.setFont("helvetica", "normal");
+  } else {
+    doc.setFont("helvetica", "bold");
+    doc.text(`Bill To:`, margin + 3, leftY);
+    doc.setFont("helvetica", "normal");
+  }
+  leftY += 4;
+  
+  if (clientInfo.name) {
+    doc.text(`ATTN TO: ${clientInfo.name}`, margin + 3, leftY);
+  }
+  leftY += 4;
+  
+  if (clientInfo.phone) {
+    doc.text(`TEL NO: ${clientInfo.phone}`, margin + 3, leftY);
+  }
+  leftY += 4;
+  
+  if (clientInfo.email) {
+    doc.text(`EMAIL: ${clientInfo.email}`, margin + 3, leftY);
+  }
+  
+  // Right side - Quotation details (right-aligned, inside box)
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text(`QUOTATION NO : ${quotationName}`, rightCol - 3, rightY, { align: "right" });
+  rightY += 5;
+  
+  doc.text(`DATE : ${quotationDate}`, rightCol - 3, rightY, { align: "right" });
+  rightY += 5;
+  
+  doc.text(`ADVISOR : ${advisorName}`, rightCol - 3, rightY, { align: "right" });
+  rightY += 5;
+  
+  // Page number
+  doc.text(`PAGE NO : ${pageNumber} of ${totalPages}`, rightCol - 3, rightY, { align: "right" });
+  
+  // Draw horizontal line at the bottom of info section
+  doc.setDrawColor(BLACK[0], BLACK[1], BLACK[2]);
+  doc.setLineWidth(0.5);
+  doc.line(margin, INFO_BOX_START_Y + INFO_BOX_HEIGHT, pageWidth - margin, INFO_BOX_START_Y + INFO_BOX_HEIGHT);
+}
+
+// Helper to check if we need a new page and add header + info box
 function checkAndAddPage(
   doc: jsPDF,
   currentY: number,
   pageHeight: number,
+  logoBase64: string | null,
   quotationName: string,
   quotationDate: string,
   advisorName: string,
-  totalPages: number,
-  logoBase64: string | null
+  clientInfo: { name: string; company: string; phone: string; email: string }
 ): number {
   if (currentY > pageHeight - 30) {
-    const currentPage = doc.getNumberOfPages();
     doc.addPage();
-    addHeader(doc, currentPage + 1, totalPages, quotationName, quotationDate, advisorName, logoBase64);
-    return CONTENT_START_Y;
+    const totalPages = doc.getNumberOfPages();
+    addHeader(doc, logoBase64);
+    addQuotationInfoBox(doc, totalPages, totalPages, quotationName, quotationDate, advisorName, clientInfo);
+    return CONTENT_AFTER_INFO_BOX_Y;
   }
   return currentY;
 }
@@ -268,10 +345,11 @@ function addTermsAndConditions(
   margin: number,
   pageWidth: number,
   pageHeight: number,
+  logoBase64: string | null,
   quotationName: string,
   quotationDate: string,
   advisorName: string,
-  logoBase64: string | null
+  clientInfo: { name: string; company: string; phone: string; email: string }
 ): number {
   const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY;
   let currentY = startY;
@@ -282,13 +360,19 @@ function addTermsAndConditions(
   doc.text("Terms And Conditions", margin, currentY);
   currentY += 6;
 
+  // Helper to add new page with header and info box
+  const addNewPage = () => {
+    doc.addPage();
+    const newTotalPages = doc.getNumberOfPages();
+    addHeader(doc, logoBase64);
+    addQuotationInfoBox(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, clientInfo);
+    return CONTENT_AFTER_INFO_BOX_Y;
+  };
+
   // T&C points 1-3 (font 9pt)
   for (const paragraph of TERMS_AND_CONDITIONS) {
     if (currentY > pageHeight - 25) {
-      doc.addPage();
-      const newTotalPages = doc.getNumberOfPages();
-      addHeader(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, logoBase64);
-      currentY = CONTENT_START_Y;
+      currentY = addNewPage();
     }
     // Re-set font after page break (header changes font)
     doc.setFont("helvetica", "normal");
@@ -297,10 +381,7 @@ function addTermsAndConditions(
     const lines = doc.splitTextToSize(paragraph, contentWidth);
     for (const line of lines) {
       if (currentY > pageHeight - 25) {
-        doc.addPage();
-        const newTotalPages = doc.getNumberOfPages();
-        addHeader(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, logoBase64);
-        currentY = CONTENT_START_Y;
+        currentY = addNewPage();
         // Re-set font after page break
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
@@ -315,10 +396,7 @@ function addTermsAndConditions(
   // Payment Information (larger font for visibility)
   currentY += 5;
   if (currentY > pageHeight - 30) {
-    doc.addPage();
-    const newTotalPages = doc.getNumberOfPages();
-    addHeader(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, logoBase64);
-    currentY = CONTENT_START_Y;
+    currentY = addNewPage();
   }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
@@ -326,10 +404,7 @@ function addTermsAndConditions(
   const paymentLines = doc.splitTextToSize(PAYMENT_INFO, contentWidth);
   for (const line of paymentLines) {
     if (currentY > pageHeight - 25) {
-      doc.addPage();
-      const newTotalPages = doc.getNumberOfPages();
-      addHeader(doc, newTotalPages, newTotalPages, quotationName, quotationDate, advisorName, logoBase64);
-      currentY = CONTENT_START_Y;
+      currentY = addNewPage();
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
@@ -366,14 +441,13 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   const doc = new jsPDF();
   const logoBase64 = await getLogoBase64();
 
-  // Use custom services already loaded on the quotation (full fetch includes these)
-  const customServices = quotation.customServices ?? [];
+  // Only include approved custom services in PDF (exclude pending and rejected)
+  const customServices = (quotation.customServices ?? []).filter((cs) => cs.status === "APPROVED");
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
   const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY;
-  let currentY = CONTENT_START_Y;
 
   // Calculate totals
   const regularServices = quotation.services.filter((qs) => !qs.customServiceId);
@@ -404,83 +478,22 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
     : 'ADMIN';
   
   // Get client info
-  const clientName = quotation.Client?.name || '';
-  const clientCompany = quotation.Client?.company || '';
-  const clientPhone = quotation.Client?.phone || '';
-  const clientEmail = quotation.Client?.email || '';
+  const clientInfo = {
+    name: quotation.Client?.name || '',
+    company: quotation.Client?.company || '',
+    phone: quotation.Client?.phone || '',
+    email: quotation.Client?.email || '',
+  };
   
   // Prepare header data
   const quotationDate = formatDate(new Date(quotation.created_at));
   
-  // Add header to first page (we'll update total pages later)
-  addHeader(doc, 1, 1, quotation.name, quotationDate, advisorName, logoBase64);
+  // Add header and info box to first page (we'll update total pages later)
+  addHeader(doc, logoBase64);
+  addQuotationInfoBox(doc, 1, 1, quotation.name, quotationDate, advisorName, clientInfo);
   
-  // Quotation details section - two columns layout
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  
-  const leftCol = margin;
-  const rightCol = pageWidth - margin; // Right-aligned from right margin
-  let leftY = currentY + 3; // Offset to align with right column
-  let rightY = currentY;
-  
-  // Left side - Big bolded QUOTATION label
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("QUOTATION", leftCol, leftY);
-  leftY += 8;
-  
-  // Left side - Bill To section
-  if (clientCompany) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(`Bill To: ${clientCompany}`, leftCol, leftY);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-  } else {
-    doc.setFont("helvetica", "bold");
-    doc.text(`Bill To :`, leftCol, leftY);
-    doc.setFont("helvetica", "normal");
-  }
-  leftY += 5;
-  
-  if (clientName) {
-    doc.text(`ATTN TO: ${clientName}`, leftCol, leftY);
-  } else {
-    doc.text(`ATTN TO :`, leftCol, leftY);
-  }
-  leftY += 5;
-  
-  doc.text("TEL NO :", leftCol, leftY);
-  if (clientPhone) {
-    doc.text(`TEL NO: ${clientPhone}`, leftCol, leftY);
-  } else {
-    doc.text(`TEL NO :`, leftCol, leftY);
-  }
-  leftY += 5;
-  
-  doc.text("EMAIL :", leftCol, leftY);
-  if (clientEmail) {
-    doc.text(`EMAIL: ${clientEmail}`, leftCol, leftY);
-  } else {
-    doc.text(`EMAIL :`, leftCol, leftY);
-  }
-  
-  // Right side - Quotation details (right-aligned)
-  doc.text(`QUOTATION NO : ${quotation.name}`, rightCol, rightY, { align: "right" });
-  rightY += 5;
-  
-  doc.text(`DATE : ${quotationDate}`, rightCol, rightY, { align: "right" });
-  rightY += 5;
-  
-  doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" });
-  rightY += 5;
-  
-  // Add PAGE NO right below ADVISOR
-  doc.text(`PAGE NO : 1 of 1`, rightCol, rightY, { align: "right" });
-  
-  // Use the maximum Y position from both columns
-  currentY = Math.max(leftY, rightY) + 8;
+  // Start content after the info box
+  let currentY = CONTENT_AFTER_INFO_BOX_Y;
   
   // Combine all services
   const allServices = [
@@ -668,47 +681,33 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
         }
       },
       didDrawPage: (data: any) => {
-        // Add header on every page
+        // Add header and info box on every page (for table overflow pages)
         const pageNum = data.pageNumber;
         const totalPages = doc.getNumberOfPages();
-        addHeader(doc, pageNum, totalPages, quotation.name, quotationDate, advisorName, logoBase64);
+        addHeader(doc, logoBase64);
+        addQuotationInfoBox(doc, pageNum, totalPages, quotation.name, quotationDate, advisorName, clientInfo);
       },
     });
     
     currentY = (doc as any).lastAutoTable.finalY + 10;
   }
 
-  // Get final total pages
-  const totalPages = doc.getNumberOfPages();
-  
-  // Update page numbers on all pages (both in header and below ADVISOR)
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    addHeader(doc, i, totalPages, quotation.name, quotationDate, advisorName, logoBase64);
-    
-    // Update PAGE NO below ADVISOR on first page only
-    if (i === 1) {
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
-      const rightCol = pageWidth - margin;
-      let rightY = CONTENT_START_Y; // Start position
-      rightY += 5; // After QUOTATION NO
-      rightY += 5; // After DATE
-      rightY += 5; // After ADVISOR
-      doc.text(`PAGE NO : ${i} of ${totalPages}`, rightCol, rightY, { align: "right" });
-    }
-  }
-  
-  // Go back to last page for totals
+  // Go to last page for totals
+  let totalPages = doc.getNumberOfPages();
   doc.setPage(totalPages);
   
+  // Helper to add new page with header and info box
+  const addNewPage = () => {
+    doc.addPage();
+    totalPages = doc.getNumberOfPages();
+    addHeader(doc, logoBase64);
+    addQuotationInfoBox(doc, totalPages, totalPages, quotation.name, quotationDate, advisorName, clientInfo);
+    return CONTENT_AFTER_INFO_BOX_Y;
+  };
+
   // Check if we need a new page for totals
   if (currentY > pageHeight - 50) {
-    doc.addPage();
-    const newTotalPages = doc.getNumberOfPages();
-    addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
-    currentY = CONTENT_START_Y;
+    currentY = addNewPage();
   }
   
   // Totals
@@ -732,10 +731,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   const wordsLines = doc.splitTextToSize(wordsText, contentWidth);
   wordsLines.forEach((line: string) => {
     if (currentY > pageHeight - 30) {
-      doc.addPage();
-      const newTotalPages = doc.getNumberOfPages();
-      addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
-      currentY = CONTENT_START_Y;
+      currentY = addNewPage();
     }
     doc.text(line, margin, currentY);
     currentY += 5;
@@ -755,17 +751,19 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
     margin,
     pageWidth,
     pageHeight,
+    logoBase64,
     quotation.name,
     quotationDate,
     advisorName,
-    logoBase64
+    clientInfo
   );
 
-  // Final update of page numbers on all pages (only in header)
+  // Final update of page numbers on all pages (header + info box)
   const finalTotalPages = doc.getNumberOfPages();
   for (let i = 1; i <= finalTotalPages; i++) {
     doc.setPage(i);
-    addHeader(doc, i, finalTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
+    addHeader(doc, logoBase64);
+    addQuotationInfoBox(doc, i, finalTotalPages, quotation.name, quotationDate, advisorName, clientInfo);
   }
 
   // Save the PDF
@@ -816,14 +814,13 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   const doc = new jsPDF();
   const logoBase64 = await getLogoBase64();
 
-  // Use custom services already loaded on the quotation (full fetch includes these)
-  const customServices = quotation.customServices ?? [];
+  // Only include approved custom services in PDF (exclude pending and rejected)
+  const customServices = (quotation.customServices ?? []).filter((cs) => cs.status === "APPROVED");
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
   const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY;
-  let currentY = CONTENT_START_Y;
 
   // Calculate totals
   const regularServices = quotation.services.filter((qs) => !qs.customServiceId);
@@ -854,84 +851,22 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
     : 'ADMIN';
   
   // Get client info
-  const clientName = quotation.Client?.name || '';
-  const clientCompany = quotation.Client?.company || '';
-  const clientPhone = quotation.Client?.phone || '';
-  const clientEmail = quotation.Client?.email || '';
+  const clientInfo = {
+    name: quotation.Client?.name || '',
+    company: quotation.Client?.company || '',
+    phone: quotation.Client?.phone || '',
+    email: quotation.Client?.email || '',
+  };
   
   // Prepare header data
   const quotationDate = formatDate(new Date(quotation.created_at));
   
-  // Add header to first page (we'll update total pages later)
-  addHeader(doc, 1, 1, quotation.name, quotationDate, advisorName, logoBase64);
+  // Add header and info box to first page (we'll update total pages later)
+  addHeader(doc, logoBase64);
+  addQuotationInfoBox(doc, 1, 1, quotation.name, quotationDate, advisorName, clientInfo);
   
-  // Quotation details section - two columns layout
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  
-  const leftCol = margin;
-  const rightCol = pageWidth - margin; // Right-aligned from right margin
-  let leftY = currentY + 4; // Offset to align with right column
-  let rightY = currentY;
-  
-  // Left side - Big bolded QUOTATION label
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("QUOTATION", leftCol, leftY);
-  leftY += 8;
-  
-  // Left side - Bill To section
-  if (clientCompany) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(`Bill To: ${clientCompany}`, leftCol, leftY);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-  } else {
-    doc.setFont("helvetica", "bold");
-    doc.text(`Bill To :`, leftCol, leftY);
-    doc.setFont("helvetica", "normal");
-  }
-  leftY += 5;
-  
-  doc.text("ATTN TO :", leftCol, leftY);
-  if (clientName) {
-    doc.text(`ATTN TO: ${clientName}`, leftCol, leftY);
-  } else {
-    doc.text(`ATTN TO :`, leftCol, leftY);
-  }
-  leftY += 5;
-  
-  doc.text("TEL NO :", leftCol, leftY);
-  if (clientPhone) {
-    doc.text(`TEL NO: ${clientPhone}`, leftCol, leftY);
-  } else {
-    doc.text(`TEL NO :`, leftCol, leftY);
-  }
-  leftY += 5;
-  
-  doc.text("EMAIL :", leftCol, leftY);
-  if (clientEmail) {
-    doc.text(`EMAIL: ${clientEmail}`, leftCol, leftY);
-  } else {
-    doc.text(`EMAIL :`, leftCol, leftY);
-  }
-  
-  // Right side - Quotation details (right-aligned)
-  doc.text(`QUOTATION NO : ${quotation.name}`, rightCol, rightY, { align: "right" });
-  rightY += 5;
-  
-  doc.text(`DATE : ${quotationDate}`, rightCol, rightY, { align: "right" });
-  rightY += 5;
-  
-  doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" });
-  rightY += 5;
-  
-  // Add PAGE NO right below ADVISOR
-  doc.text(`PAGE NO : 1 of 1`, rightCol, rightY, { align: "right" });
-  
-  // Use the maximum Y position from both columns
-  currentY = Math.max(leftY, rightY) + 8;
+  // Start content after the info box
+  let currentY = CONTENT_AFTER_INFO_BOX_Y;
   
   // Combine all services
   const allServices = [
@@ -1119,45 +1054,33 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
         }
       },
       didDrawPage: (data: any) => {
+        // Add header and info box on every page (for table overflow pages)
+        const pageNum = data.pageNumber;
         const totalPages = doc.getNumberOfPages();
-        addHeader(doc, data.pageNumber, totalPages, quotation.name, quotationDate, advisorName, logoBase64);
+        addHeader(doc, logoBase64);
+        addQuotationInfoBox(doc, pageNum, totalPages, quotation.name, quotationDate, advisorName, clientInfo);
       },
     });
     
     currentY = (doc as any).lastAutoTable.finalY + 10;
   }
 
-  // Get final total pages
-  const totalPages = doc.getNumberOfPages();
-  
-  // Update page numbers on all pages (both in header and below ADVISOR)
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    addHeader(doc, i, totalPages, quotation.name, quotationDate, advisorName, logoBase64);
-    
-    // Update PAGE NO below ADVISOR on first page only
-    if (i === 1) {
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
-      const rightCol = pageWidth - margin;
-      let rightY = CONTENT_START_Y; // Start position
-      rightY += 5; // After QUOTATION NO
-      rightY += 5; // After DATE
-      rightY += 5; // After ADVISOR
-      doc.text(`PAGE NO : ${i} of ${totalPages}`, rightCol, rightY, { align: "right" });
-    }
-  }
-  
-  // Go back to last page for totals
+  // Go to last page for totals
+  let totalPages = doc.getNumberOfPages();
   doc.setPage(totalPages);
-  
+
+  // Helper to add new page with header and info box
+  const addNewPage = () => {
+    doc.addPage();
+    totalPages = doc.getNumberOfPages();
+    addHeader(doc, logoBase64);
+    addQuotationInfoBox(doc, totalPages, totalPages, quotation.name, quotationDate, advisorName, clientInfo);
+    return CONTENT_AFTER_INFO_BOX_Y;
+  };
+
   // Check if we need a new page for totals
   if (currentY > pageHeight - 50) {
-    doc.addPage();
-    const newTotalPages = doc.getNumberOfPages();
-    addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
-    currentY = CONTENT_START_Y;
+    currentY = addNewPage();
   }
   
   // Totals
@@ -1187,10 +1110,7 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   const wordsLines = doc.splitTextToSize(wordsText, contentWidth);
   wordsLines.forEach((line: string) => {
     if (currentY > pageHeight - 30) {
-      doc.addPage();
-      const newTotalPages = doc.getNumberOfPages();
-      addHeader(doc, newTotalPages, newTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
-      currentY = CONTENT_START_Y;
+      currentY = addNewPage();
     }
     doc.text(line, margin, currentY);
     currentY += 5;
@@ -1210,30 +1130,19 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
     margin,
     pageWidth,
     pageHeight,
+    logoBase64,
     quotation.name,
     quotationDate,
     advisorName,
-    logoBase64
+    clientInfo
   );
 
-  // Final update of page numbers on all pages (both in header and below ADVISOR)
+  // Final update of page numbers on all pages (header + info box)
   const finalTotalPages = doc.getNumberOfPages();
   for (let i = 1; i <= finalTotalPages; i++) {
     doc.setPage(i);
-    addHeader(doc, i, finalTotalPages, quotation.name, quotationDate, advisorName, logoBase64);
-
-    // Update PAGE NO below ADVISOR on first page only
-    if (i === 1) {
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
-      const rightCol = pageWidth - margin;
-      let rightY = CONTENT_START_Y; // Start position
-      rightY += 5; // After QUOTATION NO
-      rightY += 5; // After DATE
-      rightY += 5; // After ADVISOR
-      doc.text(`PAGE NO : ${i} of ${finalTotalPages}`, rightCol, rightY, { align: "right" });
-    }
+    addHeader(doc, logoBase64);
+    addQuotationInfoBox(doc, i, finalTotalPages, quotation.name, quotationDate, advisorName, clientInfo);
   }
   
   // Return as base64 string

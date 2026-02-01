@@ -981,6 +981,21 @@ export async function editQuotationById(
     throw new Error("Draft quotations cannot be linked to projects. Please finalize the quotation first.")
   }
 
+  // Block finalizing if there are pending custom services (must be approved or rejected first)
+  if (validatedData.workflowStatus === "final") {
+    const pendingCount = await prisma.customService.count({
+      where: {
+        quotationId,
+        status: "PENDING",
+      },
+    })
+    if (pendingCount > 0) {
+      throw new Error(
+        "Cannot finalize quotation: there are pending custom service requests. Please have an admin approve or reject them first."
+      )
+    }
+  }
+
   const quotation = await prisma.$transaction(async (tx) => {
     // First, get the current quotation to check if it has a project
     const currentQuotation = await tx.quotation.findUnique({

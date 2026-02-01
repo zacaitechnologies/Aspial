@@ -185,14 +185,14 @@ const HEADER_HEIGHT = 24
 const CONTENT_START_Y = 30
 const TEXT_SAFETY = 12
 
+// Info box dimensions
+const INFO_BOX_HEIGHT = 28
+const INFO_BOX_START_Y = CONTENT_START_Y
+const CONTENT_AFTER_INFO_BOX_Y = CONTENT_START_Y + INFO_BOX_HEIGHT + 8
+
 // Add header to every page (logo on left, company info to the right)
 function addInvoiceHeader(
 	doc: jsPDF,
-	_pageNumber: number,
-	_totalPages: number,
-	_invoiceNumber: string,
-	_invoiceDate: string,
-	_advisorName: string,
 	logoBase64: string | null
 ) {
 	const pageWidth = doc.internal.pageSize.getWidth()
@@ -238,6 +238,82 @@ function addInvoiceHeader(
 	doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 }
 
+// Add invoice info box to every page (INVOICE label, Bill To, INVOICE NO, DATE, ADVISOR, PAGE NO)
+function addInvoiceInfoBox(
+	doc: jsPDF,
+	pageNumber: number,
+	totalPages: number,
+	invoiceNumber: string,
+	invoiceDate: string,
+	advisorName: string,
+	clientInfo: { name: string; company: string; phone: string; email: string }
+) {
+	const pageWidth = doc.internal.pageSize.getWidth()
+	const margin = 20
+	const rightCol = pageWidth - margin
+	
+	// Clear the area first (white background)
+	doc.setFillColor(255, 255, 255)
+	doc.rect(margin, INFO_BOX_START_Y, pageWidth - 2 * margin, INFO_BOX_HEIGHT, "F")
+	
+	let leftY = INFO_BOX_START_Y + 6
+	let rightY = INFO_BOX_START_Y + 6
+	
+	// Left side - Big bolded INVOICE label
+	doc.setFont("helvetica", "bold")
+	doc.setFontSize(16)
+	doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
+	doc.text("INVOICE", margin + 3, leftY)
+	leftY += 6
+	
+	// Left side - Bill To section (smaller font)
+	doc.setFontSize(9)
+	if (clientInfo.company) {
+		doc.setFont("helvetica", "bold")
+		doc.text(`Bill To: ${clientInfo.company}`, margin + 3, leftY)
+		doc.setFont("helvetica", "normal")
+	} else {
+		doc.setFont("helvetica", "bold")
+		doc.text(`Bill To:`, margin + 3, leftY)
+		doc.setFont("helvetica", "normal")
+	}
+	leftY += 4
+	
+	if (clientInfo.name) {
+		doc.text(`ATTN TO: ${clientInfo.name}`, margin + 3, leftY)
+	}
+	leftY += 4
+	
+	if (clientInfo.phone) {
+		doc.text(`TEL NO: ${clientInfo.phone}`, margin + 3, leftY)
+	}
+	leftY += 4
+	
+	if (clientInfo.email) {
+		doc.text(`EMAIL: ${clientInfo.email}`, margin + 3, leftY)
+	}
+	
+	// Right side - Invoice details (right-aligned)
+	doc.setFontSize(9)
+	doc.setFont("helvetica", "normal")
+	doc.text(`INVOICE NO : ${invoiceNumber}`, rightCol - 3, rightY, { align: "right" })
+	rightY += 5
+	
+	doc.text(`DATE : ${invoiceDate}`, rightCol - 3, rightY, { align: "right" })
+	rightY += 5
+	
+	doc.text(`ADVISOR : ${advisorName}`, rightCol - 3, rightY, { align: "right" })
+	rightY += 5
+	
+	// Page number
+	doc.text(`PAGE NO : ${pageNumber} of ${totalPages}`, rightCol - 3, rightY, { align: "right" })
+	
+	// Draw horizontal line at the bottom of info section
+	doc.setDrawColor(BLACK[0], BLACK[1], BLACK[2])
+	doc.setLineWidth(0.5)
+	doc.line(margin, INFO_BOX_START_Y + INFO_BOX_HEIGHT, pageWidth - margin, INFO_BOX_START_Y + INFO_BOX_HEIGHT)
+}
+
 // Add Terms and Conditions section; returns new currentY
 function addTermsAndConditions(
 	doc: jsPDF,
@@ -245,10 +321,11 @@ function addTermsAndConditions(
 	margin: number,
 	pageWidth: number,
 	pageHeight: number,
+	logoBase64: string | null,
 	invoiceNumber: string,
 	invoiceDate: string,
 	advisorName: string,
-	logoBase64: string | null
+	clientInfo: { name: string; company: string; phone: string; email: string }
 ): number {
 	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
 	let currentY = startY
@@ -259,13 +336,19 @@ function addTermsAndConditions(
 	doc.text("Terms And Conditions", margin, currentY)
 	currentY += 6
 
+	// Helper to add new page with header and info box
+	const addNewPage = () => {
+		doc.addPage()
+		const newTotalPages = doc.getNumberOfPages()
+		addInvoiceHeader(doc, logoBase64)
+		addInvoiceInfoBox(doc, newTotalPages, newTotalPages, invoiceNumber, invoiceDate, advisorName, clientInfo)
+		return CONTENT_AFTER_INFO_BOX_Y
+	}
+
 	// T&C points 1-3 (font 9pt)
 	for (const paragraph of TERMS_AND_CONDITIONS) {
 		if (currentY > pageHeight - 25) {
-			doc.addPage()
-			const newTotalPages = doc.getNumberOfPages()
-			addInvoiceHeader(doc, newTotalPages, newTotalPages, invoiceNumber, invoiceDate, advisorName, logoBase64)
-			currentY = CONTENT_START_Y
+			currentY = addNewPage()
 		}
 		// Re-set font after page break
 		doc.setFont("helvetica", "normal")
@@ -274,10 +357,7 @@ function addTermsAndConditions(
 		const lines = doc.splitTextToSize(paragraph, contentWidth)
 		for (const line of lines) {
 			if (currentY > pageHeight - 25) {
-				doc.addPage()
-				const newTotalPages = doc.getNumberOfPages()
-				addInvoiceHeader(doc, newTotalPages, newTotalPages, invoiceNumber, invoiceDate, advisorName, logoBase64)
-				currentY = CONTENT_START_Y
+				currentY = addNewPage()
 				doc.setFont("helvetica", "normal")
 				doc.setFontSize(9)
 				doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
@@ -291,10 +371,7 @@ function addTermsAndConditions(
 	// Payment Information (larger font for visibility)
 	currentY += 5
 	if (currentY > pageHeight - 30) {
-		doc.addPage()
-		const newTotalPages = doc.getNumberOfPages()
-		addInvoiceHeader(doc, newTotalPages, newTotalPages, invoiceNumber, invoiceDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
+		currentY = addNewPage()
 	}
 	doc.setFont("helvetica", "bold")
 	doc.setFontSize(10)
@@ -302,10 +379,7 @@ function addTermsAndConditions(
 	const paymentLines = doc.splitTextToSize(PAYMENT_INFO, contentWidth)
 	for (const line of paymentLines) {
 		if (currentY > pageHeight - 25) {
-			doc.addPage()
-			const newTotalPages = doc.getNumberOfPages()
-			addInvoiceHeader(doc, newTotalPages, newTotalPages, invoiceNumber, invoiceDate, advisorName, logoBase64)
-			currentY = CONTENT_START_Y
+			currentY = addNewPage()
 			doc.setFont("helvetica", "bold")
 			doc.setFontSize(10)
 			doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
@@ -346,7 +420,6 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 	const pageHeight = doc.internal.pageSize.getHeight()
 	const margin = 20
 	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
-	let currentY = CONTENT_START_Y
 	
 	// Calculate quotation totals
 	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
@@ -376,78 +449,21 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		: 'ADMIN'
 	
 	// Get client info
-	const clientName = quotation.Client?.name || ''
-	const clientCompany = quotation.Client?.company || ''
-	const clientPhone = quotation.Client?.phone || ''
-	const clientEmail = quotation.Client?.email || ''
+	const clientInfo = {
+		name: quotation.Client?.name || '',
+		company: quotation.Client?.company || '',
+		phone: quotation.Client?.phone || '',
+		email: quotation.Client?.email || '',
+	}
 	
 	const invoiceDate = formatDate(new Date(invoice.created_at))
 	
-	// Add header to first page
-	addInvoiceHeader(doc, 1, 1, invoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
+	// Add header and info box to first page
+	addInvoiceHeader(doc, logoBase64)
+	addInvoiceInfoBox(doc, 1, 1, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
 	
-	// Invoice details section - two columns layout
-	doc.setFontSize(10)
-	doc.setFont("helvetica", "normal")
-	
-	const leftCol = margin
-	const rightCol = pageWidth - margin
-	let leftY = currentY + 3 // Offset to align with right column
-	let rightY = currentY
-	
-	// Left side - Big bolded INVOICE label
-	doc.setFont("helvetica", "bold")
-	doc.setFontSize(20)
-	doc.text("INVOICE", leftCol, leftY)
-	leftY += 8
-	
-	// Left side - Bill To section
-	if (clientCompany) {
-		doc.setFont("helvetica", "bold")
-		doc.setFontSize(11)
-		doc.text(`Bill To: ${clientCompany}`, leftCol, leftY)
-		doc.setFontSize(10)
-		doc.setFont("helvetica", "normal")
-	} else {
-		doc.setFont("helvetica", "bold")
-		doc.text(`Bill To :`, leftCol, leftY)
-		doc.setFont("helvetica", "normal")
-	}
-	leftY += 5
-	
-	if (clientName) {
-		doc.text(`ATTN TO: ${clientName}`, leftCol, leftY)
-	} else {
-		doc.text(`ATTN TO :`, leftCol, leftY)
-	}
-	leftY += 5
-	
-	if (clientPhone) {
-		doc.text(`TEL NO: ${clientPhone}`, leftCol, leftY)
-	} else {
-		doc.text(`TEL NO :`, leftCol, leftY)
-	}
-	leftY += 5
-	
-	if (clientEmail) {
-		doc.text(`EMAIL: ${clientEmail}`, leftCol, leftY)
-	} else {
-		doc.text(`EMAIL :`, leftCol, leftY)
-	}
-	
-	// Right side - Invoice details (right-aligned)
-	doc.text(`INVOICE NO : ${invoice.invoiceNumber}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	
-	doc.text(`DATE : ${invoiceDate}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	
-	doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	
-	doc.text(`PAGE NO : 1 of 1`, rightCol, rightY, { align: "right" })
-	
-	currentY = Math.max(leftY, rightY) + 8
+	// Start content after the info box
+	let currentY = CONTENT_AFTER_INFO_BOX_Y
 	
 	// Combine all services
 	const allServices = [
@@ -601,42 +617,33 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 					}
 				}
 			},
-			didDrawPage: (data: { pageNumber: number }) => {
-				const totalPages = doc.getNumberOfPages()
-				addInvoiceHeader(doc, data.pageNumber, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-			},
-		})
-		
-		currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
-		currentY += 10
-	}
+		didDrawPage: (data: { pageNumber: number }) => {
+			const totalPages = doc.getNumberOfPages()
+			addInvoiceHeader(doc, logoBase64)
+			addInvoiceInfoBox(doc, data.pageNumber, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+		},
+	})
 	
-	// Get final total pages and update headers
-	const totalPages = doc.getNumberOfPages()
-	for (let i = 1; i <= totalPages; i++) {
-		doc.setPage(i)
-		addInvoiceHeader(doc, i, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-		
-		if (i === 1) {
-			doc.setFontSize(10)
-			doc.setFont("helvetica", "normal")
-			doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-			let rightY = CONTENT_START_Y
-			rightY += 5
-			rightY += 5
-			rightY += 5
-			doc.text(`PAGE NO : ${i} of ${totalPages}`, rightCol, rightY, { align: "right" })
-		}
-	}
-	
-	doc.setPage(totalPages)
-	
-	if (currentY > pageHeight - 80) {
-		doc.addPage()
-		const newTotalPages = doc.getNumberOfPages()
-		addInvoiceHeader(doc, newTotalPages, newTotalPages, invoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
-	}
+	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+	currentY += 10
+}
+
+// Go to last page for totals
+let totalPages = doc.getNumberOfPages()
+doc.setPage(totalPages)
+
+// Helper to add new page with header and info box
+const addNewPage = () => {
+	doc.addPage()
+	totalPages = doc.getNumberOfPages()
+	addInvoiceHeader(doc, logoBase64)
+	addInvoiceInfoBox(doc, totalPages, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	return CONTENT_AFTER_INFO_BOX_Y
+}
+
+if (currentY > pageHeight - 80) {
+	currentY = addNewPage()
+}
 	
 	// Totals section
 	doc.setFontSize(10)
@@ -656,90 +663,86 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 	doc.text(`RM${quotationGrandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
-	const amountInWords = numberToWords(invoiceAmount)
-	const wordsText = `RINGGIT MALAYSIA : ${amountInWords} ONLY`
-	const wordsLines = doc.splitTextToSize(wordsText, contentWidth)
-	wordsLines.forEach((line: string) => {
-		if (currentY > pageHeight - 30) {
-			doc.addPage()
-			const newTotalPages = doc.getNumberOfPages()
-			addInvoiceHeader(doc, newTotalPages, newTotalPages, invoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-			currentY = CONTENT_START_Y
-		}
-		doc.text(line, margin, currentY)
-		currentY += 5
-	})
-	currentY += 5
-	
-	// Payment table
-	if (currentY > pageHeight - 40) {
-		doc.addPage()
-		const newTotalPages = doc.getNumberOfPages()
-		addInvoiceHeader(doc, newTotalPages, newTotalPages, invoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
+const amountInWords = numberToWords(invoiceAmount)
+const wordsText = `RINGGIT MALAYSIA : ${amountInWords} ONLY`
+const wordsLines = doc.splitTextToSize(wordsText, contentWidth)
+wordsLines.forEach((line: string) => {
+	if (currentY > pageHeight - 30) {
+		currentY = addNewPage()
 	}
-	
-	autoTable(doc, {
-		startY: currentY,
-		head: [["First Payment", "Total Payable"]],
-		body: [[invoiceAmount.toFixed(2), invoiceAmount.toFixed(2)]],
-		theme: "grid",
-		headStyles: {
-			fillColor: PRIMARY_COLOR,
-			textColor: WHITE,
-			fontSize: 9,
-			fontStyle: "bold",
-			lineWidth: 0.1,
-		},
-		bodyStyles: {
-			fontSize: 9,
-			textColor: BLACK,
-			lineWidth: 0.1,
-		},
-		columnStyles: {
-			0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-			1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-		},
-		margin: { left: margin, right: margin },
-		styles: {
-			cellPadding: 5,
-			lineWidth: 0.1,
-			lineColor: [0, 0, 0],
-		},
-		didDrawPage: (data: { pageNumber: number }) => {
-			const totalPages = doc.getNumberOfPages()
-			addInvoiceHeader(doc, data.pageNumber, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-		},
-	})
-
-	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+	doc.text(line, margin, currentY)
 	currentY += 5
+})
+currentY += 5
 
-	// Horizontal line between totals and Terms & Conditions
-	doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2])
-	doc.setLineWidth(0.5)
-	doc.line(margin, currentY, pageWidth - margin, currentY)
-	currentY += 4
+// Payment table
+if (currentY > pageHeight - 40) {
+	currentY = addNewPage()
+}
 
-	// Terms and Conditions
-	currentY = addTermsAndConditions(
-		doc,
-		currentY,
-		margin,
-		pageWidth,
-		pageHeight,
-		invoice.invoiceNumber,
-		invoiceDate,
-		advisorName,
-		logoBase64
-	)
-	
-	// Final update of page numbers
-	const finalTotalPages = doc.getNumberOfPages()
-	for (let i = 1; i <= finalTotalPages; i++) {
-		doc.setPage(i)
-		addInvoiceHeader(doc, i, finalTotalPages, invoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-	}
+autoTable(doc, {
+	startY: currentY,
+	head: [["First Payment", "Total Payable"]],
+	body: [[invoiceAmount.toFixed(2), invoiceAmount.toFixed(2)]],
+	theme: "grid",
+	headStyles: {
+		fillColor: PRIMARY_COLOR,
+		textColor: WHITE,
+		fontSize: 9,
+		fontStyle: "bold",
+		lineWidth: 0.1,
+	},
+	bodyStyles: {
+		fontSize: 9,
+		textColor: BLACK,
+		lineWidth: 0.1,
+	},
+	columnStyles: {
+		0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
+		1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
+	},
+	margin: { left: margin, right: margin },
+	styles: {
+		cellPadding: 5,
+		lineWidth: 0.1,
+		lineColor: [0, 0, 0],
+	},
+	didDrawPage: (data: { pageNumber: number }) => {
+		addInvoiceHeader(doc, logoBase64)
+		addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	},
+})
+
+currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+currentY += 5
+
+// Horizontal line between totals and Terms & Conditions
+doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2])
+doc.setLineWidth(0.5)
+doc.line(margin, currentY, pageWidth - margin, currentY)
+currentY += 4
+
+// Terms and Conditions
+currentY = addTermsAndConditions(
+	doc,
+	currentY,
+	margin,
+	pageWidth,
+	pageHeight,
+	logoBase64,
+	invoice.invoiceNumber,
+	invoiceDate,
+	advisorName,
+	clientInfo
+)
+
+// Final update of page numbers on all pages (header + info box)
+const finalTotalPages = doc.getNumberOfPages()
+for (let i = 1; i <= finalTotalPages; i++) {
+	doc.setPage(i)
+	addInvoiceHeader(doc, logoBase64)
+	addInvoiceInfoBox(doc, i, finalTotalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+}
 	
 	const fileName = `invoice-${invoice.invoiceNumber}-${
 		quotation.Client?.company?.replace(/\s+/g, "-") || "client"
@@ -795,7 +798,6 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 	const pageHeight = doc.internal.pageSize.getHeight()
 	const margin = 20
 	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
-	let currentY = CONTENT_START_Y
 	
 	// Calculate quotation totals
 	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
@@ -823,56 +825,21 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 		: 'ADMIN'
 	
-	const clientName = quotation.Client?.name || ''
-	const clientCompany = quotation.Client?.company || ''
-	const clientPhone = quotation.Client?.phone || ''
-	const clientEmail = quotation.Client?.email || ''
+	const clientInfo = {
+		name: quotation.Client?.name || '',
+		company: quotation.Client?.company || '',
+		phone: quotation.Client?.phone || '',
+		email: quotation.Client?.email || '',
+	}
 	
 	const invoiceDate = formatDate(new Date(fullInvoice.created_at))
 	
-	addInvoiceHeader(doc, 1, 1, fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
+	// Add header and info box to first page
+	addInvoiceHeader(doc, logoBase64)
+	addInvoiceInfoBox(doc, 1, 1, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
 	
-	doc.setFontSize(10)
-	doc.setFont("helvetica", "normal")
-	
-	const leftCol = margin
-	const rightCol = pageWidth - margin
-	let leftY = currentY + 4
-	let rightY = currentY
-	
-	doc.setFont("helvetica", "bold")
-	doc.setFontSize(20)
-	doc.text("INVOICE", leftCol, leftY)
-	leftY += 8
-	
-	if (clientCompany) {
-		doc.setFont("helvetica", "bold")
-		doc.setFontSize(11)
-		doc.text(`Bill To: ${clientCompany}`, leftCol, leftY)
-		doc.setFontSize(10)
-		doc.setFont("helvetica", "normal")
-	} else {
-		doc.setFont("helvetica", "bold")
-		doc.text(`Bill To :`, leftCol, leftY)
-		doc.setFont("helvetica", "normal")
-	}
-	leftY += 5
-	
-	doc.text(clientName ? `ATTN TO: ${clientName}` : `ATTN TO :`, leftCol, leftY)
-	leftY += 5
-	doc.text(clientPhone ? `TEL NO: ${clientPhone}` : `TEL NO :`, leftCol, leftY)
-	leftY += 5
-	doc.text(clientEmail ? `EMAIL: ${clientEmail}` : `EMAIL :`, leftCol, leftY)
-	
-	doc.text(`INVOICE NO : ${fullInvoice.invoiceNumber}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	doc.text(`DATE : ${invoiceDate}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	doc.text(`PAGE NO : 1 of 1`, rightCol, rightY, { align: "right" })
-	
-	currentY = Math.max(leftY, rightY) + 8
+	// Start content after the info box
+	let currentY = CONTENT_AFTER_INFO_BOX_Y
 	
 	const allServices = [
 		...regularServices.map((s) => ({
@@ -960,33 +927,31 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 					}
 				}
 			},
-			didDrawPage: (data: any) => {
-				addInvoiceHeader(doc, data.pageNumber, doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-			},
-		})
-		currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
-		currentY += 10
-	}
-	
-	const totalPages = doc.getNumberOfPages()
-	for (let i = 1; i <= totalPages; i++) {
-		doc.setPage(i)
-		addInvoiceHeader(doc, i, totalPages, fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-		if (i === 1) {
-			doc.setFontSize(10)
-			doc.setFont("helvetica", "normal")
-			doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-			doc.text(`PAGE NO : ${i} of ${totalPages}`, rightCol, CONTENT_START_Y + 15, { align: "right" })
-		}
-	}
-	
-	doc.setPage(totalPages)
-	
-	if (currentY > pageHeight - 80) {
-		doc.addPage()
-		addInvoiceHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
-	}
+		didDrawPage: (data: any) => {
+			addInvoiceHeader(doc, logoBase64)
+			addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+		},
+	})
+	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+	currentY += 10
+}
+
+// Go to last page for totals
+let totalPages = doc.getNumberOfPages()
+doc.setPage(totalPages)
+
+// Helper to add new page with header and info box
+const addNewPage = () => {
+	doc.addPage()
+	totalPages = doc.getNumberOfPages()
+	addInvoiceHeader(doc, logoBase64)
+	addInvoiceInfoBox(doc, totalPages, totalPages, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	return CONTENT_AFTER_INFO_BOX_Y
+}
+
+if (currentY > pageHeight - 80) {
+	currentY = addNewPage()
+}
 	
 	doc.setFontSize(10)
 	doc.setFont("helvetica", "normal")
@@ -1004,56 +969,55 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 	doc.text(`RM${quotationGrandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
-	const wordsLines = doc.splitTextToSize(`RINGGIT MALAYSIA : ${numberToWords(invoiceAmount)} ONLY`, contentWidth)
-	wordsLines.forEach((line: string) => {
-		if (currentY > pageHeight - 30) {
-			doc.addPage()
-			addInvoiceHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-			currentY = CONTENT_START_Y
-		}
-		doc.text(line, margin, currentY)
-		currentY += 5
-	})
-	currentY += 5
-	
-	if (currentY > pageHeight - 40) {
-		doc.addPage()
-		addInvoiceHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
+const wordsLines = doc.splitTextToSize(`RINGGIT MALAYSIA : ${numberToWords(invoiceAmount)} ONLY`, contentWidth)
+wordsLines.forEach((line: string) => {
+	if (currentY > pageHeight - 30) {
+		currentY = addNewPage()
 	}
-	
-	autoTable(doc, {
-		startY: currentY,
-		head: [["First Payment", "Total Payable"]],
-		body: [[invoiceAmount.toFixed(2), invoiceAmount.toFixed(2)]],
-		theme: "grid",
-		headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
-		bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
-		columnStyles: { 0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" }, 1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" } },
-		margin: { left: margin, right: margin },
-		styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
-		didDrawPage: (data: { pageNumber: number }) => {
-			addInvoiceHeader(doc, data.pageNumber, doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-		},
-	})
-
-	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+	doc.text(line, margin, currentY)
 	currentY += 5
+})
+currentY += 5
 
-	// Horizontal line
-	doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2])
-	doc.setLineWidth(0.5)
-	doc.line(margin, currentY, pageWidth - margin, currentY)
-	currentY += 4
+if (currentY > pageHeight - 40) {
+	currentY = addNewPage()
+}
 
-	// Terms and Conditions
-	currentY = addTermsAndConditions(doc, currentY, margin, pageWidth, pageHeight, fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-	
-	const finalTotalPages = doc.getNumberOfPages()
-	for (let i = 1; i <= finalTotalPages; i++) {
-		doc.setPage(i)
-		addInvoiceHeader(doc, i, finalTotalPages, fullInvoice.invoiceNumber, invoiceDate, advisorName, logoBase64)
-	}
+autoTable(doc, {
+	startY: currentY,
+	head: [["First Payment", "Total Payable"]],
+	body: [[invoiceAmount.toFixed(2), invoiceAmount.toFixed(2)]],
+	theme: "grid",
+	headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
+	bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
+	columnStyles: { 0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" }, 1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" } },
+	margin: { left: margin, right: margin },
+	styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
+	didDrawPage: (data: { pageNumber: number }) => {
+		addInvoiceHeader(doc, logoBase64)
+		addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	},
+})
+
+currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+currentY += 5
+
+// Horizontal line
+doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2])
+doc.setLineWidth(0.5)
+doc.line(margin, currentY, pageWidth - margin, currentY)
+currentY += 4
+
+// Terms and Conditions
+currentY = addTermsAndConditions(doc, currentY, margin, pageWidth, pageHeight, logoBase64, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+
+// Final update of page numbers on all pages (header + info box)
+const finalTotalPages = doc.getNumberOfPages()
+for (let i = 1; i <= finalTotalPages; i++) {
+	doc.setPage(i)
+	addInvoiceHeader(doc, logoBase64)
+	addInvoiceInfoBox(doc, i, finalTotalPages, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+}
 	
 	return doc.output('datauristring').split(',')[1]
 }

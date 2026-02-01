@@ -188,14 +188,14 @@ const HEADER_HEIGHT = 24
 const CONTENT_START_Y = 30
 const TEXT_SAFETY = 12
 
+// Info box dimensions
+const INFO_BOX_HEIGHT = 28
+const INFO_BOX_START_Y = CONTENT_START_Y
+const CONTENT_AFTER_INFO_BOX_Y = CONTENT_START_Y + INFO_BOX_HEIGHT + 8
+
 // Add header to every page (logo on left, company info to the right)
 function addReceiptHeader(
 	doc: jsPDF,
-	_pageNumber: number,
-	_totalPages: number,
-	_receiptNumber: string,
-	_receiptDate: string,
-	_advisorName: string,
 	logoBase64: string | null
 ) {
 	const pageWidth = doc.internal.pageSize.getWidth()
@@ -241,6 +241,82 @@ function addReceiptHeader(
 	doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 }
 
+// Add receipt info box to every page (RECEIPT label, Bill To, RECEIPT NO, DATE, ADVISOR, PAGE NO)
+function addReceiptInfoBox(
+	doc: jsPDF,
+	pageNumber: number,
+	totalPages: number,
+	receiptNumber: string,
+	receiptDate: string,
+	advisorName: string,
+	clientInfo: { name: string; company: string; phone: string; email: string }
+) {
+	const pageWidth = doc.internal.pageSize.getWidth()
+	const margin = 20
+	const rightCol = pageWidth - margin
+	
+	// Clear the area first (white background)
+	doc.setFillColor(255, 255, 255)
+	doc.rect(margin, INFO_BOX_START_Y, pageWidth - 2 * margin, INFO_BOX_HEIGHT, "F")
+	
+	let leftY = INFO_BOX_START_Y + 6
+	let rightY = INFO_BOX_START_Y + 6
+	
+	// Left side - Big bolded RECEIPT label
+	doc.setFont("helvetica", "bold")
+	doc.setFontSize(16)
+	doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
+	doc.text("RECEIPT", margin + 3, leftY)
+	leftY += 6
+	
+	// Left side - Bill To section (smaller font)
+	doc.setFontSize(9)
+	if (clientInfo.company) {
+		doc.setFont("helvetica", "bold")
+		doc.text(`Bill To: ${clientInfo.company}`, margin + 3, leftY)
+		doc.setFont("helvetica", "normal")
+	} else {
+		doc.setFont("helvetica", "bold")
+		doc.text(`Bill To:`, margin + 3, leftY)
+		doc.setFont("helvetica", "normal")
+	}
+	leftY += 4
+	
+	if (clientInfo.name) {
+		doc.text(`ATTN TO: ${clientInfo.name}`, margin + 3, leftY)
+	}
+	leftY += 4
+	
+	if (clientInfo.phone) {
+		doc.text(`TEL NO: ${clientInfo.phone}`, margin + 3, leftY)
+	}
+	leftY += 4
+	
+	if (clientInfo.email) {
+		doc.text(`EMAIL: ${clientInfo.email}`, margin + 3, leftY)
+	}
+	
+	// Right side - Receipt details (right-aligned)
+	doc.setFontSize(9)
+	doc.setFont("helvetica", "normal")
+	doc.text(`RECEIPT NO : ${receiptNumber}`, rightCol - 3, rightY, { align: "right" })
+	rightY += 5
+	
+	doc.text(`DATE : ${receiptDate}`, rightCol - 3, rightY, { align: "right" })
+	rightY += 5
+	
+	doc.text(`ADVISOR : ${advisorName}`, rightCol - 3, rightY, { align: "right" })
+	rightY += 5
+	
+	// Page number
+	doc.text(`PAGE NO : ${pageNumber} of ${totalPages}`, rightCol - 3, rightY, { align: "right" })
+	
+	// Draw horizontal line at the bottom of info section
+	doc.setDrawColor(BLACK[0], BLACK[1], BLACK[2])
+	doc.setLineWidth(0.5)
+	doc.line(margin, INFO_BOX_START_Y + INFO_BOX_HEIGHT, pageWidth - margin, INFO_BOX_START_Y + INFO_BOX_HEIGHT)
+}
+
 /**
  * Generate receipt PDF with full data fetching
  */
@@ -272,7 +348,6 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	const pageHeight = doc.internal.pageSize.getHeight()
 	const margin = 20
 	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
-	let currentY = CONTENT_START_Y
 	
 	// Calculate quotation totals
 	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
@@ -309,78 +384,21 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 		: 'ADMIN'
 	
 	// Get client info
-	const clientName = quotation.Client?.name || ''
-	const clientCompany = quotation.Client?.company || ''
-	const clientPhone = quotation.Client?.phone || ''
-	const clientEmail = quotation.Client?.email || ''
+	const clientInfo = {
+		name: quotation.Client?.name || '',
+		company: quotation.Client?.company || '',
+		phone: quotation.Client?.phone || '',
+		email: quotation.Client?.email || '',
+	}
 	
 	const receiptDate = formatDate(new Date(receipt.created_at))
 	
-	// Add header to first page
-	addReceiptHeader(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
+	// Add header and info box to first page
+	addReceiptHeader(doc, logoBase64)
+	addReceiptInfoBox(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
 	
-	// Receipt details section - two columns layout
-	doc.setFontSize(10)
-	doc.setFont("helvetica", "normal")
-	
-	const leftCol = margin
-	const rightCol = pageWidth - margin
-	let leftY = currentY + 3 // Offset to align with right column
-	let rightY = currentY
-	
-	// Left side - Big bolded RECEIPT label
-	doc.setFont("helvetica", "bold")
-	doc.setFontSize(20)
-	doc.text("RECEIPT", leftCol, leftY)
-	leftY += 8
-	
-	// Left side - Bill To section
-	if (clientCompany) {
-		doc.setFont("helvetica", "bold")
-		doc.setFontSize(11)
-		doc.text(`Bill To: ${clientCompany}`, leftCol, leftY)
-		doc.setFontSize(10)
-		doc.setFont("helvetica", "normal")
-	} else {
-		doc.setFont("helvetica", "bold")
-		doc.text(`Bill To :`, leftCol, leftY)
-		doc.setFont("helvetica", "normal")
-	}
-	leftY += 5
-	
-	if (clientName) {
-		doc.text(`ATTN TO: ${clientName}`, leftCol, leftY)
-	} else {
-		doc.text(`ATTN TO :`, leftCol, leftY)
-	}
-	leftY += 5
-	
-	if (clientPhone) {
-		doc.text(`TEL NO: ${clientPhone}`, leftCol, leftY)
-	} else {
-		doc.text(`TEL NO :`, leftCol, leftY)
-	}
-	leftY += 5
-	
-	if (clientEmail) {
-		doc.text(`EMAIL: ${clientEmail}`, leftCol, leftY)
-	} else {
-		doc.text(`EMAIL :`, leftCol, leftY)
-	}
-	
-	// Right side - Receipt details (right-aligned)
-	doc.text(`RECEIPT NO : ${receipt.receiptNumber}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	
-	doc.text(`DATE : ${receiptDate}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	
-	doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	
-	doc.text(`PAGE NO : 1 of 1`, rightCol, rightY, { align: "right" })
-	
-	currentY = Math.max(leftY, rightY) + 8
+	// Start content after the info box
+	let currentY = CONTENT_AFTER_INFO_BOX_Y
 	
 	// Combine all services
 	const allServices = [
@@ -532,42 +550,33 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 					}
 				}
 			},
-			didDrawPage: (data: { pageNumber: number }) => {
-				const totalPages = doc.getNumberOfPages()
-				addReceiptHeader(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
-			},
-		})
-		
-		currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
-		currentY += 10
-	}
+		didDrawPage: (data: { pageNumber: number }) => {
+			const totalPages = doc.getNumberOfPages()
+			addReceiptHeader(doc, logoBase64)
+			addReceiptInfoBox(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+		},
+	})
 	
-	// Get final total pages and update headers
-	const totalPages = doc.getNumberOfPages()
-	for (let i = 1; i <= totalPages; i++) {
-		doc.setPage(i)
-		addReceiptHeader(doc, i, totalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
-		
-		if (i === 1) {
-			doc.setFontSize(10)
-			doc.setFont("helvetica", "normal")
-			doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-			let rightY = CONTENT_START_Y
-			rightY += 5
-			rightY += 5
-			rightY += 5
-			doc.text(`PAGE NO : ${i} of ${totalPages}`, rightCol, rightY, { align: "right" })
-		}
-	}
-	
-	doc.setPage(totalPages)
-	
-	if (currentY > pageHeight - 80) {
-		doc.addPage()
-		const newTotalPages = doc.getNumberOfPages()
-		addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
-	}
+	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+	currentY += 10
+}
+
+// Go to last page for totals
+let totalPages = doc.getNumberOfPages()
+doc.setPage(totalPages)
+
+// Helper to add new page with header and info box
+const addNewPage = () => {
+	doc.addPage()
+	totalPages = doc.getNumberOfPages()
+	addReceiptHeader(doc, logoBase64)
+	addReceiptInfoBox(doc, totalPages, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	return CONTENT_AFTER_INFO_BOX_Y
+}
+
+if (currentY > pageHeight - 80) {
+	currentY = addNewPage()
+}
 	
 	// Totals section
 	doc.setFontSize(10)
@@ -587,68 +596,63 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	doc.text(`RM${quotationGrandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
-	const amountInWords = numberToWords(receiptAmount)
-	const wordsText = `RINGGIT MALAYSIA : ${amountInWords} ONLY`
-	const wordsLines = doc.splitTextToSize(wordsText, contentWidth)
-	wordsLines.forEach((line: string) => {
-		if (currentY > pageHeight - 30) {
-			doc.addPage()
-			const newTotalPages = doc.getNumberOfPages()
-			addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
-			currentY = CONTENT_START_Y
-		}
-		doc.text(line, margin, currentY)
-		currentY += 5
-	})
+const amountInWords = numberToWords(receiptAmount)
+const wordsText = `RINGGIT MALAYSIA : ${amountInWords} ONLY`
+const wordsLines = doc.splitTextToSize(wordsText, contentWidth)
+wordsLines.forEach((line: string) => {
+	if (currentY > pageHeight - 30) {
+		currentY = addNewPage()
+	}
+	doc.text(line, margin, currentY)
 	currentY += 5
-	
-	// Payment table
-	if (currentY > pageHeight - 40) {
-		doc.addPage()
-		const newTotalPages = doc.getNumberOfPages()
-		addReceiptHeader(doc, newTotalPages, newTotalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
-	}
-	
-	autoTable(doc, {
-		startY: currentY,
-		head: [["Amount Received", "Balance"]],
-		body: [[`RM${receiptAmount.toFixed(2)}`, `RM${Math.max(0, remainingAmount).toFixed(2)}`]],
-		theme: "grid",
-		headStyles: {
-			fillColor: PRIMARY_COLOR,
-			textColor: WHITE,
-			fontSize: 9,
-			fontStyle: "bold",
-			lineWidth: 0.1,
-		},
-		bodyStyles: {
-			fontSize: 9,
-			textColor: BLACK,
-			lineWidth: 0.1,
-		},
-		columnStyles: {
-			0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-			1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-		},
-		margin: { left: margin, right: margin },
-		styles: {
-			cellPadding: 5,
-			lineWidth: 0.1,
-			lineColor: [0, 0, 0],
-		},
-		didDrawPage: (data: { pageNumber: number }) => {
-			const totalPages = doc.getNumberOfPages()
-			addReceiptHeader(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
-		},
-	})
-	
-	// Final update of page numbers (NO T&C for receipts)
-	const finalTotalPages = doc.getNumberOfPages()
-	for (let i = 1; i <= finalTotalPages; i++) {
-		doc.setPage(i)
-		addReceiptHeader(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName, logoBase64)
-	}
+})
+currentY += 5
+
+// Payment table
+if (currentY > pageHeight - 40) {
+	currentY = addNewPage()
+}
+
+autoTable(doc, {
+	startY: currentY,
+	head: [["Amount Received", "Balance"]],
+	body: [[`RM${receiptAmount.toFixed(2)}`, `RM${Math.max(0, remainingAmount).toFixed(2)}`]],
+	theme: "grid",
+	headStyles: {
+		fillColor: PRIMARY_COLOR,
+		textColor: WHITE,
+		fontSize: 9,
+		fontStyle: "bold",
+		lineWidth: 0.1,
+	},
+	bodyStyles: {
+		fontSize: 9,
+		textColor: BLACK,
+		lineWidth: 0.1,
+	},
+	columnStyles: {
+		0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
+		1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
+	},
+	margin: { left: margin, right: margin },
+	styles: {
+		cellPadding: 5,
+		lineWidth: 0.1,
+		lineColor: [0, 0, 0],
+	},
+	didDrawPage: (data: { pageNumber: number }) => {
+		addReceiptHeader(doc, logoBase64)
+		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	},
+})
+
+// Final update of page numbers on all pages (header + info box) - NO T&C for receipts
+const finalTotalPages = doc.getNumberOfPages()
+for (let i = 1; i <= finalTotalPages; i++) {
+	doc.setPage(i)
+	addReceiptHeader(doc, logoBase64)
+	addReceiptInfoBox(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+}
 	
 	const fileName = `receipt-${receipt.receiptNumber}-${
 		quotation.Client?.company?.replace(/\s+/g, "-") || "client"
@@ -703,7 +707,6 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	const pageHeight = doc.internal.pageSize.getHeight()
 	const margin = 20
 	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
-	let currentY = CONTENT_START_Y
 	
 	// Calculate totals
 	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
@@ -737,56 +740,21 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 		: 'ADMIN'
 	
-	const clientName = quotation.Client?.name || ''
-	const clientCompany = quotation.Client?.company || ''
-	const clientPhone = quotation.Client?.phone || ''
-	const clientEmail = quotation.Client?.email || ''
+	const clientInfo = {
+		name: quotation.Client?.name || '',
+		company: quotation.Client?.company || '',
+		phone: quotation.Client?.phone || '',
+		email: quotation.Client?.email || '',
+	}
 	
 	const receiptDate = formatDate(new Date(fullReceipt.created_at))
 	
-	addReceiptHeader(doc, 1, 1, fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
+	// Add header and info box to first page
+	addReceiptHeader(doc, logoBase64)
+	addReceiptInfoBox(doc, 1, 1, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
 	
-	doc.setFontSize(10)
-	doc.setFont("helvetica", "normal")
-	
-	const leftCol = margin
-	const rightCol = pageWidth - margin
-	let leftY = currentY + 4
-	let rightY = currentY
-	
-	doc.setFont("helvetica", "bold")
-	doc.setFontSize(20)
-	doc.text("RECEIPT", leftCol, leftY)
-	leftY += 8
-	
-	if (clientCompany) {
-		doc.setFont("helvetica", "bold")
-		doc.setFontSize(11)
-		doc.text(`Bill To: ${clientCompany}`, leftCol, leftY)
-		doc.setFontSize(10)
-		doc.setFont("helvetica", "normal")
-	} else {
-		doc.setFont("helvetica", "bold")
-		doc.text(`Bill To :`, leftCol, leftY)
-		doc.setFont("helvetica", "normal")
-	}
-	leftY += 5
-	
-	doc.text(clientName ? `ATTN TO: ${clientName}` : `ATTN TO :`, leftCol, leftY)
-	leftY += 5
-	doc.text(clientPhone ? `TEL NO: ${clientPhone}` : `TEL NO :`, leftCol, leftY)
-	leftY += 5
-	doc.text(clientEmail ? `EMAIL: ${clientEmail}` : `EMAIL :`, leftCol, leftY)
-	
-	doc.text(`RECEIPT NO : ${fullReceipt.receiptNumber}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	doc.text(`DATE : ${receiptDate}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	doc.text(`ADVISOR : ${advisorName}`, rightCol, rightY, { align: "right" })
-	rightY += 5
-	doc.text(`PAGE NO : 1 of 1`, rightCol, rightY, { align: "right" })
-	
-	currentY = Math.max(leftY, rightY) + 8
+	// Start content after the info box
+	let currentY = CONTENT_AFTER_INFO_BOX_Y
 	
 	const allServices = [
 		...regularServices.map((s) => ({
@@ -871,33 +839,31 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 					}
 				}
 			},
-			didDrawPage: (data: { pageNumber: number }) => {
-				addReceiptHeader(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
-			},
-		})
-		currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
-		currentY += 10
-	}
-	
-	const totalPages = doc.getNumberOfPages()
-	for (let i = 1; i <= totalPages; i++) {
-		doc.setPage(i)
-		addReceiptHeader(doc, i, totalPages, fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
-		if (i === 1) {
-			doc.setFontSize(10)
-			doc.setFont("helvetica", "normal")
-			doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-			doc.text(`PAGE NO : ${i} of ${totalPages}`, rightCol, CONTENT_START_Y + 15, { align: "right" })
-		}
-	}
-	
-	doc.setPage(totalPages)
-	
-	if (currentY > pageHeight - 80) {
-		doc.addPage()
-		addReceiptHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
-	}
+		didDrawPage: (data: { pageNumber: number }) => {
+			addReceiptHeader(doc, logoBase64)
+			addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+		},
+	})
+	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+	currentY += 10
+}
+
+// Go to last page for totals
+let totalPages = doc.getNumberOfPages()
+doc.setPage(totalPages)
+
+// Helper to add new page with header and info box
+const addNewPage = () => {
+	doc.addPage()
+	totalPages = doc.getNumberOfPages()
+	addReceiptHeader(doc, logoBase64)
+	addReceiptInfoBox(doc, totalPages, totalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	return CONTENT_AFTER_INFO_BOX_Y
+}
+
+if (currentY > pageHeight - 80) {
+	currentY = addNewPage()
+}
 	
 	doc.setFontSize(10)
 	doc.setFont("helvetica", "normal")
@@ -915,45 +881,43 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	doc.text(`RM${quotationGrandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
-	const wordsLines = doc.splitTextToSize(`RINGGIT MALAYSIA : ${numberToWords(receiptAmount)} ONLY`, contentWidth)
-	wordsLines.forEach((line: string) => {
-		if (currentY > pageHeight - 30) {
-			doc.addPage()
-			addReceiptHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
-			currentY = CONTENT_START_Y
-		}
-		doc.text(line, margin, currentY)
-		currentY += 5
-	})
+const wordsLines = doc.splitTextToSize(`RINGGIT MALAYSIA : ${numberToWords(receiptAmount)} ONLY`, contentWidth)
+wordsLines.forEach((line: string) => {
+	if (currentY > pageHeight - 30) {
+		currentY = addNewPage()
+	}
+	doc.text(line, margin, currentY)
 	currentY += 5
-	
-	if (currentY > pageHeight - 40) {
-		doc.addPage()
-		addReceiptHeader(doc, doc.getNumberOfPages(), doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
-		currentY = CONTENT_START_Y
-	}
-	
-	autoTable(doc, {
-		startY: currentY,
-		head: [["Amount Received", "Balance"]],
-		body: [[`RM${receiptAmount.toFixed(2)}`, `RM${Math.max(0, remainingAmount).toFixed(2)}`]],
-		theme: "grid",
-		headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
-		bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
-		columnStyles: { 0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" }, 1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" } },
-		margin: { left: margin, right: margin },
-		styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
-		didDrawPage: (data: { pageNumber: number }) => {
-			addReceiptHeader(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
-		},
-	})
-	
-	// NO T&C for receipts - final page number update only
-	const finalTotalPages = doc.getNumberOfPages()
-	for (let i = 1; i <= finalTotalPages; i++) {
-		doc.setPage(i)
-		addReceiptHeader(doc, i, finalTotalPages, fullReceipt.receiptNumber, receiptDate, advisorName, logoBase64)
-	}
+})
+currentY += 5
+
+if (currentY > pageHeight - 40) {
+	currentY = addNewPage()
+}
+
+autoTable(doc, {
+	startY: currentY,
+	head: [["Amount Received", "Balance"]],
+	body: [[`RM${receiptAmount.toFixed(2)}`, `RM${Math.max(0, remainingAmount).toFixed(2)}`]],
+	theme: "grid",
+	headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
+	bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
+	columnStyles: { 0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" }, 1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" } },
+	margin: { left: margin, right: margin },
+	styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
+	didDrawPage: (data: { pageNumber: number }) => {
+		addReceiptHeader(doc, logoBase64)
+		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	},
+})
+
+// NO T&C for receipts - final page number update only (header + info box)
+const finalTotalPages = doc.getNumberOfPages()
+for (let i = 1; i <= finalTotalPages; i++) {
+	doc.setPage(i)
+	addReceiptHeader(doc, logoBase64)
+	addReceiptInfoBox(doc, i, finalTotalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+}
 	
 	return doc.output('datauristring').split(',')[1]
 }
