@@ -21,6 +21,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    ic: "",
     phone: "",
     company: "",
     companyRegistrationNumber: "",
@@ -39,6 +40,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
       await createCustomerClient({
         name: formData.name,
         email: formData.email,
+        ic: formData.ic,
         phone: formData.phone || undefined,
         company: formData.company || undefined,
         companyRegistrationNumber: formData.companyRegistrationNumber || undefined,
@@ -53,6 +55,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
       setFormData({
         name: "",
         email: "",
+        ic: "",
         phone: "",
         company: "",
         companyRegistrationNumber: "",
@@ -81,6 +84,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
     setFormData({
       name: "",
       email: "",
+      ic: "",
       phone: "",
       company: "",
       companyRegistrationNumber: "",
@@ -123,6 +127,15 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
               placeholder="john@company.com" 
               value={formData.email}
               onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ic">IC <span className="text-red-500">*</span></Label>
+            <Input 
+              id="ic" 
+              placeholder="e.g., 123456-12-1234" 
+              value={formData.ic}
+              onChange={(e) => setFormData(prev => ({ ...prev, ic: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
@@ -209,7 +222,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
           <Button 
             className="bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={handleCreateClient}
-            disabled={!formData.name || !formData.email || !formData.companyRegistrationNumber || isCreating}
+            disabled={!formData.name || !formData.email || !formData.ic || !formData.companyRegistrationNumber || isCreating}
           >
             {isCreating ? (
               <>

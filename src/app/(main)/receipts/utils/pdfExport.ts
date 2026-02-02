@@ -13,7 +13,7 @@ interface QuotationWithServices {
 	customServices?: Array<{ status: string; price: number; name: string; description?: string | null }>
 	discountValue?: number | null
 	discountType?: string | null
-	Client?: { name?: string; company?: string; phone?: string; email?: string } | null
+	Client?: { name?: string; company?: string; phone?: string; email?: string; companyRegistrationNumber?: string | null; ic?: string | null } | null
 	createdBy?: { firstName?: string; lastName?: string } | null
 }
 
@@ -190,7 +190,7 @@ const CONTENT_START_Y = 30
 const TEXT_SAFETY = 12
 
 // Info box dimensions
-const INFO_BOX_HEIGHT = 28
+const INFO_BOX_HEIGHT = 36
 const INFO_BOX_START_Y = CONTENT_START_Y
 const CONTENT_AFTER_INFO_BOX_Y = CONTENT_START_Y + INFO_BOX_HEIGHT + 8
 
@@ -242,6 +242,9 @@ function addReceiptHeader(
 	doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 }
 
+// Client info type for Bill To section (includes Company Reg No and IC for PDF output)
+type ClientInfoPdf = { name: string; company: string; phone: string; email: string; companyRegistrationNumber?: string; ic?: string }
+
 // Add receipt info box to every page (RECEIPT label, Bill To, RECEIPT NO, DATE, ADVISOR, PAGE NO)
 function addReceiptInfoBox(
 	doc: jsPDF,
@@ -250,7 +253,7 @@ function addReceiptInfoBox(
 	receiptNumber: string,
 	receiptDate: string,
 	advisorName: string,
-	clientInfo: { name: string; company: string; phone: string; email: string }
+	clientInfo: ClientInfoPdf
 ) {
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const margin = 20
@@ -296,7 +299,13 @@ function addReceiptInfoBox(
 	if (clientInfo.email) {
 		doc.text(`EMAIL: ${clientInfo.email}`, margin + 3, leftY)
 	}
-	
+	leftY += 4
+
+	doc.text(`COMPANY REG. NO: ${clientInfo.companyRegistrationNumber || 'N/A'}`, margin + 3, leftY)
+	leftY += 4
+
+	doc.text(`IC: ${clientInfo.ic || 'N/A'}`, margin + 3, leftY)
+
 	// Right side - Receipt details (right-aligned)
 	doc.setFontSize(9)
 	doc.setFont("helvetica", "normal")
@@ -385,13 +394,15 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 		: 'ADMIN'
 	
 	// Get client info
-	const clientInfo = {
+	const clientInfo: ClientInfoPdf = {
 		name: quotation.Client?.name || '',
 		company: quotation.Client?.company || '',
 		phone: quotation.Client?.phone || '',
 		email: quotation.Client?.email || '',
+		companyRegistrationNumber: quotation.Client?.companyRegistrationNumber ?? undefined,
+		ic: quotation.Client?.ic ?? undefined,
 	}
-	
+
 	const receiptDate = formatDate(new Date(receipt.created_at))
 	
 	// Add header and info box to first page
@@ -741,13 +752,15 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 		: 'ADMIN'
 	
-	const clientInfo = {
+	const clientInfo: ClientInfoPdf = {
 		name: quotation.Client?.name || '',
 		company: quotation.Client?.company || '',
 		phone: quotation.Client?.phone || '',
 		email: quotation.Client?.email || '',
+		companyRegistrationNumber: quotation.Client?.companyRegistrationNumber ?? undefined,
+		ic: quotation.Client?.ic ?? undefined,
 	}
-	
+
 	const receiptDate = formatDate(new Date(fullReceipt.created_at))
 	
 	// Add header and info box to first page

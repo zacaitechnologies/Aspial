@@ -48,6 +48,7 @@ export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>;
 export const createClientSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   email: z.string().trim().email("Invalid email address"),
+  ic: z.string().trim().min(1, "IC is required"),
   phone: z.string().trim().optional(),
   company: z.string().trim().optional(),
   companyRegistrationNumber: z.string().trim().optional(),
@@ -63,6 +64,7 @@ export type CreateClientValues = z.infer<typeof createClientSchema>;
 export const updateClientSchema = z.object({
   name: z.string().trim().min(1, "Name is required").optional(),
   email: z.string().trim().email("Invalid email address").optional(),
+  ic: z.string().trim().min(1, "IC is required").optional(),
   phone: z.string().trim().optional(),
   company: z.string().trim().optional(),
   companyRegistrationNumber: z.string().trim().optional(),
@@ -157,6 +159,7 @@ export const discountTypeSchema = z.enum(["percentage", "fixed"]);
 export const newClientSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   email: z.string().trim().email("Invalid email address"),
+  ic: z.string().trim().min(1, "IC is required"),
   phone: z.string().trim().optional(),
   company: z.string().trim().optional(),
   companyRegistrationNumber: z.string().trim().optional(),

@@ -25,6 +25,7 @@ interface Client {
 interface NewClientData {
   name: string;
   email: string;
+  ic?: string;
   phone?: string;
   company?: string;
   companyRegistrationNumber?: string;
@@ -204,6 +205,18 @@ export default function ClientSelection({
                     }
                     placeholder="Enter client's email"
                     required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-client-ic">IC <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="new-client-ic"
+                    value={newClientData?.ic || ""}
+                    onChange={(e) =>
+                      handleNewClientDataChange("ic", e.target.value)
+                    }
+                    placeholder="e.g., 123456-12-1234"
                   />
                 </div>
 

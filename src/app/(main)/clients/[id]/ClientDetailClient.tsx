@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User } from "lucide-react"
+import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User, IdCard } from "lucide-react"
 import Link from "next/link"
 import EditClientDialog from "../components/EditClientDialog"
 import { getClientById } from "../action"
@@ -110,6 +110,18 @@ export default function ClientDetailClient({
 										<Mail className="h-4 w-4" />
 										<span>{client.email}</span>
 									</div>
+									{client.ic != null && client.ic !== "" && (
+										<div className="flex items-center gap-3 text-muted-foreground">
+											<IdCard className="h-4 w-4" />
+											<span>IC: {client.ic}</span>
+										</div>
+									)}
+									{client.companyRegistrationNumber != null && client.companyRegistrationNumber !== "" && (
+										<div className="flex items-center gap-3 text-muted-foreground">
+											<Building2 className="h-4 w-4" />
+											<span>Company Reg. No: {client.companyRegistrationNumber}</span>
+										</div>
+									)}
 									{client.phone && (
 										<div className="flex items-center gap-3 text-muted-foreground">
 											<Phone className="h-4 w-4" />

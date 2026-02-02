@@ -62,6 +62,7 @@ export default function CreateQuotationForm({
     newClient: {
       name: "",
       email: "",
+      ic: "",
       phone: "",
       company: "",
       companyRegistrationNumber: "",
@@ -270,7 +271,7 @@ export default function CreateQuotationForm({
     }
 
     if (clientMode === "new") {
-      if (!quotationForm.newClient?.name || !quotationForm.newClient?.email) {
+      if (!quotationForm.newClient?.name || !quotationForm.newClient?.email || !quotationForm.newClient?.ic) {
         toast({
           title: "Validation Error",
           description: "Please fill in the required client information (name and email).",
@@ -312,7 +313,7 @@ export default function CreateQuotationForm({
         // Create new project if user wants to
         // If creating a new client, create it first so we have a clientId for the project
         if (clientMode === "new") {
-          if (!quotationForm.newClient?.name || !quotationForm.newClient?.email) {
+          if (!quotationForm.newClient?.name || !quotationForm.newClient?.email || !quotationForm.newClient?.ic) {
             toast({
               title: "Validation Error",
               description: "Please fill in the required client information (name and email).",
@@ -327,6 +328,7 @@ export default function CreateQuotationForm({
             const newClient = await createCustomerClient({
               name: quotationForm.newClient.name,
               email: quotationForm.newClient.email,
+              ic: quotationForm.newClient.ic ?? "",
               phone: quotationForm.newClient.phone,
               company: quotationForm.newClient.company,
               companyRegistrationNumber: quotationForm.newClient.companyRegistrationNumber,
@@ -452,6 +454,7 @@ export default function CreateQuotationForm({
       newClient: {
         name: "",
         email: "",
+        ic: "",
         phone: "",
         company: "",
         address: "",

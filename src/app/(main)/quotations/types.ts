@@ -21,6 +21,8 @@ export type QuotationWithServices = {
     email: string;
     phone?: string;
     company?: string;
+    companyRegistrationNumber?: string;
+    ic?: string;
     address?: string;
     notes?: string;
     industry?: string;
@@ -91,6 +93,7 @@ export type QuotationFormData = {
   newClient?: {
     name: string;
     email: string;
+    ic?: string;
     phone?: string;
     company?: string;
     companyRegistrationNumber?: string;
@@ -124,6 +127,7 @@ export type EditFormData = {
   newClient?: {
     name: string;
     email: string;
+    ic?: string;
     phone?: string;
     company?: string;
     companyRegistrationNumber?: string;

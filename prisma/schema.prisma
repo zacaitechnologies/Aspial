@@ -344,6 +344,7 @@ model Client {
   phone                     String?
   company                   String?
   companyRegistrationNumber String?
+  ic                        String?
   address                   String?
   notes                     String?
   created_at                DateTime       @default(now())

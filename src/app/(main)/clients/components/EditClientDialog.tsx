@@ -18,6 +18,7 @@ interface Client {
   phone?: string
   company?: string
   companyRegistrationNumber?: string
+  ic?: string
   address?: string
   notes?: string
   industry?: string
@@ -45,6 +46,7 @@ export default function EditClientDialog({
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    ic: "",
     phone: "",
     company: "",
     companyRegistrationNumber: "",
@@ -60,6 +62,7 @@ export default function EditClientDialog({
       setFormData({
         name: client.name,
         email: client.email,
+        ic: client.ic || "",
         phone: client.phone || "",
         company: client.company || "",
         companyRegistrationNumber: client.companyRegistrationNumber || "",
@@ -81,6 +84,7 @@ export default function EditClientDialog({
       await updateClient(client.id, {
         name: formData.name,
         email: formData.email,
+        ic: formData.ic || undefined,
         phone: formData.phone || undefined,
         company: formData.company || undefined,
         companyRegistrationNumber: formData.companyRegistrationNumber || undefined,
@@ -136,6 +140,15 @@ export default function EditClientDialog({
                 placeholder="john@company.com" 
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-ic">IC <span className="text-red-500">*</span></Label>
+              <Input 
+                id="edit-ic" 
+                placeholder="e.g., 123456-12-1234" 
+                value={formData.ic}
+                onChange={(e) => setFormData(prev => ({ ...prev, ic: e.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -223,7 +236,7 @@ export default function EditClientDialog({
             <Button 
               className="bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={handleUpdateClient}
-              disabled={!formData.name || !formData.email || !formData.companyRegistrationNumber || isUpdating}
+              disabled={!formData.name || !formData.email || !formData.ic || !formData.companyRegistrationNumber || isUpdating}
             >
               {isUpdating ? (
                 <>

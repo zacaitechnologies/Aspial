@@ -27,6 +27,7 @@ export type InvoiceWithQuotation = {
 			phone?: string | null
 			company?: string | null
 			companyRegistrationNumber?: string | null
+			ic?: string | null
 			address?: string | null
 			notes?: string | null
 			industry?: string | null

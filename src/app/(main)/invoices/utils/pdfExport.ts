@@ -186,8 +186,11 @@ const HEADER_HEIGHT = 24
 const CONTENT_START_Y = 30
 const TEXT_SAFETY = 12
 
+// Client info type for Bill To section (includes Company Reg No and IC for PDF output)
+type ClientInfoPdf = { name: string; company: string; phone: string; email: string; companyRegistrationNumber?: string; ic?: string }
+
 // Info box dimensions
-const INFO_BOX_HEIGHT = 28
+const INFO_BOX_HEIGHT = 36
 const INFO_BOX_START_Y = CONTENT_START_Y
 const CONTENT_AFTER_INFO_BOX_Y = CONTENT_START_Y + INFO_BOX_HEIGHT + 8
 
@@ -247,12 +250,12 @@ function addInvoiceInfoBox(
 	invoiceNumber: string,
 	invoiceDate: string,
 	advisorName: string,
-	clientInfo: { name: string; company: string; phone: string; email: string }
+	clientInfo: ClientInfoPdf
 ) {
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const margin = 20
 	const rightCol = pageWidth - margin
-	
+
 	// Clear the area first (white background)
 	doc.setFillColor(255, 255, 255)
 	doc.rect(margin, INFO_BOX_START_Y, pageWidth - 2 * margin, INFO_BOX_HEIGHT, "F")
@@ -293,7 +296,13 @@ function addInvoiceInfoBox(
 	if (clientInfo.email) {
 		doc.text(`EMAIL: ${clientInfo.email}`, margin + 3, leftY)
 	}
-	
+	leftY += 4
+
+	doc.text(`COMPANY REG. NO: ${clientInfo.companyRegistrationNumber || 'N/A'}`, margin + 3, leftY)
+	leftY += 4
+
+	doc.text(`IC: ${clientInfo.ic || 'N/A'}`, margin + 3, leftY)
+
 	// Right side - Invoice details (right-aligned)
 	doc.setFontSize(9)
 	doc.setFont("helvetica", "normal")
@@ -326,7 +335,7 @@ function addTermsAndConditions(
 	invoiceNumber: string,
 	invoiceDate: string,
 	advisorName: string,
-	clientInfo: { name: string; company: string; phone: string; email: string }
+	clientInfo: ClientInfoPdf
 ): number {
 	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
 	let currentY = startY
@@ -449,14 +458,17 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 		: 'ADMIN'
 	
-	// Get client info
-	const clientInfo = {
-		name: quotation.Client?.name || '',
-		company: quotation.Client?.company || '',
-		phone: quotation.Client?.phone || '',
-		email: quotation.Client?.email || '',
+	// Get client info (Client may include ic from Prisma; type allows optional ic for PDF)
+	const client = quotation.Client
+	const clientInfo: ClientInfoPdf = {
+		name: client?.name || '',
+		company: client?.company || '',
+		phone: client?.phone || '',
+		email: client?.email || '',
+		companyRegistrationNumber: client?.companyRegistrationNumber ?? undefined,
+		ic: client && 'ic' in client ? (client as { ic?: string | null }).ic ?? undefined : undefined,
 	}
-	
+
 	const invoiceDate = formatDate(new Date(invoice.created_at))
 	
 	// Add header and info box to first page
@@ -826,13 +838,16 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 		: 'ADMIN'
 	
-	const clientInfo = {
-		name: quotation.Client?.name || '',
-		company: quotation.Client?.company || '',
-		phone: quotation.Client?.phone || '',
-		email: quotation.Client?.email || '',
+	const client = quotation.Client
+	const clientInfo: ClientInfoPdf = {
+		name: client?.name || '',
+		company: client?.company || '',
+		phone: client?.phone || '',
+		email: client?.email || '',
+		companyRegistrationNumber: client?.companyRegistrationNumber ?? undefined,
+		ic: client && 'ic' in client ? (client as { ic?: string | null }).ic ?? undefined : undefined,
 	}
-	
+
 	const invoiceDate = formatDate(new Date(fullInvoice.created_at))
 	
 	// Add header and info box to first page

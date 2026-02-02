@@ -116,6 +116,7 @@ export default function EditQuotationForm({
     newClient: {
       name: "",
       email: "",
+      ic: "",
       phone: "",
       company: "",
       companyRegistrationNumber: "",
@@ -243,6 +244,7 @@ export default function EditQuotationForm({
       newClient: {
         name: "",
         email: "",
+        ic: "",
         phone: "",
         company: "",
         address: "",
@@ -416,7 +418,7 @@ export default function EditQuotationForm({
     }
 
     if (clientMode === "new") {
-      if (!editForm.newClient?.name || !editForm.newClient?.email) {
+      if (!editForm.newClient?.name || !editForm.newClient?.email || !editForm.newClient?.ic) {
         toast({
           title: "Validation Error",
           description: "Please fill in the required client information (name and email).",
@@ -466,7 +468,7 @@ export default function EditQuotationForm({
         // Create new project if user wants to
         // If creating a new client, create it first so we have a clientId for the project
         if (clientMode === "new") {
-          if (!editForm.newClient?.name || !editForm.newClient?.email) {
+          if (!editForm.newClient?.name || !editForm.newClient?.email || !editForm.newClient?.ic) {
             toast({
               title: "Validation Error",
               description: "Please fill in the required client information (name and email).",
@@ -481,8 +483,10 @@ export default function EditQuotationForm({
             const newClient = await createCustomerClient({
               name: editForm.newClient.name,
               email: editForm.newClient.email,
+              ic: editForm.newClient.ic ?? "",
               phone: editForm.newClient.phone,
               company: editForm.newClient.company,
+              companyRegistrationNumber: editForm.newClient.companyRegistrationNumber,
               address: editForm.newClient.address,
               notes: editForm.newClient.notes,
               industry: editForm.newClient.industry,

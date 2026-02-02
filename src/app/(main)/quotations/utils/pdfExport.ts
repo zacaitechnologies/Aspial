@@ -235,9 +235,12 @@ function addHeader(
 }
 
 // Info box dimensions (circled section with QUOTATION NO, DATE, ADVISOR, PAGE NO)
-const INFO_BOX_HEIGHT = 28;
+const INFO_BOX_HEIGHT = 36;
 const INFO_BOX_START_Y = CONTENT_START_Y;
 const CONTENT_AFTER_INFO_BOX_Y = CONTENT_START_Y + INFO_BOX_HEIGHT + 8;
+
+// Client info type for Bill To section (includes Company Reg No and IC for PDF output)
+type ClientInfoPdf = { name: string; company: string; phone: string; email: string; companyRegistrationNumber?: string; ic?: string };
 
 // Add quotation info box to every page (QUOTATION label, Bill To, QUOTATION NO, DATE, ADVISOR, PAGE NO)
 function addQuotationInfoBox(
@@ -247,7 +250,7 @@ function addQuotationInfoBox(
   quotationName: string,
   quotationDate: string,
   advisorName: string,
-  clientInfo: { name: string; company: string; phone: string; email: string }
+  clientInfo: ClientInfoPdf
 ) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 20;
@@ -293,7 +296,13 @@ function addQuotationInfoBox(
   if (clientInfo.email) {
     doc.text(`EMAIL: ${clientInfo.email}`, margin + 3, leftY);
   }
-  
+  leftY += 4;
+
+  doc.text(`COMPANY REG. NO: ${clientInfo.companyRegistrationNumber || 'N/A'}`, margin + 3, leftY);
+  leftY += 4;
+
+  doc.text(`IC: ${clientInfo.ic || 'N/A'}`, margin + 3, leftY);
+
   // Right side - Quotation details (right-aligned, inside box)
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
@@ -324,7 +333,7 @@ function checkAndAddPage(
   quotationName: string,
   quotationDate: string,
   advisorName: string,
-  clientInfo: { name: string; company: string; phone: string; email: string }
+  clientInfo: ClientInfoPdf
 ): number {
   if (currentY > pageHeight - 30) {
     doc.addPage();
@@ -350,7 +359,7 @@ function addTermsAndConditions(
   quotationName: string,
   quotationDate: string,
   advisorName: string,
-  clientInfo: { name: string; company: string; phone: string; email: string }
+  clientInfo: ClientInfoPdf
 ): number {
   const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY;
   let currentY = startY;
@@ -479,23 +488,25 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
     : 'ADMIN';
   
   // Get client info
-  const clientInfo = {
+  const clientInfo: ClientInfoPdf = {
     name: quotation.Client?.name || '',
     company: quotation.Client?.company || '',
     phone: quotation.Client?.phone || '',
     email: quotation.Client?.email || '',
+    companyRegistrationNumber: quotation.Client?.companyRegistrationNumber || undefined,
+    ic: quotation.Client?.ic || undefined,
   };
-  
+
   // Prepare header data
   const quotationDate = formatDate(new Date(quotation.created_at));
-  
+
   // Add header and info box to first page (we'll update total pages later)
   addHeader(doc, logoBase64);
   addQuotationInfoBox(doc, 1, 1, quotation.name, quotationDate, advisorName, clientInfo);
-  
+
   // Start content after the info box
   let currentY = CONTENT_AFTER_INFO_BOX_Y;
-  
+
   // Combine all services
   const allServices = [
     ...regularServices.map((s) => ({
@@ -852,23 +863,25 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
     : 'ADMIN';
   
   // Get client info
-  const clientInfo = {
+  const clientInfo: ClientInfoPdf = {
     name: quotation.Client?.name || '',
     company: quotation.Client?.company || '',
     phone: quotation.Client?.phone || '',
     email: quotation.Client?.email || '',
+    companyRegistrationNumber: quotation.Client?.companyRegistrationNumber || undefined,
+    ic: quotation.Client?.ic || undefined,
   };
-  
+
   // Prepare header data
   const quotationDate = formatDate(new Date(quotation.created_at));
-  
+
   // Add header and info box to first page (we'll update total pages later)
   addHeader(doc, logoBase64);
   addQuotationInfoBox(doc, 1, 1, quotation.name, quotationDate, advisorName, clientInfo);
-  
+
   // Start content after the info box
   let currentY = CONTENT_AFTER_INFO_BOX_Y;
-  
+
   // Combine all services
   const allServices = [
     ...regularServices.map((s) => ({

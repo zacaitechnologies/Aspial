@@ -89,6 +89,8 @@ export async function getAllClients() {
       email: client.email,
       phone: client.phone || undefined,
       company: client.company || undefined,
+      companyRegistrationNumber: client.companyRegistrationNumber || undefined,
+      ic: client.ic || undefined,
       address: client.address || undefined,
       notes: client.notes || undefined,
       industry: client.industry || undefined,
@@ -212,6 +214,8 @@ async function _getClientsPaginatedInternal(
         email: client.email,
         phone: client.phone || undefined,
         company: client.company || undefined,
+        companyRegistrationNumber: client.companyRegistrationNumber || undefined,
+        ic: client.ic || undefined,
         address: client.address || undefined,
         notes: client.notes || undefined,
         industry: client.industry || undefined,
@@ -275,6 +279,8 @@ async function _getClientsPaginatedInternal(
     email: client.email,
     phone: client.phone || undefined,
     company: client.company || undefined,
+    companyRegistrationNumber: client.companyRegistrationNumber || undefined,
+    ic: client.ic || undefined,
     address: client.address || undefined,
     notes: client.notes || undefined,
     industry: client.industry || undefined,
@@ -464,6 +470,7 @@ export async function createCustomerClient(data: unknown) {
       data: {
         name: validatedData.name,
         email: validatedData.email,
+        ic: validatedData.ic,
         phone: validatedData.phone,
         company: validatedData.company,
         companyRegistrationNumber: validatedData.companyRegistrationNumber,
@@ -496,6 +503,7 @@ export async function createCustomerClient(data: unknown) {
 export async function updateClient(id: string, data: {
   name?: string
   email?: string
+  ic?: string
   phone?: string
   company?: string
   companyRegistrationNumber?: string
@@ -555,6 +563,7 @@ export async function updateClient(id: string, data: {
       data: {
         name: validatedData.name,
         email: validatedData.email,
+        ic: validatedData.ic,
         phone: validatedData.phone,
         company: validatedData.company,
         companyRegistrationNumber: validatedData.companyRegistrationNumber,
