@@ -56,7 +56,11 @@ export async function getAllClients() {
           select: {
             id: true,
             totalPrice: true,
-          }
+            invoices: {
+              where: { status: { not: "cancelled" } },
+              select: { amount: true },
+            },
+          },
         },
         projects: {
           select: {
@@ -82,8 +86,13 @@ export async function getAllClients() {
       return [];
     }
     
-    // Transform data to match the expected interface
-    return clients.map(client => ({
+    // Transform data to match the expected interface (totalValue = sum of invoice amounts)
+    return clients.map(client => {
+      const totalValue = client.quotations.reduce(
+        (sum, q) => sum + (q.invoices?.reduce((s, inv) => s + inv.amount, 0) ?? 0),
+        0
+      )
+      return {
       id: client.id,
       name: client.name,
       email: client.email,
@@ -97,7 +106,7 @@ export async function getAllClients() {
       yearlyRevenue: client.yearlyRevenue || undefined,
       membershipType: client.membershipType,
       quotationsCount: client.quotations.length,
-      totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
+      totalValue,
       created_at: client.created_at.toISOString(),
       createdById: client.createdById,
       createdBy: client.createdBy ? {
@@ -106,7 +115,8 @@ export async function getAllClients() {
         lastName: client.createdBy.lastName,
         email: client.createdBy.email,
       } : undefined,
-    }))
+      }
+    })
   } catch (error: unknown) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
@@ -168,7 +178,7 @@ async function _getClientsPaginatedInternal(
   let clients: any[]
 
   if (isTotalValueSort) {
-    // totalValue sort: get filtered client ids, aggregate in DB, then fetch only the page of clients
+    // totalValue sort: sum of invoice amounts per client (not quotations)
     const [totalCount, filteredIds] = await Promise.all([
       prisma.client.count({ where }),
       prisma.client.findMany({ where, select: { id: true } }),
@@ -176,18 +186,22 @@ async function _getClientsPaginatedInternal(
     total = totalCount
     const ids = filteredIds.map((c) => c.id)
     const idSet = new Set(ids)
-    const quotationSums =
+    // Get all invoices for these clients (via quotation.clientId) and sum amount by clientId
+    const invoicesForClients =
       ids.length === 0
         ? []
-        : await prisma.quotation.groupBy({
-            by: ['clientId'],
-            _sum: { totalPrice: true },
-            where: { clientId: { in: ids } },
+        : await prisma.invoice.findMany({
+            where: {
+              quotation: { clientId: { in: ids } },
+              status: { not: "cancelled" },
+            },
+            select: { amount: true, quotation: { select: { clientId: true } } },
           })
     const sumByClient = new Map<string, number>()
-    quotationSums.forEach((row) => {
-      if (row.clientId && idSet.has(row.clientId)) {
-        sumByClient.set(row.clientId, row._sum.totalPrice ?? 0)
+    invoicesForClients.forEach((inv) => {
+      const cid = inv.quotation?.clientId
+      if (cid && idSet.has(cid)) {
+        sumByClient.set(cid, (sumByClient.get(cid) ?? 0) + inv.amount)
       }
     })
     const sortedIds = filteredIds
@@ -201,14 +215,27 @@ async function _getClientsPaginatedInternal(
       const pageClients = await prisma.client.findMany({
         where: { id: { in: sortedIds } },
         include: {
-          quotations: { select: { id: true, totalPrice: true } },
+          quotations: {
+            select: {
+              id: true,
+              invoices: {
+                where: { status: { not: "cancelled" } },
+                select: { amount: true },
+              },
+            },
+          },
           projects: { select: { id: true } },
           createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         },
       })
       const orderMap = new Map(sortedIds.map((id, i) => [id, i]))
       pageClients.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0))
-      clients = pageClients.map((client) => ({
+      clients = pageClients.map((client) => {
+        const totalValue = client.quotations.reduce(
+          (sum, q) => sum + (q.invoices?.reduce((s, inv) => s + inv.amount, 0) ?? 0),
+          0
+        )
+        return {
         id: client.id,
         name: client.name,
         email: client.email,
@@ -222,7 +249,7 @@ async function _getClientsPaginatedInternal(
         yearlyRevenue: client.yearlyRevenue || undefined,
         membershipType: client.membershipType,
         quotationsCount: client.quotations.length,
-        totalValue: client.quotations.reduce((sum, q) => sum + q.totalPrice, 0),
+        totalValue,
         created_at: client.created_at.toISOString(),
         createdById: client.createdById,
         createdBy: client.createdBy
@@ -233,7 +260,8 @@ async function _getClientsPaginatedInternal(
               email: client.createdBy.email,
             }
           : undefined,
-      }))
+        }
+      })
     }
   } else {
     // For database fields, use Prisma's orderBy
@@ -245,7 +273,10 @@ async function _getClientsPaginatedInternal(
           quotations: {
             select: {
               id: true,
-              totalPrice: true,
+              invoices: {
+                where: { status: { not: "cancelled" } },
+                select: { amount: true },
+              },
             },
           },
           projects: {
@@ -272,8 +303,14 @@ async function _getClientsPaginatedInternal(
     clients = fetchedClients
   }
 
-  // Transform data (if not already transformed)
-  const transformedClients = isTotalValueSort ? clients : clients.map(client => ({
+  // Transform data (if not already transformed); totalValue = sum of invoice amounts
+  const transformedClients = isTotalValueSort ? clients : clients.map(client => {
+    const totalValue = client.quotations.reduce(
+      (sum: number, q: { invoices?: { amount: number }[] }) =>
+        sum + (q.invoices?.reduce((s: number, inv: { amount: number }) => s + inv.amount, 0) ?? 0),
+      0
+    )
+    return {
     id: client.id,
     name: client.name,
     email: client.email,
@@ -287,7 +324,7 @@ async function _getClientsPaginatedInternal(
     yearlyRevenue: client.yearlyRevenue || undefined,
     membershipType: client.membershipType,
     quotationsCount: client.quotations.length,
-    totalValue: client.quotations.reduce((sum: number, q: { totalPrice: number }) => sum + q.totalPrice, 0),
+    totalValue,
     created_at: client.created_at.toISOString(),
     createdById: client.createdById,
     createdBy: client.createdBy ? {
@@ -296,7 +333,8 @@ async function _getClientsPaginatedInternal(
       lastName: client.createdBy.lastName,
       email: client.createdBy.email,
     } : undefined,
-  }))
+  }
+  })
 
   return {
     data: transformedClients,
@@ -406,7 +444,18 @@ export async function getClientById(id: string) {
             workflowStatus: true,
             paymentStatus: true,
             created_at: true,
-          }
+            invoices: {
+              where: { status: { not: "cancelled" } },
+              select: {
+                id: true,
+                invoiceNumber: true,
+                amount: true,
+                type: true,
+                status: true,
+                created_at: true,
+              },
+            },
+          },
         },
         projects: {
           select: {

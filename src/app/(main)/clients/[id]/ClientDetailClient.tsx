@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User, IdCard } from "lucide-react"
+import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User, IdCard, Receipt, Eye } from "lucide-react"
 import Link from "next/link"
 import EditClientDialog from "../components/EditClientDialog"
 import { getClientById } from "../action"
@@ -172,6 +172,7 @@ export default function ClientDetailClient({
 				<Tabs defaultValue="quotations" className="space-y-4">
 					<TabsList>
 						<TabsTrigger value="quotations">Quotations</TabsTrigger>
+						<TabsTrigger value="invoices">Invoices</TabsTrigger>
 						<TabsTrigger value="projects">Projects</TabsTrigger>
 					</TabsList>
 					<TabsContent value="quotations">
@@ -221,11 +222,90 @@ export default function ClientDetailClient({
 													{formatDate(quotation.created_at)}
 												</span>
 											</div>
+											<Link href={`/quotations/${quotation.id}`}>
+												<Button variant="outline" size="sm" className="w-full mt-2">
+													<Eye className="w-4 h-4 mr-2" />
+													View Quotation
+												</Button>
+											</Link>
 										</CardContent>
 									</Card>
 								))
 							)}
 						</div>
+					</TabsContent>
+					<TabsContent value="invoices">
+						{/* Invoices Content */}
+						{(() => {
+							type QuotationWithInvoices = { id: number; name: string; invoices?: { id: string; invoiceNumber: string; amount: number; type: string; status: string; created_at: Date }[] }
+							const invoiceWithQuotation = client.quotations.flatMap((q) => {
+								const quotation = q as QuotationWithInvoices
+								return (quotation.invoices ?? []).map((invoice) => ({ invoice, quotation }))
+							})
+							return invoiceWithQuotation.length === 0 ? (
+								<div className="col-span-full text-center py-8">
+									<Receipt className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+									<p className="text-muted-foreground">No invoices found for this client.</p>
+								</div>
+							) : (
+								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+									{invoiceWithQuotation.map(({ invoice, quotation }) => (
+										<Card key={invoice.id} className="card bg-card border-2 border-border gap-0">
+											<CardHeader className="pb-3">
+												<CardTitle className="text-lg text-foreground">
+													{invoice.invoiceNumber}
+												</CardTitle>
+											</CardHeader>
+											<CardContent className="space-y-3">
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Quotation:</span>
+													<span className="text-sm font-medium text-foreground truncate max-w-[180px]" title={quotation.name}>
+														{quotation.name}
+													</span>
+												</div>
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Amount:</span>
+													<span className="text-lg font-bold text-foreground">
+														RM {invoice.amount.toLocaleString()}
+													</span>
+												</div>
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Type:</span>
+													<Badge variant="outline" className="capitalize border-border text-foreground">
+														{invoice.type}
+													</Badge>
+												</div>
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Status:</span>
+													<Badge variant="outline" className="capitalize border-border text-foreground">
+														{invoice.status}
+													</Badge>
+												</div>
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Created:</span>
+													<span className="text-sm text-muted-foreground">
+														{formatDate(invoice.created_at)}
+													</span>
+												</div>
+												<div className="flex gap-2 mt-2">
+													<Link href={`/invoices/${invoice.id}`} className="flex-1">
+														<Button variant="outline" size="sm" className="w-full">
+															View Invoice
+														</Button>
+													</Link>
+													<Link href={`/quotations/${quotation.id}`} className="flex-1">
+														<Button variant="outline" size="sm" className="w-full">
+															<Eye className="w-4 h-4 mr-1" />
+															View Quotation
+														</Button>
+													</Link>
+												</div>
+											</CardContent>
+										</Card>
+									))}
+								</div>
+							)
+						})()}
 					</TabsContent>
 					<TabsContent value="projects">
 						{/* Projects Content */}
@@ -283,13 +363,18 @@ export default function ClientDetailClient({
 						email: client.email,
 						phone: client.phone || undefined,
 						company: client.company || undefined,
+						companyRegistrationNumber: client.companyRegistrationNumber || undefined,
+						ic: client.ic || undefined,
 						address: client.address || undefined,
 						notes: client.notes || undefined,
 						industry: client.industry || undefined,
 						yearlyRevenue: client.yearlyRevenue || undefined,
 						membershipType: client.membershipType,
 						quotationsCount: client.quotations.length,
-						totalValue: 0,
+						totalValue: client.quotations.reduce(
+							(sum, q) => sum + ((q as { invoices?: { amount: number }[] }).invoices?.reduce((s, i) => s + i.amount, 0) ?? 0),
+							0
+						),
 						created_at: client.created_at.toISOString(),
 					}}
 					isOpen={isEditDialogOpen}

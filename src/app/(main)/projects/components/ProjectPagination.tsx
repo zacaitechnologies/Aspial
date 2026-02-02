@@ -24,6 +24,8 @@ interface ProjectPaginationProps {
 	total: number
 	onPageChange: (page: number) => void
 	onPageSizeChange: (size: number) => void
+	/** Label for the entity (e.g. "clients", "items", "quotations"). Default "items". */
+	itemLabel?: string
 }
 
 export function ProjectPagination({
@@ -33,6 +35,7 @@ export function ProjectPagination({
 	total,
 	onPageChange,
 	onPageSizeChange,
+	itemLabel = "items",
 }: ProjectPaginationProps) {
 	const generatePageNumbers = () => {
 		const pages: (number | 'ellipsis')[] = []
@@ -69,7 +72,8 @@ export function ProjectPagination({
 		return pages
 	}
 
-	if (totalPages <= 1 && total <= pageSize) {
+	// Hide only when there are no items; show "Showing X to Y of Z" and per-page selector even for a single page
+	if (total === 0) {
 		return null
 	}
 
@@ -77,15 +81,15 @@ export function ProjectPagination({
 	const endItem = Math.min(currentPage * pageSize, total)
 
 	return (
-		<div className="flex items-center justify-between mt-6 px-2">
-			<div className="flex items-center gap-4">
+		<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mt-6 px-2">
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
 				<p className="text-sm text-muted-foreground">
-					Showing <span className="font-medium">{startItem}</span> to{' '}
-					<span className="font-medium">{endItem}</span> of{' '}
-					<span className="font-medium">{total}</span> items
+					Showing <span className="font-medium text-foreground">{startItem}</span> to{' '}
+					<span className="font-medium text-foreground">{endItem}</span> of{' '}
+					<span className="font-medium text-foreground">{total}</span> {itemLabel}
 				</p>
 				<div className="flex items-center gap-2">
-					<span className="text-sm text-muted-foreground">Items per page:</span>
+					<span className="text-sm text-muted-foreground">Per page:</span>
 					<Select
 						value={pageSize.toString()}
 						onValueChange={(value) => onPageSizeChange(parseInt(value))}
@@ -96,6 +100,7 @@ export function ProjectPagination({
 						<SelectContent>
 							<SelectItem value="5">5</SelectItem>
 							<SelectItem value="10">10</SelectItem>
+							<SelectItem value="12">12</SelectItem>
 							<SelectItem value="20">20</SelectItem>
 							<SelectItem value="50">50</SelectItem>
 						</SelectContent>
@@ -161,4 +166,5 @@ export function ProjectPagination({
 		</div>
 	)
 }
+
 

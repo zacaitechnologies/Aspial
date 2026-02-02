@@ -92,6 +92,12 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(userId || null)
   const [activeTab, setActiveTab] = useState("clients")
+  const [mounted, setMounted] = useState(false)
+
+  // Defer interactive UI until after hydration to avoid mismatch from browser extensions (e.g. fdprocessedid)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // State from initial data
   const [clients, setClients] = useState<Client[]>(initialData.data)
@@ -330,6 +336,17 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
   const totalValue = clients.reduce((sum, client) => sum + client.totalValue, 0)
   const avgValue = totalClients > 0 ? totalValue / totalClients : 0
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-foreground">
+          <div className="h-10 w-10 border-4 border-border border-t-primary rounded-full animate-spin" />
+          <p className="text-sm font-medium text-muted-foreground">Loading…</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto p-6">
@@ -520,9 +537,9 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm min-w-0">
                       <Mail className="w-4 h-4 shrink-0" style={{ color: "#898D74" }} />
-                      <span 
-                        className="truncate" 
-                        style={{ color: "#202F21" }} 
+                      <span
+                        className="truncate"
+                        style={{ color: "#202F21" }}
                         title={client.email}
                       >
                         {client.email}
@@ -537,9 +554,9 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
                     {client.name && (
                       <div className="flex items-center gap-2 text-sm min-w-0">
                         <User className="w-4 h-4 shrink-0" style={{ color: "#898D74" }} />
-                        <span 
-                          className="truncate" 
-                          style={{ color: "#202F21" }} 
+                        <span
+                          className="truncate"
+                          style={{ color: "#202F21" }}
                           title={client.name}
                         >
                           {client.name}
@@ -561,8 +578,8 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
                     {client.createdBy && (
                       <div className="flex items-center gap-2 text-sm min-w-0">
                         <User className="w-4 h-4 shrink-0" style={{ color: "#898D74" }} />
-                        <span 
-                          className="truncate" 
+                        <span
+                          className="truncate"
                           style={{ color: "#202F21" }}
                           title={`Created by: ${client.createdBy.firstName || ""} ${client.createdBy.lastName || ""} ${client.createdBy.firstName || client.createdBy.lastName ? "" : client.createdBy.email}`.trim()}
                         >
@@ -575,7 +592,7 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
 
                   <div className="pt-4 border-t mt-4" style={{ borderColor: "#BDC4A5" }}>
                     <div className="text-sm">
-                      <p style={{ color: "#898D74" }}>Quotations: {client.quotationsCount}</p>
+                      <p style={{ color: "#898D74" }}>Revenue (from Invoices):</p>
                       <p className="font-semibold" style={{ color: "#202F21" }}>RM {client.totalValue.toLocaleString()}</p>
                     </div>
                   </div>
@@ -602,7 +619,7 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination - same pattern as projects/quotations */}
         <ProjectPagination
           currentPage={page}
           totalPages={totalPages}
@@ -610,6 +627,7 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
           total={total}
           onPageChange={goToPage}
           onPageSizeChange={setPageSize}
+          itemLabel="clients"
         />
           </TabsContent>
 
