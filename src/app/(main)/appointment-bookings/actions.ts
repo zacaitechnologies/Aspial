@@ -231,25 +231,26 @@ export async function createAppointmentBooking(formData: FormData) {
 	const clientEmails: string[] = clientEmailsStr ? JSON.parse(clientEmailsStr) as string[] : []
 	
 	const reminderOffsetsStr = formData.get("reminderOffsets") as string | null
-	const reminderOffsets = reminderOffsetsStr ? JSON.parse(reminderOffsetsStr) as number[] : []
+	const reminderOffsetsParsed = reminderOffsetsStr ? (JSON.parse(reminderOffsetsStr) as unknown) : []
+	const reminderList = Array.isArray(reminderOffsetsParsed) ? reminderOffsetsParsed : []
 
 	try {
 		// Validation: If no project, require bookingName, companyName, contactNumber
 		if (!projectId) {
 			if (!bookingName || !bookingName.trim()) {
-				return { success: false, error: "Booking name is required when no project is selected" }
+				return { success: false, error: "Booking Name: This field is required when no project is selected. Please enter a booking name." }
 			}
 			if (!companyName || !companyName.trim()) {
-				return { success: false, error: "Company name is required when no project is selected" }
+				return { success: false, error: "Company Name: This field is required when no project is selected. Please enter a company name." }
 			}
 			if (!contactNumber || !contactNumber.trim()) {
-				return { success: false, error: "Contact number is required when no project is selected" }
+				return { success: false, error: "Contact Number: This field is required when no project is selected. Please enter a contact number." }
 			}
 		}
 
 		// Validation: Email is always required
 		if (!clientEmails || clientEmails.length === 0 || !clientEmails.some(email => email.trim())) {
-			return { success: false, error: "At least one email address is required" }
+			return { success: false, error: "Email Addresses: This field is required. Please enter at least one valid email address." }
 		}
 
 		// Validate all emails are valid format and remove duplicates (case-insensitive)
@@ -266,7 +267,12 @@ export async function createAppointmentBooking(formData: FormData) {
 			return true
 		})
 		if (validEmails.length === 0) {
-			return { success: false, error: "At least one valid email address is required" }
+			return { success: false, error: "Email Addresses: This field is required. Please enter at least one valid email address." }
+		}
+
+		// Validation: At least one reminder is always required
+		if (reminderList.length === 0) {
+			return { success: false, error: "Automated Reminders: This section is required. Please add at least one reminder (e.g. 24h before)." }
 		}
 
 		// Fetch project with Client if project is selected
@@ -443,14 +449,14 @@ export async function createAppointmentBooking(formData: FormData) {
 			}
 		}
 
-		// Create reminders if provided and project exists
-		if (reminderOffsets.length > 0 && projectId) {
+		// Create reminders (required with or without project)
+		if (reminderList.length > 0) {
 			try {
 				// Parse reminder data (can be array of numbers or array of objects with emails)
-				const reminderData = reminderOffsets.map((item: number | { offsetMinutes: number; recipientEmails: string[] }) => {
+				const reminderData = (reminderList as Array<number | { offsetMinutes: number; recipientEmails: string[] }>).map((item: number | { offsetMinutes: number; recipientEmails: string[] }) => {
 					if (typeof item === 'number') {
-						// Use all emails as default if no emails specified
-						return { offsetMinutes: item, recipientEmails: allEmails.length > 0 ? allEmails : [] }
+						// Use confirmation emails as default if no emails specified
+						return { offsetMinutes: item, recipientEmails: validEmails.length > 0 ? validEmails : [] }
 					}
 					return item // Already has offsetMinutes and recipientEmails
 				})

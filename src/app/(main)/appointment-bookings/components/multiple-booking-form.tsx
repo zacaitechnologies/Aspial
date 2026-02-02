@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Loader2, CheckCircle, XCircle } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -68,7 +68,15 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 	const [showResultDialog, setShowResultDialog] = useState(false)
 	const [emailResult, setEmailResult] = useState<{ success: boolean; message: string } | null>(null)
 	const [reminders, setReminders] = useState<Array<{ offsetMinutes: number; recipientEmails: string[] }>>([])
-	
+	const errorRef = useRef<HTMLDivElement>(null)
+
+	// Scroll error into view when validation fails
+	useEffect(() => {
+		if (error && errorRef.current) {
+			errorRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" })
+		}
+	}, [error])
+
 	// New fields
 	const [bookingName, setBookingName] = useState("")
 	const [companyName, setCompanyName] = useState("")
@@ -212,10 +220,21 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 					setClientEmails([projectClientEmail])
 				}
 
-				// Fetch and add project users' emails
+				// Fetch and add project users' emails; overwrite confirmation and reminder emails with project emails
 				getProjectUsersEmails(project.id).then((projectUserEmails) => {
 					const allEmails = new Set([projectClientEmail, ...projectUserEmails].filter(Boolean))
-					setClientEmails(Array.from(allEmails))
+					const allEmailsArray = Array.from(allEmails)
+					setClientEmails(allEmailsArray)
+
+					// Overwrite reminder recipient emails with project emails (like booking confirmation)
+					setReminders((prev) =>
+						prev.length === 0
+							? [{ offsetMinutes: 24 * 60, recipientEmails: allEmailsArray.length > 0 ? allEmailsArray : [projectClientEmail].filter(Boolean) }]
+							: prev.map((r) => ({
+									...r,
+									recipientEmails: allEmailsArray.length > 0 ? allEmailsArray : [projectClientEmail].filter(Boolean),
+								}))
+					)
 				}).catch((error) => {
 					console.error("Error fetching project users emails:", error)
 				})
@@ -238,15 +257,15 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 		// Validation: If no project, require bookingName, companyName, contactNumber
 		if (!selectedProject || selectedProject === "") {
 			if (!bookingName.trim()) {
-				setError("Booking name is required when no project is selected")
+				setError("Booking Name: This field is required when no project is selected. Please enter a booking name.")
 				return
 			}
 			if (!companyName.trim()) {
-				setError("Company name is required when no project is selected")
+				setError("Company Name: This field is required when no project is selected. Please enter a company name.")
 				return
 			}
 			if (!contactNumber.trim()) {
-				setError("Contact number is required when no project is selected")
+				setError("Contact Number: This field is required when no project is selected. Please enter a contact number.")
 				return
 			}
 		}
@@ -260,38 +279,37 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 		})
 
 		if (validEmails.length === 0) {
-			setError("At least one valid email address is required")
+			setError("Email Addresses: This field is required. Please enter at least one valid email address.")
 			return
 		}
 
-		// Validate reminders: at least one required if project is selected
-		if (selectedProject && selectedProject !== "") {
-			if (reminders.length === 0) {
-				setError("At least one reminder is required when a project is selected")
-				setIsSubmitting(false)
-				return
-			}
+		// Validate reminders: at least one reminder is always required (with or without project)
+		if (reminders.length === 0) {
+			setError("Automated Reminders: This section is required. Please add at least one reminder (e.g. 24h before).")
+			setIsSubmitting(false)
+			return
+		}
 
-			// Validate all reminders have at least one valid email
+		// When any reminders exist (with or without project), each must have at least one valid email (like confirmation)
+		if (reminders.length > 0) {
 			const invalidReminders = reminders.filter(r => {
 				if (!r.recipientEmails || r.recipientEmails.length === 0) return true
-				const validEmails = r.recipientEmails.filter(email => {
+				const validReminderEmails = r.recipientEmails.filter(email => {
 					const trimmed = email.trim()
 					return trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
 				})
-				return validEmails.length === 0
+				return validReminderEmails.length === 0
 			})
 			if (invalidReminders.length > 0) {
-				setError("All reminders must have at least one valid email address")
+				setError("Automated Reminders: Each reminder must have at least one valid email address. Please fill in the missing email(s) in the reminder section.")
 				setIsSubmitting(false)
 				return
 			}
 
-			// Validate for duplicates
 			const reminderOffsets = reminders.map(r => r.offsetMinutes)
 			const uniqueOffsets = new Set(reminderOffsets)
 			if (uniqueOffsets.size !== reminderOffsets.length) {
-				setError("You cannot add multiple reminders for the same time. Please remove duplicates.")
+				setError("Automated Reminders: Duplicate reminder times are not allowed. Please remove the duplicate time(s).")
 				setIsSubmitting(false)
 				return
 			}
@@ -335,12 +353,8 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				// Multiple emails (always required)
 				formData.append("clientEmails", JSON.stringify(validEmails))
 
-				// Reminders are required when project is selected
-				if (selectedProject && selectedProject !== "") {
-					formData.append("reminderOffsets", JSON.stringify(reminders))
-				} else if (reminders.length > 0) {
-					formData.append("reminderOffsets", JSON.stringify(reminders))
-				}
+				// Reminders are always required and sent
+				formData.append("reminderOffsets", JSON.stringify(reminders))
 
 				const result = await createAppointmentBooking(formData)
 
@@ -404,8 +418,9 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 
 			<form onSubmit={handleSubmit} className="space-y-4">
 				{error && (
-					<div className="p-3 bg-red-50 border border-red-200 rounded-md">
-						<p className="text-sm text-red-800">{error}</p>
+					<div ref={errorRef} className="p-3 bg-destructive/10 border border-destructive/30 rounded-md" role="alert">
+						<p className="text-sm font-medium text-destructive">Please fix the following:</p>
+						<p className="text-sm text-destructive mt-1">{error}</p>
 					</div>
 				)}
 
@@ -592,12 +607,14 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 					required
 				/>
 
-					{/* Reminder Settings - Only show if project is selected */}
-					{selectedProject && selectedProject !== "" && slots.length > 0 && (
+					{/* Reminder Settings - always shown when slots selected (required with or without project) */}
+					{slots.length > 0 && (
 						<div className="space-y-3 border-t pt-4">
-							<Label>Automated Reminders (Optional)</Label>
+							<Label>
+								Automated Reminders <span className="text-destructive">*</span>
+							</Label>
 							<p className="text-xs text-muted-foreground">
-								Set up reminder emails to be sent before the appointment starts
+								Set up reminder emails to be sent before the appointment starts. At least one reminder with at least one valid email is required.
 							</p>
 							<div className="space-y-3 max-h-64 overflow-y-auto">
 								{/* Quick select buttons */}
