@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatNumber } from "@/lib/format-number";
 import type { QuotationWithServices } from "../types";
 import { getQuotationFullById } from "../action";
 
@@ -543,8 +544,8 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
       String(index + 1),
       "", // Empty - will be rendered by didDrawCell
       "1.00", // Package quantity
-      service.price.toFixed(2), // Price per package
-      service.price.toFixed(2) // Total
+      formatNumber(service.price), // Price per package
+      formatNumber(service.price) // Total
     ]);
   });
   
@@ -556,9 +557,9 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
     tableData.push([
       "1",
       "",
-      packageQty.toFixed(2),
-      pricePerPackage.toFixed(2),
-      total.toFixed(2)
+      formatNumber(packageQty),
+      formatNumber(pricePerPackage),
+      formatNumber(total)
     ]);
     rowHeights.push(15);
   }
@@ -714,15 +715,15 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.text("TOTAL ORIGINAL PRICE:", margin, currentY);
-  doc.text(`RM${originalPrice.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" });
+  doc.text(`RM${formatNumber(originalPrice)}`, pageWidth - margin, currentY, { align: "right" });
   currentY += 7;
 
   doc.text("TOTAL DISCOUNT:", margin, currentY);
-  doc.text(`RM${discountAmount.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" });
+  doc.text(`RM${formatNumber(discountAmount)}`, pageWidth - margin, currentY, { align: "right" });
   currentY += 7;
   
   doc.text("AFTER DISCOUNT PRICE:", margin, currentY);
-  doc.text(`RM${grandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" });
+  doc.text(`RM${formatNumber(grandTotal)}`, pageWidth - margin, currentY, { align: "right" });
   currentY += 7;
   
   // Split amount in words if too long
@@ -916,8 +917,8 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
       String(index + 1),
       "", // Empty - will be rendered by didDrawCell
       "1.00", // Package quantity
-      service.price.toFixed(2), // Price per package
-      service.price.toFixed(2) // Total
+      formatNumber(service.price), // Price per package
+      formatNumber(service.price) // Total
     ]);
   });
   
@@ -929,9 +930,9 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
     tableData.push([
       "1",
       "",
-      packageQty.toFixed(2),
-      pricePerPackage.toFixed(2),
-      total.toFixed(2)
+      formatNumber(packageQty),
+      formatNumber(pricePerPackage),
+      formatNumber(total)
     ]);
     rowHeights.push(15);
   }
@@ -1087,7 +1088,7 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.text("TOTAL ORIGINAL PRICE:", margin, currentY);
-  doc.text(`RM${originalPrice.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" });
+  doc.text(`RM${formatNumber(originalPrice)}`, pageWidth - margin, currentY, { align: "right" });
   currentY += 7;
   
   // Show discount if applicable
@@ -1096,12 +1097,12 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
       ? `Discount (${quotation.discountValue}%)`
       : `Discount`;
     doc.text(discountText + ":", margin, currentY);
-    doc.text(`-RM${discountAmount.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" });
+    doc.text(`-RM${formatNumber(discountAmount)}`, pageWidth - margin, currentY, { align: "right" });
     currentY += 7;
   }
   
   doc.text("AFTER DISCOUNT PRICE:", margin, currentY);
-  doc.text(`RM${grandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" });
+  doc.text(`RM${formatNumber(grandTotal)}`, pageWidth - margin, currentY, { align: "right" });
   currentY += 7;
   
   // Split amount in words if too long

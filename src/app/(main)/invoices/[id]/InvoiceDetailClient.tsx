@@ -35,6 +35,7 @@ import EmailHistoryDialog from "../components/EmailHistoryDialog"
 import CreateReceiptForm from "../../receipts/components/CreateReceiptForm"
 import { getReceiptsForInvoice, updateReceiptAdmin, invalidateReceiptsCache } from "../../receipts/action"
 import { updateInvoiceAdmin, invalidateInvoicesCache, reactivateInvoiceWithReceipts } from "../action"
+import { formatNumber } from "@/lib/format-number"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -401,7 +402,7 @@ export default function InvoiceDetailClient({
 													</p>
 												</div>
 												<Badge variant="outline" className="ml-4">
-													RM{(qs.service?.basePrice ?? 0).toFixed(2)}
+													RM{formatNumber(qs.service?.basePrice ?? 0)}
 												</Badge>
 											</div>
 										))}
@@ -419,7 +420,7 @@ export default function InvoiceDetailClient({
 													</p>
 												</div>
 												<Badge variant="outline" className="ml-4">
-													RM{cs.price.toFixed(2)}
+													RM{formatNumber(cs.price)}
 												</Badge>
 											</div>
 										))}
@@ -469,7 +470,7 @@ export default function InvoiceDetailClient({
 											</div>
 											<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
 												<div className="text-right">
-													<p className="font-bold text-sm">RM{receipt.amount.toFixed(2)}</p>
+													<p className="font-bold text-sm">RM{formatNumber(receipt.amount)}</p>
 												</div>
 												{isAdmin && (
 													<Button
@@ -534,7 +535,7 @@ export default function InvoiceDetailClient({
 							<div className="flex justify-between">
 								<span className="text-muted-foreground">Quotation Total:</span>
 								<span className="font-semibold">
-									RM{quotationGrandTotal.toFixed(2)}
+									RM{formatNumber(quotationGrandTotal)}
 								</span>
 							</div>
 
@@ -547,7 +548,7 @@ export default function InvoiceDetailClient({
 									</p>
 								</div>
 								<span className="text-2xl font-bold text-blue-800">
-									RM{invoice.amount.toFixed(2)}
+									RM{formatNumber(invoice.amount)}
 								</span>
 							</div>
 
@@ -556,7 +557,7 @@ export default function InvoiceDetailClient({
 							<div className="flex justify-between">
 								<span className="text-muted-foreground">Remaining Amount:</span>
 								<span className={`font-semibold ${remainingAmount < 0 ? 'text-red-600' : ''}`}>
-									RM{remainingAmount.toFixed(2)}
+									RM{formatNumber(remainingAmount)}
 								</span>
 							</div>
 						</CardContent>

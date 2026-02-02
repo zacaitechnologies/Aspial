@@ -27,6 +27,7 @@ import {
   Eye,
   Unlink,
 } from "lucide-react";
+import { formatNumber } from "@/lib/format-number";
 import { QuotationWithServices, workflowStatusOptions, paymentStatusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
 import {
@@ -562,7 +563,7 @@ export default function QuotationCard({
               <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
                 <p className="text-[10px] text-gray-600 mb-0.5">Total</p>
                 <p className="text-lg font-bold text-blue-700">
-                  RM{grandTotal.toFixed(2)}
+                  RM{formatNumber(grandTotal)}
                 </p>
               </div>
             </div>

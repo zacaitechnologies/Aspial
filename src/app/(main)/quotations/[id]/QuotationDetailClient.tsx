@@ -38,6 +38,7 @@ import EmailHistoryDialog from "../components/EmailHistoryDialog"
 import CreateInvoiceForm from "../../invoices/components/CreateInvoiceForm"
 import { updateInvoiceAdmin, invalidateInvoicesCache } from "../../invoices/action"
 import { invalidateQuotationsCache, reactivateQuotationCascade } from "../action"
+import { formatNumber } from "@/lib/format-number"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -316,7 +317,7 @@ export default function QuotationDetailClient({
 													</p>
 												</div>
 												<Badge variant="outline" className="ml-4">
-													RM{(qs.service?.basePrice ?? 0).toFixed(2)}
+													RM{formatNumber(qs.service?.basePrice ?? 0)}
 												</Badge>
 											</div>
 										))}
@@ -342,7 +343,7 @@ export default function QuotationDetailClient({
 													</div>
 												</div>
 												<Badge variant="outline" className="ml-4">
-													RM{cs.price.toFixed(2)}
+													RM{formatNumber(cs.price)}
 												</Badge>
 											</div>
 										))}
@@ -392,7 +393,7 @@ export default function QuotationDetailClient({
 											</div>
 											<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
 												<div className="text-right">
-													<p className="font-bold text-sm">RM{invoice.amount.toFixed(2)}</p>
+													<p className="font-bold text-sm">RM{formatNumber(invoice.amount)}</p>
 												</div>
 												{isAdmin && (
 													<Button
@@ -469,7 +470,7 @@ export default function QuotationDetailClient({
 									</p>
 								</div>
 								<span className="text-2xl font-bold text-blue-800">
-									RM{quotationGrandTotal.toFixed(2)}
+									RM{formatNumber(quotationGrandTotal)}
 								</span>
 							</div>
 
@@ -481,7 +482,7 @@ export default function QuotationDetailClient({
 										<span className="font-semibold">
 											{quotation.discountType === "percentage"
 												? `${quotation.discountValue}%`
-												: `RM${quotation.discountValue.toFixed(2)}`}
+												: `RM${formatNumber(quotation.discountValue)}`}
 										</span>
 									</div>
 								</>

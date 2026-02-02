@@ -21,6 +21,7 @@ import {
 	XCircle,
 	CheckCircle,
 } from "lucide-react"
+import { formatNumber } from "@/lib/format-number"
 import { ReceiptWithInvoice } from "../types"
 import { generateReceiptPDF } from "../utils/pdfExport"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
@@ -125,7 +126,7 @@ export default function ReceiptCard({
 							<div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
 								<p className="text-[10px] text-gray-600 mb-0.5">Amount</p>
 								<p className="text-lg font-bold text-blue-700">
-									RM{receipt.amount.toFixed(2)}
+									RM{formatNumber(receipt.amount)}
 								</p>
 							</div>
 					</div>

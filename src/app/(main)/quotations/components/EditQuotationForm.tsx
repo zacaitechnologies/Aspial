@@ -36,6 +36,7 @@ import { Briefcase, Plus } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
+import { formatNumber } from "@/lib/format-number";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { getInvoicesForQuotation } from "../action";
 import { getReceiptsForInvoice } from "../../receipts/action";
@@ -1049,7 +1050,7 @@ export default function EditQuotationForm({
                         </p>
                       </div>
                       <Badge variant="outline">
-                        RM{service.basePrice.toFixed(2)}
+                        RM{formatNumber(service.basePrice)}
                       </Badge>
                     </div>
                   </div>
@@ -1103,7 +1104,7 @@ export default function EditQuotationForm({
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           <Badge variant="outline">
-                            RM{cs.price.toFixed(2)}
+                            RM{formatNumber(cs.price)}
                           </Badge>
                           <Badge
                             variant={cs.status === "REJECTED" ? "destructive" : "default"}
@@ -1224,7 +1225,7 @@ export default function EditQuotationForm({
                         description: `Discount cannot exceed ${
                           editForm.discountType === "percentage"
                             ? "100%"
-                            : `RM${editTotalPrice.toFixed(2)}`
+                            : `RM${formatNumber(editTotalPrice)}`
                         }`,
                         variant: "destructive",
                       });
@@ -1270,28 +1271,28 @@ export default function EditQuotationForm({
                 parseFloat(editForm.discountValue) > 0 ? (
                   <div className="text-right">
                     <span className="text-sm text-muted-foreground line-through">
-                      RM{(editTotalPrice + approvedCustomServicesTotal).toFixed(2)}
+                      RM{formatNumber(editTotalPrice + approvedCustomServicesTotal)}
                     </span>
                     <br />
                     <span className="text-lg font-bold text-green-600">
-                      RM{editGrandTotal.toFixed(2)}
+                      RM{formatNumber(editGrandTotal)}
                     </span>
                     <div className="text-xs text-muted-foreground">
                       Discount: RM
-                      {(editTotalPrice - editDiscountedTotal).toFixed(2)}
+                      {formatNumber(editTotalPrice - editDiscountedTotal)}
                       {approvedCustomServicesTotal > 0 && (
-                        <> · Includes RM{approvedCustomServicesTotal.toFixed(2)} from approved custom services</>
+                        <> · Includes RM{formatNumber(approvedCustomServicesTotal)} from approved custom services</>
                       )}
                     </div>
                   </div>
                 ) : (
                   <div className="text-right">
                     <span className="text-lg font-bold">
-                      RM{editGrandTotal.toFixed(2)}
+                      RM{formatNumber(editGrandTotal)}
                     </span>
                     {approvedCustomServicesTotal > 0 && (
                       <div className="text-xs text-muted-foreground">
-                        Includes RM{approvedCustomServicesTotal.toFixed(2)} from approved custom services
+                        Includes RM{formatNumber(approvedCustomServicesTotal)} from approved custom services
                       </div>
                     )}
                   </div>

@@ -26,6 +26,7 @@ import { useSession } from "../../contexts/SessionProvider"
 import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { formatNumber } from "@/lib/format-number"
 import { getQuotationById, getAllUsers } from "../../quotations/action"
 import { checkIsAdmin } from "../../actions/admin-actions"
 import type { QuotationWithServices } from "../../quotations/types"
@@ -148,7 +149,7 @@ export default function CreateInvoiceForm({
 			if (isNaN(amount) || amount <= 0) {
 				setAmountWarning("Amount must be greater than 0")
 			} else if (amount > quotationGrandTotal) {
-				setAmountWarning(`Warning: Invoice amount (RM${amount.toFixed(2)}) exceeds quotation total (RM${quotationGrandTotal.toFixed(2)})`)
+				setAmountWarning(`Warning: Invoice amount (RM${formatNumber(amount)}) exceeds quotation total (RM${formatNumber(quotationGrandTotal)})`)
 			} else {
 				setAmountWarning("")
 			}
@@ -349,7 +350,7 @@ export default function CreateInvoiceForm({
 														</p>
 													)}
 												</div>
-												<Badge variant="outline">RM{quotation.totalPrice.toFixed(2)}</Badge>
+												<Badge variant="outline">RM{formatNumber(quotation.totalPrice)}</Badge>
 											</div>
 										</CardContent>
 									</Card>
@@ -376,7 +377,7 @@ export default function CreateInvoiceForm({
 										</div>
 										<div className="text-right">
 											<p className="text-xs text-green-600">Quotation Total</p>
-											<p className="font-bold text-green-900">RM{quotationGrandTotal.toFixed(2)}</p>
+											<p className="font-bold text-green-900">RM{formatNumber(quotationGrandTotal)}</p>
 										</div>
 									</div>
 									<Button

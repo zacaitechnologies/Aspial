@@ -21,6 +21,7 @@ import {
 	XCircle,
 	CheckCircle,
 } from "lucide-react"
+import { formatNumber } from "@/lib/format-number"
 import { InvoiceWithQuotation } from "../types"
 import { generateInvoicePDF } from "../utils/pdfExport"
 import { updateInvoiceAdmin, invalidateInvoicesCache, reactivateInvoiceWithReceipts } from "../action"
@@ -202,7 +203,7 @@ export default function InvoiceCard({
 							<div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
 								<p className="text-[10px] text-gray-600 mb-0.5">Amount</p>
 								<p className="text-lg font-bold text-blue-700">
-									RM{invoice.amount.toFixed(2)}
+									RM{formatNumber(invoice.amount)}
 								</p>
 							</div>
 						</div>

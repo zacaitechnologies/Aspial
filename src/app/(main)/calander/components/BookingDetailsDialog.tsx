@@ -42,28 +42,32 @@ export function BookingDetailsDialog({
           </div>
 
           <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-medium text-foreground">Booking name:</span>
+              <span className="text-muted-foreground">{booking.bookingName ?? booking.title}</span>
+            </div>
             <div>
               <h3 className="font-semibold text-lg">{booking.title}</h3>
-              <p className="text-sm text-gray-600 mt-1">{booking.description}</p>
+              <p className="text-sm text-muted-foreground mt-1">{booking.description}</p>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm">
-                <Calendar className="w-4 h-4 text-gray-500" />
+                <Calendar className="w-4 h-4 text-muted-foreground" />
                 <span>{formatDateStringDirect(booking.date)}</span>
               </div>
               {booking.type !== "task" && (
                 <>
                   <div className="flex items-center gap-2 text-sm">
-                    <Clock className="w-4 h-4 text-gray-500" />
+                    <Clock className="w-4 h-4 text-muted-foreground" />
                     <span>{booking.startTime} - {booking.endTime}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="w-4 h-4 text-gray-500" />
+                    <MapPin className="w-4 h-4 text-muted-foreground" />
                     <span>{booking.location}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <Users className="w-4 h-4 text-gray-500" />
+                    <Users className="w-4 h-4 text-muted-foreground" />
                     <span>{booking.attendees} attendees</span>
                   </div>
                 </>
@@ -72,19 +76,19 @@ export function BookingDetailsDialog({
                 <>
                   {booking.taskStartDate && (
                     <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="w-4 h-4 text-gray-500" />
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
                       <span>Start: {formatDateStringDirect(booking.taskStartDate)}</span>
                     </div>
                   )}
                   {booking.taskDueDate && (
                     <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="w-4 h-4 text-gray-500" />
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
                       <span>Due: {formatDateStringDirect(booking.taskDueDate)}</span>
                     </div>
                   )}
                   {booking.projectName && (
                     <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="w-4 h-4 text-gray-500" />
+                      <MapPin className="w-4 h-4 text-muted-foreground" />
                       <span>Project: {booking.projectName}</span>
                     </div>
                   )}

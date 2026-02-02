@@ -32,6 +32,7 @@ import { toast } from "@/components/ui/use-toast"
 import { generateReceiptPDF } from "../utils/pdfExport"
 import SendReceiptDialog from "../components/SendReceiptDialog"
 import ReceiptEmailHistoryDialog from "../components/ReceiptEmailHistoryDialog"
+import { formatNumber } from "@/lib/format-number"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
 
 interface ReceiptDetailClientProps {
@@ -321,7 +322,7 @@ export default function ReceiptDetailClient({
 													</p>
 												</div>
 												<Badge variant="outline" className="ml-4">
-													RM{(qs.service?.basePrice ?? 0).toFixed(2)}
+													RM{formatNumber(qs.service?.basePrice ?? 0)}
 												</Badge>
 											</div>
 										))}
@@ -339,7 +340,7 @@ export default function ReceiptDetailClient({
 													</p>
 												</div>
 												<Badge variant="outline" className="ml-4">
-													RM{cs.price.toFixed(2)}
+													RM{formatNumber(cs.price)}
 												</Badge>
 											</div>
 										))}
@@ -363,7 +364,7 @@ export default function ReceiptDetailClient({
 							<div className="flex justify-between">
 								<span className="text-muted-foreground">Invoice Amount:</span>
 								<span className="font-semibold">
-									RM{receipt.invoice?.amount.toFixed(2) || '0.00'}
+									RM{receipt.invoice?.amount != null ? formatNumber(receipt.invoice.amount) : '0.00'}
 								</span>
 							</div>
 
@@ -376,7 +377,7 @@ export default function ReceiptDetailClient({
 									</p>
 								</div>
 								<span className="text-2xl font-bold text-blue-800">
-									RM{receipt.amount.toFixed(2)}
+									RM{formatNumber(receipt.amount)}
 								</span>
 							</div>
 
@@ -385,7 +386,7 @@ export default function ReceiptDetailClient({
 							<div className="flex justify-between">
 								<span className="text-muted-foreground">Amount Received (up to this receipt):</span>
 								<span className="font-semibold">
-									RM{((receipt.invoice?.amount || 0) - (remainingAmount ?? 0)).toFixed(2)}
+									RM{formatNumber((receipt.invoice?.amount || 0) - (remainingAmount ?? 0))}
 								</span>
 							</div>
 
@@ -399,7 +400,7 @@ export default function ReceiptDetailClient({
 									</p>
 								</div>
 								<span className="text-2xl font-bold text-green-800">
-									RM{(remainingAmount ?? 0).toFixed(2)}
+									RM{formatNumber(remainingAmount ?? 0)}
 								</span>
 							</div>
 						</CardContent>

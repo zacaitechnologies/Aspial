@@ -27,6 +27,8 @@ interface AppointmentBooking {
 export interface CalendarBooking {
 	id: string
 	title: string
+	/** Display name for the booking (appointment name or task name). */
+	bookingName?: string | null
 	description: string
 	date: string
 	startTime: string
@@ -221,6 +223,7 @@ async function _fetchBookingsInRange(
 			calendarBookings.push({
 				id: `appointment-${booking.id}`,
 				title: title,
+				bookingName: booking.appointment?.name ?? null,
 				description: booking.purpose || `Appointment by ${booking.bookedBy}`,
 				date: dateStr,
 				startTime: startDate.toTimeString().slice(0, 5),
@@ -299,6 +302,7 @@ async function _fetchBookingsInRange(
 					calendarBookings.push({
 						id: `task-${task.id}-start`,
 						title: startTaskTitle,
+						bookingName: task.title,
 						description: task.description || `Task starts on ${startDate.toLocaleDateString()}`,
 						date: startDateString,
 						startTime: "00:00",
@@ -331,6 +335,7 @@ async function _fetchBookingsInRange(
 						calendarBookings.push({
 							id: `task-${task.id}-due`,
 							title: dueTaskTitle,
+							bookingName: task.title,
 							description: task.description || `Task due on ${dueDate.toLocaleDateString()}`,
 							date: dueDateString,
 							startTime: "00:00",

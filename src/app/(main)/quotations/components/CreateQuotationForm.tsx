@@ -35,6 +35,7 @@ import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import { toast } from "@/components/ui/use-toast";
 import { formatLocalDate } from "@/lib/date-utils";
+import { formatNumber } from "@/lib/format-number";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -647,7 +648,7 @@ export default function CreateQuotationForm({
                             </p>
                           </div>
                           <Badge variant="outline">
-                            RM{service.basePrice.toFixed(2)}
+                            RM{formatNumber(service.basePrice)}
                           </Badge>
                         </div>
                       </div>
@@ -678,7 +679,7 @@ export default function CreateQuotationForm({
                         description: `Discount cannot exceed ${
                           quotationForm.discountType === "percentage"
                             ? "100%"
-                            : `RM${totalPrice.toFixed(2)}`
+                            : `RM${formatNumber(totalPrice)}`
                         }`,
                         variant: "destructive",
                       });
@@ -724,19 +725,19 @@ export default function CreateQuotationForm({
                 parseFloat(quotationForm.discountValue) > 0 ? (
                   <div>
                     <span className="text-sm text-muted-foreground line-through">
-                      RM{totalPrice.toFixed(2)}
+                      RM{formatNumber(totalPrice)}
                     </span>
                     <br />
                     <span className="text-2xl font-bold text-green-600">
-                      RM{discountedTotal.toFixed(2)}
+                      RM{formatNumber(discountedTotal)}
                     </span>
                     <div className="text-xs text-muted-foreground">
-                      Discount: RM {discountAmount.toFixed(2)}
+                      Discount: RM {formatNumber(discountAmount)}
                     </div>
                   </div>
                 ) : (
                   <span className="text-2xl font-bold">
-                    RM{totalPrice.toFixed(2)}
+                    RM{formatNumber(totalPrice)}
                   </span>
                 )}
               </div>

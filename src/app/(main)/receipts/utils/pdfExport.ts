@@ -1,5 +1,6 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+import { formatNumber } from "@/lib/format-number"
 import type { ReceiptWithInvoice } from "../types"
 import { getReceiptFullById, getReceiptsForInvoice } from "../action"
 
@@ -441,13 +442,13 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 			String(index + 1),
 			"",
 			"1.00",
-			service.price.toFixed(2),
-			service.price.toFixed(2)
+			formatNumber(service.price),
+			formatNumber(service.price)
 		])
 	})
 	
 	if (allServices.length === 0) {
-		tableData.push(["1", "", "1.00", subtotal.toFixed(2), quotationGrandTotal.toFixed(2)])
+		tableData.push(["1", "", "1.00", formatNumber(subtotal), formatNumber(quotationGrandTotal)])
 		rowHeights.push(15)
 	}
 	
@@ -583,17 +584,17 @@ if (currentY > pageHeight - 80) {
 	doc.setFont("helvetica", "normal")
 	
 	doc.text("TOTAL ORIGINAL PRICE:", margin, currentY)
-	doc.text(`RM${subtotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
+	doc.text(`RM${formatNumber(subtotal)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
 	if (discountAmount > 0) {
 		doc.text("TOTAL DISCOUNT:", margin, currentY)
-		doc.text(`RM${discountAmount.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
+		doc.text(`RM${formatNumber(discountAmount)}`, pageWidth - margin, currentY, { align: "right" })
 		currentY += 7
 	}
 	
 	doc.text("AFTER DISCOUNT PRICE:", margin, currentY)
-	doc.text(`RM${quotationGrandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
+	doc.text(`RM${formatNumber(quotationGrandTotal)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
 const amountInWords = numberToWords(receiptAmount)
@@ -616,7 +617,7 @@ if (currentY > pageHeight - 40) {
 autoTable(doc, {
 	startY: currentY,
 	head: [["Amount Received", "Balance"]],
-	body: [[`RM${receiptAmount.toFixed(2)}`, `RM${Math.max(0, remainingAmount).toFixed(2)}`]],
+	body: [[`RM${formatNumber(receiptAmount)}`, `RM${formatNumber(Math.max(0, remainingAmount))}`]],
 	theme: "grid",
 	headStyles: {
 		fillColor: PRIMARY_COLOR,
@@ -781,11 +782,11 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 			totalLines += doc.splitTextToSize(processedDesc, descCellWidth).length + 0.5
 		}
 		rowHeights.push(Math.max(20, totalLines * 5 + 12))
-		tableData.push([String(index + 1), "", "1.00", service.price.toFixed(2), service.price.toFixed(2)])
+		tableData.push([String(index + 1), "", "1.00", formatNumber(service.price), formatNumber(service.price)])
 	})
 	
 	if (allServices.length === 0) {
-		tableData.push(["1", "", "1.00", subtotal.toFixed(2), quotationGrandTotal.toFixed(2)])
+		tableData.push(["1", "", "1.00", formatNumber(subtotal), formatNumber(quotationGrandTotal)])
 		rowHeights.push(15)
 	}
 	
@@ -868,17 +869,17 @@ if (currentY > pageHeight - 80) {
 	doc.setFontSize(10)
 	doc.setFont("helvetica", "normal")
 	doc.text("TOTAL ORIGINAL PRICE:", margin, currentY)
-	doc.text(`RM${subtotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
+	doc.text(`RM${formatNumber(subtotal)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
 	if (discountAmount > 0) {
 		doc.text("TOTAL DISCOUNT:", margin, currentY)
-		doc.text(`RM${discountAmount.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
+		doc.text(`RM${formatNumber(discountAmount)}`, pageWidth - margin, currentY, { align: "right" })
 		currentY += 7
 	}
 	
 	doc.text("AFTER DISCOUNT PRICE:", margin, currentY)
-	doc.text(`RM${quotationGrandTotal.toFixed(2)}`, pageWidth - margin, currentY, { align: "right" })
+	doc.text(`RM${formatNumber(quotationGrandTotal)}`, pageWidth - margin, currentY, { align: "right" })
 	currentY += 7
 	
 const wordsLines = doc.splitTextToSize(`RINGGIT MALAYSIA : ${numberToWords(receiptAmount)} ONLY`, contentWidth)
@@ -898,7 +899,7 @@ if (currentY > pageHeight - 40) {
 autoTable(doc, {
 	startY: currentY,
 	head: [["Amount Received", "Balance"]],
-	body: [[`RM${receiptAmount.toFixed(2)}`, `RM${Math.max(0, remainingAmount).toFixed(2)}`]],
+	body: [[`RM${formatNumber(receiptAmount)}`, `RM${formatNumber(Math.max(0, remainingAmount))}`]],
 	theme: "grid",
 	headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
 	bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },

@@ -19,6 +19,7 @@ import { useSession } from "../../contexts/SessionProvider"
 import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { formatNumber } from "@/lib/format-number"
 import { getInvoiceById } from "../../invoices/action"
 import { getAllUsers } from "../../quotations/action"
 import { checkIsAdmin } from "../../actions/admin-actions"
@@ -155,7 +156,7 @@ export default function CreateReceiptForm({
 			if (isNaN(amount) || amount <= 0) {
 				setAmountWarning("Amount must be greater than 0")
 			} else if (amount > remaining) {
-				setAmountWarning(`Warning: Receipt amount (RM${amount.toFixed(2)}) exceeds remaining invoice amount (RM${remaining.toFixed(2)})`)
+				setAmountWarning(`Warning: Receipt amount (RM${formatNumber(amount)}) exceeds remaining invoice amount (RM${formatNumber(remaining)})`)
 			} else {
 				setAmountWarning("")
 			}
@@ -373,7 +374,7 @@ export default function CreateReceiptForm({
 														</p>
 													)}
 												</div>
-												<Badge variant="outline">RM{invoice.amount.toFixed(2)}</Badge>
+												<Badge variant="outline">RM{formatNumber(invoice.amount)}</Badge>
 											</div>
 										</CardContent>
 									</Card>
@@ -402,15 +403,15 @@ export default function CreateReceiptForm({
 										</div>
 										<div className="text-right">
 											<p className="text-xs text-green-600">Invoice Amount</p>
-											<p className="font-bold text-green-900">RM{invoiceAmount.toFixed(2)}</p>
+											<p className="font-bold text-green-900">RM{formatNumber(invoiceAmount)}</p>
 											{totalReceipted > 0 && (
 												<>
 													<p className="text-xs text-green-600 mt-1">Already Receipted</p>
-													<p className="text-sm text-green-700">RM{totalReceipted.toFixed(2)}</p>
+													<p className="text-sm text-green-700">RM{formatNumber(totalReceipted)}</p>
 												</>
 											)}
 											<p className="text-xs text-green-600 mt-1">Remaining</p>
-											<p className="font-bold text-green-900">RM{remaining.toFixed(2)}</p>
+											<p className="font-bold text-green-900">RM{formatNumber(remaining)}</p>
 										</div>
 									</div>
 									<Button
