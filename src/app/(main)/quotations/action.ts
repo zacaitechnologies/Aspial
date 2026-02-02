@@ -222,6 +222,10 @@ async function _getQuotationsPaginatedInternal(
             customServiceId: true,
           },
         },
+        invoices: {
+          where: { status: { not: "cancelled" } },
+          select: { amount: true },
+        },
       },
       orderBy: { created_at: "desc" },
       skip,
@@ -230,11 +234,15 @@ async function _getQuotationsPaginatedInternal(
   ])
 
   // Transform data to match QuotationWithServices type (convert null to undefined)
-  const transformedQuotations = quotations.map(quotation => ({
+  const transformedQuotations = quotations.map(quotation => {
+    const totalInvoiced = (quotation.invoices ?? []).reduce((sum, inv) => sum + inv.amount, 0)
+    const balance = Math.max(0, quotation.totalPrice - totalInvoiced)
+    return {
     id: quotation.id,
     name: quotation.name,
     description: quotation.description,
     totalPrice: quotation.totalPrice,
+    balance,
     workflowStatus: quotation.workflowStatus,
     paymentStatus: quotation.paymentStatus,
     discountValue: quotation.discountValue ?? undefined,
@@ -297,7 +305,8 @@ async function _getQuotationsPaginatedInternal(
       created_at: cs.createdAt,
       updated_at: cs.updatedAt,
     })) ?? [],
-  }))
+  }
+  })
 
   return {
     data: transformedQuotations,
@@ -410,6 +419,10 @@ export async function getQuotationById(id: string) {
       createdBy: true,
       Client: true,
       customServices: true,
+      invoices: {
+        where: { status: { not: "cancelled" } },
+        select: { id: true, amount: true, status: true },
+      },
     },
   })
 
@@ -475,6 +488,16 @@ export async function getQuotationById(id: string) {
       created_at: cs.createdAt,
       updated_at: cs.updatedAt,
     })),
+    invoices: quotation.invoices.map((inv) => ({
+      id: inv.id,
+      amount: inv.amount,
+      status: inv.status,
+    })),
+    balance: Math.max(
+      0,
+      quotation.totalPrice -
+        quotation.invoices.reduce((sum, inv) => sum + inv.amount, 0)
+    ),
   }
 }
 

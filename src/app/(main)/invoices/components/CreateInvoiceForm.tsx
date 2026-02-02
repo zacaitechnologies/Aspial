@@ -106,50 +106,31 @@ export default function CreateInvoiceForm({
 		handleQuotationSelect(prefilledQuotationId)
 	}, [prefilledQuotationId, isOpen, prefetchedQuotation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Calculate quotation grand total when quotation is selected.
-	// Include approved custom services (no duration multiplication). Use calculated total when we have
-	// services/customServices data so custom service amount is always included; fall back to stored total only when calculated is 0.
+	// When quotation is selected: use balance (quotation total minus all non-cancelled invoices)
+	// for display, pre-fill and validation instead of quotation total.
 	useEffect(() => {
 		if (selectedQuotation) {
-			const storedTotal = Number(selectedQuotation.totalPrice) || 0
-
-			const regularServices = selectedQuotation.services?.filter((qs: QuotationWithServices['services'][0]) => !qs.customServiceId) || []
-			const servicesTotal = regularServices.reduce(
-				(sum: number, serviceItem: QuotationWithServices['services'][0]) => sum + (serviceItem.service?.basePrice || 0),
+			const quotationTotal = Number(selectedQuotation.totalPrice) || 0
+			const totalInvoiced = (selectedQuotation.invoices || []).reduce(
+				(sum: number, inv: { amount: number }) => sum + inv.amount,
 				0
 			)
-			const approvedCustomServicesTotal = (selectedQuotation.customServices || [])
-				.filter((cs: NonNullable<QuotationWithServices['customServices']>[0]) => cs.status === "APPROVED")
-				.reduce((sum: number, cs: NonNullable<QuotationWithServices['customServices']>[0]) => sum + (cs.price || 0), 0)
-			const subtotal = servicesTotal + approvedCustomServicesTotal
-
-			let discountAmount = 0
-			if (selectedQuotation.discountValue && selectedQuotation.discountValue > 0) {
-				discountAmount =
-					selectedQuotation.discountType === "percentage"
-						? (subtotal * selectedQuotation.discountValue) / 100
-						: selectedQuotation.discountValue
-			}
-
-			const calculatedTotal = Math.max(0, subtotal - discountAmount)
-			// Use calculated total (includes approved custom services) when available; else stored total
-			const grandTotal = calculatedTotal > 0 ? calculatedTotal : storedTotal
-			setQuotationGrandTotal(grandTotal)
-			// Pre-fill invoice amount when quotation total is available
-			if (grandTotal > 0) {
-				setInvoiceForm(prev => ({ ...prev, amount: grandTotal.toFixed(2) }))
+			const balance = Math.max(0, quotationTotal - totalInvoiced)
+			setQuotationGrandTotal(balance)
+			if (balance > 0) {
+				setInvoiceForm(prev => ({ ...prev, amount: balance.toFixed(2) }))
 			}
 		}
 	}, [selectedQuotation])
 
-	// Validate amount when it changes
+	// Validate amount when it changes (max = balance, not quotation total)
 	useEffect(() => {
 		if (invoiceForm.amount && quotationGrandTotal > 0) {
 			const amount = parseFloat(invoiceForm.amount)
 			if (isNaN(amount) || amount <= 0) {
 				setAmountWarning("Amount must be greater than 0")
 			} else if (amount > quotationGrandTotal) {
-				setAmountWarning(`Warning: Invoice amount (RM${formatNumber(amount)}) exceeds quotation total (RM${formatNumber(quotationGrandTotal)})`)
+				setAmountWarning(`Warning: Invoice amount (RM${formatNumber(amount)}) exceeds remaining balance (RM${formatNumber(quotationGrandTotal)})`)
 			} else {
 				setAmountWarning("")
 			}
@@ -350,7 +331,9 @@ export default function CreateInvoiceForm({
 														</p>
 													)}
 												</div>
-												<Badge variant="outline">RM{formatNumber(quotation.totalPrice)}</Badge>
+												<Badge variant="outline">
+												Balance: RM{formatNumber("balance" in quotation ? quotation.balance : quotation.totalPrice)}
+											</Badge>
 											</div>
 										</CardContent>
 									</Card>
@@ -376,7 +359,7 @@ export default function CreateInvoiceForm({
 											)}
 										</div>
 										<div className="text-right">
-											<p className="text-xs text-green-600">Quotation Total</p>
+											<p className="text-xs text-green-600">Balance</p>
 											<p className="font-bold text-green-900">RM{formatNumber(quotationGrandTotal)}</p>
 										</div>
 									</div>

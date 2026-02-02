@@ -5,6 +5,8 @@ export type InvoiceWithQuotation = {
 	invoiceNumber: string
 	type: InvoiceType
 	amount: number
+	/** Invoice amount minus sum of non-cancelled receipt amounts */
+	balance?: number
 	quotationId: number
 	status: "active" | "cancelled"
 	created_at: Date
@@ -87,6 +89,13 @@ export type InvoiceWithQuotation = {
 			created_at: Date
 			updated_at: Date
 		} | null
+		/** All non-cancelled invoices for this quotation (used to calculate balance as of this invoice's date) */
+		invoices?: {
+			id: string
+			amount: number
+			status: string
+			created_at?: Date
+		}[]
 	} | null
 	createdBy: {
 		id: string

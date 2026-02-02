@@ -5,6 +5,8 @@ export type QuotationWithServices = {
   name: string;
   description: string;
   totalPrice: number;
+  /** Quotation total minus sum of non-cancelled invoice amounts */
+  balance?: number;
   workflowStatus: string;
   paymentStatus: string;
   discountValue?: number;
@@ -79,6 +81,12 @@ export type QuotationWithServices = {
     created_at: Date;
     updated_at: Date;
   } | null;
+  /** Non-cancelled invoices for this quotation (used to compute balance when creating invoice) */
+  invoices?: {
+    id: string;
+    amount: number;
+    status: string;
+  }[];
 };
 
 export type QuotationFormData = {

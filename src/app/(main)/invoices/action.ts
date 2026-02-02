@@ -48,6 +48,10 @@ async function _getInvoicesPaginatedInternal(
 				status: true,
 				created_at: true,
 				updated_at: true,
+				receipts: {
+					where: { status: { not: "cancelled" } },
+					select: { amount: true },
+				},
 				quotation: {
 					select: {
 						id: true,
@@ -84,25 +88,32 @@ async function _getInvoicesPaginatedInternal(
 	])
 
 	// Transform data
-	const transformedInvoices = invoices.map(invoice => ({
-		id: invoice.id,
-		invoiceNumber: invoice.invoiceNumber,
-		type: invoice.type,
-		amount: invoice.amount,
-		quotationId: invoice.quotationId,
-		status: invoice.status,
-		created_at: invoice.created_at,
-		updated_at: invoice.updated_at,
-		quotation: invoice.quotation ? {
-			id: invoice.quotation.id,
-			name: invoice.quotation.name,
-			description: invoice.quotation.description,
-			totalPrice: invoice.quotation.totalPrice,
-			workflowStatus: invoice.quotation.workflowStatus,
-		} : null,
-		createdBy: invoice.createdBy,
-		Client: invoice.quotation?.Client || null,
-	}))
+	const transformedInvoices = invoices.map((invoice) => {
+		const totalReceived = (invoice.receipts ?? []).reduce((sum, r) => sum + r.amount, 0)
+		const balance = Math.max(0, invoice.amount - totalReceived)
+		return {
+			id: invoice.id,
+			invoiceNumber: invoice.invoiceNumber,
+			type: invoice.type,
+			amount: invoice.amount,
+			balance,
+			quotationId: invoice.quotationId,
+			status: invoice.status,
+			created_at: invoice.created_at,
+			updated_at: invoice.updated_at,
+			quotation: invoice.quotation
+				? {
+						id: invoice.quotation.id,
+						name: invoice.quotation.name,
+						description: invoice.quotation.description,
+						totalPrice: invoice.quotation.totalPrice,
+						workflowStatus: invoice.quotation.workflowStatus,
+					}
+				: null,
+			createdBy: invoice.createdBy,
+			Client: invoice.quotation?.Client || null,
+		}
+	})
 
 	return {
 		data: transformedInvoices,
@@ -227,6 +238,16 @@ export async function getInvoiceFullById(id: unknown) {
 									email: true,
 								},
 							},
+						},
+					},
+					// Include all non-cancelled invoices (with created_at) to compute balance as of this invoice's date
+					invoices: {
+						where: { status: { not: "cancelled" } },
+						select: {
+							id: true,
+							amount: true,
+							status: true,
+							created_at: true,
 						},
 					},
 				},
@@ -830,7 +851,8 @@ export async function getInvoiceEmailHistory(
 }
 
 /**
- * Search quotations for invoice creation
+ * Search quotations for invoice creation.
+ * Returns each quotation with balance = totalPrice - sum of all non-cancelled invoices.
  */
 export async function searchQuotationsForInvoice(searchTerm: unknown) {
 	unstable_noStore()
@@ -861,11 +883,20 @@ export async function searchQuotationsForInvoice(searchTerm: unknown) {
 					company: true,
 				},
 			},
+			invoices: {
+				where: { status: { not: "cancelled" } },
+				select: { amount: true },
+			},
 		},
 		orderBy: { created_at: "desc" },
 		take: 20, // Limit results
 	})
 
-	return quotations
+	return quotations.map((q) => {
+		const totalInvoiced = q.invoices.reduce((sum, inv) => sum + inv.amount, 0)
+		const balance = Math.max(0, q.totalPrice - totalInvoiced)
+		const { invoices: _invoices, ...rest } = q
+		return { ...rest, balance }
+	})
 }
 

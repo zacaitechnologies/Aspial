@@ -118,11 +118,14 @@ export default function QuotationDetailClient({
 		}
 	}
 
-	// Total = stored totalPrice (standard services with discount) + approved custom services (no duration multiplication)
-	const approvedCustomTotal = (quotation?.customServices ?? [])
-		.filter((cs) => cs.status === "APPROVED")
-		.reduce((sum, cs) => sum + cs.price, 0)
-	const quotationGrandTotal = (quotation?.totalPrice ?? 0) + approvedCustomTotal
+	// Grand total: totalPrice is stored when creating/editing and already includes
+	// standard services (with discount) + approved custom services. Do not add approved custom again.
+	const quotationGrandTotal = quotation?.totalPrice ?? 0
+	// Quotation balance = grand total minus sum of non-cancelled invoice amounts
+	const quotationBalance = quotationGrandTotal - invoices
+		.filter((inv) => inv.status !== "cancelled")
+		.reduce((sum, inv) => sum + inv.amount, 0)
+	const quotationBalanceDisplay = Math.max(0, quotationBalance)
 
 	const handleRefresh = async () => {
 		// Invalidate cache and refresh the page
@@ -471,6 +474,28 @@ export default function QuotationDetailClient({
 								</div>
 								<span className="text-2xl font-bold text-blue-800">
 									RM{formatNumber(quotationGrandTotal)}
+								</span>
+							</div>
+							<div
+								className={`flex justify-between items-center p-3 rounded-lg ${
+									quotationBalanceDisplay === 0 ? "bg-green-50" : "bg-amber-50"
+								}`}
+							>
+								<div>
+									<p
+										className={`text-sm font-semibold ${
+											quotationBalanceDisplay === 0 ? "text-green-800" : "text-amber-800"
+										}`}
+									>
+										Balance:
+									</p>
+								</div>
+								<span
+									className={`text-2xl font-bold ${
+										quotationBalanceDisplay === 0 ? "text-green-800" : "text-amber-800"
+									}`}
+								>
+									RM{formatNumber(quotationBalanceDisplay)}
 								</span>
 							</div>
 

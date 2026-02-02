@@ -198,6 +198,27 @@ export default function InvoiceCard({
 
 					{/* Right Section - Fixed Width for Alignment */}
 					<div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+						{/* Invoice Balance - Compact */}
+						{invoice.balance !== undefined && (
+							<div className="text-right">
+								<div
+									className={`rounded px-3 py-1.5 border ${
+										invoice.balance === 0
+											? "bg-linear-to-br from-green-50 to-emerald-50 border-green-200"
+											: "bg-linear-to-br from-amber-50 to-orange-50 border-amber-200"
+									}`}
+								>
+									<p className="text-[10px] text-gray-600 mb-0.5">Balance</p>
+									<p
+										className={`text-lg font-bold ${
+											invoice.balance === 0 ? "text-green-700" : "text-amber-700"
+										}`}
+									>
+										RM{formatNumber(invoice.balance)}
+									</p>
+								</div>
+							</div>
+						)}
 						{/* Invoice Amount - Compact */}
 						<div className="text-right">
 							<div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">

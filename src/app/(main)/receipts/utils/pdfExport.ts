@@ -2,7 +2,7 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { formatNumber } from "@/lib/format-number"
 import type { ReceiptWithInvoice } from "../types"
-import { getReceiptFullById, getReceiptsForInvoice } from "../action"
+import { getReceiptFullById, getReceiptsForInvoice, getQuotationInvoicesTotalAsOf, getPreviousInvoiceAmount } from "../action"
 
 /** Quotation shape returned by getReceiptFullById (includes services). Used only for PDF generation. */
 interface QuotationWithServices {
@@ -382,11 +382,20 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	const receiptAmount = receipt.amount
 	const invoiceAmount = invoice.amount
 	
-	// Get receipts to calculate remaining
+	// Get receipts to calculate invoice balance (only up to this receipt date, non-cancelled)
 	const receiptCreatedAt = new Date(receipt.created_at)
 	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
 	const totalReceived = allReceipts.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0)
-	const remainingAmount = invoiceAmount - totalReceived
+	const invoiceBalance = Math.max(0, invoiceAmount - totalReceived)
+	
+	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice's creation time
+	const quotationId = (quotationRaw as { id: number }).id
+	const invoiceCreatedAt = invoice.created_at ? new Date(invoice.created_at) : receiptCreatedAt
+	const [totalInvoicedAsOf, previousInvoiceAmount] = await Promise.all([
+		getQuotationInvoicesTotalAsOf(quotationId, invoiceCreatedAt),
+		getPreviousInvoiceAmount(quotationId, invoiceCreatedAt),
+	])
+	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
 	// Get advisor name
 	const advisorName = quotation.createdBy
@@ -627,8 +636,8 @@ if (currentY > pageHeight - 40) {
 
 autoTable(doc, {
 	startY: currentY,
-	head: [["Amount Received", "Balance"]],
-	body: [[`RM${formatNumber(receiptAmount)}`, `RM${formatNumber(Math.max(0, remainingAmount))}`]],
+	head: [["Previous Invoice Amount", "Amount Received", "Invoice Balance", "Project Balance"]],
+	body: [[`RM${formatNumber(previousInvoiceAmount)}`, `RM${formatNumber(receiptAmount)}`, `RM${formatNumber(invoiceBalance)}`, `RM${formatNumber(projectBalance)}`]],
 	theme: "grid",
 	headStyles: {
 		fillColor: PRIMARY_COLOR,
@@ -643,8 +652,10 @@ autoTable(doc, {
 		lineWidth: 0.1,
 	},
 	columnStyles: {
-		0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-		1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
+		0: { cellWidth: (pageWidth - 2 * margin) / 4, halign: "center" },
+		1: { cellWidth: (pageWidth - 2 * margin) / 4, halign: "center" },
+		2: { cellWidth: (pageWidth - 2 * margin) / 4, halign: "center" },
+		3: { cellWidth: (pageWidth - 2 * margin) / 4, halign: "center" },
 	},
 	margin: { left: margin, right: margin },
 	styles: {
@@ -746,7 +757,16 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	const receiptCreatedAt = new Date(fullReceipt.created_at)
 	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
 	const totalReceived = allReceipts.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0)
-	const remainingAmount = invoiceAmount - totalReceived
+	const invoiceBalance = Math.max(0, invoiceAmount - totalReceived)
+	
+	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice's creation time
+	const quotationId = (quotationRaw as { id: number }).id
+	const invoiceCreatedAt = invoice.created_at ? new Date(invoice.created_at) : receiptCreatedAt
+	const [totalInvoicedAsOf, previousInvoiceAmount] = await Promise.all([
+		getQuotationInvoicesTotalAsOf(quotationId, invoiceCreatedAt),
+		getPreviousInvoiceAmount(quotationId, invoiceCreatedAt),
+	])
+	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
 	const advisorName = quotation.createdBy
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
@@ -911,12 +931,17 @@ if (currentY > pageHeight - 40) {
 
 autoTable(doc, {
 	startY: currentY,
-	head: [["Amount Received", "Balance"]],
-	body: [[`RM${formatNumber(receiptAmount)}`, `RM${formatNumber(Math.max(0, remainingAmount))}`]],
+	head: [["Previous Invoice Amount", "Amount Received", "Invoice Balance", "Project Balance"]],
+	body: [[`RM${formatNumber(previousInvoiceAmount)}`, `RM${formatNumber(receiptAmount)}`, `RM${formatNumber(invoiceBalance)}`, `RM${formatNumber(projectBalance)}`]],
 	theme: "grid",
 	headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
 	bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
-	columnStyles: { 0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" }, 1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" } },
+	columnStyles: {
+		0: { cellWidth: (pageWidth - 2 * margin) / 4, halign: "center" },
+		1: { cellWidth: (pageWidth - 2 * margin) / 4, halign: "center" },
+		2: { cellWidth: (pageWidth - 2 * margin) / 4, halign: "center" },
+		3: { cellWidth: (pageWidth - 2 * margin) / 4, halign: "center" },
+	},
 	margin: { left: margin, right: margin },
 	styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
 	didDrawPage: (data: { pageNumber: number }) => {

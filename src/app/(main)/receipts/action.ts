@@ -187,6 +187,78 @@ export async function getReceiptsForInvoice(invoiceId: string, beforeDate?: Date
 }
 
 /**
+ * Sum of non-cancelled invoice amounts for a quotation, for invoices created on or before a given date.
+ * Used for receipt PDF "project balance" = quotation total − this sum.
+ */
+export async function getQuotationInvoicesTotalAsOf(
+	quotationId: number,
+	invoiceCreatedAt: Date
+): Promise<number> {
+	unstable_noStore()
+	const result = await prisma.invoice.aggregate({
+		where: {
+			quotationId,
+			status: { not: "cancelled" },
+			created_at: { lte: invoiceCreatedAt },
+		},
+		_sum: { amount: true },
+	})
+	return result._sum.amount ?? 0
+}
+
+/**
+ * Sum of non-cancelled invoice amounts for a quotation, for invoices created strictly before a given date.
+ * Used for receipt PDF "Previous Invoice Amount".
+ */
+export async function getPreviousInvoiceAmount(
+	quotationId: number,
+	currentInvoiceCreatedAt: Date
+): Promise<number> {
+	unstable_noStore()
+	const result = await prisma.invoice.aggregate({
+		where: {
+			quotationId,
+			status: { not: "cancelled" },
+			created_at: { lt: currentInvoiceCreatedAt },
+		},
+		_sum: { amount: true },
+	})
+	return result._sum.amount ?? 0
+}
+
+/**
+ * Sum of non-cancelled receipt amounts for a quotation, for receipts against invoices created
+ * before a given invoice date, with receipt created_at <= receiptCreatedAt.
+ * Used for receipt PDF "Paid (Previous Invoice)".
+ */
+export async function getPaidPreviousInvoice(
+	quotationId: number,
+	currentInvoiceCreatedAt: Date,
+	receiptCreatedAt: Date
+): Promise<number> {
+	unstable_noStore()
+	const previousInvoiceIds = await prisma.invoice.findMany({
+		where: {
+			quotationId,
+			status: { not: "cancelled" },
+			created_at: { lt: currentInvoiceCreatedAt },
+		},
+		select: { id: true },
+	})
+	const ids = previousInvoiceIds.map((inv) => inv.id)
+	if (ids.length === 0) return 0
+	const result = await prisma.receipt.aggregate({
+		where: {
+			invoiceId: { in: ids },
+			status: { not: "cancelled" },
+			created_at: { lte: receiptCreatedAt },
+		},
+		_sum: { amount: true },
+	})
+	return result._sum.amount ?? 0
+}
+
+/**
  * Get receipt by ID with basic relations (lightweight version)
  * Used for list views and quick access
  */

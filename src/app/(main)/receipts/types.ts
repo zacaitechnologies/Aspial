@@ -12,6 +12,7 @@ export interface ReceiptWithInvoice {
 		type: "SO" | "EPO" | "EO"
 		amount: number
 		status: "active" | "cancelled"
+		created_at?: Date
 		quotation?: {
 			id: number
 			name: string

@@ -453,6 +453,19 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 	const quotationGrandTotal = subtotal - discountAmount
 	const invoiceAmount = invoice.amount
 	
+	// Balance as of this invoice: only subtract invoices created on or before this invoice's created_at
+	const allQuotationInvoices = (quotation.invoices || []) as { id: string; amount: number; created_at?: Date }[]
+	const thisInvoiceCreatedAt = new Date(invoice.created_at).getTime()
+	const invoicesUpToThis = allQuotationInvoices.filter(
+		(inv) => !inv.created_at || new Date(inv.created_at).getTime() <= thisInvoiceCreatedAt
+	)
+	const totalPaid = invoicesUpToThis.reduce((sum, inv) => sum + inv.amount, 0)
+	const balance = Math.max(0, quotationGrandTotal - totalPaid)
+	// Paid (Previous Invoice): sum of invoices created before this one (exclude this invoice by id)
+	const paidPreviousInvoice = invoicesUpToThis
+		.filter((inv) => inv.id !== invoice.id)
+		.reduce((sum, inv) => sum + inv.amount, 0)
+	
 	// Get advisor name
 	const advisorName = quotation.createdBy
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
@@ -695,8 +708,8 @@ if (currentY > pageHeight - 40) {
 
 autoTable(doc, {
 	startY: currentY,
-	head: [["First Payment", "Total Payable"]],
-	body: [[formatNumber(invoiceAmount), formatNumber(invoiceAmount)]],
+	head: [["Paid (Previous Invoice)", "Current Payment", "Balance"]],
+	body: [[formatNumber(paidPreviousInvoice), formatNumber(invoiceAmount), formatNumber(balance)]],
 	theme: "grid",
 	headStyles: {
 		fillColor: PRIMARY_COLOR,
@@ -711,8 +724,9 @@ autoTable(doc, {
 		lineWidth: 0.1,
 	},
 	columnStyles: {
-		0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
-		1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" },
+		0: { cellWidth: (pageWidth - 2 * margin) / 3, halign: "center" },
+		1: { cellWidth: (pageWidth - 2 * margin) / 3, halign: "center" },
+		2: { cellWidth: (pageWidth - 2 * margin) / 3, halign: "center" },
 	},
 	margin: { left: margin, right: margin },
 	styles: {
@@ -833,6 +847,19 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 	
 	const quotationGrandTotal = subtotal - discountAmount
 	const invoiceAmount = fullInvoice.amount
+	
+	// Balance as of this invoice: only subtract invoices created on or before this invoice's created_at
+	const allQuotationInvoices = (quotation as { invoices?: { id: string; amount: number; status: string; created_at?: Date }[] }).invoices || []
+	const thisInvoiceCreatedAt = new Date(fullInvoice.created_at).getTime()
+	const invoicesUpToThis = allQuotationInvoices.filter(
+		(inv) => !inv.created_at || new Date(inv.created_at).getTime() <= thisInvoiceCreatedAt
+	)
+	const totalPaid = invoicesUpToThis.reduce((sum, inv) => sum + inv.amount, 0)
+	const balance = Math.max(0, quotationGrandTotal - totalPaid)
+	// Paid (Previous Invoice): sum of invoices created before this one (exclude this invoice by id)
+	const paidPreviousInvoice = invoicesUpToThis
+		.filter((inv) => inv.id !== fullInvoice.id)
+		.reduce((sum, inv) => sum + inv.amount, 0)
 	
 	const advisorName = quotation.createdBy
 		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
@@ -1001,12 +1028,12 @@ if (currentY > pageHeight - 40) {
 
 autoTable(doc, {
 	startY: currentY,
-	head: [["First Payment", "Total Payable"]],
-	body: [[formatNumber(invoiceAmount), formatNumber(invoiceAmount)]],
+	head: [["Paid (Previous Invoice)", "Current Payment", "Balance"]],
+	body: [[formatNumber(paidPreviousInvoice), formatNumber(invoiceAmount), formatNumber(balance)]],
 	theme: "grid",
 	headStyles: { fillColor: PRIMARY_COLOR, textColor: WHITE, fontSize: 9, fontStyle: "bold", lineWidth: 0.1 },
 	bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
-	columnStyles: { 0: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" }, 1: { cellWidth: (pageWidth - 2 * margin) / 2, halign: "center" } },
+	columnStyles: { 0: { cellWidth: (pageWidth - 2 * margin) / 3, halign: "center" }, 1: { cellWidth: (pageWidth - 2 * margin) / 3, halign: "center" }, 2: { cellWidth: (pageWidth - 2 * margin) / 3, halign: "center" } },
 	margin: { left: margin, right: margin },
 	styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
 	didDrawPage: (data: { pageNumber: number }) => {

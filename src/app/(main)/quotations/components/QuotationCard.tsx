@@ -142,16 +142,9 @@ export default function QuotationCard({
     );
   }, []);
 
-  // Calculate grand total including approved custom services (custom service price is not multiplied by duration)
-  const grandTotal = (() => {
-    // quotation.totalPrice is the total for standard services (with discount)
-    const fixedServicesTotal = quotation.totalPrice;
-    // Approved custom services: add their price once (no duration multiplication)
-    const customServicesTotal = customServices
-      .filter((cs) => cs.status === "APPROVED")
-      .reduce((sum, cs) => sum + cs.price, 0);
-    return fixedServicesTotal + customServicesTotal;
-  })();
+  // Grand total: totalPrice is stored when creating/editing and already includes
+  // standard services (with discount) + approved custom services. Do not add approved custom again.
+  const grandTotal = quotation.totalPrice;
 
   const [linkedProject, setLinkedProject] = useState<QuotationWithServices["project"]>(quotation.project);
   const hasProject = linkedProject !== null;
@@ -558,6 +551,27 @@ export default function QuotationCard({
 
           {/* Right Section - Fixed Width for Alignment */}
           <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+            {/* Balance - Compact */}
+            {quotation.balance !== undefined && (
+              <div className="text-right">
+                <div
+                  className={`rounded px-3 py-1.5 border ${
+                    quotation.balance === 0
+                      ? "bg-linear-to-br from-green-50 to-emerald-50 border-green-200"
+                      : "bg-linear-to-br from-amber-50 to-orange-50 border-amber-200"
+                  }`}
+                >
+                  <p className="text-[10px] text-gray-600 mb-0.5">Balance</p>
+                  <p
+                    className={`text-lg font-bold ${
+                      quotation.balance === 0 ? "text-green-700" : "text-amber-700"
+                    }`}
+                  >
+                    RM{formatNumber(quotation.balance)}
+                  </p>
+                </div>
+              </div>
+            )}
             {/* Grand Total - Compact */}
             <div className="text-right">
               <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
