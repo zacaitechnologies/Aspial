@@ -25,6 +25,7 @@ import { useServicesCacheContext } from "../contexts/ServicesCacheContext";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { DeletionImpactWarningDialog } from "@/components/ui/deletion-impact-warning-dialog";
+import { formatNumber } from "@/lib/format-number";
 
 interface ServicesListProps {
   services: Service[];
@@ -343,7 +344,7 @@ export default function ServicesList({
                         variant="secondary"
                         className="bg-blue-100 text-blue-800"
                       >
-                        RM {service.basePrice.toFixed(2)}
+                        RM {formatNumber(service.basePrice)}
                       </Badge>
                     </div>
                   </div>

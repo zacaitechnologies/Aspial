@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User, IdCard, Receipt, Eye } from "lucide-react"
 import Link from "next/link"
+import { formatNumber } from "@/lib/format-number"
 import EditClientDialog from "../components/EditClientDialog"
 import { getClientById } from "../action"
 
@@ -140,6 +141,16 @@ export default function ClientDetailClient({
 										<span>{client.quotations.length} Quotations</span>
 									</div>
 									<div className="flex items-center gap-3 text-muted-foreground">
+										<Receipt className="h-4 w-4" />
+										<span>
+											{client.quotations.reduce(
+												(sum, q) => sum + ((q as { invoices?: { receipts?: unknown[] }[] }).invoices?.reduce((s, inv) => s + (inv.receipts?.length ?? 0), 0) ?? 0),
+												0
+											)}{" "}
+											Receipts
+										</span>
+									</div>
+									<div className="flex items-center gap-3 text-muted-foreground">
 										<FolderOpen className="h-4 w-4" />
 										<span>{client.projects.length} Projects</span>
 									</div>
@@ -173,6 +184,7 @@ export default function ClientDetailClient({
 					<TabsList>
 						<TabsTrigger value="quotations">Quotations</TabsTrigger>
 						<TabsTrigger value="invoices">Invoices</TabsTrigger>
+						<TabsTrigger value="receipts">Receipts</TabsTrigger>
 						<TabsTrigger value="projects">Projects</TabsTrigger>
 					</TabsList>
 					<TabsContent value="quotations">
@@ -184,7 +196,12 @@ export default function ClientDetailClient({
 									<p className="text-muted-foreground">No quotations found for this client.</p>
 								</div>
 							) : (
-								client.quotations.map((quotation) => (
+								client.quotations.map((quotation) => {
+									const quotationInvoices = (quotation as { invoices?: { amount: number }[] }).invoices ?? []
+									const totalInvoiced = quotationInvoices.reduce((s, i) => s + i.amount, 0)
+									const quotationBalance = Math.max(0, quotation.totalPrice - totalInvoiced)
+									const isBalanceZero = quotationBalance === 0
+									return (
 									<Card key={quotation.id} className="card bg-card border-2 border-border gap-0">
 										<CardHeader className="pb-3">
 											<CardTitle className="text-lg text-foreground">
@@ -195,7 +212,13 @@ export default function ClientDetailClient({
 											<div className="flex items-center justify-between">
 												<span className="text-sm font-medium text-muted-foreground">Amount:</span>
 												<span className="text-lg font-bold text-foreground">
-													RM {quotation.totalPrice.toLocaleString()}
+													RM {formatNumber(quotation.totalPrice)}
+												</span>
+											</div>
+											<div className={`flex items-center justify-between p-2 rounded ${isBalanceZero ? "bg-green-50" : "bg-amber-50"}`}>
+												<span className="text-sm font-medium text-muted-foreground">Balance:</span>
+												<span className={`text-lg font-bold ${isBalanceZero ? "text-green-700" : "text-amber-700"}`}>
+													RM {formatNumber(quotationBalance)}
 												</span>
 											</div>
 											<div className="flex items-center justify-between">
@@ -230,14 +253,16 @@ export default function ClientDetailClient({
 											</Link>
 										</CardContent>
 									</Card>
-								))
+								)
+								})
 							)}
 						</div>
 					</TabsContent>
 					<TabsContent value="invoices">
 						{/* Invoices Content */}
 						{(() => {
-							type QuotationWithInvoices = { id: number; name: string; invoices?: { id: string; invoiceNumber: string; amount: number; type: string; status: string; created_at: Date }[] }
+							type InvoiceWithReceipts = { id: string; invoiceNumber: string; amount: number; type: string; status: string; created_at: Date; receipts?: { amount: number }[] }
+							type QuotationWithInvoices = { id: number; name: string; invoices?: InvoiceWithReceipts[] }
 							const invoiceWithQuotation = client.quotations.flatMap((q) => {
 								const quotation = q as QuotationWithInvoices
 								return (quotation.invoices ?? []).map((invoice) => ({ invoice, quotation }))
@@ -249,7 +274,11 @@ export default function ClientDetailClient({
 								</div>
 							) : (
 								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-									{invoiceWithQuotation.map(({ invoice, quotation }) => (
+									{invoiceWithQuotation.map(({ invoice, quotation }) => {
+										const totalReceived = (invoice.receipts ?? []).reduce((s, r) => s + r.amount, 0)
+										const invoiceBalance = Math.max(0, invoice.amount - totalReceived)
+										const isBalanceZero = invoiceBalance === 0
+										return (
 										<Card key={invoice.id} className="card bg-card border-2 border-border gap-0">
 											<CardHeader className="pb-3">
 												<CardTitle className="text-lg text-foreground">
@@ -266,7 +295,13 @@ export default function ClientDetailClient({
 												<div className="flex items-center justify-between">
 													<span className="text-sm font-medium text-muted-foreground">Amount:</span>
 													<span className="text-lg font-bold text-foreground">
-														RM {invoice.amount.toLocaleString()}
+														RM {formatNumber(invoice.amount)}
+													</span>
+												</div>
+												<div className={`flex items-center justify-between p-2 rounded ${isBalanceZero ? "bg-green-50" : "bg-amber-50"}`}>
+													<span className="text-sm font-medium text-muted-foreground">Balance:</span>
+													<span className={`text-lg font-bold ${isBalanceZero ? "text-green-700" : "text-amber-700"}`}>
+														RM {formatNumber(invoiceBalance)}
 													</span>
 												</div>
 												<div className="flex items-center justify-between">
@@ -297,6 +332,84 @@ export default function ClientDetailClient({
 														<Button variant="outline" size="sm" className="w-full">
 															<Eye className="w-4 h-4 mr-1" />
 															View Quotation
+														</Button>
+													</Link>
+												</div>
+											</CardContent>
+										</Card>
+									)
+									})}
+								</div>
+							)
+						})()}
+					</TabsContent>
+					<TabsContent value="receipts">
+						{/* Receipts Content */}
+						{(() => {
+							type ReceiptItem = { id: string; receiptNumber: string; amount: number; created_at: Date; status: string }
+							type InvoiceWithReceiptsList = { id: string; invoiceNumber: string; receipts?: ReceiptItem[] }
+							type QuotationWithInvoicesReceipts = { id: number; name: string; invoices?: InvoiceWithReceiptsList[] }
+							const receiptWithContext = client.quotations.flatMap((q) => {
+								const quotation = q as QuotationWithInvoicesReceipts
+								return (quotation.invoices ?? []).flatMap((invoice) =>
+									(invoice.receipts ?? []).map((receipt) => ({ receipt, invoice, quotation }))
+								)
+							})
+							return receiptWithContext.length === 0 ? (
+								<div className="col-span-full text-center py-8">
+									<Receipt className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+									<p className="text-muted-foreground">No receipts found for this client.</p>
+								</div>
+							) : (
+								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+									{receiptWithContext.map(({ receipt, invoice, quotation }) => (
+										<Card key={receipt.id} className="card bg-card border-2 border-border gap-0">
+											<CardHeader className="pb-3">
+												<CardTitle className="text-lg text-foreground">
+													{receipt.receiptNumber}
+												</CardTitle>
+											</CardHeader>
+											<CardContent className="space-y-3">
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Amount:</span>
+													<span className="text-lg font-bold text-foreground">
+														RM {formatNumber(receipt.amount)}
+													</span>
+												</div>
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Invoice:</span>
+													<span className="text-sm font-medium text-foreground truncate max-w-[180px]" title={invoice.invoiceNumber}>
+														{invoice.invoiceNumber}
+													</span>
+												</div>
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Quotation:</span>
+													<span className="text-sm font-medium text-foreground truncate max-w-[180px]" title={quotation.name}>
+														{quotation.name}
+													</span>
+												</div>
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Status:</span>
+													<Badge variant="outline" className="capitalize border-border text-foreground">
+														{receipt.status}
+													</Badge>
+												</div>
+												<div className="flex items-center justify-between">
+													<span className="text-sm font-medium text-muted-foreground">Created:</span>
+													<span className="text-sm text-muted-foreground">
+														{formatDate(receipt.created_at)}
+													</span>
+												</div>
+												<div className="flex gap-2 mt-2">
+													<Link href={`/receipts/${receipt.id}`} className="flex-1">
+														<Button variant="outline" size="sm" className="w-full">
+															<Receipt className="w-4 h-4 mr-1" />
+															View Receipt
+														</Button>
+													</Link>
+													<Link href={`/invoices/${invoice.id}`} className="flex-1">
+														<Button variant="outline" size="sm" className="w-full">
+															View Invoice
 														</Button>
 													</Link>
 												</div>

@@ -34,6 +34,7 @@ import { MilestoneForm } from "./MilestoneForm";
 import { deleteMilestone } from "../milestone-actions";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/use-toast";
+import { formatNumber } from "@/lib/format-number";
 
 interface MilestoneCardProps {
   milestone: Milestone;
@@ -204,7 +205,7 @@ export function MilestoneCard({
             <div className="flex-1">
               <span className="text-blue-600 font-medium">{milestone.service.name}</span>
               <span className="text-muted-foreground ml-2">
-                RM {milestone.service.basePrice.toFixed(2)}
+                RM {formatNumber(milestone.service.basePrice)}
               </span>
             </div>
           </div>

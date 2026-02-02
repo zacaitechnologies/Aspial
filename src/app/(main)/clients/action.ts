@@ -453,6 +453,10 @@ export async function getClientById(id: string) {
                 type: true,
                 status: true,
                 created_at: true,
+                receipts: {
+                  where: { status: { not: "cancelled" } },
+                  select: { id: true, receiptNumber: true, amount: true, created_at: true, status: true },
+                },
               },
             },
           },

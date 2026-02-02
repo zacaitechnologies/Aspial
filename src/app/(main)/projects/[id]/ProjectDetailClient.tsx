@@ -53,6 +53,7 @@ import EditComplaintDialog from "../components/EditComplaintDialog"
 import ProjectContracts from "../components/ProjectContracts"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { toast } from "@/components/ui/use-toast"
+import { formatNumber } from "@/lib/format-number"
 
 interface ProjectDetailClientProps {
 	initialProjectData: ProjectWithDetails
@@ -579,7 +580,7 @@ export default function ProjectDetailClient({
 															{quotation.workflowStatus}
 														</Badge>
 														<span className="text-sm font-medium text-green-600">
-															Total: RM {quotation.totalPrice.toFixed(2)}
+															Total: RM {formatNumber(quotation.totalPrice)}
 														</span>
 													</div>
 												</div>
@@ -602,7 +603,7 @@ export default function ProjectDetailClient({
 																		{qs.service?.name ?? ""}
 																	</h5>
 																	<span className="text-sm font-medium text-green-600 whitespace-nowrap ml-2">
-																		RM {(qs.service?.basePrice ?? 0).toFixed(2)}
+																		RM {formatNumber(qs.service?.basePrice ?? 0)}
 																	</span>
 																</div>
 																<p className="text-sm text-gray-600 mb-2">
@@ -662,7 +663,7 @@ export default function ProjectDetailClient({
 																			</Badge>
 																		</div>
 																		<span className="text-sm font-medium text-green-600 whitespace-nowrap ml-2">
-																			RM {cs.price.toFixed(2)}
+																			RM {formatNumber(cs.price)}
 																		</span>
 																	</div>
 																	<p className="text-sm text-gray-600">
