@@ -523,12 +523,12 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                       <div className="flex items-center text-sm">
                         <Clock className="w-4 h-4 mr-2" />
                         <span className="font-medium">Start:</span>
-                        <span className="ml-2">{new Date(booking.startDate).toLocaleString()}</span>
+                        <span className="ml-2">{new Date(booking.startDate).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
                       </div>
                       <div className="flex items-center text-sm">
                         <Clock className="w-4 h-4 mr-2" />
                         <span className="font-medium">End:</span>
-                        <span className="ml-2">{new Date(booking.endDate).toLocaleString()}</span>
+                        <span className="ml-2">{new Date(booking.endDate).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
                       </div>
                       {booking.attendees && (
                         <div className="flex items-center text-sm">

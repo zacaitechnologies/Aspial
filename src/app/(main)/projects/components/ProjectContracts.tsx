@@ -404,7 +404,7 @@ export default function ProjectContracts({
 											<CardTitle className="text-base text-primary">{contract.fileName}</CardTitle>
 											<p className="text-sm text-muted-foreground mt-1">
 												Uploaded by {contract.uploader.firstName} {contract.uploader.lastName} on{" "}
-												{new Date(contract.createdAt).toLocaleDateString()}
+												{new Date(contract.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 											</p>
 										</div>
 									</div>

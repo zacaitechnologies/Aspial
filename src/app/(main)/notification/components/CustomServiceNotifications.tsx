@@ -292,7 +292,7 @@ export default function CustomServiceNotifications({
                       </p>
                       <p>
                         <strong>Requested:</strong>{" "}
-                        {new Date(service.createdAt).toLocaleDateString()}
+                        {new Date(service.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                       </p>
                     </div>
                   </div>

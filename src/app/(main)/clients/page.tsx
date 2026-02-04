@@ -1,8 +1,8 @@
 import { Suspense } from "react"
 import { getCachedUser } from "@/lib/auth-cache"
-import { getClientsPaginated } from "./action"
+import { getClientsPaginated, getClientsDashboardTotals } from "./action"
 import ClientsClient from "./components/ClientsClient"
-import { checkIsOperationUser } from "../actions/admin-actions"
+import { checkIsOperationUser, checkHasFullAccess } from "../actions/admin-actions"
 import AccessDenied from "../components/AccessDenied"
 
 // Force dynamic rendering since we use cookies for auth
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export default async function ClientsPage() {
   // Get user on server - this is cached
   const user = await getCachedUser()
-  
+
   if (!user) {
     return null
   }
@@ -23,8 +23,13 @@ export default async function ClientsPage() {
     return <AccessDenied />
   }
 
-  // Fetch initial data on server - cached for 30 seconds
-  const initialData = await getClientsPaginated(1, 12)
+  // Fetch initial data and dashboard totals (for admin) in parallel
+  const [initialData, dashboardTotals] = await Promise.all([
+    getClientsPaginated(1, 12),
+    checkHasFullAccess(user.id).then((hasFullAccess) =>
+      hasFullAccess ? getClientsDashboardTotals() : Promise.resolve(null)
+    ),
+  ])
 
   return (
     <Suspense fallback={
@@ -35,7 +40,7 @@ export default async function ClientsPage() {
         </div>
       </div>
     }>
-      <ClientsClient initialData={initialData} userId={user.id} />
+      <ClientsClient initialData={initialData} userId={user.id} dashboardTotals={dashboardTotals ?? undefined} />
     </Suspense>
   )
 }

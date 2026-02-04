@@ -451,7 +451,7 @@ export default function ServicesList({
                 )}
 
                 <p className="text-xs text-muted-foreground mt-3">
-                  Created: {new Date(service.created_at).toLocaleDateString()}
+                  Created: {new Date(service.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               </CardContent>
             </Card>

@@ -354,10 +354,10 @@ export default function NotificationPageClient({
 													{getPermissionBadges(invitation)}
 												</div>
 												<p className="text-sm text-muted-foreground">
-													<strong>Invited:</strong> {new Date(invitation.createdAt).toLocaleDateString()}
+													<strong>Invited:</strong> {new Date(invitation.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 												</p>
 												<p className="text-sm text-muted-foreground">
-													<strong>Updated:</strong> {new Date(invitation.updatedAt).toLocaleDateString()}
+													<strong>Updated:</strong> {new Date(invitation.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 												</p>
 											</div>
 										</div>
@@ -487,7 +487,7 @@ export default function NotificationPageClient({
 													{getPermissionBadges(invitation)}
 												</div>
 												<p className="text-sm text-muted-foreground">
-													<strong>Invited:</strong> {new Date(invitation.createdAt).toLocaleDateString()}
+													<strong>Invited:</strong> {new Date(invitation.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 												</p>
 											</div>
 										</div>

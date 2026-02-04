@@ -195,11 +195,10 @@ export default function ProjectsClient({
   // Listen for cache invalidation events
   useEffect(() => {
     const handleCacheInvalidate = async () => {
-      // Invalidate server cache, then refetch (will get fresh data due to tag revalidation)
       await invalidateProjectsCache();
       setIsRefreshing(true);
       try {
-        await fetchProjects();
+        await fetchProjects({ force: true });
       } finally {
         setIsRefreshing(false);
       }
@@ -209,12 +208,12 @@ export default function ProjectsClient({
     return () => window.removeEventListener('projectsCacheInvalidate', handleCacheInvalidate);
   }, [fetchProjects]);
 
-  // Manual refresh: invalidate cache then refetch
+  // Manual refresh / after edit: invalidate server cache and bypass client page cache so list and dashboard get fresh data
   const onRefresh = useCallback(async () => {
     await invalidateProjectsCache();
     setIsRefreshing(true);
     try {
-      await fetchProjects();
+      await fetchProjects({ force: true });
     } finally {
       setIsRefreshing(false);
     }
@@ -242,10 +241,10 @@ export default function ProjectsClient({
   const latestUpdatedTime = useMemo(() => getLatestUpdatedTime(projects), [projects]);
 
   const projectStats = useMemo(() => {
-    const newProjects = projects.filter((p) => p.status === "planning").length;
+    const planning = projects.filter((p) => p.status === "planning").length;
     const ongoing = projects.filter((p) => p.status === "in_progress").length;
     const completed = projects.filter((p) => p.status === "completed").length;
-    return { total, newProjects, ongoing, completed };
+    return { total, planning, ongoing, completed };
   }, [projects, total]);
 
   const handleEditProject = (project: ProjectsPaginatedResult['projects'][0]) => {
@@ -349,8 +348,8 @@ export default function ProjectsClient({
               <div className="flex items-center justify-between">
                 <div>
                   <Calendar className="h-8 w-8 text-yellow-600 mb-4" />
-                  <p className="text-xl font-bold text-yellow-600">New</p>
-                  <p className="text-2xl font-bold text-yellow-900">{projectStats.newProjects}</p>
+                  <p className="text-xl font-bold text-yellow-600">Planning</p>
+                  <p className="text-2xl font-bold text-yellow-900">{projectStats.planning}</p>
                   <p className="text-lg font-semibold text-yellow-600">Projects</p>
                 </div>
               </div>

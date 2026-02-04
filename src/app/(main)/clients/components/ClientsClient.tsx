@@ -26,7 +26,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
-import { deleteClient, getCurrentUserId, getClientsPaginated, getClientsPaginatedFresh, invalidateClientsCache, getClientDeletionImpact, type DeletionImpact } from "../action"
+import { deleteClient, getCurrentUserId, getClientsPaginated, getClientsPaginatedFresh, invalidateClientsCache, getClientDeletionImpact, type DeletionImpact, type ClientsDashboardTotals } from "../action"
 import { checkHasFullAccess } from "../../actions/admin-actions"
 import CreateClientDialog from "./CreateClientDialog"
 import EditClientDialog from "./EditClientDialog"
@@ -74,9 +74,11 @@ interface ClientsClientProps {
     totalPages: number
   }
   userId?: string
+  /** Admin-only: total quotation balance and total invoice balance for dashboard cards */
+  dashboardTotals?: ClientsDashboardTotals | null
 }
 
-export default function ClientsClient({ initialData, userId }: ClientsClientProps) {
+export default function ClientsClient({ initialData, userId, dashboardTotals }: ClientsClientProps) {
   const { enhancedUser } = useSession()
   const [searchTerm, setSearchTerm] = useState("")
   const [industryFilter, setIndustryFilter] = useState<string>("all")
@@ -330,11 +332,7 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
     setPage(1)
   }, [])
 
-  // Calculate stats
   const totalClients = total
-  const memberClients = clients.filter((c) => c.membershipType === "MEMBER").length
-  const totalValue = clients.reduce((sum, client) => sum + client.totalValue, 0)
-  const avgValue = totalClients > 0 ? totalValue / totalClients : 0
 
   if (!mounted) {
     return (
@@ -392,36 +390,53 @@ export default function ClientsClient({ initialData, userId }: ClientsClientProp
           </div>
 
           <TabsContent value="clients" className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="bg-card border-2 border-border">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Clients</p>
-                  <p className="text-3xl font-bold text-foreground">{totalClients}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-accent">
-                  <Building2 className="w-6 h-6 text-foreground" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card border-2 border-border">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Member Clients</p>
-                  <p className="text-3xl font-bold text-foreground">{memberClients}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-secondary">
-                  <Building2 className="w-6 h-6 text-secondary-foreground" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            {/* Overview cards – project-style coloring; admin sees quotation + invoice balance */}
+            <div className="w-full p-0 rounded-md grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Card className="card p-6 bg-blue-50 border-blue-200">
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Building2 className="h-8 w-8 text-blue-600 mb-4" />
+                      <p className="text-xl font-bold text-blue-600">Total</p>
+                      <p className="text-2xl font-bold text-blue-900">{totalClients}</p>
+                      <p className="text-lg font-semibold text-blue-600">Clients</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              {dashboardTotals != null && (
+                <>
+                  <Card className="card p-6 bg-yellow-50 border-yellow-200">
+                    <CardContent className="p-0">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <FileText className="h-8 w-8 text-yellow-600 mb-4" />
+                          <p className="text-xl font-bold text-yellow-600">Quotation</p>
+                          <p className="text-2xl font-bold text-yellow-900">
+                            RM {dashboardTotals.totalQuotationBalance.toLocaleString()}
+                          </p>
+                          <p className="text-lg font-semibold text-yellow-600">Outstanding</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="card p-6 bg-green-50 border-green-200">
+                    <CardContent className="p-0">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <DollarSign className="h-8 w-8 text-green-600 mb-4" />
+                          <p className="text-xl font-bold text-green-600">Invoice</p>
+                          <p className="text-2xl font-bold text-green-900">
+                            RM {dashboardTotals.totalInvoiceBalance.toLocaleString()}
+                          </p>
+                          <p className="text-lg font-semibold text-green-600">Outstanding</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </div>
 
         {/* Filters and Sorting */}
         <div className="space-y-4 mb-6">

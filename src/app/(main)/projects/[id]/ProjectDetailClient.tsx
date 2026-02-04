@@ -750,7 +750,7 @@ export default function ProjectDetailClient({
 											</div>
 											<div className="flex items-center gap-2">
 												<p className="text-xs text-muted-foreground">
-													{new Date(complaint.created_at).toLocaleDateString()}
+													{new Date(complaint.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 												</p>
 												{isProjectOwner && !isProjectCancelled && (
 													<>

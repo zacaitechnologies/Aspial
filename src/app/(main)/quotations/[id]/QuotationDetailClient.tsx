@@ -527,7 +527,7 @@ export default function QuotationDetailClient({
 							<div>
 								<p className="text-sm font-medium text-muted-foreground">Created</p>
 								<p className="font-medium">
-									{new Date(quotation.created_at).toLocaleDateString()}
+									{new Date(quotation.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 								</p>
 							</div>
 							<div>

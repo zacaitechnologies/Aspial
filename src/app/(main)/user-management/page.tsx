@@ -778,7 +778,7 @@ export default function UserManagementPage() {
                       <div>
                         <p className="font-medium">{account.email}</p>
                         <p className="text-xs text-muted-foreground">
-                          Registered: {new Date(account.created_at).toLocaleString()}
+                          Registered: {new Date(account.created_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
                         </p>
                       </div>
                       <Button
@@ -1068,7 +1068,7 @@ export default function UserManagementPage() {
                   </div>
                 )}
                 <div className="text-xs text-muted-foreground">
-                  Created: {new Date(user.created_at).toLocaleDateString()}
+                  Created: {new Date(user.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                 </div>
               </div>
             </CardContent>

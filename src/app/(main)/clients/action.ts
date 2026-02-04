@@ -429,6 +429,66 @@ export async function invalidateClientsCache() {
   revalidateTag("clients", {expire: 0})
 }
 
+/** Dashboard totals for admin: quotation balance (outstanding) and invoice balance (outstanding). */
+export type ClientsDashboardTotals = {
+  totalQuotationBalance: number
+  totalInvoiceBalance: number
+}
+
+/** Returns total quotation balance (totalPrice − invoiced) and total invoice balance (amount − received). Admin-only. */
+export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotals | null> {
+  try {
+    const user = await getCachedUser()
+    if (!user?.id) return null
+
+    const { getCachedIsUserAdmin } = await import("@/lib/admin-cache")
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+    if (!isAdmin) return null
+
+    const [quotationsWithInvoiced, invoicesWithReceipts] = await Promise.all([
+      prisma.quotation.findMany({
+        where: { workflowStatus: { not: "cancelled" } },
+        select: {
+          totalPrice: true,
+          invoices: {
+            where: { status: { not: "cancelled" } },
+            select: { amount: true },
+          },
+        },
+      }),
+      prisma.invoice.findMany({
+        where: { status: { not: "cancelled" } },
+        select: {
+          amount: true,
+          receipts: {
+            where: { status: { not: "cancelled" } },
+            select: { amount: true },
+          },
+        },
+      }),
+    ])
+
+    const totalQuotationBalance = quotationsWithInvoiced.reduce((sum, q) => {
+      const totalInvoiced = q.invoices.reduce((s, inv) => s + inv.amount, 0)
+      return sum + Math.max(0, q.totalPrice - totalInvoiced)
+    }, 0)
+
+    const totalInvoiceBalance = invoicesWithReceipts.reduce((sum, inv) => {
+      const totalReceived = inv.receipts.reduce((s, r) => s + r.amount, 0)
+      return sum + Math.max(0, inv.amount - totalReceived)
+    }, 0)
+
+    return { totalQuotationBalance, totalInvoiceBalance }
+  } catch (error: unknown) {
+    if (isRedirectError(error)) throw error
+    if (process.env.NODE_ENV === "development") {
+      // eslint-disable-next-line no-console
+      console.error("Error in getClientsDashboardTotals:", error)
+    }
+    return null
+  }
+}
+
 export async function getClientById(id: string) {
   try {
     await getCurrentUser() // Ensure user is authenticated

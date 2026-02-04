@@ -217,7 +217,7 @@ export function MilestoneCard({
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-100 border border-amber-200">
               <Calendar className="w-3.5 h-3.5 text-amber-700" />
               <span className="text-xs font-medium text-amber-900">
-                Due: {new Date(milestone.dueDate).toLocaleDateString("en-UK", {
+                Due: {new Date(milestone.dueDate).toLocaleDateString("en-GB", {
                   day: "numeric",
                   month: "short",
                   year: "numeric",

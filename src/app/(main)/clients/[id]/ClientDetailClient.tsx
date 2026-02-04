@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User, IdCard, Receipt, Eye } from "lucide-react"
+import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User, IdCard, Receipt, Eye, Wallet } from "lucide-react"
 import Link from "next/link"
 import { formatNumber } from "@/lib/format-number"
 import EditClientDialog from "../components/EditClientDialog"
@@ -20,9 +20,8 @@ interface ClientDetailClientProps {
 	currentUserId: string | null
 }
 
-const formatDate = (date: Date) => {
-	return new Date(date).toLocaleDateString()
-}
+const formatDate = (date: Date) =>
+	new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
 
 export default function ClientDetailClient({
 	client: initialClient,
@@ -52,6 +51,37 @@ export default function ClientDetailClient({
 			}
 		}
 	}
+
+	// Total balance across all quotations (sum of quotation totalPrice − totalInvoiced per quotation)
+	const totalQuotationBalance = useMemo(() => {
+		return client.quotations.reduce((sum, q) => {
+			const quotationInvoices = (q as { invoices?: { amount: number }[] }).invoices ?? []
+			const totalInvoiced = quotationInvoices.reduce((s, i) => s + i.amount, 0)
+			const balance = Math.max(0, q.totalPrice - totalInvoiced)
+			return sum + balance
+		}, 0)
+	}, [client.quotations])
+
+	// Total invoice balance (sum over all invoices: amount − total receipted per invoice)
+	const totalInvoiceBalance = useMemo(() => {
+		return client.quotations.reduce((sum, q) => {
+			const invoices = (q as { invoices?: { amount: number; receipts?: { amount: number }[] }[] }).invoices ?? []
+			return sum + invoices.reduce((s, inv) => {
+				const receipted = (inv.receipts ?? []).reduce((r, rec) => r + rec.amount, 0)
+				return s + Math.max(0, inv.amount - receipted)
+			}, 0)
+		}, 0)
+	}, [client.quotations])
+
+	// Total receipt amount (sum of all receipt amounts)
+	const totalReceiptAmount = useMemo(() => {
+		return client.quotations.reduce((sum, q) => {
+			const invoices = (q as { invoices?: { receipts?: { amount: number }[] }[] }).invoices ?? []
+			return sum + invoices.reduce((s, inv) => {
+				return s + (inv.receipts ?? []).reduce((r, rec) => r + rec.amount, 0)
+			}, 0)
+		}, 0)
+	}, [client.quotations])
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -129,16 +159,53 @@ export default function ClientDetailClient({
 											<span>{client.phone}</span>
 										</div>
 									)}
-								</div>
-
-								<div className="space-y-4">
 									<div className="flex items-center gap-3 text-muted-foreground">
 										<Calendar className="h-4 w-4" />
 										<span>Client since {formatDate(client.created_at)}</span>
 									</div>
+									{client.createdBy && (
+										<div className="flex items-center gap-3 text-muted-foreground">
+											<User className="h-4 w-4" />
+											<span>
+												Created by: {client.createdBy.firstName || client.createdBy.lastName
+													? `${(client.createdBy.firstName || "").trim()} ${(client.createdBy.lastName || "").trim()}`.trim()
+													: client.createdBy.email}
+											</span>
+										</div>
+									)}
+								</div>
+
+								<div className="space-y-4">
 									<div className="flex items-center gap-3 text-muted-foreground">
 										<FileText className="h-4 w-4" />
 										<span>{client.quotations.length} Quotations</span>
+									</div>
+									<div className="flex items-center gap-3 text-muted-foreground">
+										<Wallet className="h-4 w-4" />
+										<span>
+											Total quotation balance:{" "}
+											<span className={`inline-block px-2 py-0.5 rounded font-semibold ${totalQuotationBalance > 0 ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>
+												RM {formatNumber(totalQuotationBalance)}
+											</span>
+										</span>
+									</div>
+									<div className="flex items-center gap-3 text-muted-foreground">
+										<FileText className="h-4 w-4" />
+										<span>
+											Total invoice balance:{" "}
+											<span className={`inline-block px-2 py-0.5 rounded font-semibold ${totalInvoiceBalance > 0 ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>
+												RM {formatNumber(totalInvoiceBalance)}
+											</span>
+										</span>
+									</div>
+									<div className="flex items-center gap-3 text-muted-foreground">
+										<Receipt className="h-4 w-4" />
+										<span>
+											Total receipt amount:{" "}
+											<span className="inline-block px-2 py-0.5 rounded font-semibold bg-blue-100 text-blue-800">
+												RM {formatNumber(totalReceiptAmount)}
+											</span>
+										</span>
 									</div>
 									<div className="flex items-center gap-3 text-muted-foreground">
 										<Receipt className="h-4 w-4" />
@@ -154,14 +221,6 @@ export default function ClientDetailClient({
 										<FolderOpen className="h-4 w-4" />
 										<span>{client.projects.length} Projects</span>
 									</div>
-									{client.createdBy && (
-										<div className="flex items-center gap-3 text-muted-foreground">
-											<User className="h-4 w-4" />
-											<span>
-												Created by: {client.createdBy.firstName || ''} {client.createdBy.lastName || ''} {client.createdBy.firstName || client.createdBy.lastName ? '' : client.createdBy.email}
-											</span>
-										</div>
-									)}
 								</div>
 
 								{client.notes && (

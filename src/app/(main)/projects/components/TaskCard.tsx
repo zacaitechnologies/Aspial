@@ -197,13 +197,13 @@ export const TaskCard = memo(function TaskCard({
               <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-100 border border-blue-200">
                 <Clock className="w-3.5 h-3.5 text-blue-700" />
                 <span className="text-xs font-medium text-blue-900">
-                  {new Date(task.startDate).toLocaleDateString("en-UK", {
+                  {new Date(task.startDate).toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "short",
                     year: "numeric",
                   })}
                   {" - "}
-                  {new Date(task.dueDate).toLocaleDateString("en-UK", {
+                  {new Date(task.dueDate).toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "short",
                     year: "numeric",

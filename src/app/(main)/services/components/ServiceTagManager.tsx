@@ -312,7 +312,7 @@ export default function ServiceTagManager() {
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground">
-                  Created: {new Date(tag.created_at).toLocaleDateString()}
+                  Created: {new Date(tag.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                 </p>
               </CardContent>
             </Card>

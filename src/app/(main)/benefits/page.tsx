@@ -676,21 +676,24 @@ export default function EmployeeBenefitsPage() {
         )}
       </div>
 
-      {/* Grass at bottom */}
-      <div className="fixed bottom-0 left-0 right-0 h-24 bg-linear-to-b from-green-600 to-green-800 border-t-4 border-green-900 pointer-events-none z-0" suppressHydrationWarning>
-        <div className="absolute inset-0 opacity-30" suppressHydrationWarning>
-          {[...Array(20)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute bottom-0 w-2 bg-green-700"
-              style={{
-                left: `${i * 5}%`,
-                height: `${Math.random() * 30 + 20}px`,
-                transform: `rotate(${Math.random() * 20 - 10}deg)`,
-              }}
-              suppressHydrationWarning
-            />
-          ))}
+      {/* Grass at bottom - deterministic values (index-based) to avoid hydration mismatch */}
+      <div className="fixed bottom-0 left-0 right-0 h-24 bg-linear-to-b from-green-600 to-green-800 border-t-4 border-green-900 pointer-events-none z-0">
+        <div className="absolute inset-0 opacity-30">
+          {[...Array(20)].map((_, i) => {
+            const height = 20 + ((i * 7) % 31)
+            const rotate = -10 + ((i * 11) % 21)
+            return (
+              <div
+                key={i}
+                className="absolute bottom-0 w-2 bg-green-700"
+                style={{
+                  left: `${i * 5}%`,
+                  height: `${height}px`,
+                  transform: `rotate(${rotate}deg)`,
+                }}
+              />
+            )
+          })}
         </div>
       </div>
 
