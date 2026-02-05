@@ -340,7 +340,7 @@ export default function ClientDetailClient({
 						{/* Invoices Content */}
 						{(() => {
 							type InvoiceWithReceipts = { id: string; invoiceNumber: string; amount: number; type: string; status: string; created_at: Date; receipts?: { amount: number }[] }
-							type QuotationWithInvoices = { id: number; name: string; invoices?: InvoiceWithReceipts[] }
+							type QuotationWithInvoices = { id: number; name: string; workflowStatus?: string; invoices?: InvoiceWithReceipts[] }
 							const invoiceWithQuotation = client.quotations.flatMap((q) => {
 								const quotation = q as QuotationWithInvoices
 								return (quotation.invoices ?? []).map((invoice) => ({ invoice, quotation }))
@@ -428,7 +428,7 @@ export default function ClientDetailClient({
 						{(() => {
 							type ReceiptItem = { id: string; receiptNumber: string; amount: number; created_at: Date; status: string }
 							type InvoiceWithReceiptsList = { id: string; invoiceNumber: string; receipts?: ReceiptItem[] }
-							type QuotationWithInvoicesReceipts = { id: number; name: string; invoices?: InvoiceWithReceiptsList[] }
+							type QuotationWithInvoicesReceipts = { id: number; name: string; workflowStatus?: string; invoices?: InvoiceWithReceiptsList[] }
 							const receiptWithContext = client.quotations.flatMap((q) => {
 								const quotation = q as QuotationWithInvoicesReceipts
 								return (quotation.invoices ?? []).flatMap((invoice) =>
