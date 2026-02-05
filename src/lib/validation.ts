@@ -83,6 +83,7 @@ export const clientFiltersSchema = z.object({
   membershipType: z.enum(["all", "MEMBER", "NON_MEMBER"]).optional(),
   sortBy: z.enum(["name", "yearlyRevenue", "totalValue", "created_at"]).optional(),
   sortDirection: z.enum(["asc", "desc"]).optional(),
+  createdByMeOnly: z.boolean().optional(),
 });
 
 export type ClientFilters = z.infer<typeof clientFiltersSchema>;

@@ -139,6 +139,7 @@ async function _getClientsPaginatedInternal(
     membershipType?: 'all' | 'MEMBER' | 'NON_MEMBER'
     sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
     sortDirection?: 'asc' | 'desc'
+    createdById?: string
   } = {}
 ) {
   const skip = (page - 1) * pageSize
@@ -148,6 +149,7 @@ async function _getClientsPaginatedInternal(
     membershipType,
     sortBy = 'created_at',
     sortDirection = 'desc',
+    createdById,
   } = filters
 
   // Build where clause
@@ -155,6 +157,7 @@ async function _getClientsPaginatedInternal(
     OR?: Array<{ name?: { contains: string; mode: 'insensitive' }; email?: { contains: string; mode: 'insensitive' }; company?: { contains: string; mode: 'insensitive' } }>
     industry?: string
     membershipType?: 'MEMBER' | 'NON_MEMBER'
+    createdById?: string
   } = {}
 
   if (searchTerm) {
@@ -171,6 +174,10 @@ async function _getClientsPaginatedInternal(
 
   if (membershipType && membershipType !== 'all') {
     where.membershipType = membershipType
+  }
+
+  if (createdById) {
+    where.createdById = createdById
   }
 
   const isTotalValueSort = sortBy === 'totalValue'
@@ -348,13 +355,14 @@ async function _getClientsPaginatedInternal(
 // Server-side cached version for initial page load (30 second cache)
 const getCachedClientsPaginated = unstable_cache(
   async (
-    page: number, 
-    pageSize: number, 
+    page: number,
+    pageSize: number,
     searchTerm: string,
     industry: string,
     membershipType: string,
     sortBy: string,
-    sortDirection: string
+    sortDirection: string,
+    createdByUserId: string
   ) => {
     return await _getClientsPaginatedInternal(page, pageSize, {
       searchTerm: searchTerm || undefined,
@@ -362,12 +370,13 @@ const getCachedClientsPaginated = unstable_cache(
       membershipType: (membershipType || 'all') as 'all' | 'MEMBER' | 'NON_MEMBER',
       sortBy: (sortBy || 'created_at') as 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at',
       sortDirection: (sortDirection || 'desc') as 'asc' | 'desc',
+      createdById: createdByUserId || undefined,
     })
   },
   ["clients-paginated"],
-  { 
+  {
     revalidate: 30, // Cache for 30 seconds
-    tags: ["clients"]
+    tags: ["clients"],
   }
 )
 
@@ -380,21 +389,22 @@ export async function getClientsPaginated(
     membershipType?: 'all' | 'MEMBER' | 'NON_MEMBER'
     sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
     sortDirection?: 'asc' | 'desc'
+    createdByMeOnly?: boolean
   } = {}
 ) {
   try {
-    // Use cached auth - deduplicates within same request
     await getCachedUser()
+    const createdByUserId = filters.createdByMeOnly ? (await getCurrentUserId()) ?? "" : ""
 
-    // Use server-side cache for faster initial loads
     return await getCachedClientsPaginated(
-      page, 
-      pageSize, 
+      page,
+      pageSize,
       filters.searchTerm || "",
       filters.industry || "all",
       filters.membershipType || "all",
       filters.sortBy || "created_at",
-      filters.sortDirection || "desc"
+      filters.sortDirection || "desc",
+      createdByUserId
     )
   } catch (error: unknown) {
     if (isRedirectError(error)) throw error
@@ -417,11 +427,16 @@ export async function getClientsPaginatedFresh(
     membershipType?: 'all' | 'MEMBER' | 'NON_MEMBER'
     sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
     sortDirection?: 'asc' | 'desc'
+    createdByMeOnly?: boolean
   } = {}
 ) {
   unstable_noStore()
   await getCachedUser()
-  return await _getClientsPaginatedInternal(page, pageSize, filters)
+  const createdById = filters.createdByMeOnly ? (await getCurrentUserId()) ?? undefined : undefined
+  return await _getClientsPaginatedInternal(page, pageSize, {
+    ...filters,
+    createdById,
+  })
 }
 
 // Invalidate clients cache after mutations
@@ -435,15 +450,46 @@ export type ClientsDashboardTotals = {
   totalInvoiceBalance: number
 }
 
-/** Returns total quotation balance (totalPrice − invoiced) and total invoice balance (amount − received). Visible to all authenticated users. */
+/** Returns total quotation balance and invoice balance. Admin: all clients. Non-admin: only clients created by the user. */
 export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotals | null> {
   try {
     const user = await getCachedUser()
     if (!user?.id) return null
 
+    const { getCachedIsUserAdmin } = await import("@/lib/admin-cache")
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+
+    let clientIds: string[] | undefined
+    if (!isAdmin) {
+      const dbUser = await prisma.user.findUnique({
+        where: { supabase_id: user.id },
+        select: { id: true },
+      })
+      if (!dbUser) return { totalQuotationBalance: 0, totalInvoiceBalance: 0 }
+      const myClients = await prisma.client.findMany({
+        where: { createdById: dbUser.id },
+        select: { id: true },
+      })
+      clientIds = myClients.map((c) => c.id)
+      if (clientIds.length === 0) return { totalQuotationBalance: 0, totalInvoiceBalance: 0 }
+    }
+
+    // Only final quotations count toward outstanding balance
+    const quotationWhere = {
+      workflowStatus: "final" as const,
+      ...(clientIds ? { clientId: { in: clientIds } } : {}),
+    }
+    const invoiceWhere = {
+      status: { not: "cancelled" as const },
+      quotation: {
+        workflowStatus: "final" as const,
+        ...(clientIds ? { clientId: { in: clientIds } } : {}),
+      },
+    }
+
     const [quotationsWithInvoiced, invoicesWithReceipts] = await Promise.all([
       prisma.quotation.findMany({
-        where: { workflowStatus: { not: "cancelled" } },
+        where: quotationWhere,
         select: {
           totalPrice: true,
           invoices: {
@@ -453,7 +499,7 @@ export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotal
         },
       }),
       prisma.invoice.findMany({
-        where: { status: { not: "cancelled" } },
+        where: invoiceWhere,
         select: {
           amount: true,
           receipts: {

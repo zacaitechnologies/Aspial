@@ -1,6 +1,6 @@
 import { getCachedUser } from "@/lib/auth-cache"
 import { getClientById } from "../action"
-import { checkHasFullAccess } from "../../actions/admin-actions"
+import { checkHasFullAccess, checkIsAdmin } from "../../actions/admin-actions"
 import { getCurrentUserId } from "../action"
 import ClientDetailClient from "./ClientDetailClient"
 import { notFound } from "next/navigation"
@@ -25,10 +25,11 @@ export default async function ClientDetailPage({
 		notFound()
 	}
 
-	// Fetch client data, admin status, and current user ID in parallel
-	const [client, isAdmin, currentUserId] = await Promise.all([
+	// Fetch client data, access flags, and current user ID in parallel
+	const [client, hasFullAccess, isAdminOnly, currentUserId] = await Promise.all([
 		getClientById(resolvedParams.id).catch(() => null),
 		checkHasFullAccess(user.id),
+		checkIsAdmin(user.id),
 		getCurrentUserId().catch(() => null),
 	])
 
@@ -39,7 +40,8 @@ export default async function ClientDetailPage({
 	return (
 		<ClientDetailClient
 			client={client}
-			isAdmin={isAdmin}
+			hasFullAccess={hasFullAccess}
+			isAdminOnly={isAdminOnly}
 			currentUserId={currentUserId}
 		/>
 	)

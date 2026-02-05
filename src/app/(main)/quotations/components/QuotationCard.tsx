@@ -551,8 +551,8 @@ export default function QuotationCard({
 
           {/* Right Section - Fixed Width for Alignment */}
           <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
-            {/* Balance - Compact */}
-            {quotation.balance !== undefined && (
+            {/* Balance - Compact (only for Final status) */}
+            {quotation.balance !== undefined && isFinalQuotation && (
               <div className="text-right">
                 <div
                   className={`rounded px-3 py-1.5 border ${

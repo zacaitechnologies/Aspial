@@ -476,28 +476,30 @@ export default function QuotationDetailClient({
 									RM{formatNumber(quotationGrandTotal)}
 								</span>
 							</div>
-							<div
-								className={`flex justify-between items-center p-3 rounded-lg ${
-									quotationBalanceDisplay === 0 ? "bg-green-50" : "bg-amber-50"
-								}`}
-							>
-								<div>
-									<p
-										className={`text-sm font-semibold ${
+							{quotation.workflowStatus === "final" && (
+								<div
+									className={`flex justify-between items-center p-3 rounded-lg ${
+										quotationBalanceDisplay === 0 ? "bg-green-50" : "bg-amber-50"
+									}`}
+								>
+									<div>
+										<p
+											className={`text-sm font-semibold ${
+												quotationBalanceDisplay === 0 ? "text-green-800" : "text-amber-800"
+											}`}
+										>
+											Balance:
+										</p>
+									</div>
+									<span
+										className={`text-2xl font-bold ${
 											quotationBalanceDisplay === 0 ? "text-green-800" : "text-amber-800"
 										}`}
 									>
-										Balance:
-									</p>
+										RM{formatNumber(quotationBalanceDisplay)}
+									</span>
 								</div>
-								<span
-									className={`text-2xl font-bold ${
-										quotationBalanceDisplay === 0 ? "text-green-800" : "text-amber-800"
-									}`}
-								>
-									RM{formatNumber(quotationBalanceDisplay)}
-								</span>
-							</div>
+							)}
 
 							{quotation.discountValue && quotation.discountValue > 0 && (
 								<>

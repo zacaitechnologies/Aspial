@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import { getCachedUser } from "@/lib/auth-cache"
 import { getClientsPaginated, getClientsDashboardTotals } from "./action"
 import ClientsClient from "./components/ClientsClient"
-import { checkIsOperationUser, checkHasFullAccess } from "../actions/admin-actions"
+import { checkIsOperationUser, checkHasFullAccess, checkIsAdmin } from "../actions/admin-actions"
 import AccessDenied from "../components/AccessDenied"
 
 // Force dynamic rendering since we use cookies for auth
@@ -24,10 +24,11 @@ export default async function ClientsPage() {
   }
 
   // Fetch initial data and dashboard totals (everyone can see quotation/invoice outstanding balance)
-  const [initialData, dashboardTotals, hasFullAccess] = await Promise.all([
+  const [initialData, dashboardTotals, hasFullAccess, isAdminOnly] = await Promise.all([
     getClientsPaginated(1, 12),
     getClientsDashboardTotals(),
     checkHasFullAccess(user.id),
+    checkIsAdmin(user.id),
   ])
 
   return (
@@ -43,6 +44,7 @@ export default async function ClientsPage() {
         initialData={initialData}
         userId={user.id}
         hasFullAccess={hasFullAccess}
+        isAdminOnly={isAdminOnly}
         dashboardTotals={dashboardTotals}
       />
     </Suspense>

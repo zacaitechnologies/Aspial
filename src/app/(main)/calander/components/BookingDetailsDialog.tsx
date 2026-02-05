@@ -5,7 +5,7 @@ import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, MapPin, Users } from "lucide-react"
+import { Calendar, Clock, MapPin, User, UserCircle, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 interface BookingDetailsDialogProps {
@@ -52,6 +52,20 @@ export function BookingDetailsDialog({
             </div>
 
             <div className="space-y-2">
+              {booking.type !== "task" && booking.creatorName && (
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Booked by:</span>
+                  <span>{booking.creatorName}</span>
+                </div>
+              )}
+              {booking.type === "task" && booking.assigneeName && (
+                <div className="flex items-center gap-2 text-sm">
+                  <UserCircle className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Assigned to:</span>
+                  <span>{booking.assigneeName}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
                 <span>{formatDateStringDirect(booking.date)}</span>

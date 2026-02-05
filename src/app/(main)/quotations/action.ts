@@ -976,8 +976,10 @@ export async function editQuotationById(
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
     validatedData.createdById === undefined // No creator change
 
-  // Ensure draft quotations can only be changed to "draft" or "cancelled" by non-admin users
-  if (!isAdmin && isDraftQuotation && validatedData.workflowStatus !== undefined && 
+  // Non-admin users who are not the creator can only set draft quotations to "draft" or "cancelled".
+  // Creators may finalize their own draft quotations (change to "final").
+  const isCreator = currentQuotationForAuth.createdById === user.id
+  if (!isAdmin && !isCreator && isDraftQuotation && validatedData.workflowStatus !== undefined &&
       validatedData.workflowStatus !== "draft" && validatedData.workflowStatus !== "cancelled") {
     throw new Error("You can only change the workflow status to 'draft' or 'cancelled' for draft quotations")
   }

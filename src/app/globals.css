@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "react-datepicker/dist/react-datepicker.css";
 
+/* Safelist calendar category colors so dynamic booking.color classes are not purged */
+@source inline("bg-calendar-photo-shoot bg-calendar-video-shoot bg-calendar-photo-selection bg-calendar-consultation bg-calendar-others border-l-calendar-photo-shoot border-l-calendar-video-shoot border-l-calendar-photo-selection border-l-calendar-consultation border-l-calendar-others");
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

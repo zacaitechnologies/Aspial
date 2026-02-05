@@ -16,7 +16,10 @@ type ClientData = NonNullable<Awaited<ReturnType<typeof getClientById>>>
 
 interface ClientDetailClientProps {
 	client: ClientData
-	isAdmin: boolean
+	/** Admin or brand-advisor: can edit any client */
+	hasFullAccess: boolean
+	/** Admin only: can see balance for any client; non-admin sees balance only for clients they created */
+	isAdminOnly: boolean
 	currentUserId: string | null
 }
 
@@ -25,20 +28,24 @@ const formatDate = (date: Date) =>
 
 export default function ClientDetailClient({
 	client: initialClient,
-	isAdmin,
+	hasFullAccess,
+	isAdminOnly,
 	currentUserId,
 }: ClientDetailClientProps) {
 	const router = useRouter()
 	const [client, setClient] = useState(initialClient)
 	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
-	// Check if user can edit this client
+	// Edit: full-access users can edit any client; others only clients they created
 	const canEditClient = () => {
 		if (!client) return false
-		if (isAdmin) return true
+		if (hasFullAccess) return true
 		if (!currentUserId || !client.createdById) return false
 		return client.createdById === currentUserId
 	}
+
+	// Balance: admin sees all; non-admin sees only for clients they created
+	const canSeeBalance = isAdminOnly || (currentUserId != null && client.createdById === currentUserId)
 
 	const handleSuccess = async () => {
 		// Refresh client data
@@ -52,26 +59,32 @@ export default function ClientDetailClient({
 		}
 	}
 
-	// Total balance across all quotations (sum of quotation totalPrice − totalInvoiced per quotation)
+	// Only final quotations count toward outstanding balance
+	const finalQuotations = useMemo(
+		() => client.quotations.filter((q) => q.workflowStatus === "final"),
+		[client.quotations]
+	)
+
+	// Total balance across final quotations only (totalPrice − totalInvoiced per quotation)
 	const totalQuotationBalance = useMemo(() => {
-		return client.quotations.reduce((sum, q) => {
+		return finalQuotations.reduce((sum, q) => {
 			const quotationInvoices = (q as { invoices?: { amount: number }[] }).invoices ?? []
 			const totalInvoiced = quotationInvoices.reduce((s, i) => s + i.amount, 0)
 			const balance = Math.max(0, q.totalPrice - totalInvoiced)
 			return sum + balance
 		}, 0)
-	}, [client.quotations])
+	}, [finalQuotations])
 
-	// Total invoice balance (sum over all invoices: amount − total receipted per invoice)
+	// Total invoice balance (invoices from final quotations only)
 	const totalInvoiceBalance = useMemo(() => {
-		return client.quotations.reduce((sum, q) => {
+		return finalQuotations.reduce((sum, q) => {
 			const invoices = (q as { invoices?: { amount: number; receipts?: { amount: number }[] }[] }).invoices ?? []
 			return sum + invoices.reduce((s, inv) => {
 				const receipted = (inv.receipts ?? []).reduce((r, rec) => r + rec.amount, 0)
 				return s + Math.max(0, inv.amount - receipted)
 			}, 0)
 		}, 0)
-	}, [client.quotations])
+	}, [finalQuotations])
 
 	// Total receipt amount (sum of all receipt amounts)
 	const totalReceiptAmount = useMemo(() => {
@@ -180,24 +193,28 @@ export default function ClientDetailClient({
 										<FileText className="h-4 w-4" />
 										<span>{client.quotations.length} Quotations</span>
 									</div>
-									<div className="flex items-center gap-3 text-muted-foreground">
-										<Wallet className="h-4 w-4" />
-										<span>
-											Total quotation balance:{" "}
-											<span className={`inline-block px-2 py-0.5 rounded font-semibold ${totalQuotationBalance > 0 ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>
-												RM {formatNumber(totalQuotationBalance)}
-											</span>
-										</span>
-									</div>
-									<div className="flex items-center gap-3 text-muted-foreground">
-										<FileText className="h-4 w-4" />
-										<span>
-											Total invoice balance:{" "}
-											<span className={`inline-block px-2 py-0.5 rounded font-semibold ${totalInvoiceBalance > 0 ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>
-												RM {formatNumber(totalInvoiceBalance)}
-											</span>
-										</span>
-									</div>
+									{canSeeBalance && (
+										<>
+											<div className="flex items-center gap-3 text-muted-foreground">
+												<Wallet className="h-4 w-4" />
+												<span>
+													Total quotation balance:{" "}
+													<span className={`inline-block px-2 py-0.5 rounded font-semibold ${totalQuotationBalance > 0 ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>
+														RM {formatNumber(totalQuotationBalance)}
+													</span>
+												</span>
+											</div>
+											<div className="flex items-center gap-3 text-muted-foreground">
+												<FileText className="h-4 w-4" />
+												<span>
+													Total invoice balance:{" "}
+													<span className={`inline-block px-2 py-0.5 rounded font-semibold ${totalInvoiceBalance > 0 ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>
+														RM {formatNumber(totalInvoiceBalance)}
+													</span>
+												</span>
+											</div>
+										</>
+									)}
 									<div className="flex items-center gap-3 text-muted-foreground">
 										<Receipt className="h-4 w-4" />
 										<span>
@@ -274,12 +291,14 @@ export default function ClientDetailClient({
 													RM {formatNumber(quotation.totalPrice)}
 												</span>
 											</div>
-											<div className={`flex items-center justify-between p-2 rounded ${isBalanceZero ? "bg-green-50" : "bg-amber-50"}`}>
-												<span className="text-sm font-medium text-muted-foreground">Balance:</span>
-												<span className={`text-lg font-bold ${isBalanceZero ? "text-green-700" : "text-amber-700"}`}>
-													RM {formatNumber(quotationBalance)}
-												</span>
-											</div>
+											{canSeeBalance && quotation.workflowStatus === "final" && (
+												<div className={`flex items-center justify-between p-2 rounded ${isBalanceZero ? "bg-green-50" : "bg-amber-50"}`}>
+													<span className="text-sm font-medium text-muted-foreground">Balance:</span>
+													<span className={`text-lg font-bold ${isBalanceZero ? "text-green-700" : "text-amber-700"}`}>
+														RM {formatNumber(quotationBalance)}
+													</span>
+												</div>
+											)}
 											<div className="flex items-center justify-between">
 												<span className="text-sm font-medium text-muted-foreground">Workflow:</span>
 												<Badge 
@@ -357,12 +376,14 @@ export default function ClientDetailClient({
 														RM {formatNumber(invoice.amount)}
 													</span>
 												</div>
-												<div className={`flex items-center justify-between p-2 rounded ${isBalanceZero ? "bg-green-50" : "bg-amber-50"}`}>
-													<span className="text-sm font-medium text-muted-foreground">Balance:</span>
-													<span className={`text-lg font-bold ${isBalanceZero ? "text-green-700" : "text-amber-700"}`}>
-														RM {formatNumber(invoiceBalance)}
-													</span>
-												</div>
+												{canSeeBalance && quotation.workflowStatus === "final" && (
+													<div className={`flex items-center justify-between p-2 rounded ${isBalanceZero ? "bg-green-50" : "bg-amber-50"}`}>
+														<span className="text-sm font-medium text-muted-foreground">Balance:</span>
+														<span className={`text-lg font-bold ${isBalanceZero ? "text-green-700" : "text-amber-700"}`}>
+															RM {formatNumber(invoiceBalance)}
+														</span>
+													</div>
+												)}
 												<div className="flex items-center justify-between">
 													<span className="text-sm font-medium text-muted-foreground">Type:</span>
 													<Badge variant="outline" className="capitalize border-border text-foreground">
