@@ -36,7 +36,7 @@ export function CalendarDay({
         {dayBookings.slice(0, 2).map((booking) => (
           <div
             key={booking.id}
-            className={`text-xs px-1 py-0.5 rounded text-primary-foreground truncate ${booking.color} cursor-pointer`}
+            className={`text-xs px-1 py-0.5 rounded text-foreground truncate ${booking.color} cursor-pointer`}
             onClick={(e) => {
               e.stopPropagation()
               onBookingClick(booking)

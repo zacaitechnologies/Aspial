@@ -23,12 +23,11 @@ export default async function ClientsPage() {
     return <AccessDenied />
   }
 
-  // Fetch initial data and dashboard totals (for admin) in parallel
-  const [initialData, dashboardTotals] = await Promise.all([
+  // Fetch initial data and dashboard totals (everyone can see quotation/invoice outstanding balance)
+  const [initialData, dashboardTotals, hasFullAccess] = await Promise.all([
     getClientsPaginated(1, 12),
-    checkHasFullAccess(user.id).then((hasFullAccess) =>
-      hasFullAccess ? getClientsDashboardTotals() : Promise.resolve(null)
-    ),
+    getClientsDashboardTotals(),
+    checkHasFullAccess(user.id),
   ])
 
   return (
@@ -40,7 +39,12 @@ export default async function ClientsPage() {
         </div>
       </div>
     }>
-      <ClientsClient initialData={initialData} userId={user.id} dashboardTotals={dashboardTotals ?? undefined} />
+      <ClientsClient
+        initialData={initialData}
+        userId={user.id}
+        hasFullAccess={hasFullAccess}
+        dashboardTotals={dashboardTotals}
+      />
     </Suspense>
   )
 }

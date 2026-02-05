@@ -88,7 +88,7 @@ export function DateEventsDialog({
                   <div className="flex items-center gap-2">
                     <Badge 
                       variant="secondary" 
-                      className={`${eventTypeColors[event.type]} text-white`}
+                      className={`${eventTypeColors[event.type]} text-foreground`}
                     >
                       {eventTypeLabels[event.type]}
                     </Badge>

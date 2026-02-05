@@ -36,7 +36,7 @@ export function BookingDetailsDialog({
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <Badge variant="secondary" className={booking.color}>
+            <Badge variant="secondary" className={`${booking.color} text-foreground`}>
               {appointmentTypeLabel}
             </Badge>
           </div>

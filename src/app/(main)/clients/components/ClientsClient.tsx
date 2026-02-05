@@ -74,11 +74,13 @@ interface ClientsClientProps {
     totalPages: number
   }
   userId?: string
-  /** Admin-only: total quotation balance and total invoice balance for dashboard cards */
+  /** Used for edit/delete permissions only; quotation/invoice balance is visible to everyone */
+  hasFullAccess?: boolean
+  /** Total quotation and invoice outstanding balance (visible to everyone) */
   dashboardTotals?: ClientsDashboardTotals | null
 }
 
-export default function ClientsClient({ initialData, userId, dashboardTotals }: ClientsClientProps) {
+export default function ClientsClient({ initialData, userId, hasFullAccess = false, dashboardTotals: initialDashboardTotals = null }: ClientsClientProps) {
   const { enhancedUser } = useSession()
   const [searchTerm, setSearchTerm] = useState("")
   const [industryFilter, setIndustryFilter] = useState<string>("all")
@@ -95,6 +97,13 @@ export default function ClientsClient({ initialData, userId, dashboardTotals }: 
   const [currentUserId, setCurrentUserId] = useState<string | null>(userId || null)
   const [activeTab, setActiveTab] = useState("clients")
   const [mounted, setMounted] = useState(false)
+  // Dashboard totals: visible to everyone; sync from server when prop changes
+  const [dashboardTotals, setDashboardTotals] = useState<ClientsDashboardTotals | null>(() => initialDashboardTotals ?? null)
+
+  // Sync when server passes totals (e.g. after navigation)
+  useEffect(() => {
+    if (initialDashboardTotals != null) setDashboardTotals(initialDashboardTotals)
+  }, [initialDashboardTotals])
 
   // Defer interactive UI until after hydration to avoid mismatch from browser extensions (e.g. fdprocessedid)
   useEffect(() => {
@@ -390,7 +399,7 @@ export default function ClientsClient({ initialData, userId, dashboardTotals }: 
           </div>
 
           <TabsContent value="clients" className="space-y-6">
-            {/* Overview cards – project-style coloring; admin sees quotation + invoice balance */}
+            {/* Overview cards – quotation and invoice outstanding balance visible to everyone */}
             <div className="w-full p-0 rounded-md grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <Card className="card p-6 bg-blue-50 border-blue-200">
                 <CardContent className="p-0">

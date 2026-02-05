@@ -1,28 +1,28 @@
 export const APPOINTMENT_TYPES = {
-	PHOTO_SHOOT: { 
-		label: 'Photo Shoot', 
-		color: 'bg-primary',
-		value: 'PHOTO_SHOOT'
+	PHOTO_SHOOT: {
+		label: "Photo shooting",
+		color: "bg-calendar-photo-shoot",
+		value: "PHOTO_SHOOT",
 	},
-	VIDEO_SHOOT: { 
-		label: 'Video Shoot', 
-		color: 'bg-[var(--color-chart-2)]',
-		value: 'VIDEO_SHOOT'
+	VIDEO_SHOOT: {
+		label: "Video shooting",
+		color: "bg-calendar-video-shoot",
+		value: "VIDEO_SHOOT",
 	},
-	CONSULTATION: { 
-		label: 'Consultation', 
-		color: 'bg-[var(--color-chart-3)]',
-		value: 'CONSULTATION'
+	CONSULTATION: {
+		label: "Consultation",
+		color: "bg-calendar-consultation",
+		value: "CONSULTATION",
 	},
-	PHOTO_SELECTION: { 
-		label: 'Photo Selection', 
-		color: 'bg-[var(--color-chart-4)]',
-		value: 'PHOTO_SELECTION'
+	PHOTO_SELECTION: {
+		label: "Photo selection",
+		color: "bg-calendar-photo-selection",
+		value: "PHOTO_SELECTION",
 	},
-	OTHERS: { 
-		label: 'Others', 
-		color: 'bg-accent',
-		value: 'OTHERS'
+	OTHERS: {
+		label: "Others",
+		color: "bg-calendar-others",
+		value: "OTHERS",
 	},
 } as const
 

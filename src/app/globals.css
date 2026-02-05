@@ -47,6 +47,12 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-base2: var(--base2);
+  /* Calendar appointment category colors (theme tokens for Tailwind) */
+  --color-calendar-photo-shoot: var(--calendar-photo-shoot);
+  --color-calendar-video-shoot: var(--calendar-video-shoot);
+  --color-calendar-photo-selection: var(--calendar-photo-selection);
+  --color-calendar-consultation: var(--calendar-consultation);
+  --color-calendar-others: var(--calendar-others);
 }
 
 :root {
@@ -78,6 +84,12 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
+  /* Calendar appointment category colors */
+  --calendar-photo-shoot: #D013D0;
+  --calendar-video-shoot: #E28A2F;
+  --calendar-photo-selection: #86D4FF;
+  --calendar-consultation: #35D237;
+  --calendar-others: #F7C2DD;
   --sidebar: #f0e8d8; /* Cream for sidebar background */
   --sidebar-foreground: #202f21; /* Dark Green for sidebar text */
   --sidebar-primary: #bdc4a5; /* Sage for primary sidebar elements */
@@ -125,6 +137,12 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+  /* Calendar appointment category colors (same in dark for consistency) */
+  --calendar-photo-shoot: #D013D0;
+  --calendar-video-shoot: #E28A2F;
+  --calendar-photo-selection: #86D4FF;
+  --calendar-consultation: #35D237;
+  --calendar-others: #F7C2DD;
   --sidebar: oklch(0.216 0.006 56.043);
   --sidebar-foreground: oklch(0.985 0.001 106.423);
   --sidebar-primary: oklch(0.488 0.243 264.376);

@@ -104,7 +104,7 @@ export function DayView({
 								<div className="flex items-start justify-between">
 									<div className="flex-1">
 										<div className="flex items-center gap-2 mb-2">
-											<Badge variant="secondary" className={`${event.color} text-white`}>
+											<Badge variant="secondary" className={`${event.color} text-foreground`}>
 												{bookingTypeLabels[event.type]}
 											</Badge>
 											<h4 className="font-semibold text-(--color-foreground)]">
@@ -162,7 +162,7 @@ export function DayView({
 											>
 												<div className="flex items-start justify-between mb-2">
 													<div className="flex items-center gap-2">
-														<Badge variant="secondary" className={`${event.color} text-white`}>
+														<Badge variant="secondary" className={`${event.color} text-foreground`}>
 															{bookingTypeLabels[event.type]}
 														</Badge>
 														<h4 className="font-semibold text-(--color-foreground)]">{event.title}</h4>

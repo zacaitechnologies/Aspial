@@ -429,21 +429,17 @@ export async function invalidateClientsCache() {
   revalidateTag("clients", {expire: 0})
 }
 
-/** Dashboard totals for admin: quotation balance (outstanding) and invoice balance (outstanding). */
+/** Dashboard totals: quotation and invoice outstanding balance (visible to everyone). */
 export type ClientsDashboardTotals = {
   totalQuotationBalance: number
   totalInvoiceBalance: number
 }
 
-/** Returns total quotation balance (totalPrice − invoiced) and total invoice balance (amount − received). Admin-only. */
+/** Returns total quotation balance (totalPrice − invoiced) and total invoice balance (amount − received). Visible to all authenticated users. */
 export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotals | null> {
   try {
     const user = await getCachedUser()
     if (!user?.id) return null
-
-    const { getCachedIsUserAdmin } = await import("@/lib/admin-cache")
-    const isAdmin = await getCachedIsUserAdmin(user.id)
-    if (!isAdmin) return null
 
     const [quotationsWithInvoiced, invoicesWithReceipts] = await Promise.all([
       prisma.quotation.findMany({

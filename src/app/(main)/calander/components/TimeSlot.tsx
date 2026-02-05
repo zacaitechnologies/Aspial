@@ -30,7 +30,7 @@ export function TimeSlot({
 						{events.map((event) => (
 							<div
 								key={event.id}
-								className={`text-xs px-2 py-1.5 rounded cursor-pointer ${event.color} text-white hover:opacity-90 transition-opacity`}
+								className={`text-xs px-2 py-1.5 rounded cursor-pointer ${event.color} text-foreground hover:opacity-90 transition-opacity`}
 								onClick={(e) => {
 									e.stopPropagation()
 									onEventClick(event)
@@ -38,7 +38,7 @@ export function TimeSlot({
 							>
 								<div className="font-medium truncate">{event.title}</div>
 								{event.type !== 'task' && (
-									<div className="flex items-center gap-1 text-white/80 mt-0.5">
+									<div className="flex items-center gap-1 text-foreground/80 mt-0.5">
 										<Clock className="w-3 h-3" />
 										<span>{event.startTime} - {event.endTime}</span>
 									</div>

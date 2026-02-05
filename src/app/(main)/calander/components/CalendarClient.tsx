@@ -28,28 +28,28 @@ interface CalendarClientProps {
 	userName: string
 }
 
-// Map appointment type to semantic border color classes using theme tokens
+// Map appointment type to border color using calendar theme tokens
 const getBorderColorClass = (appointmentType: AppointmentType): string => {
 	const borderColorMap: Record<AppointmentType, string> = {
-		PHOTO_SHOOT: "border-l-primary",
-		VIDEO_SHOOT: "border-l-[var(--color-chart-2)]",
-		CONSULTATION: "border-l-[var(--color-chart-3)]",
-		PHOTO_SELECTION: "border-l-[var(--color-chart-4)]",
-		OTHERS: "border-l-accent",
+		PHOTO_SHOOT: "border-l-calendar-photo-shoot",
+		VIDEO_SHOOT: "border-l-calendar-video-shoot",
+		CONSULTATION: "border-l-calendar-consultation",
+		PHOTO_SELECTION: "border-l-calendar-photo-selection",
+		OTHERS: "border-l-calendar-others",
 	}
-	return borderColorMap[appointmentType] || "border-l-accent"
+	return borderColorMap[appointmentType] || "border-l-calendar-others"
 }
 
-// Map appointment type to badge variant and classes using theme tokens
+// Map appointment type to badge classes using calendar theme tokens
 const getBadgeClasses = (appointmentType: AppointmentType): { variant: "default" | "secondary" | "destructive" | "outline"; className: string } => {
 	const badgeMap: Record<AppointmentType, { variant: "default" | "secondary" | "destructive" | "outline"; className: string }> = {
-		PHOTO_SHOOT: { variant: "default", className: "bg-primary text-primary-foreground" },
-		VIDEO_SHOOT: { variant: "secondary", className: "bg-[var(--color-chart-2)] text-primary-foreground" },
-		CONSULTATION: { variant: "secondary", className: "bg-[var(--color-chart-3)] text-primary-foreground" },
-		PHOTO_SELECTION: { variant: "secondary", className: "bg-[var(--color-chart-4)] text-primary-foreground" },
-		OTHERS: { variant: "secondary", className: "bg-accent text-accent-foreground" },
+		PHOTO_SHOOT: { variant: "secondary", className: "bg-calendar-photo-shoot text-foreground" },
+		VIDEO_SHOOT: { variant: "secondary", className: "bg-calendar-video-shoot text-foreground" },
+		CONSULTATION: { variant: "secondary", className: "bg-calendar-consultation text-foreground" },
+		PHOTO_SELECTION: { variant: "secondary", className: "bg-calendar-photo-selection text-foreground" },
+		OTHERS: { variant: "secondary", className: "bg-calendar-others text-foreground" },
 	}
-	return badgeMap[appointmentType] || { variant: "secondary", className: "bg-accent text-accent-foreground" }
+	return badgeMap[appointmentType] || { variant: "secondary", className: "bg-calendar-others text-foreground" }
 }
 
 export default function CalendarClient({
@@ -413,16 +413,6 @@ export default function CalendarClient({
 					<div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
 						{Object.entries(APPOINTMENT_TYPES).map(([appointmentKey, config]) => {
 							const count = statsCounts[appointmentKey] || 0
-							// Map appointment type to theme token color for stats indicator
-							const indicatorColorClass = appointmentKey === 'PHOTO_SHOOT' 
-								? 'bg-primary'
-								: appointmentKey === 'VIDEO_SHOOT'
-								? 'bg-[var(--color-chart-2)]'
-								: appointmentKey === 'CONSULTATION'
-								? 'bg-[var(--color-chart-3)]'
-								: appointmentKey === 'PHOTO_SELECTION'
-								? 'bg-[var(--color-chart-4)]'
-								: 'bg-accent'
 							return (
 								<Card
 									key={appointmentKey}
@@ -436,7 +426,7 @@ export default function CalendarClient({
 													{count}
 												</p>
 											</div>
-											<div className={`w-3 h-3 rounded-full ${indicatorColorClass}`}></div>
+											<div className={`w-3 h-3 rounded-full shrink-0 ${config.color}`} />
 										</div>
 									</CardContent>
 								</Card>
