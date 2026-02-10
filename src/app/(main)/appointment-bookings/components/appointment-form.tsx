@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createAppointment, updateAppointment } from "@/app/(main)/appointment-bookings/actions"
-import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
+import { APPOINTMENT_TYPES } from "@/app/(main)/calendar/constants"
 
 interface Appointment {
   id: number

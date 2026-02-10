@@ -14,7 +14,7 @@ import EditAppointmentRemindersDialog from "@/app/(main)/appointment-bookings/co
 import BookingDetailsDialog from "@/app/(main)/appointment-bookings/components/BookingDetailsDialog"
 import { deleteAppointment, cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
 import { cn } from "@/lib/utils"
-import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
+import { APPOINTMENT_TYPES } from "@/app/(main)/calendar/constants"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import { Edit, Trash2, Plus, Calendar, Clock, User, Search, List, Users as UsersIcon, Mail, Send, Bell, Info } from "lucide-react"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"

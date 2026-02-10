@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarBooking } from "@/app/(main)/calander/actions"
+import { CalendarBooking } from "@/app/(main)/calendar/actions"
 
 interface CalendarDayProps {
   day: number

@@ -1,7 +1,7 @@
 "use client"
 
-import { CalendarBooking } from "@/app/(main)/calander/actions"
-import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
+import { CalendarBooking } from "@/app/(main)/calendar/actions"
+import { APPOINTMENT_TYPES } from "@/app/(main)/calendar/constants"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"

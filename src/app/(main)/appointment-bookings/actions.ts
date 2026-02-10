@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
-import type { AppointmentType } from "@/app/(main)/calander/constants"
+import type { AppointmentType } from "@/app/(main)/calendar/constants"
 import { formatLocalDateTime, formatLocalDateTimeDisplay } from "@/lib/date-utils"
 
 // Project Actions
