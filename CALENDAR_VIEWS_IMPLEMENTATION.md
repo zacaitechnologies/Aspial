@@ -7,31 +7,31 @@ Successfully added **Week View** and **Day View** to your calendar application, 
 ## New Files Created
 
 ### 1. Utility Functions
-- `src/app/(main)/calander/utils/calendar-utils.ts`
+- `src/app/(main)/calendar/utils/calendar-utils.ts`
   - Date manipulation helpers (getWeekStart, getWeekEnd, getWeekDays)
   - Navigation functions (getPreviousWeek, getNextWeek, getPreviousDay, getNextDay)
   - Time parsing and formatting utilities
   - CalendarView type definition
 
 ### 2. View Switcher
-- `src/app/(main)/calander/components/ViewSwitcher.tsx`
+- `src/app/(main)/calendar/components/ViewSwitcher.tsx`
   - Toggle between Month, Week, and Day views
   - Clean UI with icons for each view mode
 
 ### 3. Week View Components
-- `src/app/(main)/calander/components/WeekView.tsx`
+- `src/app/(main)/calendar/components/WeekView.tsx`
   - Main week view container with 7-day layout
   - Time slots displayed vertically
   - Smart time range calculation (only shows relevant hours)
   
-- `src/app/(main)/calander/components/WeekViewDay.tsx`
+- `src/app/(main)/calendar/components/WeekViewDay.tsx`
   - Individual day column within the week view
   - Separates all-day events (tasks) from timed events
   - Shows up to 3 all-day events with "+X more" indicator
   - Click-through to event details
 
 ### 4. Day View Component
-- `src/app/(main)/calander/components/DayView.tsx`
+- `src/app/(main)/calendar/components/DayView.tsx`
   - Detailed single-day view with 30-minute time slots
   - Shows full event information inline
   - Separate all-day section for tasks
@@ -39,12 +39,12 @@ Successfully added **Week View** and **Day View** to your calendar application, 
   - Empty state when no events scheduled
 
 ### 5. Time Slot Component
-- `src/app/(main)/calander/components/TimeSlot.tsx`
+- `src/app/(main)/calendar/components/TimeSlot.tsx`
   - Reusable component for displaying events in time slots
   - Used across different views
 
 ### 6. Updated Components
-- `src/app/(main)/calander/components/DatePicker.tsx`
+- `src/app/(main)/calendar/components/DatePicker.tsx`
   - Enhanced to support all three view modes
   - Changes navigation behavior based on view:
     - Month view: Previous/Next month
@@ -52,7 +52,7 @@ Successfully added **Week View** and **Day View** to your calendar application, 
     - Day view: Previous/Next day
   - Dynamic display text showing appropriate date range
 
-- `src/app/(main)/calander/page.tsx`
+- `src/app/(main)/calendar/page.tsx`
   - Integrated all new view components
   - Added view mode state management
   - Conditional rendering based on selected view

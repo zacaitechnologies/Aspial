@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Calendar } from "lucide-react"
-import { APPOINTMENT_TYPES } from "@/app/(main)/calander/constants"
+import { APPOINTMENT_TYPES } from "@/app/(main)/calendar/constants"
 import { WeeklyCalendarBooking } from "./weekly-calendar-booking"
 
 interface Appointment {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
-import { CalendarBooking } from "@/app/(main)/calander/actions"
+import { CalendarBooking } from "@/app/(main)/calendar/actions"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
 
