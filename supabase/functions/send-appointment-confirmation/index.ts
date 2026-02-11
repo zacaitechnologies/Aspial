@@ -43,6 +43,10 @@ Deno.serve(async (req) => {
 			hour12: true
 		})
 
+		// Aspial office address and Waze navigation link
+		const ASPIAL_OFFICE_ADDRESS = "2A, JALAN DATO' ABU BAKAR, JALAN 16/1, SECTION 16, 46350 PETALING JAYA, SELANGOR"
+		const WAZE_NAVIGATE_URL = "https://ul.waze.com/ul?place=ChIJMdub_wlJzDERwbGv54ey2kI&ll=3.11970320%2C101.64305870&navigate=yes&utm_campaign=default&utm_source=waze_website&utm_medium=lm_share_location"
+
 		// Professional email template matching Aspial theme
 		// Colors: #202F21 (dark green), #BDC4A5 (sage), #F0E8D8 (cream), #898D74 (muted green-gray)
 		const emailHtml = `
@@ -81,7 +85,8 @@ Deno.serve(async (req) => {
               <div style="background-color: #F0E8D8; border-left: 4px solid #BDC4A5; padding: 20px; margin: 30px 0; border-radius: 4px;">
                 <p style="margin: 0 0 10px 0; color: #202F21; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Appointment Details</p>
                 <p style="margin: 5px 0; color: #202F21; font-size: 16px;"><strong>Appointment:</strong> ${appointmentName}</p>
-                ${appointmentLocation ? `<p style="margin: 5px 0; color: #202F21; font-size: 16px;"><strong>Location:</strong> ${appointmentLocation}</p>` : ''}
+                <p style="margin: 5px 0; color: #202F21; font-size: 16px;"><strong>Location:</strong> ${ASPIAL_OFFICE_ADDRESS}</p>
+                <p style="margin: 5px 0 15px 0; color: #202F21; font-size: 16px;"><a href="${WAZE_NAVIGATE_URL}" style="color: #202F21; font-weight: 600; text-decoration: underline;">Navigate with Waze</a></p>
                 <p style="margin: 5px 0; color: #202F21; font-size: 16px;"><strong>Date:</strong> ${formattedStartDate}</p>
                 <p style="margin: 5px 0; color: #202F21; font-size: 16px;"><strong>Time:</strong> ${formattedStartTime} - ${formattedEndTime}</p>
                 ${purpose ? `<p style="margin: 5px 0; color: #202F21; font-size: 16px;"><strong>Purpose:</strong> ${purpose}</p>` : ''}
@@ -89,7 +94,7 @@ Deno.serve(async (req) => {
               </div>
               
               <p style="margin: 20px 0; color: #202F21; font-size: 16px;">
-                Please arrive on time for your appointment. If you need to reschedule or cancel, please contact us as soon as possible.
+                Please arrive on time for your appointment. Rescheduling must be notified at least 3 days in advance. If you need to reschedule or cancel, please contact us as soon as possible.
               </p>
               
               <p style="margin: 20px 0; color: #202F21; font-size: 16px;">
@@ -107,7 +112,8 @@ Deno.serve(async (req) => {
           <tr>
             <td style="background-color: #898D74; padding: 25px 40px; text-align: center;">
               <p style="margin: 0 0 10px 0; color: #ffffff; font-size: 14px; font-weight: 600;">Contact Information</p>
-              <p style="margin: 5px 0; color: #ffffff; font-size: 13px;">2A, Lorong Dato Abu Bakar, Section 16, 46350 Petaling Jaya, Selangor</p>
+              <p style="margin: 5px 0; color: #ffffff; font-size: 13px;">${ASPIAL_OFFICE_ADDRESS}</p>
+              <p style="margin: 10px 0 5px 0;"><a href="${WAZE_NAVIGATE_URL}" style="color: #ffffff; font-size: 13px; text-decoration: underline;">Navigate with Waze</a></p>
               <p style="margin: 5px 0; color: #ffffff; font-size: 13px;">Phone: 016-753 5323 | Email: contact@aspialwork.com</p>
             </td>
           </tr>
