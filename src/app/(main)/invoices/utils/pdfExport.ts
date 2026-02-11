@@ -337,7 +337,7 @@ function addTermsAndConditions(
 	advisorName: string,
 	clientInfo: ClientInfoPdf
 ): number {
-	const contentWidth = pageWidth - 2 * margin - TEXT_SAFETY
+	const contentWidth = pageWidth - 2 * margin
 	let currentY = startY
 	currentY += 8
 	doc.setFont("helvetica", "bold")
@@ -355,21 +355,21 @@ function addTermsAndConditions(
 		return CONTENT_AFTER_INFO_BOX_Y
 	}
 
-	// T&C points 1-3 (font 9pt)
+	// T&C body: single font size so splitTextToSize and render match (avoids overflow after page break)
+	const TC_FONT_SIZE = 8
 	for (const paragraph of TERMS_AND_CONDITIONS) {
 		if (currentY > pageHeight - 25) {
 			currentY = addNewPage()
 		}
-		// Re-set font after page break
 		doc.setFont("helvetica", "normal")
-		doc.setFontSize(9)
+		doc.setFontSize(TC_FONT_SIZE)
 		doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 		const lines = doc.splitTextToSize(paragraph, contentWidth)
 		for (const line of lines) {
 			if (currentY > pageHeight - 25) {
 				currentY = addNewPage()
 				doc.setFont("helvetica", "normal")
-				doc.setFontSize(9)
+				doc.setFontSize(TC_FONT_SIZE)
 				doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 			}
 			doc.text(line, margin, currentY)
