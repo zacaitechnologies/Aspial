@@ -48,10 +48,10 @@ export default function ClientDetailClient({
 	const canSeeBalance = isAdminOnly || (currentUserId != null && client.createdById === currentUserId)
 
 	const handleSuccess = async () => {
-		// Refresh client data
+		// Refresh client data (getClientById returns null if no access, e.g. Brand Advisor viewing another's client)
 		try {
 			const updatedClient = await getClientById(client.id)
-			setClient(updatedClient)
+			if (updatedClient) setClient(updatedClient)
 		} catch (error) {
 			if (process.env.NODE_ENV === 'development') {
 				console.error("Failed to fetch client:", error)

@@ -87,7 +87,6 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
   const [searchTerm, setSearchTerm] = useState("")
   const [industryFilter, setIndustryFilter] = useState<string>("all")
   const [membershipFilter, setMembershipFilter] = useState<"all" | "MEMBER" | "NON_MEMBER">("all")
-  const [createdByMeOnly, setCreatedByMeOnly] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>("created_at")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -136,8 +135,8 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
   const pageCacheRef = useRef<Map<string, { data: Client[]; total: number; totalPages: number }>>(new Map())
 
   const buildCacheKey = useCallback(
-    (p: number, ps: number, search: string, ind: string, mem: string, createdByMe: boolean, sort: string, dir: string) =>
-      `${p}:${ps}:${search}:${ind}:${mem}:${createdByMe}:${sort}:${dir}`,
+    (p: number, ps: number, search: string, ind: string, mem: string, sort: string, dir: string) =>
+      `${p}:${ps}:${search}:${ind}:${mem}:${sort}:${dir}`,
     []
   )
 
@@ -158,7 +157,6 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
       targetSearch?: string
       targetIndustry?: string
       targetMembership?: "all" | "MEMBER" | "NON_MEMBER"
-      targetCreatedByMeOnly?: boolean
       targetSortBy?: SortOption
       targetSortDir?: SortDirection
     } = {}) => {
@@ -167,7 +165,6 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
       const targetSearch = opts.targetSearch ?? debouncedSearchTerm
       const targetIndustry = opts.targetIndustry ?? industryFilter
       const targetMembership = opts.targetMembership ?? membershipFilter
-      const targetCreatedByMeOnly = opts.targetCreatedByMeOnly ?? createdByMeOnly
       const targetSortBy = opts.targetSortBy ?? sortBy
       const targetSortDir = opts.targetSortDir ?? sortDirection
 
@@ -177,7 +174,6 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
         targetSearch,
         targetIndustry,
         targetMembership,
-        targetCreatedByMeOnly,
         targetSortBy,
         targetSortDir
       )
@@ -195,7 +191,6 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
           searchTerm: targetSearch || undefined,
           industry: targetIndustry !== "all" ? targetIndustry : undefined,
           membershipType: targetMembership,
-          createdByMeOnly: targetCreatedByMeOnly || undefined,
           sortBy: targetSortBy,
           sortDirection: targetSortDir,
         })
@@ -213,7 +208,6 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
       debouncedSearchTerm,
       industryFilter,
       membershipFilter,
-      createdByMeOnly,
       sortBy,
       sortDirection,
       buildCacheKey,
@@ -230,7 +224,7 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
     startTransition(() => {
       void fetchClients()
     })
-  }, [page, pageSize, debouncedSearchTerm, industryFilter, membershipFilter, createdByMeOnly, sortBy, sortDirection, fetchClients])
+  }, [page, pageSize, debouncedSearchTerm, industryFilter, membershipFilter, sortBy, sortDirection, fetchClients])
 
   useEffect(() => {
     const key = buildCacheKey(
@@ -239,7 +233,6 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
       "",
       "all",
       "all",
-      false,
       "created_at",
       "desc"
     )
@@ -507,20 +500,6 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
                 <SelectItem value="NON_MEMBER">Non-Members</SelectItem>
               </SelectContent>
             </Select>
-            <Button
-              type="button"
-              variant={createdByMeOnly ? "default" : "outline"}
-              size="default"
-              className="border-2 shrink-0"
-              style={!createdByMeOnly ? { borderColor: "#BDC4A5" } : undefined}
-              onClick={() => {
-                setCreatedByMeOnly((prev) => !prev)
-                setPage(1)
-              }}
-            >
-              <User className="w-4 h-4 mr-2" />
-              My clients only
-            </Button>
           </div>
 
           {/* Sorting Controls */}
