@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCachedUser } from "@/lib/auth-cache"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { unstable_noStore, unstable_cache } from "next/cache"
 import { 
   createClientSchema, 
@@ -48,9 +49,13 @@ export async function getCurrentUser() {
 // Client CRUD operations
 export async function getAllClients() {
   try {
-    await getCurrentUser() // Ensure user is authenticated
-    
+    const user = await getCurrentUser()
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+    const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
+    const createdByIdFilter = isAdmin ? undefined : dbUser?.id
+
     const clients = await prisma.client.findMany({
+      where: createdByIdFilter !== undefined ? { createdById: createdByIdFilter } : undefined,
       include: {
         quotations: {
           select: {
@@ -139,7 +144,8 @@ async function _getClientsPaginatedInternal(
     membershipType?: 'all' | 'MEMBER' | 'NON_MEMBER'
     sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
     sortDirection?: 'asc' | 'desc'
-  } = {}
+  } = {},
+  createdByIdFilter?: string
 ) {
   const skip = (page - 1) * pageSize
   const {
@@ -150,12 +156,16 @@ async function _getClientsPaginatedInternal(
     sortDirection = 'desc',
   } = filters
 
-  // Build where clause
+  // Build where clause (Brand Advisors see only clients they created; Admin sees all)
   const where: {
     OR?: Array<{ name?: { contains: string; mode: 'insensitive' }; email?: { contains: string; mode: 'insensitive' }; company?: { contains: string; mode: 'insensitive' } }>
     industry?: string
     membershipType?: 'MEMBER' | 'NON_MEMBER'
+    createdById?: string
   } = {}
+  if (createdByIdFilter !== undefined) {
+    where.createdById = createdByIdFilter
+  }
 
   if (searchTerm) {
     where.OR = [
@@ -345,28 +355,30 @@ async function _getClientsPaginatedInternal(
   }
 }
 
-// Server-side cached version for initial page load (30 second cache)
+// Server-side cached version for initial page load (30 second cache). Cache key includes creatorScope so admin vs brand-advisor see correct lists.
 const getCachedClientsPaginated = unstable_cache(
   async (
-    page: number, 
-    pageSize: number, 
+    creatorScope: string,
+    page: number,
+    pageSize: number,
     searchTerm: string,
     industry: string,
     membershipType: string,
     sortBy: string,
     sortDirection: string
   ) => {
+    const createdByIdFilter = creatorScope === "admin" ? undefined : creatorScope
     return await _getClientsPaginatedInternal(page, pageSize, {
       searchTerm: searchTerm || undefined,
       industry: industry || undefined,
       membershipType: (membershipType || 'all') as 'all' | 'MEMBER' | 'NON_MEMBER',
       sortBy: (sortBy || 'created_at') as 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at',
       sortDirection: (sortDirection || 'desc') as 'asc' | 'desc',
-    })
+    }, createdByIdFilter)
   },
   ["clients-paginated"],
-  { 
-    revalidate: 30, // Cache for 30 seconds
+  {
+    revalidate: 30,
     tags: ["clients"]
   }
 )
@@ -383,13 +395,17 @@ export async function getClientsPaginated(
   } = {}
 ) {
   try {
-    // Use cached auth - deduplicates within same request
-    await getCachedUser()
+    const user = await getCachedUser()
+    const [isAdmin, dbUser] = await Promise.all([
+      getCachedIsUserAdmin(user.id),
+      prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
+    ])
+    const creatorScope = isAdmin ? "admin" : (dbUser?.id ?? "none")
 
-    // Use server-side cache for faster initial loads
     return await getCachedClientsPaginated(
-      page, 
-      pageSize, 
+      creatorScope,
+      page,
+      pageSize,
       filters.searchTerm || "",
       filters.industry || "all",
       filters.membershipType || "all",
@@ -420,8 +436,13 @@ export async function getClientsPaginatedFresh(
   } = {}
 ) {
   unstable_noStore()
-  await getCachedUser()
-  return await _getClientsPaginatedInternal(page, pageSize, filters)
+  const user = await getCachedUser()
+  const [isAdmin, dbUser] = await Promise.all([
+    getCachedIsUserAdmin(user.id),
+    prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
+  ])
+  const createdByIdFilter = isAdmin ? undefined : dbUser?.id
+  return await _getClientsPaginatedInternal(page, pageSize, filters, createdByIdFilter)
 }
 
 // Invalidate clients cache after mutations
@@ -435,15 +456,33 @@ export type ClientsDashboardTotals = {
   totalInvoiceBalance: number
 }
 
-/** Returns total quotation balance (totalPrice − invoiced) and total invoice balance (amount − received). Visible to all authenticated users. */
+/** Returns total quotation balance (totalPrice − invoiced) and total invoice balance (amount − received). Admin: all clients. Brand Advisors: only their created clients. */
 export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotals | null> {
   try {
     const user = await getCachedUser()
     if (!user?.id) return null
 
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+    let clientIdFilter: string[] | undefined
+    if (isAdmin) {
+      clientIdFilter = undefined
+    } else {
+      const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
+      clientIdFilter = dbUser
+        ? (await prisma.client.findMany({ where: { createdById: dbUser.id }, select: { id: true } })).map((r) => r.id)
+        : []
+    }
+
+    const quotationWhere = clientIdFilter
+      ? { workflowStatus: { not: "cancelled" as const }, clientId: { in: clientIdFilter } }
+      : { workflowStatus: { not: "cancelled" as const } }
+    const invoiceWhere = clientIdFilter
+      ? { status: { not: "cancelled" as const }, quotation: { clientId: { in: clientIdFilter } } }
+      : { status: { not: "cancelled" as const } }
+
     const [quotationsWithInvoiced, invoicesWithReceipts] = await Promise.all([
       prisma.quotation.findMany({
-        where: { workflowStatus: { not: "cancelled" } },
+        where: quotationWhere,
         select: {
           totalPrice: true,
           invoices: {
@@ -453,7 +492,7 @@ export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotal
         },
       }),
       prisma.invoice.findMany({
-        where: { status: { not: "cancelled" } },
+        where: invoiceWhere,
         select: {
           amount: true,
           receipts: {
@@ -487,8 +526,7 @@ export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotal
 
 export async function getClientById(id: string) {
   try {
-    await getCurrentUser() // Ensure user is authenticated
-    
+    const user = await getCurrentUser()
     const client = await prisma.client.findUnique({
       where: { id },
       include: {
@@ -536,11 +574,20 @@ export async function getClientById(id: string) {
         }
       }
     })
-    
+
     if (!client) {
       throw new Error("Client not found")
     }
-    
+
+    // Brand Advisors: only allow access to clients they created. Admin: all clients.
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+    if (!isAdmin) {
+      const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
+      if (!dbUser || client.createdById !== dbUser.id) {
+        return null
+      }
+    }
+
     return client
   } catch (error: unknown) {
     // Handle redirect errors
