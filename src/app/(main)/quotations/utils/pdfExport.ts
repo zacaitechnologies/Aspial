@@ -348,6 +348,67 @@ function checkAndAddPage(
 // Content width for text wrapping (keeps margins consistent, avoids overflow)
 const TEXT_SAFETY = 12;
 
+// Line height used when rendering service description text (mm)
+const DESC_LINE_HEIGHT = 4;
+// Vertical gap rendered for blank lines in descriptions (mm)
+const DESC_BLANK_LINE_GAP = 3;
+
+/** Split service description into individual lines preserving dashes, numbering, and blank lines. */
+function splitDescriptionLines(description: string): string[] {
+  return description.split('\n').map(line => line.trimEnd());
+}
+
+/**
+ * Measure the height (mm) needed to render pre-split description lines
+ * when each line is wrapped to fit within cellWidth.
+ * Blank lines are treated as spacing gaps.
+ */
+function measureDescriptionHeight(
+  doc: jsPDF,
+  lines: string[],
+  cellWidth: number
+): number {
+  let height = 0;
+  for (const line of lines) {
+    if (line.length === 0) {
+      height += DESC_BLANK_LINE_GAP;
+    } else {
+      const wrapped = doc.splitTextToSize(line, cellWidth);
+      height += wrapped.length * DESC_LINE_HEIGHT;
+    }
+  }
+  return height;
+}
+
+/**
+ * Render description lines into PDF preserving dashes, numbering, and blank-line spacing.
+ * Returns the final y position after rendering.
+ */
+function renderDescriptionLines(
+  doc: jsPDF,
+  lines: string[],
+  x: number,
+  startY: number,
+  cellWidth: number,
+  maxY: number
+): number {
+  let y = startY;
+  for (const line of lines) {
+    if (y >= maxY) break;
+    if (line.length === 0) {
+      y += DESC_BLANK_LINE_GAP;
+      continue;
+    }
+    const wrapped = doc.splitTextToSize(line, cellWidth);
+    for (const wl of wrapped) {
+      if (y >= maxY) break;
+      doc.text(wl, x, y);
+      y += DESC_LINE_HEIGHT;
+    }
+  }
+  return y;
+}
+
 // Add Terms and Conditions section; returns new currentY
 function addTermsAndConditions(
   doc: jsPDF,
@@ -525,40 +586,50 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   // Services table - create a row for each service
   const tableData: any[] = [];
   const rowHeights: number[] = [];
-  const descCellWidth = 110 - 6; // Account for padding
+  // Use the actual column width autoTable will assign (must match columnStyles below)
+  const descColWidth = (pageWidth - 2 * margin) / 15 * 7;
+  const descCellWidth = descColWidth - 6; // Subtract cell padding (3 left + 3 right)
   
   // Calculate row height for each service and create table rows
   allServices.forEach((service, index) => {
+    // Measure name height (bold 9pt)
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
     const nameLines = doc.splitTextToSize(service.name, descCellWidth);
-    let totalLines = nameLines.length;
+    let contentHeight = nameLines.length * DESC_LINE_HEIGHT;
     
     if (service.description) {
-      // Process description - split by newlines and remove bullets
-      const processedDesc = service.description
-        .split('\n')
-        .map(line => line.trim().replace(/^[-•*]\s*/, ''))
-        .filter(line => line.length > 0)
-        .join('\n');
-      const descLines = doc.splitTextToSize(processedDesc, descCellWidth);
-      totalLines += descLines.length;
-      // Add 2px for gap between name and description
-      totalLines += 0.5; // 2px gap = 0.5 line spacing
+      // Gap between name and description
+      contentHeight += 2;
+      // Measure description height (normal 9pt), preserving dashes and blank lines
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const descLines = splitDescriptionLines(service.description);
+      contentHeight += measureDescriptionHeight(doc, descLines, descCellWidth);
     }
     
-    // Calculate row height - use 5px per line for better spacing, add extra padding
-    const rowHeight = Math.max(20, totalLines * 5 + 12); // 5px per line + extra padding
+    // Add cell padding (5 top + 5 bottom)
+    const rowHeight = Math.max(20, contentHeight + 10);
     rowHeights.push(rowHeight);
     
-    // Add row data - empty string in description column will be rendered by didDrawCell
+    // Put actual text in description cell so autoTable calculates correct row height
+    // and can split tall rows across pages. Text rendering is suppressed in willDrawCell;
+    // formatted bold name + normal description is drawn in didDrawCell.
+    const cellText = service.description
+      ? `${service.name}\n${service.description}`
+      : service.name;
     tableData.push([
       String(index + 1),
-      "", // Empty - will be rendered by didDrawCell
+      cellText,
       "1.00", // Package quantity
       formatNumber(service.price), // Price per package
       formatNumber(service.price) // Total
     ]);
   });
-  
+
+  // Track content offset per row for rows that autoTable splits across pages
+  const rowPageOffsets = new Map<number, number>();
+
   // If no individual services, show combined total
   if (allServices.length === 0) {
     const packageQty = 1.00;
@@ -604,7 +675,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
         3: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" },
         4: { cellWidth: (pageWidth - 2 * margin) / 15 * 2, halign: "right" },
       },
-      margin: { left: margin, right: margin },
+      margin: { left: margin, right: margin, top: CONTENT_AFTER_INFO_BOX_Y, bottom: 25 },
       styles: {
         cellPadding: 3,
         lineWidth: 0.1,
@@ -612,83 +683,90 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
         overflow: 'linebreak',
       },
       didParseCell: (data: any) => {
-        // Set row height based on calculated height for each row
-        if (data.row.index >= 0 && rowHeights[data.row.index]) {
-          // Set minHeight for all cells in the row to ensure consistent row height
+        // Set minHeight so autoTable allocates enough space for our custom content.
+        // Do NOT force row.height — autoTable must be free to split tall rows across pages.
+        if (data.row.index >= 0 && data.row.section === 'body' && rowHeights[data.row.index]) {
           data.cell.minHeight = rowHeights[data.row.index];
-          // Also set the row height directly
-          if (data.table.body[data.row.index]) {
-            data.table.body[data.row.index].height = rowHeights[data.row.index];
-          }
         }
       },
       willDrawCell: (data: any) => {
-        // Ensure row height is applied before drawing
-        if (data.row.index >= 0 && rowHeights[data.row.index]) {
-          data.cell.height = rowHeights[data.row.index];
+        // Suppress default text rendering for description column;
+        // formatted bold name + normal description is drawn in didDrawCell.
+        if (data.column.index === 1 && data.row.index >= 0 && data.row.section === 'body') {
+          data.cell.text = [];
         }
       },
       didDrawCell: (data: any) => {
-        // Custom rendering for description column (index 1) to handle bold name and normal description
-        // Only render for body rows, not header rows
+        // Custom rendering for description column (bold name + normal description).
+        // Handles rows that autoTable splits across multiple pages via content-offset tracking.
         if (data.column.index === 1 && data.row.index >= 0 && data.row.section === 'body') {
           const serviceIndex = data.row.index;
           const service = allServices[serviceIndex];
-          
-          if (service) {
-            const cellWidth = data.cell.width - 6; // Account for padding
-            const x = data.cell.x + 3;
-            let y = data.cell.y + 5;
-            // Use calculated row height or cell height, whichever is larger
-            const cellHeight = rowHeights[serviceIndex] || data.cell.height || 20;
-            const maxY = data.cell.y + cellHeight - 5;
-            
-            // Draw service name in bold
-            doc.setFont("helvetica", "bold");
+          if (!service) return;
+
+          const cellWidth = data.cell.width - 6; // 3 left + 3 right padding
+          const x = data.cell.x + 3;
+          const topPad = 5;
+          const botPad = 3;
+          let renderY = data.cell.y + topPad;
+          const maxRenderY = data.cell.y + data.cell.height - botPad;
+
+          // Content offset: mm of content already rendered on previous page fragments
+          const contentOffset = rowPageOffsets.get(serviceIndex) || 0;
+          let virtualY = 0;
+
+          // --- Name (bold) ---
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
+          const nameLines = doc.splitTextToSize(service.name, cellWidth);
+          for (const nameLine of nameLines) {
+            const lineBottom = virtualY + DESC_LINE_HEIGHT;
+            if (lineBottom > contentOffset && renderY < maxRenderY) {
+              doc.text(nameLine, x, renderY);
+              renderY += DESC_LINE_HEIGHT;
+            }
+            virtualY = lineBottom;
+          }
+
+          // --- Description (normal) ---
+          if (service.description) {
+            // Gap between name and description
+            const gapBottom = virtualY + 2;
+            if (gapBottom > contentOffset && renderY < maxRenderY) {
+              renderY += 2;
+            }
+            virtualY = gapBottom;
+
+            doc.setFont("helvetica", "normal");
             doc.setFontSize(9);
             doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
-            const nameLines = doc.splitTextToSize(service.name, cellWidth);
-            nameLines.forEach((line: string) => {
-              if (y >= maxY) return; // Prevent overflow
-              doc.text(line, x, y);
-              y += 4; // Tighter spacing
-            });
-            
-            // Add small gap between name and description
-            if (service.description) {
-              y += 2;
-            }
-            
-            // Draw description in normal font (always show if it exists)
-            if (service.description) {
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(9);
-              doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
-              // Process description - split by newlines and remove bullets
-              let processedDesc = service.description
-                .split('\n')
-                .map(line => line.trim().replace(/^[-•*]\s*/, ''))
-                .filter(line => line.length > 0)
-                .join('\n');
-              
-              // If processing removed everything, use original description
-              if (!processedDesc || processedDesc.trim().length === 0) {
-                processedDesc = service.description.trim();
+            const descLines = splitDescriptionLines(service.description);
+            for (const dLine of descLines) {
+              if (dLine.length === 0) {
+                const blankBottom = virtualY + DESC_BLANK_LINE_GAP;
+                if (blankBottom > contentOffset && renderY < maxRenderY) {
+                  renderY += DESC_BLANK_LINE_GAP;
+                }
+                virtualY = blankBottom;
+                continue;
               }
-              
-              if (processedDesc && processedDesc.length > 0) {
-                const descLines = doc.splitTextToSize(processedDesc, cellWidth);
-                descLines.forEach((line: string) => {
-                  if (y >= maxY) return; // Prevent overflow
-                  doc.text(line, x, y);
-                  y += 4; // Tighter spacing
-                });
+              const wrapped = doc.splitTextToSize(dLine, cellWidth);
+              for (const wl of wrapped) {
+                const lineBottom = virtualY + DESC_LINE_HEIGHT;
+                if (lineBottom > contentOffset && renderY < maxRenderY) {
+                  doc.text(wl, x, renderY);
+                  renderY += DESC_LINE_HEIGHT;
+                }
+                virtualY = lineBottom;
               }
             }
-            
-            // Return false to prevent default rendering
-            return false;
           }
+
+          // Update offset for the next page fragment of this row
+          const usableHeight = data.cell.height - topPad - botPad;
+          rowPageOffsets.set(serviceIndex, contentOffset + usableHeight);
+          return false;
         }
       },
       didDrawPage: (data: any) => {
@@ -900,40 +978,50 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   // Services table - create a row for each service
   const tableData: any[] = [];
   const rowHeights: number[] = [];
-  const descCellWidth = 110 - 6; // Account for padding
+  // Use the actual column width autoTable will assign (must match columnStyles below)
+  const descColWidth = (pageWidth - 2 * margin) / 15 * 7;
+  const descCellWidth = descColWidth - 6; // Subtract cell padding (3 left + 3 right)
   
   // Calculate row height for each service and create table rows
   allServices.forEach((service, index) => {
+    // Measure name height (bold 9pt)
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
     const nameLines = doc.splitTextToSize(service.name, descCellWidth);
-    let totalLines = nameLines.length;
+    let contentHeight = nameLines.length * DESC_LINE_HEIGHT;
     
     if (service.description) {
-      // Process description - split by newlines and remove bullets
-      const processedDesc = service.description
-        .split('\n')
-        .map(line => line.trim().replace(/^[-•*]\s*/, ''))
-        .filter(line => line.length > 0)
-        .join('\n');
-      const descLines = doc.splitTextToSize(processedDesc, descCellWidth);
-      totalLines += descLines.length;
-      // Add 2px for gap between name and description
-      totalLines += 0.5; // 2px gap = 0.5 line spacing
+      // Gap between name and description
+      contentHeight += 2;
+      // Measure description height (normal 9pt), preserving dashes and blank lines
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const descLines = splitDescriptionLines(service.description);
+      contentHeight += measureDescriptionHeight(doc, descLines, descCellWidth);
     }
     
-    // Calculate row height - use 5px per line for better spacing, add extra padding
-    const rowHeight = Math.max(20, totalLines * 5 + 12); // 5px per line + extra padding
+    // Add cell padding (5 top + 5 bottom)
+    const rowHeight = Math.max(20, contentHeight + 10);
     rowHeights.push(rowHeight);
     
-    // Add row data - empty string in description column will be rendered by didDrawCell
+    // Put actual text in description cell so autoTable calculates correct row height
+    // and can split tall rows across pages. Text rendering is suppressed in willDrawCell;
+    // formatted bold name + normal description is drawn in didDrawCell.
+    const cellText = service.description
+      ? `${service.name}\n${service.description}`
+      : service.name;
     tableData.push([
       String(index + 1),
-      "", // Empty - will be rendered by didDrawCell
+      cellText,
       "1.00", // Package quantity
       formatNumber(service.price), // Price per package
       formatNumber(service.price) // Total
     ]);
   });
-  
+
+  // Track content offset per row for rows that autoTable splits across pages
+  const rowPageOffsets = new Map<number, number>();
+
   // If no individual services, show combined total
   if (allServices.length === 0) {
     const packageQty = 1.00;
@@ -979,7 +1067,7 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
         3: { cellWidth: (pageWidth - 2 * margin) / 15 * 3, halign: "right" },
         4: { cellWidth: (pageWidth - 2 * margin) / 15 * 2, halign: "right" },
       },
-      margin: { left: margin, right: margin },
+      margin: { left: margin, right: margin, top: CONTENT_AFTER_INFO_BOX_Y, bottom: 25 },
       styles: {
         cellPadding: 3,
         lineWidth: 0.1,
@@ -987,83 +1075,90 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
         overflow: 'linebreak',
       },
       didParseCell: (data: any) => {
-        // Set row height based on calculated height for each row
-        if (data.row.index >= 0 && rowHeights[data.row.index]) {
-          // Set minHeight for all cells in the row to ensure consistent row height
+        // Set minHeight so autoTable allocates enough space for our custom content.
+        // Do NOT force row.height — autoTable must be free to split tall rows across pages.
+        if (data.row.index >= 0 && data.row.section === 'body' && rowHeights[data.row.index]) {
           data.cell.minHeight = rowHeights[data.row.index];
-          // Also set the row height directly
-          if (data.table.body[data.row.index]) {
-            data.table.body[data.row.index].height = rowHeights[data.row.index];
-          }
         }
       },
       willDrawCell: (data: any) => {
-        // Ensure row height is applied before drawing
-        if (data.row.index >= 0 && rowHeights[data.row.index]) {
-          data.cell.height = rowHeights[data.row.index];
+        // Suppress default text rendering for description column;
+        // formatted bold name + normal description is drawn in didDrawCell.
+        if (data.column.index === 1 && data.row.index >= 0 && data.row.section === 'body') {
+          data.cell.text = [];
         }
       },
       didDrawCell: (data: any) => {
-        // Custom rendering for description column (index 1) to handle bold name and normal description
-        // Only render for body rows, not header rows
+        // Custom rendering for description column (bold name + normal description).
+        // Handles rows that autoTable splits across multiple pages via content-offset tracking.
         if (data.column.index === 1 && data.row.index >= 0 && data.row.section === 'body') {
           const serviceIndex = data.row.index;
           const service = allServices[serviceIndex];
-          
-          if (service) {
-            const cellWidth = data.cell.width - 6; // Account for padding
-            const x = data.cell.x + 3;
-            let y = data.cell.y + 5;
-            // Use calculated row height or cell height, whichever is larger
-            const cellHeight = rowHeights[serviceIndex] || data.cell.height || 20;
-            const maxY = data.cell.y + cellHeight - 5;
-            
-            // Draw service name in bold
-            doc.setFont("helvetica", "bold");
+          if (!service) return;
+
+          const cellWidth = data.cell.width - 6; // 3 left + 3 right padding
+          const x = data.cell.x + 3;
+          const topPad = 5;
+          const botPad = 3;
+          let renderY = data.cell.y + topPad;
+          const maxRenderY = data.cell.y + data.cell.height - botPad;
+
+          // Content offset: mm of content already rendered on previous page fragments
+          const contentOffset = rowPageOffsets.get(serviceIndex) || 0;
+          let virtualY = 0;
+
+          // --- Name (bold) ---
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
+          const nameLines = doc.splitTextToSize(service.name, cellWidth);
+          for (const nameLine of nameLines) {
+            const lineBottom = virtualY + DESC_LINE_HEIGHT;
+            if (lineBottom > contentOffset && renderY < maxRenderY) {
+              doc.text(nameLine, x, renderY);
+              renderY += DESC_LINE_HEIGHT;
+            }
+            virtualY = lineBottom;
+          }
+
+          // --- Description (normal) ---
+          if (service.description) {
+            // Gap between name and description
+            const gapBottom = virtualY + 2;
+            if (gapBottom > contentOffset && renderY < maxRenderY) {
+              renderY += 2;
+            }
+            virtualY = gapBottom;
+
+            doc.setFont("helvetica", "normal");
             doc.setFontSize(9);
             doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
-            const nameLines = doc.splitTextToSize(service.name, cellWidth);
-            nameLines.forEach((line: string) => {
-              if (y >= maxY) return; // Prevent overflow
-              doc.text(line, x, y);
-              y += 4; // Tighter spacing
-            });
-            
-            // Add small gap between name and description
-            if (service.description) {
-              y += 2;
-            }
-            
-            // Draw description in normal font (always show if it exists)
-            if (service.description) {
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(9);
-              doc.setTextColor(BLACK[0], BLACK[1], BLACK[2]);
-              // Process description - split by newlines and remove bullets
-              let processedDesc = service.description
-                .split('\n')
-                .map(line => line.trim().replace(/^[-•*]\s*/, ''))
-                .filter(line => line.length > 0)
-                .join('\n');
-              
-              // If processing removed everything, use original description
-              if (!processedDesc || processedDesc.trim().length === 0) {
-                processedDesc = service.description.trim();
+            const descLines = splitDescriptionLines(service.description);
+            for (const dLine of descLines) {
+              if (dLine.length === 0) {
+                const blankBottom = virtualY + DESC_BLANK_LINE_GAP;
+                if (blankBottom > contentOffset && renderY < maxRenderY) {
+                  renderY += DESC_BLANK_LINE_GAP;
+                }
+                virtualY = blankBottom;
+                continue;
               }
-              
-              if (processedDesc && processedDesc.length > 0) {
-                const descLines = doc.splitTextToSize(processedDesc, cellWidth);
-                descLines.forEach((line: string) => {
-                  if (y >= maxY) return; // Prevent overflow
-                  doc.text(line, x, y);
-                  y += 4; // Tighter spacing
-                });
+              const wrapped = doc.splitTextToSize(dLine, cellWidth);
+              for (const wl of wrapped) {
+                const lineBottom = virtualY + DESC_LINE_HEIGHT;
+                if (lineBottom > contentOffset && renderY < maxRenderY) {
+                  doc.text(wl, x, renderY);
+                  renderY += DESC_LINE_HEIGHT;
+                }
+                virtualY = lineBottom;
               }
             }
-            
-            // Return false to prevent default rendering
-            return false;
           }
+
+          // Update offset for the next page fragment of this row
+          const usableHeight = data.cell.height - topPad - botPad;
+          rowPageOffsets.set(serviceIndex, contentOffset + usableHeight);
+          return false;
         }
       },
       didDrawPage: (data: any) => {
