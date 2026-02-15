@@ -57,6 +57,7 @@ export default function CreateQuotationForm({
     discountType: "percentage",
     duration: "",
     startDate: "",
+    quotationDate: formatLocalDate(new Date()), // Auto-fill with today's date
     clientId: "",
     selectedClientName: "",
     newClient: {
@@ -412,6 +413,7 @@ export default function CreateQuotationForm({
           ? parseInt(quotationForm.duration)
           : undefined,
         startDate: quotationForm.startDate || undefined,
+        quotationDate: quotationForm.quotationDate || undefined,
         projectId: projectId, // Add project ID for final quotations
       });
 
@@ -449,6 +451,7 @@ export default function CreateQuotationForm({
       discountType: "percentage",
       duration: "",
       startDate: "",
+      quotationDate: formatLocalDate(new Date()), // Reset to today's date
       clientId: "",
       selectedClientName: "",
       newClient: {
@@ -561,6 +564,22 @@ export default function CreateQuotationForm({
                 rows={3}
               />
             </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="quotationDate">Quotation Date</Label>
+              <Input
+                id="quotationDate"
+                type="date"
+                value={quotationForm.quotationDate}
+                onChange={(e) =>
+                  setQuotationForm((prev) => ({
+                    ...prev,
+                    quotationDate: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="startDate">Start Date</Label>
               <Input

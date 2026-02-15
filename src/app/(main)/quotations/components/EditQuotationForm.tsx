@@ -111,6 +111,7 @@ export default function EditQuotationForm({
     discountType: "percentage",
     duration: "",
     startDate: "",
+    quotationDate: formatLocalDate(new Date()), // Default to today
     clientId: "",
     projectId: undefined,
     newClient: {
@@ -239,6 +240,9 @@ export default function EditQuotationForm({
       startDate: quotation.startDate
         ? formatLocalDate(new Date(quotation.startDate))
         : "",
+      quotationDate: quotation.created_at
+        ? formatLocalDate(new Date(quotation.created_at))
+        : formatLocalDate(new Date()),
       clientId: quotation.clientId || "",
       projectId: quotation.project?.id || undefined,
       newClient: {
@@ -563,6 +567,7 @@ export default function EditQuotationForm({
         serviceIds: editSelectedServiceIds,
         duration: editForm.duration ? parseInt(editForm.duration) : undefined,
         startDate: editForm.startDate || undefined,
+        quotationDate: editForm.quotationDate || undefined,
         projectId: projectId,
         createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined, // Only pass if admin changed it
       });
@@ -981,6 +986,28 @@ export default function EditQuotationForm({
                 rows={3}
               />
             </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-quotationDate">Quotation Date</Label>
+              <Input
+                id="edit-quotationDate"
+                type="date"
+                value={editForm.quotationDate}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    quotationDate: e.target.value,
+                  }))
+                }
+                disabled={isFinalQuotation && !isAdmin}
+              />
+              {isFinalQuotation && !isAdmin && (
+                <p className="text-xs text-muted-foreground">
+                  Quotation date cannot be edited for finalized quotations (admin only)
+                </p>
+              )}
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="edit-startDate">Start Date</Label>
               <Input

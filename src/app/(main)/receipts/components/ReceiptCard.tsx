@@ -20,6 +20,7 @@ import {
 	FileText,
 	XCircle,
 	CheckCircle,
+	Calendar,
 } from "lucide-react"
 import { formatNumber } from "@/lib/format-number"
 import { ReceiptWithInvoice } from "../types"
@@ -41,6 +42,9 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { formatLocalDate } from "@/lib/date-utils"
 import SendReceiptDialog from "./SendReceiptDialog"
 import ReceiptEmailHistoryDialog from "./ReceiptEmailHistoryDialog"
 
@@ -63,6 +67,9 @@ export default function ReceiptCard({
 	const [isSendReceiptDialogOpen, setIsSendReceiptDialogOpen] = useState(false)
 	const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false)
 	const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+	const [isEditDateDialogOpen, setIsEditDateDialogOpen] = useState(false)
+	const [editReceiptDate, setEditReceiptDate] = useState("")
+	const [isSavingDate, setIsSavingDate] = useState(false)
 
 	const getStatusBadge = (status: string) => {
 		if (status === "cancelled") {
@@ -227,6 +234,24 @@ export default function ReceiptCard({
 											</>
 										)}
 									</DropdownMenuItem>
+									{isAdmin && (
+										<>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												onClick={(e) => {
+													e.stopPropagation()
+													e.preventDefault()
+													setEditReceiptDate(receipt.created_at ? formatLocalDate(new Date(receipt.created_at)) : formatLocalDate(new Date()))
+													setIsEditDateDialogOpen(true)
+												}}
+												onPointerDown={(e) => e.stopPropagation()}
+												className="cursor-pointer"
+											>
+												<Calendar className="w-4 h-4 mr-2" />
+												Edit Receipt Date
+											</DropdownMenuItem>
+										</>
+									)}
 									{(isAdmin || isOwner) && (
 										<>
 											<DropdownMenuSeparator />
@@ -307,6 +332,78 @@ export default function ReceiptCard({
 				onOpenChange={setIsEmailHistoryDialogOpen}
 				receiptId={receipt.id}
 			/>
+
+			{/* Edit Receipt Date Dialog (Admin only) */}
+			<Dialog open={isEditDateDialogOpen} onOpenChange={setIsEditDateDialogOpen}>
+				<DialogContent className="sm:max-w-[400px]" onClick={(e) => e.stopPropagation()}>
+					<DialogHeader>
+						<DialogTitle>Edit Receipt Date</DialogTitle>
+						<DialogDescription>
+							Change the receipt date. This will update the date shown on the receipt and PDF.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						<div className="grid gap-2">
+							<Label htmlFor="edit-receipt-date">Receipt Date</Label>
+							<Input
+								id="edit-receipt-date"
+								type="date"
+								value={editReceiptDate}
+								onChange={(e) => setEditReceiptDate(e.target.value)}
+								disabled={isSavingDate}
+							/>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setIsEditDateDialogOpen(false)}
+							disabled={isSavingDate}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={async () => {
+								if (!editReceiptDate) return
+								setIsSavingDate(true)
+								try {
+									await updateReceiptAdmin(receipt.id, { receiptDate: editReceiptDate })
+									await invalidateReceiptsCache()
+									toast({
+										title: "Success",
+										description: "Receipt date updated successfully.",
+									})
+									setIsEditDateDialogOpen(false)
+									if (onRefresh) {
+										onRefresh()
+									}
+								} catch (error: unknown) {
+									if (process.env.NODE_ENV === "development") {
+										console.error("Error updating receipt date:", error)
+									}
+									toast({
+										title: "Error",
+										description: error instanceof Error ? error.message : "Failed to update receipt date.",
+										variant: "destructive",
+									})
+								} finally {
+									setIsSavingDate(false)
+								}
+							}}
+							disabled={isSavingDate || !editReceiptDate}
+						>
+							{isSavingDate ? (
+								<>
+									<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+									Saving...
+								</>
+							) : (
+								"Save"
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</Card>
 	)
 }

@@ -27,6 +27,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatNumber } from "@/lib/format-number"
+import { formatLocalDate } from "@/lib/date-utils"
 import { getQuotationById, getAllUsers } from "../../quotations/action"
 import { checkIsAdmin } from "../../actions/admin-actions"
 import type { QuotationWithServices } from "../../quotations/types"
@@ -55,6 +56,7 @@ export default function CreateInvoiceForm({
 		quotationId: prefilledQuotationId,
 		type: "SO",
 		amount: "",
+		invoiceDate: formatLocalDate(new Date()),
 	})
 	const [isSaving, setIsSaving] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
@@ -243,6 +245,8 @@ export default function CreateInvoiceForm({
 				amount: parseFloat(invoiceForm.amount),
 				// Only pass createdById if admin selected someone (non-admin will be set to self server-side)
 				createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined,
+				// Invoice date: only applied server-side when user is admin
+				invoiceDate: invoiceForm.invoiceDate || undefined,
 			})
 
 			// Invalidate cache on client side to ensure invoices page refreshes
@@ -258,6 +262,7 @@ export default function CreateInvoiceForm({
 				quotationId: undefined,
 				type: "SO",
 				amount: "",
+				invoiceDate: formatLocalDate(new Date()),
 			})
 			setSelectedQuotation(null)
 			setSelectedCreatedById("")
@@ -418,8 +423,7 @@ export default function CreateInvoiceForm({
 							disabled={!selectedQuotation || isSaving}
 						/>
 						{amountWarning && (
-							<div className={`flex items-center gap-2 p-2 rounded-md ${
-								amountWarning.includes("Warning") 
+							<div className={`flex items-center gap-2 p-2 rounded-md ${amountWarning.includes("Warning") 
 									? "bg-yellow-50 border border-yellow-200 text-yellow-800"
 									: "bg-red-50 border border-red-200 text-red-800"
 							}`}>
@@ -432,6 +436,23 @@ export default function CreateInvoiceForm({
 								<CheckCircle className="w-4 h-4" />
 								<p className="text-sm">Amount is valid</p>
 							</div>
+						)}
+					</div>
+
+					{/* Invoice Date - editable only by admin */}
+					<div className="space-y-2">
+						<Label htmlFor="invoice-date">Invoice Date</Label>
+						<Input
+							id="invoice-date"
+							type="date"
+							value={invoiceForm.invoiceDate}
+							onChange={(e) =>
+								setInvoiceForm(prev => ({ ...prev, invoiceDate: e.target.value }))
+							}
+							disabled={!isAdmin || isSaving}
+						/>
+						{!isAdmin && (
+							<p className="text-xs text-muted-foreground">Only admins can change the invoice date.</p>
 						)}
 					</div>
 
@@ -470,6 +491,7 @@ export default function CreateInvoiceForm({
 								quotationId: undefined,
 								type: "SO",
 								amount: "",
+								invoiceDate: formatLocalDate(new Date()),
 							})
 							setSelectedQuotation(null)
 							setSearchQuery("")

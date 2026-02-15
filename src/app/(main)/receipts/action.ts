@@ -386,6 +386,8 @@ export async function createReceipt(data: {
 	invoiceId: string
 	amount: number
 	createdById?: string // Optional - will be determined server-side based on admin status
+	/** Receipt date (created_at). Only applied when user is admin. */
+	receiptDate?: string
 }) {
 	// Validate amount
 	if (data.amount <= 0) {
@@ -469,6 +471,10 @@ export async function createReceipt(data: {
 				amount: data.amount,
 				createdById: finalCreatedById,
 				status: "active",
+				// Receipt date: only applied when admin provides receiptDate
+				...(isAdmin && data.receiptDate
+					? { created_at: new Date(data.receiptDate) }
+					: {}),
 			},
 			// Minimal select - only what's needed for immediate return
 			select: {
@@ -624,6 +630,8 @@ export async function updateReceiptAdmin(
 	data: {
 		createdById?: string
 		status?: "active" | "cancelled"
+		/** Receipt date (created_at). Admin only. */
+		receiptDate?: string
 	}
 ) {
 	// Get current user
@@ -714,6 +722,14 @@ export async function updateReceiptAdmin(
 
 	if (data.status !== undefined) {
 		updateData.status = data.status
+	}
+
+	// Receipt date (created_at): only admins can change it
+	if (data.receiptDate !== undefined) {
+		if (!isAdmin) {
+			throw new Error("Only administrators can change the receipt date")
+		}
+		updateData.created_at = new Date(data.receiptDate)
 	}
 
 	if (Object.keys(updateData).length === 0) {

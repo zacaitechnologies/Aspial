@@ -112,6 +112,8 @@ export type InvoiceFormData = {
 	quotationId?: number
 	type: "SO" | "EPO" | "EO"
 	amount: string
+	/** Invoice date (created_at). Editable only by admin. */
+	invoiceDate: string
 }
 
 export const invoiceTypeOptions = [

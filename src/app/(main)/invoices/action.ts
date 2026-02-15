@@ -424,6 +424,10 @@ export async function createInvoice(data: unknown) {
 				amount: validatedData.amount,
 				createdById: finalCreatedById,
 				status: "active",
+				// Invoice date: only applied when admin provides invoiceDate
+				...(isAdmin && validatedData.invoiceDate
+					? { created_at: new Date(validatedData.invoiceDate) }
+					: {}),
 			},
 			// Minimal include - only what's needed for immediate return
 			select: {
@@ -554,6 +558,14 @@ export async function updateInvoiceAdmin(
 
 	if (validatedData.status !== undefined) {
 		updateData.status = validatedData.status
+	}
+
+	// Invoice date (created_at): only admins can change it
+	if (validatedData.invoiceDate !== undefined) {
+		if (!isAdmin) {
+			throw new Error("Only administrators can change the invoice date")
+		}
+		updateData.created_at = new Date(validatedData.invoiceDate)
 	}
 
 	updateData.updated_at = new Date()

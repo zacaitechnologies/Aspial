@@ -50,5 +50,7 @@ export interface ReceiptWithInvoice {
 export interface ReceiptFormData {
 	invoiceId?: string
 	amount: string
+	/** Receipt date (created_at). Editable only by admin. */
+	receiptDate: string
 }
 

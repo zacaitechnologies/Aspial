@@ -36,6 +36,16 @@ import CreateReceiptForm from "../../receipts/components/CreateReceiptForm"
 import { getReceiptsForInvoice, updateReceiptAdmin, invalidateReceiptsCache } from "../../receipts/action"
 import { updateInvoiceAdmin, invalidateInvoicesCache, reactivateInvoiceWithReceipts } from "../action"
 import { formatNumber } from "@/lib/format-number"
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { formatLocalDate } from "@/lib/date-utils"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -72,6 +82,9 @@ export default function InvoiceDetailClient({
 	const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false)
 	const [isReactivateDialogOpen, setIsReactivateDialogOpen] = useState(false)
 	const [reactivateReceipts, setReactivateReceipts] = useState(false)
+	const [isEditDateDialogOpen, setIsEditDateDialogOpen] = useState(false)
+	const [editInvoiceDate, setEditInvoiceDate] = useState("")
+	const [isSavingDate, setIsSavingDate] = useState(false)
 	const isQuotationCancelled = invoice.quotation?.workflowStatus === "cancelled"
 
 	const getTypeBadge = (type: string) => {
@@ -256,6 +269,20 @@ export default function InvoiceDetailClient({
 								</>
 							)}
 						</Button>
+						{isAdmin && (
+							<Button
+								variant="outline"
+								onClick={() => {
+									setEditInvoiceDate(invoice.created_at ? formatLocalDate(new Date(invoice.created_at)) : formatLocalDate(new Date()))
+									setIsEditDateDialogOpen(true)
+								}}
+								className="flex items-center gap-2"
+								disabled={isSavingDate}
+							>
+								<Calendar className="w-4 h-4" />
+								Edit Invoice Date
+							</Button>
+						)}
 						{(isAdmin || isOwner) && (
 							<Button
 								variant={invoice.status === "cancelled" ? "default" : "destructive"}
@@ -604,6 +631,76 @@ export default function InvoiceDetailClient({
 				onOpenChange={setIsEmailHistoryDialogOpen}
 				invoiceId={invoice.id}
 			/>
+
+			{/* Edit Invoice Date Dialog (Admin only) */}
+			<Dialog open={isEditDateDialogOpen} onOpenChange={setIsEditDateDialogOpen}>
+				<DialogContent className="sm:max-w-[400px]">
+					<DialogHeader>
+						<DialogTitle>Edit Invoice Date</DialogTitle>
+						<DialogDescription>
+							Change the invoice date. This will update the date shown on the invoice and PDF.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						<div className="grid gap-2">
+							<Label htmlFor="edit-invoice-date-detail">Invoice Date</Label>
+							<Input
+								id="edit-invoice-date-detail"
+								type="date"
+								value={editInvoiceDate}
+								onChange={(e) => setEditInvoiceDate(e.target.value)}
+								disabled={isSavingDate}
+							/>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setIsEditDateDialogOpen(false)}
+							disabled={isSavingDate}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={async () => {
+								if (!editInvoiceDate) return
+								setIsSavingDate(true)
+								try {
+									await updateInvoiceAdmin(invoice.id, { invoiceDate: editInvoiceDate })
+									await invalidateInvoicesCache()
+									toast({
+										title: "Success",
+										description: "Invoice date updated successfully.",
+									})
+									setIsEditDateDialogOpen(false)
+									await handleRefresh()
+								} catch (error: unknown) {
+									if (process.env.NODE_ENV === "development") {
+										console.error("Error updating invoice date:", error)
+									}
+									toast({
+										title: "Error",
+										description: error instanceof Error ? error.message : "Failed to update invoice date.",
+										variant: "destructive",
+									})
+								} finally {
+									setIsSavingDate(false)
+								}
+							}}
+							disabled={isSavingDate || !editInvoiceDate}
+						>
+							{isSavingDate ? (
+								<>
+									<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+									Saving...
+								</>
+							) : (
+								"Save"
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{/* Create Receipt Dialog */}
 			<CreateReceiptForm

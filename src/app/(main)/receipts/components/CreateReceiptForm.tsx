@@ -20,6 +20,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatNumber } from "@/lib/format-number"
+import { formatLocalDate } from "@/lib/date-utils"
 import { getInvoiceById } from "../../invoices/action"
 import { getAllUsers } from "../../quotations/action"
 import { checkIsAdmin } from "../../actions/admin-actions"
@@ -54,6 +55,7 @@ export default function CreateReceiptForm({
 	const [receiptForm, setReceiptForm] = useState<ReceiptFormData>({
 		invoiceId: prefilledInvoiceId,
 		amount: "",
+		receiptDate: formatLocalDate(new Date()),
 	})
 	const [isSaving, setIsSaving] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
@@ -286,6 +288,8 @@ export default function CreateReceiptForm({
 				amount: parseFloat(receiptForm.amount),
 				// Only pass createdById if admin selected someone (non-admin will be set to self server-side)
 				createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined,
+				// Receipt date: only applied server-side when user is admin
+				receiptDate: receiptForm.receiptDate || undefined,
 			})
 
 			toast({
@@ -297,6 +301,7 @@ export default function CreateReceiptForm({
 			setReceiptForm({
 				invoiceId: undefined,
 				amount: "",
+				receiptDate: formatLocalDate(new Date()),
 			})
 			setSelectedInvoice(null)
 			setSelectedCreatedById("")
@@ -465,6 +470,23 @@ export default function CreateReceiptForm({
 						)}
 					</div>
 
+					{/* Receipt Date - editable only by admin */}
+					<div className="space-y-2">
+						<Label htmlFor="receipt-date">Receipt Date</Label>
+						<Input
+							id="receipt-date"
+							type="date"
+							value={receiptForm.receiptDate}
+							onChange={(e) =>
+								setReceiptForm(prev => ({ ...prev, receiptDate: e.target.value }))
+							}
+							disabled={!isAdmin || isSaving}
+						/>
+						{!isAdmin && (
+							<p className="text-xs text-muted-foreground">Only admins can change the receipt date.</p>
+						)}
+					</div>
+
 					{/* Created By (Admin Only) */}
 					{isAdmin && (
 						<div className="space-y-2">
@@ -499,6 +521,7 @@ export default function CreateReceiptForm({
 							setReceiptForm({
 								invoiceId: undefined,
 								amount: "",
+								receiptDate: formatLocalDate(new Date()),
 							})
 							setSelectedInvoice(null)
 							setSelectedCreatedById("")

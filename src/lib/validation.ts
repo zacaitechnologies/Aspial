@@ -182,6 +182,7 @@ export const createQuotationSchema = z.object({
   discountType: discountTypeSchema.optional(),
   duration: z.number().int().nonnegative().optional(),
   startDate: z.string().optional(),
+  quotationDate: z.string().optional(), // Added for editable quotation date
   clientId: z.string().optional(),
   projectId: z.number().int().positive().optional(),
   newClient: newClientSchema.optional(),
@@ -208,6 +209,7 @@ export const editQuotationSchema = z.object({
   serviceIds: z.array(z.string()).optional(),
   duration: z.number().int().nonnegative().optional(),
   startDate: z.string().optional(),
+  quotationDate: z.string().optional(), // Added for editable quotation date
   clientId: z.string().optional(),
   projectId: z.number().int().positive().optional().nullable(),
   createdById: z.string().optional(),
@@ -226,6 +228,8 @@ export const createInvoiceSchema = z.object({
 	type: invoiceTypeSchema,
 	amount: z.number().positive("Invoice amount must be greater than 0"),
 	createdById: z.string().optional(),
+	/** Invoice date (created_at). Only applied when user is admin. */
+	invoiceDate: z.string().optional(),
 });
 
 export type CreateInvoiceValues = z.infer<typeof createInvoiceSchema>;
@@ -233,9 +237,11 @@ export type CreateInvoiceValues = z.infer<typeof createInvoiceSchema>;
 export const updateInvoiceAdminSchema = z.object({
 	createdById: z.string().optional(),
 	status: invoiceStatusSchema.optional(),
+	/** Invoice date (created_at). Admin only. */
+	invoiceDate: z.string().optional(),
 }).refine((data) => {
 	// At least one field must be provided
-	return data.createdById !== undefined || data.status !== undefined;
+	return data.createdById !== undefined || data.status !== undefined || data.invoiceDate !== undefined;
 }, {
 	message: "At least one field must be provided",
 });

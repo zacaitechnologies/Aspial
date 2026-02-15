@@ -32,6 +32,17 @@ import { toast } from "@/components/ui/use-toast"
 import { generateReceiptPDF } from "../utils/pdfExport"
 import SendReceiptDialog from "../components/SendReceiptDialog"
 import ReceiptEmailHistoryDialog from "../components/ReceiptEmailHistoryDialog"
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { formatLocalDate } from "@/lib/date-utils"
 import { formatNumber } from "@/lib/format-number"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
 
@@ -51,6 +62,9 @@ export default function ReceiptDetailClient({
 	const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false)
 	const [isExportingPDF, setIsExportingPDF] = useState(false)
 	const [isTogglingStatus, setIsTogglingStatus] = useState(false)
+	const [isEditDateDialogOpen, setIsEditDateDialogOpen] = useState(false)
+	const [editReceiptDate, setEditReceiptDate] = useState("")
+	const [isSavingDate, setIsSavingDate] = useState(false)
 	const isInvoiceCancelled = receipt.invoice?.status === "cancelled"
 
 	const getTypeBadge = (type: string) => {
@@ -153,6 +167,20 @@ export default function ReceiptDetailClient({
 								</>
 							)}
 						</Button>
+						{isAdmin && (
+							<Button
+								variant="outline"
+								onClick={() => {
+									setEditReceiptDate(receipt.created_at ? formatLocalDate(new Date(receipt.created_at)) : formatLocalDate(new Date()))
+									setIsEditDateDialogOpen(true)
+								}}
+								className="flex items-center gap-2"
+								disabled={isSavingDate}
+							>
+								<Calendar className="w-4 h-4" />
+								Edit Receipt Date
+							</Button>
+						)}
 						{isAdmin && (
 							<Button
 								variant={receipt.status === "cancelled" ? "default" : "destructive"}
@@ -447,6 +475,76 @@ export default function ReceiptDetailClient({
 				onOpenChange={setIsEmailHistoryDialogOpen}
 				receiptId={receipt.id}
 			/>
+
+			{/* Edit Receipt Date Dialog (Admin only) */}
+			<Dialog open={isEditDateDialogOpen} onOpenChange={setIsEditDateDialogOpen}>
+				<DialogContent className="sm:max-w-[400px]">
+					<DialogHeader>
+						<DialogTitle>Edit Receipt Date</DialogTitle>
+						<DialogDescription>
+							Change the receipt date. This will update the date shown on the receipt and PDF.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						<div className="grid gap-2">
+							<Label htmlFor="edit-receipt-date-detail">Receipt Date</Label>
+							<Input
+								id="edit-receipt-date-detail"
+								type="date"
+								value={editReceiptDate}
+								onChange={(e) => setEditReceiptDate(e.target.value)}
+								disabled={isSavingDate}
+							/>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setIsEditDateDialogOpen(false)}
+							disabled={isSavingDate}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={async () => {
+								if (!editReceiptDate) return
+								setIsSavingDate(true)
+								try {
+									await updateReceiptAdmin(receipt.id, { receiptDate: editReceiptDate })
+									await invalidateReceiptsCache()
+									toast({
+										title: "Success",
+										description: "Receipt date updated successfully.",
+									})
+									setIsEditDateDialogOpen(false)
+									await handleRefresh()
+								} catch (error: unknown) {
+									if (process.env.NODE_ENV === "development") {
+										console.error("Error updating receipt date:", error)
+									}
+									toast({
+										title: "Error",
+										description: error instanceof Error ? error.message : "Failed to update receipt date.",
+										variant: "destructive",
+									})
+								} finally {
+									setIsSavingDate(false)
+								}
+							}}
+							disabled={isSavingDate || !editReceiptDate}
+						>
+							{isSavingDate ? (
+								<>
+									<Loader2 className="w-4 h-4 mr-2 animate-spin" />
+									Saving...
+								</>
+							) : (
+								"Save"
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 }

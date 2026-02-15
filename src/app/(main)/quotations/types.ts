@@ -95,6 +95,7 @@ export type QuotationFormData = {
   discountType: "percentage" | "fixed";
   duration: string;
   startDate: string;
+  quotationDate: string; // Added for editable quotation date
   clientId?: string;
   selectedClientName?: string;
   projectId?: number;
@@ -130,6 +131,7 @@ export type EditFormData = {
   discountType: "percentage" | "fixed";
   duration: string;
   startDate: string;
+  quotationDate: string; // Added for editable quotation date
   clientId?: string;
   projectId?: number;
   newClient?: {

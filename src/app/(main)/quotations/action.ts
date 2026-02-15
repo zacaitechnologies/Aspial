@@ -765,6 +765,7 @@ export async function createQuotation(data: unknown) {
             duration: validatedData.duration || 0,
             startDate: validatedData.startDate ? new Date(validatedData.startDate) : new Date(),
             endDate: endDate || new Date(),
+            created_at: validatedData.quotationDate ? new Date(validatedData.quotationDate) : new Date(),
 
             services: {
               create: validatedData.serviceIds.map((serviceId) => ({
@@ -1118,6 +1119,7 @@ export async function editQuotationById(
       updateData.duration = validatedData.duration !== undefined ? validatedData.duration : 0
       updateData.startDate = validatedData.startDate ? new Date(validatedData.startDate) : new Date()
       updateData.endDate = endDate || new Date()
+      updateData.created_at = validatedData.quotationDate ? new Date(validatedData.quotationDate) : undefined
       updateData.createdById = finalCreatedById !== undefined ? finalCreatedById : undefined
       updateData.services = validatedData.serviceIds
         ? {
