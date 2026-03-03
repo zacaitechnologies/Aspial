@@ -289,14 +289,14 @@ export default function CreateInvoiceForm({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[600px]">
-				<DialogHeader>
+			<DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0 gap-0">
+				<DialogHeader className="shrink-0 px-6 pt-6 pb-2 pr-12">
 					<DialogTitle>Create New Invoice</DialogTitle>
 					<DialogDescription>
 						Create an invoice linked to a quotation. Search and select a quotation to reference.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="space-y-4 py-4">
+				<div className="space-y-4 py-4 px-6 overflow-y-auto min-h-0 flex-1">
 					{/* Quotation Search */}
 					<div className="space-y-2">
 						<Label htmlFor="quotation-search">Search Quotation <span className="text-red-500">*</span></Label>
@@ -482,7 +482,7 @@ export default function CreateInvoiceForm({
 						</div>
 					)}
 				</div>
-				<DialogFooter>
+				<DialogFooter className="shrink-0 px-6 pb-6 pt-2 border-t">
 					<Button
 						variant="outline"
 						onClick={() => {
