@@ -352,34 +352,20 @@ export async function getReceiptFullById(id: string) {
 }
 
 /**
- * Generate receipt number based on format: OR-N0001 (minimum 4 digits)
- * When it reaches 9999, continue with 10000
- * This function must be called within a transaction to prevent race conditions
+ * Generate receipt number using PostgreSQL function (gapless, concurrency-safe).
+ * Format: OR-N0001 (minimum 4 digits, naturally continues beyond 9999).
+ * Must be called within a transaction.
  */
-async function generateReceiptNumber(tx: any): Promise<string> {
-	// Find the last receipt
-	const lastReceipt = await tx.receipt.findFirst({
-		orderBy: {
-			created_at: 'desc'
-		},
-		select: {
-			receiptNumber: true
-		}
-	})
+async function generateReceiptNumber(tx: Prisma.TransactionClient): Promise<string> {
+	const result = await tx.$queryRaw<Array<{ generate_gapless_receipt_number: string }>>`
+		SELECT generate_gapless_receipt_number() as "generate_gapless_receipt_number"
+	`
 
-	let nextNumber = 1
-
-	if (lastReceipt) {
-		// Extract the number from the last receipt (format: OR-N####)
-		const numericPart = lastReceipt.receiptNumber.replace("OR-N", "")
-		const lastNumber = parseInt(numericPart, 10)
-		if (!isNaN(lastNumber)) {
-			nextNumber = lastNumber + 1
-		}
+	if (!result || result.length === 0 || !result[0]?.generate_gapless_receipt_number) {
+		throw new Error("Failed to generate receipt number")
 	}
 
-	// Format: OR-N#### (minimum 4 digits, naturally continues to 10000)
-	return `OR-N${String(nextNumber).padStart(4, '0')}`
+	return result[0].generate_gapless_receipt_number
 }
 
 export async function createReceipt(data: {
@@ -459,74 +445,100 @@ export async function createReceipt(data: {
 		}
 	}
 
-	// Only the write operations need to be in the transaction (for receipt number uniqueness)
-	const receipt = await prisma.$transaction(async (tx) => {
-		// Generate receipt number within transaction to prevent race conditions
-		const receiptNumber = await generateReceiptNumber(tx)
+	// Retry logic for serialization / unique-constraint conflicts (mirrors quotation flow)
+	const maxRetries = 3
+	let lastError: unknown = null
 
-		return tx.receipt.create({
-			data: {
-				receiptNumber,
-				invoiceId: data.invoiceId,
-				amount: data.amount,
-				createdById: finalCreatedById,
-				status: "active",
-				// Receipt date: only applied when admin provides receiptDate
-				...(isAdmin && data.receiptDate
-					? { created_at: new Date(data.receiptDate) }
-					: {}),
-			},
-			// Minimal select - only what's needed for immediate return
-			select: {
-				id: true,
-				receiptNumber: true,
-				amount: true,
-				status: true,
-				created_at: true,
-				invoiceId: true,
-				createdById: true,
-				invoice: {
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		try {
+			const receipt = await prisma.$transaction(async (tx) => {
+				const receiptNumber = await generateReceiptNumber(tx)
+
+				return tx.receipt.create({
+					data: {
+						receiptNumber,
+						invoiceId: data.invoiceId,
+						amount: data.amount,
+						createdById: finalCreatedById,
+						status: "active",
+						...(isAdmin && data.receiptDate
+							? { created_at: new Date(data.receiptDate) }
+							: {}),
+					},
 					select: {
 						id: true,
-						invoiceNumber: true,
+						receiptNumber: true,
 						amount: true,
-						quotation: {
+						status: true,
+						created_at: true,
+						invoiceId: true,
+						createdById: true,
+						invoice: {
 							select: {
 								id: true,
-								name: true,
-								Client: {
+								invoiceNumber: true,
+								amount: true,
+								quotation: {
 									select: {
 										id: true,
 										name: true,
-										email: true,
-										company: true,
+										Client: {
+											select: {
+												id: true,
+												name: true,
+												email: true,
+												company: true,
+											},
+										},
 									},
 								},
 							},
 						},
+						createdBy: {
+							select: {
+								supabase_id: true,
+								firstName: true,
+								lastName: true,
+								email: true,
+							},
+						},
 					},
-				},
-				createdBy: {
-					select: {
-						supabase_id: true,
-						firstName: true,
-						lastName: true,
-						email: true,
-					},
-				},
-			},
-		})
-	}, {
-		isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-		maxWait: 5000,
-		timeout: 10000,
-	})
+				})
+			}, {
+				isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+				maxWait: 5000,
+				timeout: 10000,
+			})
 
-	// Revalidate receipts cache after creation
-	await invalidateReceiptsCache()
-	revalidatePath("/receipts")
-	
-	return receipt
+			await invalidateReceiptsCache()
+			revalidatePath("/receipts")
+			return receipt
+		} catch (error: unknown) {
+			lastError = error
+
+			const isRetryable =
+				(error && typeof error === "object" && "code" in error &&
+					((error as { code: string }).code === "P2002" || (error as { code: string }).code === "P2034")) ||
+				(error instanceof Error &&
+					(error.message.includes("Unique constraint failed") ||
+						error.message.includes("duplicate key value") ||
+						error.message.includes("serialization failure") ||
+						error.message.includes("could not serialize")))
+
+			if (!isRetryable || attempt === maxRetries - 1) {
+				if (process.env.NODE_ENV === "development") {
+					// eslint-disable-next-line no-console
+					console.error(`Error creating receipt (attempt ${attempt + 1}/${maxRetries}):`, error)
+				}
+				throw error
+			}
+
+			const delay = Math.min(50 * Math.pow(2, attempt) + Math.random() * 100, 500)
+			await new Promise(resolve => setTimeout(resolve, delay))
+		}
+	}
+
+	throw lastError || new Error("Failed to create receipt after multiple attempts")
 }
 
 /**

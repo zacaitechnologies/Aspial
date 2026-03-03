@@ -264,63 +264,23 @@ export async function getInvoiceFullById(id: unknown) {
 }
 
 /**
- * Generate invoice number based on type
- * SO-00001 (minimum 5 digits)
- * EPO-N0001 (minimum 4 digits)
- * EO-N0001 (minimum 4 digits)
- * This function must be called within a transaction to prevent race conditions
+ * Generate invoice number using PostgreSQL function (gapless, concurrency-safe).
+ * Formats: SO-00001, EPO-N0001, EO-N0001
+ * Must be called within a transaction.
  */
 async function generateInvoiceNumber(
-	tx: Omit<Prisma.TransactionClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">,
+	tx: Prisma.TransactionClient,
 	type: "SO" | "EPO" | "EO"
 ): Promise<string> {
-	// Find the last invoice of this type
-	const lastInvoice = await tx.invoice.findFirst({
-		where: {
-			type: type,
-		},
-		orderBy: {
-			created_at: 'desc'
-		},
-		select: {
-			invoiceNumber: true
-		}
-	})
+	const result = await tx.$queryRaw<Array<{ generate_gapless_invoice_number: string }>>`
+		SELECT generate_gapless_invoice_number(${type}) as "generate_gapless_invoice_number"
+	`
 
-	let nextNumber = 1
-
-	if (lastInvoice) {
-		// Extract the number from the last invoice
-		let numericPart: string
-		
-		if (type === "SO") {
-			// Format: SO-00001
-			numericPart = lastInvoice.invoiceNumber.replace("SO-", "")
-		} else if (type === "EPO") {
-			// Format: EPO-N0001
-			numericPart = lastInvoice.invoiceNumber.replace("EPO-N", "")
-		} else {
-			// Format: EO-N0001
-			numericPart = lastInvoice.invoiceNumber.replace("EO-N", "")
-		}
-
-		const lastNumber = parseInt(numericPart, 10)
-		if (!isNaN(lastNumber)) {
-			nextNumber = lastNumber + 1
-		}
+	if (!result || result.length === 0 || !result[0]?.generate_gapless_invoice_number) {
+		throw new Error("Failed to generate invoice number")
 	}
 
-	// Format based on type
-	if (type === "SO") {
-		// Minimum 5 digits
-		return `SO-${String(nextNumber).padStart(5, '0')}`
-	} else if (type === "EPO") {
-		// Minimum 4 digits
-		return `EPO-N${String(nextNumber).padStart(4, '0')}`
-	} else {
-		// Minimum 4 digits
-		return `EO-N${String(nextNumber).padStart(4, '0')}`
-	}
+	return result[0].generate_gapless_invoice_number
 }
 
 export async function createInvoice(data: unknown) {
@@ -406,74 +366,98 @@ export async function createInvoice(data: unknown) {
 	if (validatedData.amount > grandTotal) {
 		// We'll let the frontend handle the warning, but still allow creation
 		if (process.env.NODE_ENV === 'development') {
-			// eslint-disable-next-line no-console
 			console.warn(`Invoice amount (${validatedData.amount}) exceeds quotation total (${grandTotal})`)
 		}
 	}
 
-	// Only the write operations need to be in the transaction (for invoice number uniqueness)
-	const invoice = await prisma.$transaction(async (tx) => {
-		// Generate invoice number within transaction to prevent race conditions
-		const invoiceNumber = await generateInvoiceNumber(tx, validatedData.type)
+	// Retry logic for serialization / unique-constraint conflicts (mirrors quotation flow)
+	const maxRetries = 3
+	let lastError: unknown = null
 
-		return tx.invoice.create({
-			data: {
-				invoiceNumber,
-				type: validatedData.type,
-				quotationId: validatedData.quotationId,
-				amount: validatedData.amount,
-				createdById: finalCreatedById,
-				status: "active",
-				// Invoice date: only applied when admin provides invoiceDate
-				...(isAdmin && validatedData.invoiceDate
-					? { created_at: new Date(validatedData.invoiceDate) }
-					: {}),
-			},
-			// Minimal include - only what's needed for immediate return
-			select: {
-				id: true,
-				invoiceNumber: true,
-				type: true,
-				amount: true,
-				status: true,
-				created_at: true,
-				quotationId: true,
-				createdById: true,
-				quotation: {
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		try {
+			const invoice = await prisma.$transaction(async (tx) => {
+				const invoiceNumber = await generateInvoiceNumber(tx, validatedData.type)
+
+				return tx.invoice.create({
+					data: {
+						invoiceNumber,
+						type: validatedData.type,
+						quotationId: validatedData.quotationId,
+						amount: validatedData.amount,
+						createdById: finalCreatedById,
+						status: "active",
+						...(isAdmin && validatedData.invoiceDate
+							? { created_at: new Date(validatedData.invoiceDate) }
+							: {}),
+					},
 					select: {
 						id: true,
-						name: true,
-						Client: {
+						invoiceNumber: true,
+						type: true,
+						amount: true,
+						status: true,
+						created_at: true,
+						quotationId: true,
+						createdById: true,
+						quotation: {
 							select: {
 								id: true,
 								name: true,
+								Client: {
+									select: {
+										id: true,
+										name: true,
+										email: true,
+										company: true,
+									},
+								},
+							},
+						},
+						createdBy: {
+							select: {
+								supabase_id: true,
+								firstName: true,
+								lastName: true,
 								email: true,
-								company: true,
 							},
 						},
 					},
-				},
-				createdBy: {
-					select: {
-						supabase_id: true,
-						firstName: true,
-						lastName: true,
-						email: true,
-					},
-				},
-			},
-		})
-	}, {
-		isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-		maxWait: 5000,
-		timeout: 10000,
-	})
+				})
+			}, {
+				isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+				maxWait: 5000,
+				timeout: 10000,
+			})
 
-	// Invalidate cache after creating invoice (outside transaction)
-	revalidateTag("invoices", { expire: 0 })
-	revalidatePath("/invoices")
+			revalidateTag("invoices", { expire: 0 })
+			revalidatePath("/invoices")
+			return invoice
+		} catch (error: unknown) {
+			lastError = error
 
-	return invoice
+			const isRetryable =
+				(error && typeof error === "object" && "code" in error &&
+					((error as { code: string }).code === "P2002" || (error as { code: string }).code === "P2034")) ||
+				(error instanceof Error &&
+					(error.message.includes("Unique constraint failed") ||
+						error.message.includes("duplicate key value") ||
+						error.message.includes("serialization failure") ||
+						error.message.includes("could not serialize")))
+
+			if (!isRetryable || attempt === maxRetries - 1) {
+				if (process.env.NODE_ENV === "development") {
+					console.error(`Error creating invoice (attempt ${attempt + 1}/${maxRetries}):`, error)
+				}
+				throw error
+			}
+
+			const delay = Math.min(50 * Math.pow(2, attempt) + Math.random() * 100, 500)
+			await new Promise(resolve => setTimeout(resolve, delay))
+		}
+	}
+
+	throw lastError || new Error("Failed to create invoice after multiple attempts")
 }
 
 /**
