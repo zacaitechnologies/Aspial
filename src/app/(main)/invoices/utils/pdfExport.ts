@@ -191,9 +191,39 @@ const DESC_LINE_HEIGHT = 4
 // Vertical gap rendered for blank lines in descriptions (mm)
 const DESC_BLANK_LINE_GAP = 3
 
+/**
+ * Sanitize user-entered text for jsPDF (Helvetica/built-in fonts only support Latin-1).
+ * Replaces common Unicode bullet/symbol characters with ASCII equivalents so they
+ * render correctly instead of appearing as boxes or being silently dropped.
+ */
+function sanitizePdfText(text: string): string {
+  return text
+    .replace(/\u2981/g, "\u00B7") // ⦁ Z NOTATION SPOT
+    .replace(/\u2022/g, "\u00B7") // • BULLET
+    .replace(/\u2023/g, ">")      // ‣ TRIANGULAR BULLET
+    .replace(/\u25CF/g, "\u00B7") // ● BLACK CIRCLE
+    .replace(/\u25E6/g, "o")      // ◦ WHITE BULLET
+    .replace(/\u2219/g, "\u00B7") // ∙ BULLET OPERATOR
+    .replace(/\u2718/g, "x")      // ✘ HEAVY BALLOT X
+    .replace(/\u2717/g, "x")      // ✗ BALLOT X
+    .replace(/\u2716/g, "x")      // ✖ HEAVY MULTIPLICATION X
+    .replace(/\u2714/g, "\u221A") // ✔ HEAVY CHECK MARK
+    .replace(/\u2713/g, "\u221A") // ✓ CHECK MARK
+    .replace(/\u2705/g, "[OK]")   // ✅ emoji
+    .replace(/\u274C/g, "[X]")    // ❌ emoji
+    .replace(/\u2014/g, "--")     // — EM DASH
+    .replace(/\u2013/g, "-")      // – EN DASH
+    .replace(/\u2019/g, "'")      // ' RIGHT SINGLE QUOTATION MARK
+    .replace(/\u2018/g, "'")      // ' LEFT SINGLE QUOTATION MARK
+    .replace(/\u201C/g, '"')      // " LEFT DOUBLE QUOTATION MARK
+    .replace(/\u201D/g, '"')      // " RIGHT DOUBLE QUOTATION MARK
+    .replace(/\u2026/g, "...")    // … HORIZONTAL ELLIPSIS
+    .replace(/[^\x00-\xFF]/g, "?");
+}
+
 /** Split service description into individual lines preserving dashes, numbering, and blank lines. */
 function splitDescriptionLines(description: string): string[] {
-  return description.split('\n').map(line => line.trimEnd())
+  return sanitizePdfText(description).split('\n').map(line => line.trimEnd())
 }
 
 /**
@@ -552,17 +582,18 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 	// Start content after the info box
 	let currentY = CONTENT_AFTER_INFO_BOX_Y
 	
-	// Combine all services
+	// Combine all services — sanitize name and description here so every downstream
+	// code path (cellText → tableData, splitTextToSize, didDrawCell) uses clean text.
 	const allServices = [
 		...regularServices.map((s) => ({
-			name: s.service.name,
-			description: s.service.description || "",
+			name: sanitizePdfText(s.service.name),
+			description: sanitizePdfText(s.service.description || ""),
 			price: s.service.basePrice,
 			type: "service",
 		})),
 		...(quotation.customServices || []).filter(cs => cs.status === "APPROVED").map((cs) => ({
-			name: cs.name,
-			description: cs.description || "",
+			name: sanitizePdfText(cs.name),
+			description: sanitizePdfText(cs.description || ""),
 			price: cs.price,
 			type: "custom",
 		})),
@@ -684,62 +715,76 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 					let renderY = data.cell.y + topPad
 					const maxRenderY = data.cell.y + data.cell.height - botPad
 
-					// Content offset: mm of content already rendered on previous page fragments
-					const contentOffset = rowPageOffsets.get(serviceIndex) || 0
-					let virtualY = 0
+				// Content offset: mm of content already rendered on previous page fragments
+				const contentOffset = rowPageOffsets.get(serviceIndex) || 0
+				let virtualY = 0
+				// Tracks the actual bottom of the last rendered item so the next page fragment
+				// starts exactly where this one ended (prevents duplicates and spacing drift).
+				let lastRenderedBottom = contentOffset
 
-					// --- Name (bold) ---
-					doc.setFont("helvetica", "bold")
+				// --- Name (bold) ---
+				doc.setFont("helvetica", "bold")
+				doc.setFontSize(9)
+				doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
+				const nameLines = doc.splitTextToSize(service.name, cellWidth)
+				for (const nameLine of nameLines) {
+					const lineBottom = virtualY + DESC_LINE_HEIGHT
+					if (virtualY >= contentOffset && renderY < maxRenderY) {
+						doc.text(nameLine, x, renderY)
+						renderY += DESC_LINE_HEIGHT
+						lastRenderedBottom = lineBottom
+					}
+					virtualY = lineBottom
+				}
+
+				// --- Description (normal) ---
+				if (service.description) {
+					// Gap between name and description
+					const gapBottom = virtualY + 2
+					if (virtualY >= contentOffset && renderY < maxRenderY) {
+						renderY += 2
+						lastRenderedBottom = gapBottom
+					} else if (virtualY < contentOffset && gapBottom > contentOffset && renderY < maxRenderY) {
+						// Gap straddles the page boundary: add only the remaining portion
+						renderY += gapBottom - contentOffset
+						lastRenderedBottom = gapBottom
+					}
+					virtualY = gapBottom
+
+					doc.setFont("helvetica", "normal")
 					doc.setFontSize(9)
 					doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-					const nameLines = doc.splitTextToSize(service.name, cellWidth)
-					for (const nameLine of nameLines) {
-						const lineBottom = virtualY + DESC_LINE_HEIGHT
-						if (lineBottom > contentOffset && renderY < maxRenderY) {
-							doc.text(nameLine, x, renderY)
-							renderY += DESC_LINE_HEIGHT
-						}
-						virtualY = lineBottom
-					}
-
-					// --- Description (normal) ---
-					if (service.description) {
-						// Gap between name and description
-						const gapBottom = virtualY + 2
-						if (gapBottom > contentOffset && renderY < maxRenderY) {
-							renderY += 2
-						}
-						virtualY = gapBottom
-
-						doc.setFont("helvetica", "normal")
-						doc.setFontSize(9)
-						doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-						const descLines = splitDescriptionLines(service.description)
-						for (const dLine of descLines) {
-							if (dLine.length === 0) {
-								const blankBottom = virtualY + DESC_BLANK_LINE_GAP
-								if (blankBottom > contentOffset && renderY < maxRenderY) {
-									renderY += DESC_BLANK_LINE_GAP
-								}
-								virtualY = blankBottom
-								continue
+					const descLines = splitDescriptionLines(service.description)
+					for (const dLine of descLines) {
+						if (dLine.length === 0) {
+							const blankBottom = virtualY + DESC_BLANK_LINE_GAP
+							if (virtualY >= contentOffset && renderY < maxRenderY) {
+								renderY += DESC_BLANK_LINE_GAP
+								lastRenderedBottom = blankBottom
+							} else if (virtualY < contentOffset && blankBottom > contentOffset && renderY < maxRenderY) {
+								// Blank gap straddles the boundary: add only the remaining portion
+								renderY += blankBottom - contentOffset
+								lastRenderedBottom = blankBottom
 							}
-							const wrapped = doc.splitTextToSize(dLine, cellWidth)
-							for (const wl of wrapped) {
-								const lineBottom = virtualY + DESC_LINE_HEIGHT
-								if (lineBottom > contentOffset && renderY < maxRenderY) {
-									doc.text(wl, x, renderY)
-									renderY += DESC_LINE_HEIGHT
-								}
-								virtualY = lineBottom
+							virtualY = blankBottom
+							continue
+						}
+						const wrapped = doc.splitTextToSize(dLine, cellWidth)
+						for (const wl of wrapped) {
+							const lineBottom = virtualY + DESC_LINE_HEIGHT
+							if (virtualY >= contentOffset && renderY < maxRenderY) {
+								doc.text(wl, x, renderY)
+								renderY += DESC_LINE_HEIGHT
+								lastRenderedBottom = lineBottom
 							}
+							virtualY = lineBottom
 						}
 					}
+				}
 
-					// Update offset for the next page fragment of this row
-					const usableHeight = data.cell.height - topPad - botPad
-					rowPageOffsets.set(serviceIndex, contentOffset + usableHeight)
-					return false
+				// Update offset using actual last rendered content bottom, not estimated usableHeight.
+				rowPageOffsets.set(serviceIndex, lastRenderedBottom)
+				return false
 				}
 			},
 		didDrawPage: (data: { pageNumber: number }) => {
@@ -983,15 +1028,16 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 	// Start content after the info box
 	let currentY = CONTENT_AFTER_INFO_BOX_Y
 	
+	// Sanitize name and description so every downstream code path uses clean text.
 	const allServices = [
 		...regularServices.map((s) => ({
-			name: s.service.name,
-			description: s.service.description || "",
+			name: sanitizePdfText(s.service.name),
+			description: sanitizePdfText(s.service.description || ""),
 			price: s.service.basePrice,
 		})),
 		...(quotation.customServices || []).filter(cs => cs.status === "APPROVED").map((cs) => ({
-			name: cs.name,
-			description: cs.description || "",
+			name: sanitizePdfText(cs.name),
+			description: sanitizePdfText(cs.description || ""),
 			price: cs.price,
 		})),
 	]
@@ -1086,62 +1132,76 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 					let renderY = data.cell.y + topPad
 					const maxRenderY = data.cell.y + data.cell.height - botPad
 
-					// Content offset: mm of content already rendered on previous page fragments
-					const contentOffset = rowPageOffsets.get(serviceIndex) || 0
-					let virtualY = 0
+				// Content offset: mm of content already rendered on previous page fragments
+				const contentOffset = rowPageOffsets.get(serviceIndex) || 0
+				let virtualY = 0
+				// Tracks the actual bottom of the last rendered item so the next page fragment
+				// starts exactly where this one ended (prevents duplicates and spacing drift).
+				let lastRenderedBottom = contentOffset
 
-					// --- Name (bold) ---
-					doc.setFont("helvetica", "bold")
+				// --- Name (bold) ---
+				doc.setFont("helvetica", "bold")
+				doc.setFontSize(9)
+				doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
+				const nameLines = doc.splitTextToSize(service.name, cellWidth)
+				for (const nameLine of nameLines) {
+					const lineBottom = virtualY + DESC_LINE_HEIGHT
+					if (virtualY >= contentOffset && renderY < maxRenderY) {
+						doc.text(nameLine, x, renderY)
+						renderY += DESC_LINE_HEIGHT
+						lastRenderedBottom = lineBottom
+					}
+					virtualY = lineBottom
+				}
+
+				// --- Description (normal) ---
+				if (service.description) {
+					// Gap between name and description
+					const gapBottom = virtualY + 2
+					if (virtualY >= contentOffset && renderY < maxRenderY) {
+						renderY += 2
+						lastRenderedBottom = gapBottom
+					} else if (virtualY < contentOffset && gapBottom > contentOffset && renderY < maxRenderY) {
+						// Gap straddles the page boundary: add only the remaining portion
+						renderY += gapBottom - contentOffset
+						lastRenderedBottom = gapBottom
+					}
+					virtualY = gapBottom
+
+					doc.setFont("helvetica", "normal")
 					doc.setFontSize(9)
 					doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-					const nameLines = doc.splitTextToSize(service.name, cellWidth)
-					for (const nameLine of nameLines) {
-						const lineBottom = virtualY + DESC_LINE_HEIGHT
-						if (lineBottom > contentOffset && renderY < maxRenderY) {
-							doc.text(nameLine, x, renderY)
-							renderY += DESC_LINE_HEIGHT
-						}
-						virtualY = lineBottom
-					}
-
-					// --- Description (normal) ---
-					if (service.description) {
-						// Gap between name and description
-						const gapBottom = virtualY + 2
-						if (gapBottom > contentOffset && renderY < maxRenderY) {
-							renderY += 2
-						}
-						virtualY = gapBottom
-
-						doc.setFont("helvetica", "normal")
-						doc.setFontSize(9)
-						doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-						const descLines = splitDescriptionLines(service.description)
-						for (const dLine of descLines) {
-							if (dLine.length === 0) {
-								const blankBottom = virtualY + DESC_BLANK_LINE_GAP
-								if (blankBottom > contentOffset && renderY < maxRenderY) {
-									renderY += DESC_BLANK_LINE_GAP
-								}
-								virtualY = blankBottom
-								continue
+					const descLines = splitDescriptionLines(service.description)
+					for (const dLine of descLines) {
+						if (dLine.length === 0) {
+							const blankBottom = virtualY + DESC_BLANK_LINE_GAP
+							if (virtualY >= contentOffset && renderY < maxRenderY) {
+								renderY += DESC_BLANK_LINE_GAP
+								lastRenderedBottom = blankBottom
+							} else if (virtualY < contentOffset && blankBottom > contentOffset && renderY < maxRenderY) {
+								// Blank gap straddles the boundary: add only the remaining portion
+								renderY += blankBottom - contentOffset
+								lastRenderedBottom = blankBottom
 							}
-							const wrapped = doc.splitTextToSize(dLine, cellWidth)
-							for (const wl of wrapped) {
-								const lineBottom = virtualY + DESC_LINE_HEIGHT
-								if (lineBottom > contentOffset && renderY < maxRenderY) {
-									doc.text(wl, x, renderY)
-									renderY += DESC_LINE_HEIGHT
-								}
-								virtualY = lineBottom
+							virtualY = blankBottom
+							continue
+						}
+						const wrapped = doc.splitTextToSize(dLine, cellWidth)
+						for (const wl of wrapped) {
+							const lineBottom = virtualY + DESC_LINE_HEIGHT
+							if (virtualY >= contentOffset && renderY < maxRenderY) {
+								doc.text(wl, x, renderY)
+								renderY += DESC_LINE_HEIGHT
+								lastRenderedBottom = lineBottom
 							}
+							virtualY = lineBottom
 						}
 					}
+				}
 
-					// Update offset for the next page fragment of this row
-					const usableHeight = data.cell.height - topPad - botPad
-					rowPageOffsets.set(serviceIndex, contentOffset + usableHeight)
-					return false
+				// Update offset using actual last rendered content bottom, not estimated usableHeight.
+				rowPageOffsets.set(serviceIndex, lastRenderedBottom)
+				return false
 				}
 			},
 		didDrawPage: (data: any) => {

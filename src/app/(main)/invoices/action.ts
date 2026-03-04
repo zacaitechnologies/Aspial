@@ -108,6 +108,7 @@ async function _getInvoicesPaginatedInternal(
 						description: invoice.quotation.description,
 						totalPrice: invoice.quotation.totalPrice,
 						workflowStatus: invoice.quotation.workflowStatus,
+						Client: invoice.quotation.Client ?? null,
 					}
 				: null,
 			createdBy: invoice.createdBy,

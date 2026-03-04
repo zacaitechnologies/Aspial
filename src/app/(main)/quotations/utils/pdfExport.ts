@@ -353,9 +353,44 @@ const DESC_LINE_HEIGHT = 4;
 // Vertical gap rendered for blank lines in descriptions (mm)
 const DESC_BLANK_LINE_GAP = 3;
 
+/**
+ * Sanitize user-entered text for jsPDF (Helvetica/built-in fonts only support Latin-1).
+ * Replaces common Unicode bullet/symbol characters with ASCII equivalents so they
+ * render correctly instead of appearing as boxes or being silently dropped.
+ */
+function sanitizePdfText(text: string): string {
+  return text
+    // Bullet-like characters -> ASCII bullet "•" (U+00B7, within Latin-1)
+    .replace(/\u2981/g, "\u00B7") // ⦁ Z NOTATION SPOT
+    .replace(/\u2022/g, "\u00B7") // • BULLET
+    .replace(/\u2023/g, ">")      // ‣ TRIANGULAR BULLET
+    .replace(/\u25CF/g, "\u00B7") // ● BLACK CIRCLE
+    .replace(/\u25E6/g, "o")      // ◦ WHITE BULLET
+    .replace(/\u2219/g, "\u00B7") // ∙ BULLET OPERATOR
+    .replace(/\u00B7/g, "\u00B7") // · MIDDLE DOT (already Latin-1, keep as-is)
+    // Cross / check marks -> ASCII equivalents
+    .replace(/\u2718/g, "x")      // ✘ HEAVY BALLOT X
+    .replace(/\u2717/g, "x")      // ✗ BALLOT X
+    .replace(/\u2716/g, "x")      // ✖ HEAVY MULTIPLICATION X
+    .replace(/\u2714/g, "\u221A") // ✔ HEAVY CHECK MARK -> √ (U+221A is in Latin-1 extended)
+    .replace(/\u2713/g, "\u221A") // ✓ CHECK MARK
+    .replace(/\u2705/g, "[OK]")   // ✅ WHITE HEAVY CHECK MARK (emoji)
+    .replace(/\u274C/g, "[X]")    // ❌ CROSS MARK (emoji)
+    // Common typographic marks
+    .replace(/\u2014/g, "--")     // — EM DASH
+    .replace(/\u2013/g, "-")      // – EN DASH
+    .replace(/\u2019/g, "'")      // ' RIGHT SINGLE QUOTATION MARK
+    .replace(/\u2018/g, "'")      // ' LEFT SINGLE QUOTATION MARK
+    .replace(/\u201C/g, '"')      // " LEFT DOUBLE QUOTATION MARK
+    .replace(/\u201D/g, '"')      // " RIGHT DOUBLE QUOTATION MARK
+    .replace(/\u2026/g, "...")    // … HORIZONTAL ELLIPSIS
+    // Strip any remaining non-Latin-1 characters (anything above U+00FF)
+    .replace(/[^\x00-\xFF]/g, "?");
+}
+
 /** Split service description into individual lines preserving dashes, numbering, and blank lines. */
 function splitDescriptionLines(description: string): string[] {
-  return description.split('\n').map(line => line.trimEnd());
+  return sanitizePdfText(description).split('\n').map(line => line.trimEnd());
 }
 
 /**
@@ -567,17 +602,18 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   // Start content after the info box
   let currentY = CONTENT_AFTER_INFO_BOX_Y;
 
-  // Combine all services
+  // Combine all services — sanitize name and description here so every downstream
+  // code path (cellText → tableData, splitTextToSize, didDrawCell) uses clean text.
   const allServices = [
     ...regularServices.map((s) => ({
-      name: s.service?.name ?? "",
-      description: s.service?.description ?? "",
+      name: sanitizePdfText(s.service?.name ?? ""),
+      description: sanitizePdfText(s.service?.description ?? ""),
       price: s.service?.basePrice ?? 0,
       type: "service",
     })),
     ...customServices.map((cs) => ({
-      name: cs.name,
-      description: cs.description || "",
+      name: sanitizePdfText(cs.name),
+      description: sanitizePdfText(cs.description || ""),
       price: cs.price,
       type: "custom",
     })),
@@ -714,6 +750,9 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
           // Content offset: mm of content already rendered on previous page fragments
           const contentOffset = rowPageOffsets.get(serviceIndex) || 0;
           let virtualY = 0;
+          // Tracks the actual bottom of the last rendered item so the next page fragment
+          // starts exactly where this one ended (prevents duplicates and spacing drift).
+          let lastRenderedBottom = contentOffset;
 
           // --- Name (bold) ---
           doc.setFont("helvetica", "bold");
@@ -722,9 +761,10 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
           const nameLines = doc.splitTextToSize(service.name, cellWidth);
           for (const nameLine of nameLines) {
             const lineBottom = virtualY + DESC_LINE_HEIGHT;
-            if (lineBottom > contentOffset && renderY < maxRenderY) {
+            if (virtualY >= contentOffset && renderY < maxRenderY) {
               doc.text(nameLine, x, renderY);
               renderY += DESC_LINE_HEIGHT;
+              lastRenderedBottom = lineBottom;
             }
             virtualY = lineBottom;
           }
@@ -733,8 +773,13 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
           if (service.description) {
             // Gap between name and description
             const gapBottom = virtualY + 2;
-            if (gapBottom > contentOffset && renderY < maxRenderY) {
+            if (virtualY >= contentOffset && renderY < maxRenderY) {
               renderY += 2;
+              lastRenderedBottom = gapBottom;
+            } else if (virtualY < contentOffset && gapBottom > contentOffset && renderY < maxRenderY) {
+              // Gap straddles the page boundary: add only the remaining portion
+              renderY += gapBottom - contentOffset;
+              lastRenderedBottom = gapBottom;
             }
             virtualY = gapBottom;
 
@@ -745,8 +790,13 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
             for (const dLine of descLines) {
               if (dLine.length === 0) {
                 const blankBottom = virtualY + DESC_BLANK_LINE_GAP;
-                if (blankBottom > contentOffset && renderY < maxRenderY) {
+                if (virtualY >= contentOffset && renderY < maxRenderY) {
                   renderY += DESC_BLANK_LINE_GAP;
+                  lastRenderedBottom = blankBottom;
+                } else if (virtualY < contentOffset && blankBottom > contentOffset && renderY < maxRenderY) {
+                  // Blank gap straddles the boundary: add only the remaining portion
+                  renderY += blankBottom - contentOffset;
+                  lastRenderedBottom = blankBottom;
                 }
                 virtualY = blankBottom;
                 continue;
@@ -754,18 +804,18 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
               const wrapped = doc.splitTextToSize(dLine, cellWidth);
               for (const wl of wrapped) {
                 const lineBottom = virtualY + DESC_LINE_HEIGHT;
-                if (lineBottom > contentOffset && renderY < maxRenderY) {
+                if (virtualY >= contentOffset && renderY < maxRenderY) {
                   doc.text(wl, x, renderY);
                   renderY += DESC_LINE_HEIGHT;
+                  lastRenderedBottom = lineBottom;
                 }
                 virtualY = lineBottom;
               }
             }
           }
 
-          // Update offset for the next page fragment of this row
-          const usableHeight = data.cell.height - topPad - botPad;
-          rowPageOffsets.set(serviceIndex, contentOffset + usableHeight);
+          // Update offset using actual last rendered content bottom, not estimated usableHeight.
+          rowPageOffsets.set(serviceIndex, lastRenderedBottom);
           return false;
         }
       },
@@ -959,17 +1009,18 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   // Start content after the info box
   let currentY = CONTENT_AFTER_INFO_BOX_Y;
 
-  // Combine all services
+  // Combine all services — sanitize name and description here so every downstream
+  // code path (cellText → tableData, splitTextToSize, didDrawCell) uses clean text.
   const allServices = [
     ...regularServices.map((s) => ({
-      name: s.service?.name ?? "",
-      description: s.service?.description ?? "",
+      name: sanitizePdfText(s.service?.name ?? ""),
+      description: sanitizePdfText(s.service?.description ?? ""),
       price: s.service?.basePrice ?? 0,
       type: "service",
     })),
     ...customServices.map((cs) => ({
-      name: cs.name,
-      description: cs.description || "",
+      name: sanitizePdfText(cs.name),
+      description: sanitizePdfText(cs.description || ""),
       price: cs.price,
       type: "custom",
     })),
@@ -1106,6 +1157,9 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
           // Content offset: mm of content already rendered on previous page fragments
           const contentOffset = rowPageOffsets.get(serviceIndex) || 0;
           let virtualY = 0;
+          // Tracks the actual bottom of the last rendered item so the next page fragment
+          // starts exactly where this one ended (prevents duplicates and spacing drift).
+          let lastRenderedBottom = contentOffset;
 
           // --- Name (bold) ---
           doc.setFont("helvetica", "bold");
@@ -1114,9 +1168,10 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
           const nameLines = doc.splitTextToSize(service.name, cellWidth);
           for (const nameLine of nameLines) {
             const lineBottom = virtualY + DESC_LINE_HEIGHT;
-            if (lineBottom > contentOffset && renderY < maxRenderY) {
+            if (virtualY >= contentOffset && renderY < maxRenderY) {
               doc.text(nameLine, x, renderY);
               renderY += DESC_LINE_HEIGHT;
+              lastRenderedBottom = lineBottom;
             }
             virtualY = lineBottom;
           }
@@ -1125,8 +1180,13 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
           if (service.description) {
             // Gap between name and description
             const gapBottom = virtualY + 2;
-            if (gapBottom > contentOffset && renderY < maxRenderY) {
+            if (virtualY >= contentOffset && renderY < maxRenderY) {
               renderY += 2;
+              lastRenderedBottom = gapBottom;
+            } else if (virtualY < contentOffset && gapBottom > contentOffset && renderY < maxRenderY) {
+              // Gap straddles the page boundary: add only the remaining portion
+              renderY += gapBottom - contentOffset;
+              lastRenderedBottom = gapBottom;
             }
             virtualY = gapBottom;
 
@@ -1137,8 +1197,13 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
             for (const dLine of descLines) {
               if (dLine.length === 0) {
                 const blankBottom = virtualY + DESC_BLANK_LINE_GAP;
-                if (blankBottom > contentOffset && renderY < maxRenderY) {
+                if (virtualY >= contentOffset && renderY < maxRenderY) {
                   renderY += DESC_BLANK_LINE_GAP;
+                  lastRenderedBottom = blankBottom;
+                } else if (virtualY < contentOffset && blankBottom > contentOffset && renderY < maxRenderY) {
+                  // Blank gap straddles the boundary: add only the remaining portion
+                  renderY += blankBottom - contentOffset;
+                  lastRenderedBottom = blankBottom;
                 }
                 virtualY = blankBottom;
                 continue;
@@ -1146,18 +1211,18 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
               const wrapped = doc.splitTextToSize(dLine, cellWidth);
               for (const wl of wrapped) {
                 const lineBottom = virtualY + DESC_LINE_HEIGHT;
-                if (lineBottom > contentOffset && renderY < maxRenderY) {
+                if (virtualY >= contentOffset && renderY < maxRenderY) {
                   doc.text(wl, x, renderY);
                   renderY += DESC_LINE_HEIGHT;
+                  lastRenderedBottom = lineBottom;
                 }
                 virtualY = lineBottom;
               }
             }
           }
 
-          // Update offset for the next page fragment of this row
-          const usableHeight = data.cell.height - topPad - botPad;
-          rowPageOffsets.set(serviceIndex, contentOffset + usableHeight);
+          // Update offset using actual last rendered content bottom, not estimated usableHeight.
+          rowPageOffsets.set(serviceIndex, lastRenderedBottom);
           return false;
         }
       },

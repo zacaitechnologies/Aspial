@@ -354,7 +354,7 @@ model ProjectPermission {
 model Client {
   id                        String         @id @default(cuid())
   name                      String
-  email                     String         @unique
+  email                     String
   phone                     String?
   company                   String?
   companyRegistrationNumber String?
