@@ -23,15 +23,27 @@ async function _getInvoicesPaginatedInternal(
 	pageSize: number = 10,
 	filters: {
 		typeFilter?: string
+		searchQuery?: string
 	} = {}
 ) {
 	const skip = (page - 1) * pageSize
-	const { typeFilter } = filters
+	const { typeFilter, searchQuery } = filters
 
 	// Build where clause
 	const where: Prisma.InvoiceWhereInput = {}
 	if (typeFilter && typeFilter !== 'all') {
 		where.type = typeFilter as "SO" | "EPO" | "EO"
+	}
+
+	const searchTerm = searchQuery?.trim()
+	if (searchTerm && searchTerm.length > 0) {
+		where.OR = [
+			{ invoiceNumber: { contains: searchTerm, mode: "insensitive" } },
+			{ quotation: { name: { contains: searchTerm, mode: "insensitive" } } },
+			{ quotation: { description: { contains: searchTerm, mode: "insensitive" } } },
+			{ quotation: { Client: { name: { contains: searchTerm, mode: "insensitive" } } } },
+			{ quotation: { Client: { company: { contains: searchTerm, mode: "insensitive" } } } },
+		]
 	}
 
 	// Execute count and findMany in parallel for better performance
@@ -141,6 +153,7 @@ export async function getInvoicesPaginated(
 	pageSize: number = 10,
 	filters: {
 		typeFilter?: string
+		searchQuery?: string
 	} = {},
 	useCache: boolean = false
 ) {
@@ -157,6 +170,7 @@ export async function getInvoicesPaginatedFresh(
 	pageSize: number = 10,
 	filters: {
 		typeFilter?: string
+		searchQuery?: string
 	} = {}
 ) {
 	unstable_noStore()

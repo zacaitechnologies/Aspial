@@ -26,6 +26,7 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { DeletionImpactWarningDialog } from "@/components/ui/deletion-impact-warning-dialog";
 import { formatNumber } from "@/lib/format-number";
+import { FormattedDescription } from "@/components/FormattedDescription";
 
 interface ServicesListProps {
   services: Service[];
@@ -426,9 +427,11 @@ export default function ServicesList({
                   </div>
                 )}
 
-                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                  {service.description}
-                </p>
+                <FormattedDescription
+                  text={service.description ?? ""}
+                  className="text-sm text-muted-foreground mb-3"
+                  truncate
+                />
 
                 {/* Tags */}
                 {service.tags && service.tags.length > 0 && (

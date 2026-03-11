@@ -1,8 +1,9 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Plus, FileText, Filter } from "lucide-react"
-import { useState, useCallback, useEffect } from "react"
+import { Input } from "@/components/ui/input"
+import { Plus, FileText, Filter, Search } from "lucide-react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { getInvoicesPaginatedFresh, invalidateInvoicesCache } from "../action"
 import CreateInvoiceForm from "./CreateInvoiceForm"
 import InvoiceCard from "./InvoiceCard"
@@ -33,6 +34,8 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 	const [isMounted, setIsMounted] = useState(false)
 	const [isCreateOpen, setIsCreateOpen] = useState(false)
 	const [typeFilter, setTypeFilter] = useState<string>("all")
+	const [searchInput, setSearchInput] = useState("")
+	const [searchQuery, setSearchQuery] = useState("")
 
 	// State from initial data - use initial data directly, no copying to state unless it changes
 	const [invoices, setInvoices] = useState<InvoiceWithQuotation[]>(initialData.data)
@@ -47,12 +50,19 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		setIsMounted(true)
 	}, [])
 
+	// Debounce search: update searchQuery 300ms after user stops typing
+	useEffect(() => {
+		const t = setTimeout(() => setSearchQuery(searchInput.trim()), 300)
+		return () => clearTimeout(t)
+	}, [searchInput])
+
 	// Fetch fresh data - called directly from handlers, not useEffect
 	const fetchInvoices = useCallback(async () => {
 		setLoading(true)
 		try {
 			const result = await getInvoicesPaginatedFresh(page, pageSize, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				searchQuery: searchQuery || undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -64,7 +74,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		} finally {
 			setLoading(false)
 		}
-	}, [page, pageSize, typeFilter])
+	}, [page, pageSize, typeFilter, searchQuery])
 
 	const handleSuccess = useCallback(async () => {
 		await invalidateInvoicesCache()
@@ -74,11 +84,12 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 	// Handle filter changes directly via callbacks - fetch immediately
 	const handleTypeFilterChange = useCallback(async (value: string) => {
 		setTypeFilter(value)
-		setPage(1) // Reset to first page when filter changes
+		setPage(1)
 		setLoading(true)
 		try {
 			const result = await getInvoicesPaginatedFresh(1, pageSize, {
 				typeFilter: value !== "all" ? value : undefined,
+				searchQuery: searchQuery || undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -90,7 +101,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		} finally {
 			setLoading(false)
 		}
-	}, [pageSize])
+	}, [pageSize, searchQuery])
 
 	// Handle page changes - fetch directly
 	const goToPage = useCallback(async (newPage: number) => {
@@ -99,6 +110,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		try {
 			const result = await getInvoicesPaginatedFresh(newPage, pageSize, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				searchQuery: searchQuery || undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -110,7 +122,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		} finally {
 			setLoading(false)
 		}
-	}, [pageSize, typeFilter])
+	}, [pageSize, typeFilter, searchQuery])
 
 	const setPageSize = useCallback(async (size: number) => {
 		setPageSizeState(size)
@@ -119,6 +131,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		try {
 			const result = await getInvoicesPaginatedFresh(1, size, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				searchQuery: searchQuery || undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -130,7 +143,36 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		} finally {
 			setLoading(false)
 		}
-	}, [typeFilter])
+	}, [typeFilter, searchQuery])
+
+	// When search query changes, reset to page 1 and refetch (skip initial mount to avoid overwriting server data)
+	const prevSearchQueryRef = useRef<string | undefined>(undefined)
+	useEffect(() => {
+		if (!isMounted) return
+		if (prevSearchQueryRef.current === undefined) {
+			prevSearchQueryRef.current = searchQuery
+			return
+		}
+		if (prevSearchQueryRef.current === searchQuery) return
+		prevSearchQueryRef.current = searchQuery
+		setPage(1)
+		setLoading(true)
+		getInvoicesPaginatedFresh(1, pageSize, {
+			typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+			searchQuery: searchQuery || undefined,
+		})
+			.then((result) => {
+				setInvoices(result.data as InvoiceWithQuotation[])
+				setTotal(result.total)
+				setTotalPages(result.totalPages)
+			})
+			.catch((err) => {
+				if (process.env.NODE_ENV === "development") {
+					console.error("Error fetching invoices:", err)
+				}
+			})
+			.finally(() => setLoading(false))
+	}, [searchQuery, isMounted]) // eslint-disable-line react-hooks/exhaustive-deps
 
 	return (
 		<>
@@ -151,9 +193,9 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 
 			{/* Filter Section */}
 			{isMounted && (
-				<div className="mb-6 flex items-center gap-3">
-					<Filter className="w-4 h-4 text-gray-500" />
-					<span className="text-sm font-medium">Filter by type:</span>
+				<div className="mb-6 flex flex-wrap items-center gap-3">
+					<Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+					<span className="text-sm font-medium shrink-0">Filter by type:</span>
 					<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
 						<SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
 							<SelectValue placeholder="All types" />
@@ -178,7 +220,19 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 							Clear Filter
 						</Button>
 					)}
-					<span className="text-sm text-muted-foreground ml-auto">
+					<div className="relative flex-1 min-w-[200px] max-w-sm ml-auto">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+						<Input
+							type="search"
+							placeholder="Search invoices, client..."
+							value={searchInput}
+							onChange={(e) => setSearchInput(e.target.value)}
+							className="pl-9 bg-white border-2"
+							style={{ borderColor: "#BDC4A5" }}
+							aria-label="Search invoices"
+						/>
+					</div>
+					<span className="text-sm text-muted-foreground shrink-0">
 						Showing {invoices.length} of {total} invoices
 					</span>
 				</div>
@@ -217,24 +271,29 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 					)}
 				</div>
 
-				{!loading && invoices.length === 0 && total === 0 && typeFilter === "all" && (
+				{!loading && invoices.length === 0 && total === 0 && typeFilter === "all" && !searchQuery && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-muted-foreground">No invoices available.</p>
 					</div>
 				)}
 
-				{!loading && invoices.length === 0 && typeFilter !== "all" && (
+				{!loading && invoices.length === 0 && (typeFilter !== "all" || searchQuery) && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-						<p className="text-muted-foreground">No invoices match the selected filter.</p>
+						<p className="text-muted-foreground">
+							{searchQuery ? "No invoices match your search." : "No invoices match the selected filter."}
+						</p>
 						<Button
 							variant="outline"
 							className="mt-4 bg-white border-2"
 							style={{ borderColor: "#BDC4A5" }}
-							onClick={() => handleTypeFilterChange("all")}
+							onClick={() => {
+								if (typeFilter !== "all") handleTypeFilterChange("all")
+								if (searchQuery) { setSearchInput(""); setSearchQuery("") }
+							}}
 						>
-							Clear Filter
+							Clear {typeFilter !== "all" && searchQuery ? "Filters" : typeFilter !== "all" ? "Filter" : "Search"}
 						</Button>
 					</div>
 				)}

@@ -1,7 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Filter } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Plus, FileText, Filter, Search } from "lucide-react";
 import { useState, useCallback, useEffect } from "react";
 import { getQuotationsPaginatedFresh, deleteQuotationById, invalidateQuotationsCache } from "../action";
 import CreateQuotationForm from "./CreateQuotationForm";
@@ -37,6 +38,8 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingQuotation, setEditingQuotation] = useState<QuotationWithServices | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // State from initial data
@@ -67,12 +70,24 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
     fetchAdminStatus();
   }, [enhancedUser?.id]);
 
+  // Debounce search: update searchQuery 300ms after user stops typing
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQuery(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    if (!isInitialLoad) setPage(1);
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Fetch fresh data when filters change
   const fetchQuotations = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getQuotationsPaginatedFresh(page, pageSize, {
         statusFilter: statusFilter !== "all" ? (statusFilter as "cancelled" | "draft" | "in_review" | "final" | "accepted" | "rejected") : undefined,
+        searchQuery: searchQuery || undefined,
       });
       setQuotations(result.data);
       setTotal(result.total);
@@ -86,7 +101,7 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, statusFilter]);
+  }, [page, pageSize, statusFilter, searchQuery]);
 
   // Refetch when filters/pagination change (but skip initial load since we have server data)
   useEffect(() => {
@@ -96,7 +111,7 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
     }
     fetchQuotations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, statusFilter]);
+  }, [page, pageSize, statusFilter, searchQuery]);
 
   const handleEditQuotation = useCallback((quotation: QuotationWithServices) => {
     setEditingQuotation(quotation);
@@ -130,7 +145,7 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
   const handleSuccess = useCallback(async () => {
     await invalidateQuotationsCache();
     fetchQuotations();
-  }, []);
+  }, [fetchQuotations]);
 
   const goToPage = useCallback((newPage: number) => {
     setPage(newPage);
@@ -159,9 +174,9 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
         </div>
 
         {/* Filter Section */}
-        <div className="mb-6 flex items-center gap-3">
-          <Filter className="w-4 h-4 text-gray-500" />
-          <span className="text-sm font-medium">Filter by status:</span>
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="text-sm font-medium shrink-0">Filter by status:</span>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="All statuses" />
@@ -184,7 +199,18 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
               Clear Filter
             </Button>
           )}
-          <span className="text-sm text-muted-foreground ml-auto">
+          <div className="relative flex-1 min-w-[200px] max-w-sm ml-auto">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              type="search"
+              placeholder="Search quotations, client..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-9"
+              aria-label="Search quotations"
+            />
+          </div>
+          <span className="text-sm text-muted-foreground shrink-0">
             Showing {quotations.length} of {total} quotations
           </span>
         </div>
@@ -223,7 +249,7 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
           )}
         </div>
 
-        {!loading && quotations.length === 0 && total === 0 && statusFilter === "all" && (
+        {!loading && quotations.length === 0 && total === 0 && statusFilter === "all" && !searchQuery && (
           <div className="text-center py-12">
             <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">No quotations available.</p>
@@ -240,6 +266,20 @@ export default function QuotationsClient({ initialData, userId }: QuotationsClie
               onClick={() => setStatusFilter("all")}
             >
               Clear Filter
+            </Button>
+          </div>
+        )}
+
+        {!loading && quotations.length === 0 && statusFilter === "all" && searchQuery && (
+          <div className="text-center py-12">
+            <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">No quotations match your search.</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => { setSearchInput(""); setSearchQuery(""); }}
+            >
+              Clear Search
             </Button>
           </div>
         )}

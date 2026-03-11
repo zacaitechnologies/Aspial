@@ -139,6 +139,7 @@ export type StopTimeEntryValues = z.infer<typeof stopTimeEntrySchema>;
 // Quotation validation schemas
 export const quotationFiltersSchema = z.object({
   statusFilter: z.enum(["all", "draft", "in_review", "final", "accepted", "rejected", "cancelled"]).optional(),
+  searchQuery: z.string().max(200).optional(),
 });
 
 export type QuotationFilters = z.infer<typeof quotationFiltersSchema>;

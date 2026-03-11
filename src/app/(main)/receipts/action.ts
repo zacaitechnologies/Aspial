@@ -11,14 +11,30 @@ import { Prisma } from "@prisma/client"
 async function _getReceiptsPaginatedInternal(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: object = {}
+	filters: {
+		searchQuery?: string
+	} = {}
 ) {
 	const skip = (page - 1) * pageSize
+	const { searchQuery } = filters
+
+	const searchTerm = searchQuery?.trim()
+	const where: Prisma.ReceiptWhereInput = {}
+	if (searchTerm && searchTerm.length > 0) {
+		where.OR = [
+			{ receiptNumber: { contains: searchTerm, mode: "insensitive" } },
+			{ invoice: { invoiceNumber: { contains: searchTerm, mode: "insensitive" } } },
+			{ invoice: { quotation: { name: { contains: searchTerm, mode: "insensitive" } } } },
+			{ invoice: { quotation: { Client: { name: { contains: searchTerm, mode: "insensitive" } } } } },
+			{ invoice: { quotation: { Client: { company: { contains: searchTerm, mode: "insensitive" } } } } },
+		]
+	}
 
 	// Execute count and findMany in parallel for better performance
 	const [total, receipts] = await Promise.all([
-		prisma.receipt.count(),
+		prisma.receipt.count({ where }),
 		prisma.receipt.findMany({
+			where,
 			select: {
 				id: true,
 				receiptNumber: true,
@@ -117,7 +133,9 @@ const getCachedReceiptsPaginated = unstable_cache(
 export async function getReceiptsPaginated(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: object = {},
+	filters: {
+		searchQuery?: string
+	} = {},
 	useCache: boolean = false
 ) {
 	if (useCache) {
@@ -131,7 +149,9 @@ export async function getReceiptsPaginated(
 export async function getReceiptsPaginatedFresh(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: object = {}
+	filters: {
+		searchQuery?: string
+	} = {}
 ) {
 	unstable_noStore()
 	return await _getReceiptsPaginatedInternal(page, pageSize, filters)

@@ -36,6 +36,7 @@ import CreateReceiptForm from "../../receipts/components/CreateReceiptForm"
 import { getReceiptsForInvoice, updateReceiptAdmin, invalidateReceiptsCache } from "../../receipts/action"
 import { updateInvoiceAdmin, invalidateInvoicesCache, reactivateInvoiceWithReceipts } from "../action"
 import { formatNumber } from "@/lib/format-number"
+import { FormattedDescription } from "@/components/FormattedDescription"
 import {
 	Dialog,
 	DialogContent,
@@ -424,9 +425,10 @@ export default function InvoiceDetailClient({
 											>
 												<div className="flex-1">
 													<p className="font-medium">{qs.service?.name ?? ""}</p>
-													<p className="text-sm text-muted-foreground">
-														{qs.service?.description ?? ""}
-													</p>
+													<FormattedDescription
+														text={qs.service?.description ?? ""}
+														className="text-sm text-muted-foreground"
+													/>
 												</div>
 												<Badge variant="outline" className="ml-4">
 													RM{formatNumber(qs.service?.basePrice ?? 0)}
@@ -442,9 +444,10 @@ export default function InvoiceDetailClient({
 											>
 												<div className="flex-1">
 													<p className="font-medium">{cs.name}</p>
-													<p className="text-sm text-muted-foreground">
-														{cs.description}
-													</p>
+													<FormattedDescription
+														text={cs.description}
+														className="text-sm text-muted-foreground"
+													/>
 												</div>
 												<Badge variant="outline" className="ml-4">
 													RM{formatNumber(cs.price)}

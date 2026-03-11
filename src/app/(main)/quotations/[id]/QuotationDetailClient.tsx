@@ -39,6 +39,7 @@ import CreateInvoiceForm from "../../invoices/components/CreateInvoiceForm"
 import { updateInvoiceAdmin, invalidateInvoicesCache } from "../../invoices/action"
 import { invalidateQuotationsCache, reactivateQuotationCascade } from "../action"
 import { formatNumber } from "@/lib/format-number"
+import { FormattedDescription } from "@/components/FormattedDescription"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -315,9 +316,10 @@ export default function QuotationDetailClient({
 											>
 												<div className="flex-1">
 													<p className="font-medium">{qs.service?.name ?? ""}</p>
-													<p className="text-sm text-muted-foreground">
-														{qs.service?.description ?? ""}
-													</p>
+													<FormattedDescription
+														text={qs.service?.description ?? ""}
+														className="text-sm text-muted-foreground"
+													/>
 												</div>
 												<Badge variant="outline" className="ml-4">
 													RM{formatNumber(qs.service?.basePrice ?? 0)}
@@ -338,9 +340,10 @@ export default function QuotationDetailClient({
 											>
 												<div className="flex-1">
 													<p className="font-medium">{cs.name}</p>
-													<p className="text-sm text-muted-foreground">
-														{cs.description}
-													</p>
+													<FormattedDescription
+														text={cs.description}
+														className="text-sm text-muted-foreground"
+													/>
 													<div className="mt-1">
 														{getCustomServiceStatusBadge(cs.status)}
 													</div>

@@ -36,6 +36,7 @@ import ProjectSelection from "./ProjectSelection";
 import { toast } from "@/components/ui/use-toast";
 import { formatLocalDate } from "@/lib/date-utils";
 import { formatNumber } from "@/lib/format-number";
+import { FormattedDescription } from "@/components/FormattedDescription";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -665,9 +666,12 @@ export default function CreateQuotationForm({
                         <div className="flex justify-between items-start">
                           <div>
                             <p className="font-medium">{service.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {service.description}
-                            </p>
+                            <FormattedDescription
+                              text={service.description ?? ""}
+                              className="text-sm text-muted-foreground"
+                              truncate
+                              expandable
+                            />
                           </div>
                           <Badge variant="outline">
                             RM{formatNumber(service.basePrice)}

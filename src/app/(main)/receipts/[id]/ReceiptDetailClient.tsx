@@ -44,6 +44,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatLocalDate } from "@/lib/date-utils"
 import { formatNumber } from "@/lib/format-number"
+import { FormattedDescription } from "@/components/FormattedDescription"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
 
 interface ReceiptDetailClientProps {
@@ -345,9 +346,10 @@ export default function ReceiptDetailClient({
 											>
 												<div className="flex-1">
 													<p className="font-medium">{qs.service?.name ?? ""}</p>
-													<p className="text-sm text-muted-foreground">
-														{qs.service?.description ?? ""}
-													</p>
+													<FormattedDescription
+														text={qs.service?.description ?? ""}
+														className="text-sm text-muted-foreground"
+													/>
 												</div>
 												<Badge variant="outline" className="ml-4">
 													RM{formatNumber(qs.service?.basePrice ?? 0)}
@@ -363,9 +365,10 @@ export default function ReceiptDetailClient({
 											>
 												<div className="flex-1">
 													<p className="font-medium">{cs.name}</p>
-													<p className="text-sm text-muted-foreground">
-														{cs.description}
-													</p>
+													<FormattedDescription
+														text={cs.description}
+														className="text-sm text-muted-foreground"
+													/>
 												</div>
 												<Badge variant="outline" className="ml-4">
 													RM{formatNumber(cs.price)}

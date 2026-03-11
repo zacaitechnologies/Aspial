@@ -41,6 +41,7 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { getInvoicesForQuotation } from "../action";
 import { getReceiptsForInvoice } from "../../receipts/action";
 import { formatLocalDate } from "@/lib/date-utils";
+import { FormattedDescription } from "@/components/FormattedDescription";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -1074,11 +1075,12 @@ export default function EditQuotationForm({
                   />
                   <div className="flex-1">
                     <div className="flex justify-between items-start">
-                      <div>
+                        <div>
                         <p className="font-medium">{service.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {service.description}
-                        </p>
+                        <FormattedDescription
+                          text={service.description ?? ""}
+                          className="text-sm text-muted-foreground"
+                        />
                       </div>
                       <Badge variant="outline">
                         RM{formatNumber(service.basePrice)}
@@ -1126,9 +1128,10 @@ export default function EditQuotationForm({
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="font-medium">{cs.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {cs.description}
-                          </p>
+                          <FormattedDescription
+                            text={cs.description ?? ""}
+                            className="text-sm text-muted-foreground"
+                          />
                           <p className="text-xs text-muted-foreground mt-1">
                             Requested by: {cs.createdBy.firstName} {cs.createdBy.lastName}
                           </p>

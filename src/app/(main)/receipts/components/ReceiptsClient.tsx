@@ -1,8 +1,9 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Plus, FileText } from "lucide-react"
-import { useState, useCallback } from "react"
+import { Input } from "@/components/ui/input"
+import { Plus, FileText, Search } from "lucide-react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { getReceiptsPaginatedFresh, invalidateReceiptsCache } from "../action"
 import CreateReceiptForm from "./CreateReceiptForm"
 import ReceiptCard from "./ReceiptCard"
@@ -23,6 +24,8 @@ interface ReceiptsClientProps {
 
 export default function ReceiptsClient({ initialData, userId, isAdmin }: ReceiptsClientProps) {
 	const [isCreateOpen, setIsCreateOpen] = useState(false)
+	const [searchInput, setSearchInput] = useState("")
+	const [searchQuery, setSearchQuery] = useState("")
 
 	// State from initial data - use initial data directly, no copying to state unless it changes
 	const [receipts, setReceipts] = useState<ReceiptWithInvoice[]>(initialData.data)
@@ -36,7 +39,9 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 	const fetchReceipts = useCallback(async () => {
 		setLoading(true)
 		try {
-			const result = await getReceiptsPaginatedFresh(page, pageSize, {})
+			const result = await getReceiptsPaginatedFresh(page, pageSize, {
+				searchQuery: searchQuery || undefined,
+			})
 			setReceipts(result.data as ReceiptWithInvoice[])
 			setTotal(result.total)
 			setTotalPages(result.totalPages)
@@ -59,7 +64,9 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 		setPage(newPage)
 		setLoading(true)
 		try {
-			const result = await getReceiptsPaginatedFresh(newPage, pageSize, {})
+			const result = await getReceiptsPaginatedFresh(newPage, pageSize, {
+				searchQuery: searchQuery || undefined,
+			})
 			setReceipts(result.data as ReceiptWithInvoice[])
 			setTotal(result.total)
 			setTotalPages(result.totalPages)
@@ -70,14 +77,16 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 		} finally {
 			setLoading(false)
 		}
-	}, [pageSize])
+	}, [pageSize, searchQuery])
 
 	const setPageSize = useCallback(async (size: number) => {
 		setPageSizeState(size)
 		setPage(1)
 		setLoading(true)
 		try {
-			const result = await getReceiptsPaginatedFresh(1, size, {})
+			const result = await getReceiptsPaginatedFresh(1, size, {
+				searchQuery: searchQuery || undefined,
+			})
 			setReceipts(result.data as ReceiptWithInvoice[])
 			setTotal(result.total)
 			setTotalPages(result.totalPages)
@@ -88,7 +97,7 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 		} finally {
 			setLoading(false)
 		}
-	}, [])
+	}, [searchQuery])
 
 	return (
 		<>
@@ -107,9 +116,23 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 					</Button>
 				</div>
 
-				<span className="text-sm text-muted-foreground mb-6 block">
-					Showing {receipts.length} of {total} receipts
-				</span>
+				<div className="mb-6 flex flex-wrap items-center gap-3">
+					<div className="relative flex-1 min-w-[200px] max-w-sm">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+						<Input
+							type="search"
+							placeholder="Search receipts, invoice, client..."
+							value={searchInput}
+							onChange={(e) => setSearchInput(e.target.value)}
+							className="pl-9 bg-white border-2"
+							style={{ borderColor: "#BDC4A5" }}
+							aria-label="Search receipts"
+						/>
+					</div>
+					<span className="text-sm text-muted-foreground shrink-0">
+						Showing {receipts.length} of {total} receipts
+					</span>
+				</div>
 
 				{/* Receipts List - Keep previous list visible during loading */}
 				<div className="relative">
@@ -144,10 +167,25 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 					)}
 				</div>
 
-				{!loading && receipts.length === 0 && total === 0 && (
+				{!loading && receipts.length === 0 && total === 0 && !searchQuery && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-muted-foreground">No receipts available.</p>
+					</div>
+				)}
+
+				{!loading && receipts.length === 0 && searchQuery && (
+					<div className="text-center py-12">
+						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+						<p className="text-muted-foreground">No receipts match your search.</p>
+						<Button
+							variant="outline"
+							className="mt-4 bg-white border-2"
+							style={{ borderColor: "#BDC4A5" }}
+							onClick={() => { setSearchInput(""); setSearchQuery(""); }}
+						>
+							Clear Search
+						</Button>
 					</div>
 				)}
 

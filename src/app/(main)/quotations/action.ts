@@ -108,12 +108,22 @@ async function _getQuotationsPaginatedInternal(
   }
 
   const skip = (validatedPage - 1) * validatedPageSize
-  const { statusFilter } = validatedFilters
+  const { statusFilter, searchQuery } = validatedFilters
 
   // Build where clause
   const where: Prisma.QuotationWhereInput = {}
   if (statusFilter && statusFilter !== 'all') {
     where.workflowStatus = statusFilter
+  }
+
+  const searchTerm = searchQuery?.trim()
+  if (searchTerm && searchTerm.length > 0) {
+    where.OR = [
+      { name: { contains: searchTerm, mode: "insensitive" } },
+      { description: { contains: searchTerm, mode: "insensitive" } },
+      { Client: { name: { contains: searchTerm, mode: "insensitive" } } },
+      { Client: { company: { contains: searchTerm, mode: "insensitive" } } },
+    ]
   }
 
   // For operation-users, filter by project permissions
