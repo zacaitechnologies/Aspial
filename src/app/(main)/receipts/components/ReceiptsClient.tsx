@@ -35,6 +35,16 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 	const [total, setTotal] = useState(initialData.total)
 	const [totalPages, setTotalPages] = useState(initialData.totalPages)
 
+	const isFirstSearch = useRef(true)
+
+	// Debounce search input -> searchQuery
+	useEffect(() => {
+		const t = setTimeout(() => {
+			setSearchQuery(searchInput.trim())
+		}, 300)
+		return () => clearTimeout(t)
+	}, [searchInput])
+
 	// Fetch fresh data - called directly from handlers, not useEffect
 	const fetchReceipts = useCallback(async () => {
 		setLoading(true)
@@ -52,7 +62,7 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 		} finally {
 			setLoading(false)
 		}
-	}, [page, pageSize])
+	}, [page, pageSize, searchQuery])
 
 	const handleSuccess = useCallback(async () => {
 		await invalidateReceiptsCache()
@@ -99,6 +109,30 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 		}
 	}, [searchQuery])
 
+	// When search query changes, reset to page 1 and refetch (similar to invoices page)
+	useEffect(() => {
+		if (isFirstSearch.current) {
+			isFirstSearch.current = false
+			return
+		}
+		setPage(1)
+		setLoading(true)
+		getReceiptsPaginatedFresh(1, pageSize, {
+			searchQuery: searchQuery || undefined,
+		})
+			.then((result) => {
+				setReceipts(result.data as ReceiptWithInvoice[])
+				setTotal(result.total)
+				setTotalPages(result.totalPages)
+			})
+			.catch((err) => {
+				if (process.env.NODE_ENV === "development") {
+					console.error("Error fetching receipts:", err)
+				}
+			})
+			.finally(() => setLoading(false))
+	}, [searchQuery, pageSize])
+
 	return (
 		<>
 			<div className="container mx-auto p-6">
@@ -117,7 +151,7 @@ export default function ReceiptsClient({ initialData, userId, isAdmin }: Receipt
 				</div>
 
 				<div className="mb-6 flex flex-wrap items-center gap-3">
-					<div className="relative flex-1 min-w-[200px] max-w-sm">
+					<div className="relative flex-1 min-w-[200px] max-w-sm ml-auto">
 						<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
 						<Input
 							type="search"
