@@ -525,7 +525,10 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 	// Calculate quotation totals
 	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
 	const servicesTotal = regularServices.reduce(
-		(sum, serviceItem) => sum + serviceItem.service.basePrice,
+		(sum, serviceItem) => {
+			const qs = serviceItem as { price?: number; quantity?: number; service: { basePrice: number } };
+			return sum + (qs.price != null ? qs.price * (qs.quantity ?? 1) : qs.service.basePrice);
+		},
 		0
 	)
 	const approvedCustomServicesTotal = (quotation.customServices || [])
@@ -557,10 +560,12 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		.filter((inv) => inv.id !== invoice.id)
 		.reduce((sum, inv) => sum + inv.amount, 0)
 	
-	// Get advisor name
-	const advisorName = quotation.createdBy
-		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
-		: 'ADMIN'
+	// Get advisor name (advisedBy with fallback to createdBy)
+	const advisorName = (quotation as any).advisedBy
+		? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+		: quotation.createdBy
+			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
+			: 'ADMIN'
 	
 	// Get client info (Client may include ic from Prisma; type allows optional ic for PDF)
 	const client = quotation.Client
@@ -585,12 +590,18 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 	// Combine all services — sanitize name and description here so every downstream
 	// code path (cellText → tableData, splitTextToSize, didDrawCell) uses clean text.
 	const allServices = [
-		...regularServices.map((s) => ({
-			name: sanitizePdfText(s.service.name),
-			description: sanitizePdfText(s.service.description || ""),
-			price: s.service.basePrice,
-			type: "service",
-		})),
+		...regularServices.map((s) => {
+			const qs = s as { price?: number; quantity?: number; service: { name: string; description?: string | null; basePrice: number } };
+			const price = qs.price != null ? qs.price : qs.service.basePrice;
+			const quantity = qs.quantity ?? 1;
+			return {
+				name: sanitizePdfText(qs.service.name),
+				description: sanitizePdfText(qs.service.description || ""),
+				price,
+				quantity,
+				type: "service",
+			};
+		}),
 		...(quotation.customServices || []).filter(cs => cs.status === "APPROVED").map((cs) => ({
 			name: sanitizePdfText(cs.name),
 			description: sanitizePdfText(cs.description || ""),
@@ -633,12 +644,13 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		const cellText = service.description
 			? `${service.name}\n${service.description}`
 			: service.name
+		const qty = (service as { quantity?: number }).quantity ?? 1;
 		tableData.push([
 			String(index + 1),
 			cellText,
-			"1.00",
+			formatNumber(qty),
 			formatNumber(service.price),
-			formatNumber(service.price)
+			formatNumber(service.price * qty)
 		])
 	})
 
@@ -1005,10 +1017,13 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 		.filter((inv) => inv.id !== fullInvoice.id)
 		.reduce((sum, inv) => sum + inv.amount, 0)
 	
-	const advisorName = quotation.createdBy
-		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
-		: 'ADMIN'
-	
+	// Get advisor name (advisedBy with fallback to createdBy)
+	const advisorName = (quotation as any).advisedBy
+		? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+		: quotation.createdBy
+			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
+			: 'ADMIN'
+
 	const client = quotation.Client
 	const clientInfo: ClientInfoPdf = {
 		name: client?.name || '',

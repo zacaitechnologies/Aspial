@@ -8,6 +8,8 @@ import { getReceiptFullById, getReceiptsForInvoice, getQuotationInvoicesTotalAsO
 interface QuotationWithServices {
 	services: Array<{
 		customServiceId?: string | null
+		price?: number
+		quantity?: number
 		service: { basePrice: number; name: string; description?: string | null }
 	}>
 	customServices?: Array<{ status: string; price: number; name: string; description?: string | null }>
@@ -453,7 +455,9 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	// Calculate quotation totals
 	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
 	const servicesTotal = regularServices.reduce(
-		(sum: number, serviceItem: { service: { basePrice: number } }) => sum + serviceItem.service.basePrice,
+		(sum: number, serviceItem: { price?: number; quantity?: number; service: { basePrice: number } }) => {
+			return sum + (serviceItem.price != null ? serviceItem.price * (serviceItem.quantity ?? 1) : serviceItem.service.basePrice);
+		},
 		0
 	)
 	const approvedCustomServicesTotal = (quotation.customServices || [])
@@ -488,10 +492,12 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
-	// Get advisor name
-	const advisorName = quotation.createdBy
-		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
-		: 'ADMIN'
+	// Get advisor name (advisedBy with fallback to createdBy)
+	const advisorName = (quotation as any).advisedBy
+		? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+		: quotation.createdBy
+			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
+			: 'ADMIN'
 	
 	// Get client info
 	const clientInfo: ClientInfoPdf = {
@@ -515,11 +521,16 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	// Combine all services — sanitize name and description here so every downstream
 	// code path (cellText → tableData, splitTextToSize, didDrawCell) uses clean text.
 	const allServices = [
-		...regularServices.map((s) => ({
-			name: sanitizePdfText(s.service.name),
-			description: sanitizePdfText(s.service.description ?? ""),
-			price: s.service.basePrice,
-		})),
+		...regularServices.map((s) => {
+			const price = s.price != null ? s.price : s.service.basePrice;
+			const quantity = s.quantity ?? 1;
+			return {
+				name: sanitizePdfText(s.service.name),
+				description: sanitizePdfText(s.service.description ?? ""),
+				price,
+				quantity,
+			};
+		}),
 		...(quotation.customServices || []).filter((cs) => cs.status === "APPROVED").map((cs) => ({
 			name: sanitizePdfText(cs.name),
 			description: sanitizePdfText(cs.description ?? ""),
@@ -561,12 +572,13 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 		const cellText = service.description
 			? `${service.name}\n${service.description}`
 			: service.name
+		const qty = (service as { quantity?: number }).quantity ?? 1;
 		tableData.push([
 			String(index + 1),
 			cellText,
-			"1.00",
+			formatNumber(qty),
 			formatNumber(service.price),
-			formatNumber(service.price)
+			formatNumber(service.price * qty)
 		])
 	})
 
@@ -878,7 +890,9 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	// Calculate totals
 	const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
 	const servicesTotal = regularServices.reduce(
-		(sum: number, serviceItem: { service: { basePrice: number } }) => sum + serviceItem.service.basePrice,
+		(sum: number, serviceItem: { price?: number; quantity?: number; service: { basePrice: number } }) => {
+			return sum + (serviceItem.price != null ? serviceItem.price * (serviceItem.quantity ?? 1) : serviceItem.service.basePrice);
+		},
 		0
 	)
 	const approvedCustomServicesTotal = (quotation.customServices || [])
@@ -912,10 +926,13 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
-	const advisorName = quotation.createdBy
-		? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
-		: 'ADMIN'
-	
+	// Get advisor name (advisedBy with fallback to createdBy)
+	const advisorName = (quotation as any).advisedBy
+		? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+		: quotation.createdBy
+			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
+			: 'ADMIN'
+
 	const clientInfo: ClientInfoPdf = {
 		name: quotation.Client?.name || '',
 		company: quotation.Client?.company || '',
@@ -936,11 +953,16 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	
 	// Sanitize name and description so every downstream code path uses clean text.
 	const allServices = [
-		...regularServices.map((s) => ({
-			name: sanitizePdfText(s.service.name),
-			description: sanitizePdfText((s.service.description ?? "") as string),
-			price: s.service.basePrice,
-		})),
+		...regularServices.map((s) => {
+			const price = s.price != null ? s.price : s.service.basePrice;
+			const quantity = s.quantity ?? 1;
+			return {
+				name: sanitizePdfText(s.service.name),
+				description: sanitizePdfText((s.service.description ?? "") as string),
+				price,
+				quantity,
+			};
+		}),
 		...(quotation.customServices || []).filter((cs) => cs.status === "APPROVED").map((cs) => ({
 			name: sanitizePdfText(cs.name),
 			description: sanitizePdfText((cs.description ?? "") as string),
@@ -981,7 +1003,8 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 		const cellText = service.description
 			? `${service.name}\n${service.description}`
 			: service.name
-		tableData.push([String(index + 1), cellText, "1.00", formatNumber(service.price), formatNumber(service.price)])
+		const qty2 = (service as { quantity?: number }).quantity ?? 1;
+		tableData.push([String(index + 1), cellText, formatNumber(qty2), formatNumber(service.price), formatNumber(service.price * qty2)])
 	})
 
 	// Track content offset per row for rows that autoTable splits across pages

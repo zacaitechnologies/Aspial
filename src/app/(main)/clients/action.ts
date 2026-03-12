@@ -978,42 +978,36 @@ export async function getAllAdvisors() {
     
     // If not admin, only return the current user
     if (!isAdmin) {
-      // Check if user has any quotations with invoices
-      const hasInvoicedQuotations = await prisma.quotation.count({
-        where: { 
-          createdById: user.id, // Quotation.createdById references User.supabase_id
+      // Check if user has any advised quotations with invoices
+      const dbUser = await prisma.user.findUnique({
+        where: { supabase_id: user.id },
+        select: { id: true, firstName: true, lastName: true, email: true }
+      })
+
+      if (!dbUser) return []
+
+      const hasAdvisedInvoicedQuotations = await prisma.quotation.count({
+        where: {
+          advisedById: dbUser.id, // Quotation.advisedById references User.id (cuid)
           invoices: {
             some: {}
           }
         }
       }) > 0
-      
-      if (!hasInvoicedQuotations) return []
-      
-      // Get user details
-      const dbUser = await prisma.user.findUnique({
-        where: { supabase_id: user.id },
-        select: {
-          supabase_id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-        }
-      })
-      
-      if (!dbUser) return []
-      
+
+      if (!hasAdvisedInvoicedQuotations) return []
+
       return [{
-        id: dbUser.supabase_id,
+        id: dbUser.id,
         name: `${dbUser.firstName} ${dbUser.lastName}`,
         email: dbUser.email,
       }]
     }
-    
-    // Admin can see all advisors (users who have quotations with invoices)
+
+    // Admin can see all advisors (users who have advised quotations with invoices)
     const users = await prisma.user.findMany({
       where: {
-        quotations: {
+        advisedQuotations: {
           some: {
             invoices: {
               some: {}
@@ -1022,7 +1016,7 @@ export async function getAllAdvisors() {
         }
       },
       select: {
-        supabase_id: true,
+        id: true,
         firstName: true,
         lastName: true,
         email: true,
@@ -1031,9 +1025,9 @@ export async function getAllAdvisors() {
         firstName: 'asc'
       }
     })
-    
+
     return users.map(user => ({
-      id: user.supabase_id,
+      id: user.id,
       name: `${user.firstName} ${user.lastName}`,
       email: user.email,
     }))
@@ -1070,11 +1064,13 @@ export async function getSalesData(filters: unknown) {
             : new Date(year, 11, 31, 23, 59, 59, 999),
         }
       }),
-      // Filter by advisor (creator of quotation that the invoice references)
-      // For non-admin users, always filter by their own supabase_id (ignore advisorId parameter)
+      // Filter by advisor (advisedById of quotation that the invoice references)
+      // For non-admin users, always filter by their own User.id (cuid), ignore advisorId parameter
       ...((!isAdmin || (advisorId && advisorId !== 'all')) && {
         quotation: {
-          createdById: !isAdmin ? user.id : advisorId // Quotation.createdById references User.supabase_id
+          advisedById: !isAdmin
+            ? (await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }))?.id ?? user.id
+            : advisorId // advisorId is now User.id (cuid)
         }
       })
     }
@@ -1094,10 +1090,9 @@ export async function getSalesData(filters: unknown) {
                 membershipType: true,
               }
             },
-            createdBy: {
+            advisedBy: {
               select: {
                 id: true,
-                supabase_id: true,
                 firstName: true,
                 lastName: true,
                 email: true,
@@ -1123,7 +1118,7 @@ export async function getSalesData(filters: unknown) {
         id: number
         name: string
         clientId: string
-        createdById: string
+        advisedById: string | null
         Client: {
           id: string
           name: string
@@ -1131,13 +1126,12 @@ export async function getSalesData(filters: unknown) {
           company: string | null
           membershipType: string | null
         }
-        createdBy: {
+        advisedBy: {
           id: string
-          supabase_id: string
           firstName: string
           lastName: string
           email: string
-        }
+        } | null
       }
     }>
     
@@ -1146,7 +1140,7 @@ export async function getSalesData(filters: unknown) {
     const totalClients = new Set(invoices.map(inv => inv.quotation.clientId)).size
     const totalInvoices = invoices.length
     
-    // Group by advisor (using quotation creator's supabase_id)
+    // Group by advisor (using quotation advisedById - User.id cuid)
     const salesByAdvisor: Record<string, {
       advisorId: string
       advisorName: string
@@ -1154,11 +1148,14 @@ export async function getSalesData(filters: unknown) {
       invoicesCount: number
       clientsCount: number
     }> = {}
-    
+
     invoices.forEach(inv => {
-      const advisorId = inv.quotation.createdById // This is supabase_id
-      const advisorName = `${inv.quotation.createdBy.firstName} ${inv.quotation.createdBy.lastName}`
-      
+      const advisorId = inv.quotation.advisedById ?? '' // User.id (cuid)
+      if (!advisorId) return
+      const advisorName = inv.quotation.advisedBy
+        ? `${inv.quotation.advisedBy.firstName} ${inv.quotation.advisedBy.lastName}`
+        : 'Unknown'
+
       if (!salesByAdvisor[advisorId]) {
         salesByAdvisor[advisorId] = {
           advisorId,
@@ -1168,14 +1165,14 @@ export async function getSalesData(filters: unknown) {
           clientsCount: 0
         }
       }
-      
+
       salesByAdvisor[advisorId].totalSales += inv.amount
       salesByAdvisor[advisorId].invoicesCount += 1
     })
-    
+
     // Calculate unique clients per advisor
     Object.keys(salesByAdvisor).forEach(advisorId => {
-      const advisorInvoices = invoices.filter(inv => inv.quotation.createdById === advisorId)
+      const advisorInvoices = invoices.filter(inv => inv.quotation.advisedById === advisorId)
       salesByAdvisor[advisorId].clientsCount = new Set(advisorInvoices.map(inv => inv.quotation.clientId)).size
     })
     
@@ -1216,9 +1213,11 @@ export async function getSalesData(filters: unknown) {
         },
         client: inv.quotation.Client,
         createdBy: {
-          id: inv.quotation.createdBy.supabase_id,
-          name: `${inv.quotation.createdBy.firstName} ${inv.quotation.createdBy.lastName}`,
-          email: inv.quotation.createdBy.email,
+          id: inv.quotation.advisedById ?? '',
+          name: inv.quotation.advisedBy
+            ? `${inv.quotation.advisedBy.firstName} ${inv.quotation.advisedBy.lastName}`
+            : 'Unknown',
+          email: inv.quotation.advisedBy?.email ?? '',
         }
       })),
       salesByAdvisor: Object.values(salesByAdvisor).sort((a, b) => b.totalSales - a.totalSales),

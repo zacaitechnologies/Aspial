@@ -512,7 +512,13 @@ export default function QuotationCard({
               {quotation.createdBy && (
                 <>
                   <span className="text-gray-400">•</span>
-                  <span>By {quotation.createdBy.firstName} {quotation.createdBy.lastName}</span>
+                  <span>Created by {quotation.createdBy.firstName} {quotation.createdBy.lastName}</span>
+                </>
+              )}
+              {quotation.advisedBy && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <span>Advised by {quotation.advisedBy.firstName} {quotation.advisedBy.lastName}</span>
                 </>
               )}
               {customServices.length > 0 && (

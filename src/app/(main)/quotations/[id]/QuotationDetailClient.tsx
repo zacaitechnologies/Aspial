@@ -122,6 +122,15 @@ export default function QuotationDetailClient({
 	// Grand total: totalPrice is stored when creating/editing and already includes
 	// standard services (with discount) + approved custom services. Do not add approved custom again.
 	const quotationGrandTotal = quotation?.totalPrice ?? 0
+	// Reverse-calculate base price from discounted total (for summary display)
+	const quotationBasePrice =
+		quotation?.discountValue != null &&
+		quotation.discountValue > 0 &&
+		quotation?.discountType != null
+			? quotation.discountType === "percentage"
+				? quotationGrandTotal / (1 - Math.min(quotation.discountValue, 99.99) / 100)
+				: quotationGrandTotal + quotation.discountValue
+			: quotationGrandTotal
 	// Quotation balance = grand total minus sum of non-cancelled invoice amounts
 	const quotationBalance = quotationGrandTotal - invoices
 		.filter((inv) => inv.status !== "cancelled")
@@ -321,9 +330,10 @@ export default function QuotationDetailClient({
 														className="text-sm text-muted-foreground"
 													/>
 												</div>
-												<Badge variant="outline" className="ml-4">
-													RM{formatNumber(qs.service?.basePrice ?? 0)}
-												</Badge>
+												<div className="ml-4 text-right">
+										<div className="text-xs text-muted-foreground">RM{formatNumber(qs.price)} × {qs.quantity}</div>
+										<Badge variant="outline">RM{formatNumber(qs.price * qs.quantity)}</Badge>
+									</div>
 											</div>
 										))}
 									{quotation.customServices && quotation.customServices
@@ -469,10 +479,29 @@ export default function QuotationDetailClient({
 							</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-4">
+							<div className="flex justify-between">
+								<span className="text-muted-foreground">Base Price:</span>
+								<span className="font-medium">
+									RM{formatNumber(quotationBasePrice)}
+								</span>
+							</div>
+							{quotation.discountValue != null && quotation.discountValue > 0 && (
+								<>
+									<div className="flex justify-between">
+										<span className="text-muted-foreground">Discount:</span>
+										<span className="font-semibold">
+											{quotation.discountType === "percentage"
+												? `${quotation.discountValue}%`
+												: `RM${formatNumber(quotation.discountValue)}`}
+										</span>
+									</div>
+								</>
+							)}
+							<Separator />
 							<div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
 								<div>
 									<p className="text-sm font-semibold text-blue-800">
-										Grand Total:
+										Price After Discount:
 									</p>
 								</div>
 								<span className="text-2xl font-bold text-blue-800">
@@ -503,20 +532,6 @@ export default function QuotationDetailClient({
 									</span>
 								</div>
 							)}
-
-							{quotation.discountValue && quotation.discountValue > 0 && (
-								<>
-									<Separator />
-									<div className="flex justify-between">
-										<span className="text-muted-foreground">Discount:</span>
-										<span className="font-semibold">
-											{quotation.discountType === "percentage"
-												? `${quotation.discountValue}%`
-												: `RM${formatNumber(quotation.discountValue)}`}
-										</span>
-									</div>
-								</>
-							)}
 						</CardContent>
 					</Card>
 
@@ -541,6 +556,14 @@ export default function QuotationDetailClient({
 									{quotation.createdBy.firstName} {quotation.createdBy.lastName}
 								</p>
 							</div>
+							{quotation.advisedBy && (
+								<div>
+									<p className="text-sm font-medium text-muted-foreground">Advised By</p>
+									<p className="font-medium">
+										{quotation.advisedBy.firstName} {quotation.advisedBy.lastName}
+									</p>
+								</div>
+							)}
 						</CardContent>
 					</Card>
 				</div>

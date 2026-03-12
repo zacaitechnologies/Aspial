@@ -78,6 +78,14 @@ async function _getReceiptsPaginatedInternal(
 						updated_at: true,
 					},
 				},
+				advisedBy: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
 			},
 			orderBy: { created_at: "desc" },
 			skip,
@@ -108,6 +116,7 @@ async function _getReceiptsPaginatedInternal(
 		} : null,
 		Client: receipt.invoice?.quotation?.Client || null,
 		createdBy: receipt.createdBy,
+		advisedBy: receipt.advisedBy ?? null,
 	}))
 
 	return {
@@ -298,14 +307,38 @@ export async function getReceiptById(id: string) {
 							},
 							project: true,
 							createdBy: true,
+							advisedBy: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									email: true,
+								},
+							},
 							Client: true,
 							customServices: true,
 						},
 					},
 					createdBy: true,
+					advisedBy: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+						},
+					},
 				},
 			},
 			createdBy: true,
+			advisedBy: {
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
 		},
 	})
 
@@ -336,6 +369,14 @@ export async function getReceiptFullById(id: string) {
 							},
 							project: true,
 							createdBy: true,
+							advisedBy: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									email: true,
+								},
+							},
 							Client: true,
 							customServices: {
 								include: {
@@ -358,9 +399,25 @@ export async function getReceiptFullById(id: string) {
 						},
 					},
 					createdBy: true,
+					advisedBy: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+						},
+					},
 				},
 			},
 			createdBy: true,
+			advisedBy: {
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
 		},
 	})
 
@@ -391,7 +448,8 @@ async function generateReceiptNumber(tx: Prisma.TransactionClient): Promise<stri
 export async function createReceipt(data: {
 	invoiceId: string
 	amount: number
-	createdById?: string // Optional - will be determined server-side based on admin status
+	/** Advised by (User.id). Admin only - when provided, overrides invoice's advisor. */
+	advisedById?: string
 	/** Receipt date (created_at). Only applied when user is admin. */
 	receiptDate?: string
 }) {
@@ -407,26 +465,32 @@ export async function createReceipt(data: {
 	}
 
 	// Run all read operations in parallel OUTSIDE the transaction for speed
-	const [isAdmin, invoice, existingReceipts] = await Promise.all([
+	const [isAdmin, invoice, existingReceipts, dbUser] = await Promise.all([
 		getCachedIsUserAdmin(user.id),
 		prisma.invoice.findUnique({
 			where: { id: data.invoiceId },
 			select: {
 				id: true,
 				amount: true,
+				advisedById: true,
 				quotation: {
 					select: {
 						createdById: true,
+						advisedById: true,
 					},
 				},
 			},
 		}),
 		prisma.receipt.findMany({
-			where: { 
+			where: {
 				invoiceId: data.invoiceId,
 				status: "active", // Only count active receipts
 			},
 			select: { amount: true },
+		}),
+		prisma.user.findUnique({
+			where: { supabase_id: user.id },
+			select: { id: true, supabase_id: true },
 		}),
 	])
 
@@ -434,17 +498,25 @@ export async function createReceipt(data: {
 		throw new Error("Invoice not found")
 	}
 
-	// Determine final createdById based on admin status
-	let finalCreatedById: string
-	if (!isAdmin) {
-		// Non-admin: always use their own ID (ignore any provided createdById)
-		finalCreatedById = user.id
-	} else {
-		// Admin: default to quotation creator, but allow override if provided
-		finalCreatedById = data.createdById || invoice.quotation.createdById
+	if (!dbUser) {
+		throw new Error("User not found in database")
 	}
 
-	// Validate that the selected user exists (outside transaction)
+	// createdById is ALWAYS the logged-in user's supabase_id (immutable audit trail)
+	const finalCreatedById = user.id
+
+	// Determine advisedById: admin can specify, otherwise non-admin defaults to self
+	let finalAdvisedById: string
+	if (isAdmin && data.advisedById) {
+		finalAdvisedById = data.advisedById
+	} else if (isAdmin && invoice.advisedById) {
+		finalAdvisedById = invoice.advisedById
+	} else {
+		// Non-admin always uses self; admin fallback to self
+		finalAdvisedById = dbUser.id
+	}
+
+	// Validate that the creator user exists (outside transaction)
 	const selectedUser = await prisma.user.findUnique({
 		where: { supabase_id: finalCreatedById },
 		select: { supabase_id: true },
@@ -480,6 +552,7 @@ export async function createReceipt(data: {
 						invoiceId: data.invoiceId,
 						amount: data.amount,
 						createdById: finalCreatedById,
+						advisedById: finalAdvisedById,
 						status: "active",
 						...(isAdmin && data.receiptDate
 							? { created_at: new Date(data.receiptDate) }
@@ -493,6 +566,7 @@ export async function createReceipt(data: {
 						created_at: true,
 						invoiceId: true,
 						createdById: true,
+						advisedById: true,
 						invoice: {
 							select: {
 								id: true,
@@ -517,6 +591,14 @@ export async function createReceipt(data: {
 						createdBy: {
 							select: {
 								supabase_id: true,
+								firstName: true,
+								lastName: true,
+								email: true,
+							},
+						},
+						advisedBy: {
+							select: {
+								id: true,
 								firstName: true,
 								lastName: true,
 								email: true,
@@ -621,9 +703,18 @@ export async function searchInvoicesForReceipt(searchTerm: string) {
 			type: true,
 			amount: true,
 			createdById: true,
+			advisedById: true,
 			createdBy: {
 				select: {
 					supabase_id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
+			advisedBy: {
+				select: {
+					id: true,
 					firstName: true,
 					lastName: true,
 					email: true,
@@ -653,14 +744,15 @@ export async function searchInvoicesForReceipt(searchTerm: string) {
 }
 
 /**
- * Update receipt (change createdById or status)
- * - Admins can update any receipt and change createdById
+ * Update receipt (change advisedById or status)
+ * - Admins can update any receipt and change advisedById
  * - Non-admins can only update their own receipts and only change status
+ * - createdById is immutable and cannot be changed
  */
 export async function updateReceiptAdmin(
 	receiptId: string,
 	data: {
-		createdById?: string
+		advisedById?: string
 		status?: "active" | "cancelled"
 		/** Receipt date (created_at). Admin only. */
 		receiptDate?: string
@@ -725,31 +817,26 @@ export async function updateReceiptAdmin(
 		throw new Error("You can only update your own receipts")
 	}
 
-	// Non-admins cannot change createdById
-	if (!isAdmin && data.createdById !== undefined) {
-		throw new Error("Only administrators can change receipt creator")
+	// Non-admins cannot change advisedById
+	if (!isAdmin && data.advisedById !== undefined) {
+		throw new Error("Only administrators can change receipt advisor")
 	}
 
 	// Build update data
-	const updateData: any = {}
-	
-	if (data.createdById !== undefined) {
-		// Only admins can change createdById
+	const updateData: Record<string, unknown> = {}
+
+	if (data.advisedById !== undefined) {
 		if (!isAdmin) {
-			throw new Error("Only administrators can change receipt creator")
+			throw new Error("Only administrators can change receipt advisor")
 		}
-
-		// Validate that the selected user exists
-		const selectedUser = await prisma.user.findUnique({
-			where: { supabase_id: data.createdById },
-			select: { supabase_id: true },
+		const advisedUser = await prisma.user.findUnique({
+			where: { id: data.advisedById },
+			select: { id: true },
 		})
-
-		if (!selectedUser) {
-			throw new Error("Selected creator user not found")
+		if (!advisedUser) {
+			throw new Error("Selected advisor user not found")
 		}
-
-		updateData.createdById = data.createdById
+		updateData.advisedById = data.advisedById
 	}
 
 	if (data.status !== undefined) {

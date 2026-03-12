@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -36,7 +35,6 @@ import ProjectSelection from "./ProjectSelection";
 import { toast } from "@/components/ui/use-toast";
 import { formatLocalDate } from "@/lib/date-utils";
 import { formatNumber } from "@/lib/format-number";
-import { FormattedDescription } from "@/components/FormattedDescription";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -76,7 +74,8 @@ export default function CreateQuotationForm({
     },
   });
 
-  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  type SelectedService = { serviceId: string; name: string; description: string; price: number; quantity: number };
+  const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [totalPrice, setTotalPrice] = useState(0);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
@@ -102,7 +101,7 @@ export default function CreateQuotationForm({
   const [isSaving, setIsSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; email: string; supabase_id: string }>>([]);
-  const [selectedCreatedById, setSelectedCreatedById] = useState<string>("");
+  const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("");
 
   useEffect(() => {
     fetchServices();
@@ -117,8 +116,8 @@ export default function CreateQuotationForm({
         if (adminStatus) {
           const users = await getAllUsers();
           setAllUsers(users);
-          // Default to current user
-          setSelectedCreatedById(enhancedUser.id);
+          // Default to current user's DB id (cuid)
+          setSelectedAdvisedById(enhancedUser.profile?.id ?? "");
         }
       } catch (error) {
         console.error("Error checking admin status or fetching users:", error);
@@ -150,30 +149,31 @@ export default function CreateQuotationForm({
   // Custom services are not available during quotation creation
   // They can be added after the quotation is created through the edit form
 
-  const handleServiceToggle = (serviceId: string) => {
+  const handleAddService = (serviceId: string) => {
     const service = services.find((s) => s.id.toString() === serviceId);
     if (!service) return;
+    if (selectedServices.some((s) => s.serviceId === serviceId)) return;
+    const newServices = [...selectedServices, { serviceId, name: service.name, description: service.description, price: service.basePrice, quantity: 1 }];
+    setSelectedServices(newServices);
+    setTotalPrice(newServices.reduce((sum, s) => sum + s.price * s.quantity, 0));
+  };
 
-    setSelectedServiceIds((prev) => {
-      const newSelection = prev.includes(serviceId)
-        ? prev.filter((id) => id !== serviceId)
-        : [...prev, serviceId];
+  const handleRemoveService = (serviceId: string) => {
+    const newServices = selectedServices.filter((s) => s.serviceId !== serviceId);
+    setSelectedServices(newServices);
+    setTotalPrice(newServices.reduce((sum, s) => sum + s.price * s.quantity, 0));
+  };
 
-      const newTotal = newSelection.reduce((total, id) => {
-        const svc = services.find((s) => s.id.toString() === id);
-        return total + (svc?.basePrice || 0);
-      }, 0);
+  const handleServicePriceChange = (serviceId: string, price: number) => {
+    const newServices = selectedServices.map((s) => s.serviceId === serviceId ? { ...s, price } : s);
+    setSelectedServices(newServices);
+    setTotalPrice(newServices.reduce((sum, s) => sum + s.price * s.quantity, 0));
+  };
 
-      console.log("Service toggle:", {
-        serviceId,
-        prev,
-        newSelection,
-        newTotal,
-      });
-
-      setTotalPrice(newTotal);
-      return newSelection;
-    });
+  const handleServiceQuantityChange = (serviceId: string, quantity: number) => {
+    const newServices = selectedServices.map((s) => s.serviceId === serviceId ? { ...s, quantity } : s);
+    setSelectedServices(newServices);
+    setTotalPrice(newServices.reduce((sum, s) => sum + s.price * s.quantity, 0));
   };
 
   // Calculate discounted total price
@@ -244,15 +244,14 @@ export default function CreateQuotationForm({
     // Debug logging to help identify the issue
     console.log("Form validation check:", {
       description: quotationForm.description,
-      selectedServiceIds: selectedServiceIds,
-      selectedServiceIdsLength: selectedServiceIds.length,
+      selectedServicesCount: selectedServices.length,
       descriptionEmpty: !quotationForm.description,
-      servicesEmpty: selectedServiceIds.length === 0,
+      servicesEmpty: selectedServices.length === 0,
     });
 
     if (
       !quotationForm.description ||
-      selectedServiceIds.length === 0
+      selectedServices.length === 0
     ) {
       toast({
         title: "Validation Error",
@@ -395,9 +394,10 @@ export default function CreateQuotationForm({
       // Total price is just the sum of services with discount applied (no duration multiplication)
       await createQuotation({
         description: quotationForm.description,
-        totalPrice: discountedTotal, // Store discounted total (sum of services with discount)
-        serviceIds: selectedServiceIds,
-        createdById: isAdmin && selectedCreatedById ? selectedCreatedById : enhancedUser.id,
+        totalPrice: discountedTotal,
+        services: selectedServices.map((s) => ({ serviceId: s.serviceId, price: s.price, quantity: s.quantity })),
+        createdById: enhancedUser.id, // Always the logged-in user's supabase_id
+        advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
         workflowStatus: workflowStatus, // Add workflow status parameter
         paymentStatus: "unpaid", // Default to unpaid for new quotations
         // If we already created the client (for final quotations with new clients), use the clientId
@@ -468,7 +468,7 @@ export default function CreateQuotationForm({
         membershipType: "NON_MEMBER",
       },
     });
-    setSelectedServiceIds([]);
+    setSelectedServices([]);
     setTotalPrice(0);
     setServiceSearchQuery("");
     setClientMode("existing");
@@ -505,23 +505,23 @@ export default function CreateQuotationForm({
             {/* Created By (Admin only) */}
             {isAdmin && (
               <div className="grid gap-2">
-                <Label htmlFor="create-created-by">Created By</Label>
+                <Label htmlFor="create-advised-by">Advised By</Label>
                 <Select
-                  value={selectedCreatedById}
-                  onValueChange={setSelectedCreatedById}
+                  value={selectedAdvisedById}
+                  onValueChange={setSelectedAdvisedById}
                 >
-                  <SelectTrigger id="create-created-by">
-                    <SelectValue placeholder="Select creator" />
+                  <SelectTrigger id="create-advised-by">
+                    <SelectValue placeholder="Select advisor" />
                   </SelectTrigger>
                   <SelectContent>
                     {allUsers.map((user) => (
-                      <SelectItem key={user.supabase_id} value={user.supabase_id}>
+                      <SelectItem key={user.id} value={user.id}>
                         {user.firstName} {user.lastName} ({user.email})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Only admins can select a different creator</p>
+                <p className="text-xs text-muted-foreground">Only admins can select a different advisor</p>
               </div>
             )}
 
@@ -625,62 +625,92 @@ export default function CreateQuotationForm({
 
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
               <div className="flex flex-col justify-between items-start">
-                <Label className="font-semibold">Select Services <span className="text-red-500">*</span></Label>
+                <Label className="font-semibold">Services <span className="text-red-500">*</span></Label>
                 <div className="text-xs text-muted-foreground">
                   Note: Custom services can be added after creating the quotation
                 </div>
               </div>
-              <div className="grid gap-2">
+              <div className="flex gap-2">
                 <Input
                   placeholder="Search services..."
                   value={serviceSearchQuery}
                   onChange={(e) => setServiceSearchQuery(e.target.value)}
                 />
               </div>
-              <div className="max-h-60 overflow-y-auto space-y-3 custom-scrollbar rounded-md">
+              <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-background">
                 {services
                   .filter(
                     (service) =>
-                      service.name
-                        .toLowerCase()
-                        .includes(serviceSearchQuery.toLowerCase()) ||
-                      service.description
-                        .toLowerCase()
-                        .includes(serviceSearchQuery.toLowerCase())
+                      !selectedServices.some((s) => s.serviceId === service.id.toString()) &&
+                      (!serviceSearchQuery.trim() ||
+                        service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ||
+                        (service.description ?? "").toLowerCase().includes(serviceSearchQuery.toLowerCase()))
                   )
-                  .map((service) => (
-                    <div
-                      key={service.id}
-                      className="flex items-start space-x-3 p-3 border rounded-lg"
-                    >
-                      <Checkbox
-                        className="border-black"
-                        checked={selectedServiceIds.includes(
-                          service.id.toString()
-                        )}
-                        onCheckedChange={() =>
-                          handleServiceToggle(service.id.toString())
-                        }
-                      />
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-medium">{service.name}</p>
-                            <FormattedDescription
-                              text={service.description ?? ""}
-                              className="text-sm text-muted-foreground"
-                              truncate
-                              expandable
-                            />
-                          </div>
-                          <Badge variant="outline">
-                            RM{formatNumber(service.basePrice)}
-                          </Badge>
+                    .map((service) => (
+                      <div
+                        key={service.id}
+                        className="flex items-center justify-between p-2 hover:bg-muted rounded cursor-pointer"
+                        onClick={() => { handleAddService(service.id.toString()); setServiceSearchQuery(""); }}
+                      >
+                        <div>
+                          <p className="font-medium text-sm">{service.name}</p>
+                          <p className="text-xs text-muted-foreground">RM{formatNumber(service.basePrice)}</p>
                         </div>
+                        <Button type="button" size="sm" variant="ghost"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                    ))}
+              </div>
+              {selectedServices.length > 0 && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
+                    <span className="col-span-4">Service</span>
+                    <span className="col-span-3">Price (RM)</span>
+                    <span className="col-span-2">Qty</span>
+                    <span className="col-span-2 text-right">Total</span>
+                    <span className="col-span-1"></span>
+                  </div>
+                  {selectedServices.map((s) => (
+                    <div key={s.serviceId} className="grid grid-cols-12 gap-2 items-center p-2 border rounded-lg">
+                      <div className="col-span-4">
+                        <p className="font-medium text-sm">{s.name}</p>
+                      </div>
+                      <div className="col-span-3">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={s.price}
+                          onChange={(e) => handleServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={s.quantity}
+                          onChange={(e) => handleServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="col-span-2 text-right text-sm font-medium">
+                        RM{formatNumber(s.price * s.quantity)}
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
                       </div>
                     </div>
                   ))}
-              </div>
+                </div>
+              )}
+              {selectedServices.length === 0 && (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  Search and add services above
+                </div>
+              )}
             </div>
 
 

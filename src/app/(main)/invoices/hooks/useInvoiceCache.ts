@@ -192,8 +192,8 @@ export function useInvoiceCache(
 					timestamp: freshTimestamp
 				}
 				
-				// Update all caches
-				memoryInvoiceCache[cacheKey] = cacheData as typeof memoryInvoiceCache[string]
+				// Update all caches (cast via unknown - getInvoiceFullById returns slightly different shape than InvoiceWithQuotation)
+				memoryInvoiceCache[cacheKey] = cacheData as unknown as (typeof memoryInvoiceCache)[string]
 				saveToLocalStorage(cacheKey, cacheData as any)
 				
 				// Update component state

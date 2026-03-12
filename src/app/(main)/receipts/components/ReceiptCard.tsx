@@ -120,7 +120,13 @@ export default function ReceiptCard({
 							{receipt.createdBy && (
 								<>
 									<span className="text-gray-400">•</span>
-									<span>By {receipt.createdBy.firstName} {receipt.createdBy.lastName}</span>
+									<span>Created by {receipt.createdBy.firstName} {receipt.createdBy.lastName}</span>
+								</>
+							)}
+							{receipt.advisedBy && (
+								<>
+									<span className="text-gray-400">•</span>
+									<span>Advised by {receipt.advisedBy.firstName} {receipt.advisedBy.lastName}</span>
 								</>
 							)}
 						</div>

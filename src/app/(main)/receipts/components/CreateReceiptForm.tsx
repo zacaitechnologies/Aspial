@@ -38,7 +38,7 @@ interface CreateReceiptFormProps {
 	onSuccess: () => void
 	prefilledInvoiceId?: string
 	/** When opening from an invoice card, pass the invoice to avoid refetch and speed up popup */
-	prefetchedInvoice?: { id: string; amount: number; createdBy?: { supabase_id: string } | null; createdById?: string } | null
+	prefetchedInvoice?: { id: string; amount: number; advisedBy?: { id: string } | null } | null
 	/** Pass isAdmin from parent to skip redundant check (speeds up dialog open) */
 	isAdminProp?: boolean
 }
@@ -68,7 +68,7 @@ export default function CreateReceiptForm({
 	const [amountWarning, setAmountWarning] = useState<string>("")
 	const [isAdmin, setIsAdmin] = useState(false)
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
-	const [selectedCreatedById, setSelectedCreatedById] = useState<string>("")
+	const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("")
 
 	// Use isAdminProp if provided (from parent) to skip redundant check
 	useEffect(() => {
@@ -106,10 +106,10 @@ export default function CreateReceiptForm({
 		if (prefetchedInvoice && String(prefetchedInvoice.id) === String(prefilledInvoiceId)) {
 			setSelectedInvoice(prefetchedInvoice as any)
 			setReceiptForm(prev => ({ ...prev, invoiceId: prefilledInvoiceId }))
-			if (prefetchedInvoice.createdBy?.supabase_id) {
-				setSelectedCreatedById(prefetchedInvoice.createdBy.supabase_id)
-			} else if (prefetchedInvoice.createdById) {
-				setSelectedCreatedById(prefetchedInvoice.createdById)
+			// Auto-load advisedBy from invoice (for admin dropdown)
+			const advisedBy = (prefetchedInvoice as { advisedBy?: { id: string } }).advisedBy
+			if (advisedBy?.id) {
+				setSelectedAdvisedById(advisedBy.id)
 			}
 			setSearchQuery("")
 			setSearchResults([])
@@ -117,6 +117,15 @@ export default function CreateReceiptForm({
 		}
 		handleInvoiceSelect(prefilledInvoiceId)
 	}, [prefilledInvoiceId, isOpen, prefetchedInvoice?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+	// Sync advisedBy whenever the referenced invoice changes (ensures advisor loads even if isAdmin loads late)
+	useEffect(() => {
+		if (selectedInvoice?.advisedBy?.id) {
+			setSelectedAdvisedById(selectedInvoice.advisedBy.id)
+		} else {
+			setSelectedAdvisedById("")
+		}
+	}, [selectedInvoice?.id, selectedInvoice?.advisedBy?.id])
 
 	// Load receipt summary when invoice is selected
 	useEffect(() => {
@@ -131,15 +140,6 @@ export default function CreateReceiptForm({
 					// Set default amount to remaining if not already set
 					if (!receiptForm.amount && summary.remaining > 0) {
 						setReceiptForm(prev => ({ ...prev, amount: summary.remaining.toFixed(2) }))
-					}
-					
-					// Auto-fill advisor with invoice's creator if not already set
-					if (!selectedCreatedById) {
-						if (selectedInvoice.createdBy?.supabase_id) {
-							setSelectedCreatedById(selectedInvoice.createdBy.supabase_id)
-						} else if (selectedInvoice.createdById) {
-							setSelectedCreatedById(selectedInvoice.createdById)
-						}
 					}
 				} catch (error) {
 					if (process.env.NODE_ENV === "development") {
@@ -212,11 +212,9 @@ export default function CreateReceiptForm({
 			// If found in search results, use it
 			setSelectedInvoice(invoice)
 			setReceiptForm(prev => ({ ...prev, invoiceId }))
-			// Auto-fill advisor with invoice's creator if available
-			if (invoice.createdBy?.supabase_id) {
-				setSelectedCreatedById(invoice.createdBy.supabase_id)
-			} else if (invoice.createdById) {
-				setSelectedCreatedById(invoice.createdById)
+			// Auto-fill advisor with invoice's advisedBy (admin only; handled in loadSummary effect)
+			if (invoice.advisedBy?.id) {
+				setSelectedAdvisedById(invoice.advisedBy.id)
 			}
 			setSearchQuery("")
 			setSearchResults([])
@@ -227,11 +225,9 @@ export default function CreateReceiptForm({
 				if (fetchedInvoice) {
 					setSelectedInvoice(fetchedInvoice)
 					setReceiptForm(prev => ({ ...prev, invoiceId }))
-					// Auto-fill advisor with invoice's creator if available
-					if (fetchedInvoice.createdBy?.supabase_id) {
-						setSelectedCreatedById(fetchedInvoice.createdBy.supabase_id)
-					} else if (fetchedInvoice.createdById) {
-						setSelectedCreatedById(fetchedInvoice.createdById)
+					// Auto-fill advisor with invoice's advisedBy if available
+					if (fetchedInvoice.advisedBy?.id) {
+						setSelectedAdvisedById(fetchedInvoice.advisedBy.id)
 					}
 				} else {
 					toast({
@@ -286,8 +282,8 @@ export default function CreateReceiptForm({
 			const receipt = await createReceipt({
 				invoiceId: receiptForm.invoiceId,
 				amount: parseFloat(receiptForm.amount),
-				// Only pass createdById if admin selected someone (non-admin will be set to self server-side)
-				createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined,
+				// Only pass advisedById if admin selected someone (non-admin defaults to self server-side)
+				advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
 				// Receipt date: only applied server-side when user is admin
 				receiptDate: receiptForm.receiptDate || undefined,
 			})
@@ -304,7 +300,7 @@ export default function CreateReceiptForm({
 				receiptDate: formatLocalDate(new Date()),
 			})
 			setSelectedInvoice(null)
-			setSelectedCreatedById("")
+			setSelectedAdvisedById("")
 			setSearchQuery("")
 			setSearchResults([])
 			setAmountWarning("")
@@ -487,28 +483,28 @@ export default function CreateReceiptForm({
 						)}
 					</div>
 
-					{/* Created By (Admin Only) */}
+					{/* Advised By (Admin Only) */}
 					{isAdmin && (
 						<div className="space-y-2">
-							<Label htmlFor="created-by">Created By (Advisor)</Label>
+							<Label htmlFor="advised-by">Advised By</Label>
 							<Select
-								value={selectedCreatedById}
-								onValueChange={setSelectedCreatedById}
+								value={selectedAdvisedById}
+								onValueChange={setSelectedAdvisedById}
 								disabled={!selectedInvoice || isSaving}
 							>
-								<SelectTrigger id="created-by">
+								<SelectTrigger id="advised-by">
 									<SelectValue placeholder="Select advisor" />
 								</SelectTrigger>
 								<SelectContent>
 									{users.map((user) => (
-										<SelectItem key={user.supabase_id} value={user.supabase_id}>
+										<SelectItem key={user.id} value={user.id}>
 											{user.firstName} {user.lastName} ({user.email})
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
 							<p className="text-xs text-muted-foreground">
-								Defaults to quotation creator. You can select a different advisor.
+								Defaults to invoice advisor. You can select a different advisor.
 							</p>
 						</div>
 					)}
@@ -524,7 +520,7 @@ export default function CreateReceiptForm({
 								receiptDate: formatLocalDate(new Date()),
 							})
 							setSelectedInvoice(null)
-							setSelectedCreatedById("")
+							setSelectedAdvisedById("")
 							setSearchQuery("")
 							setSearchResults([])
 							setAmountWarning("")

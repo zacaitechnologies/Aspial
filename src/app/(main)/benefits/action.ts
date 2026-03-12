@@ -172,9 +172,9 @@ async function _getEmployeeSalesDataInternal(
         projectId: { in: projectIds }
       }
     } else {
-      // For admin and brand-advisor: filter by quotation creator (invoice.quotation.createdById)
+      // For admin and brand-advisor: filter by quotation advisedById (User.id cuid)
       whereClause.quotation = {
-        createdById: user.supabase_id
+        advisedById: user.id
       }
     }
 
@@ -188,7 +188,7 @@ async function _getEmployeeSalesDataInternal(
         quotation: {
           select: {
             id: true,
-            createdById: true,
+            advisedById: true,
             projectId: true,
           },
         },
@@ -593,7 +593,6 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
 
   if (users.length === 0) return []
 
-  const supabaseIds = users.map((u) => u.supabase_id)
   const userIds = users.map((u) => u.id)
 
   const [invoices, complaints, tierSelections] = await Promise.all([
@@ -601,12 +600,12 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
       where: {
         status: 'active',
         created_at: { gte: startOfYear, lte: endOfYear },
-        quotation: { createdById: { in: supabaseIds } },
+        quotation: { advisedById: { in: userIds } },
       },
       select: {
         amount: true,
         created_at: true,
-        quotation: { select: { createdById: true } },
+        quotation: { select: { advisedById: true } },
       },
     }),
     prisma.complaint.findMany({
@@ -621,15 +620,15 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
     }),
   ])
 
-  const salesBySupabaseId = new Map<string, { yearly: number; byMonth: number[] }>()
+  const salesByUserId = new Map<string, { yearly: number; byMonth: number[] }>()
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  supabaseIds.forEach((sid) => {
-    salesBySupabaseId.set(sid, { yearly: 0, byMonth: Array(12).fill(0) })
+  userIds.forEach((id) => {
+    salesByUserId.set(id, { yearly: 0, byMonth: Array(12).fill(0) })
   })
   invoices.forEach((inv) => {
-    const createdById = inv.quotation?.createdById
-    if (!createdById) return
-    const entry = salesBySupabaseId.get(createdById)
+    const advisedById = inv.quotation?.advisedById
+    if (!advisedById) return
+    const entry = salesByUserId.get(advisedById)
     if (!entry) return
     const d = new Date(inv.created_at)
     if (d.getFullYear() === year) {
@@ -650,7 +649,7 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
   })
 
   return users.map((user) => {
-    const sales = salesBySupabaseId.get(user.supabase_id) ?? { yearly: 0, byMonth: Array(12).fill(0) }
+    const sales = salesByUserId.get(user.id) ?? { yearly: 0, byMonth: Array(12).fill(0) }
     const complaintsCount = complaintsByUserId.get(user.id) ?? 0
     const tier = tierByUserId.get(user.id)
     const tierMonthlyTarget = getTierMonthlyTarget(tier?.tier ?? 'TIER_1', tier?.customTarget ?? undefined)

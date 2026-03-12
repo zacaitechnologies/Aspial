@@ -40,6 +40,7 @@ export type QuotationWithServices = {
     created_at: Date;
     updated_at: Date;
   };
+  advisedBy?: { id: string; firstName: string; lastName: string; email: string } | null;
   created_at: Date;
   updated_at: Date;
   services: {
@@ -47,6 +48,8 @@ export type QuotationWithServices = {
     quotationId: number;
     serviceId: number | null; // null when row links a custom service (customServiceId set)
     customServiceId?: string;
+    price: number;
+    quantity: number;
     service: Services | null; // null when customServiceId is set
     customService?: {
       id: string;

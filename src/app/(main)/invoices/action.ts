@@ -92,6 +92,14 @@ async function _getInvoicesPaginatedInternal(
 						updated_at: true,
 					},
 				},
+				advisedBy: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
 			},
 			orderBy: { created_at: "desc" },
 			skip,
@@ -124,6 +132,7 @@ async function _getInvoicesPaginatedInternal(
 					}
 				: null,
 			createdBy: invoice.createdBy,
+			advisedBy: invoice.advisedBy ?? null,
 			Client: invoice.quotation?.Client || null,
 		}
 	})
@@ -200,11 +209,27 @@ export async function getInvoiceById(id: string) {
 					},
 					project: true,
 					createdBy: true,
+					advisedBy: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+						},
+					},
 					Client: true,
 					customServices: true,
 				},
 			},
 			createdBy: true,
+			advisedBy: {
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
 		},
 	})
 
@@ -236,6 +261,14 @@ export async function getInvoiceFullById(id: unknown) {
 					},
 					project: true,
 					createdBy: true,
+					advisedBy: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+						},
+					},
 					Client: true,
 					customServices: {
 						include: {
@@ -268,6 +301,14 @@ export async function getInvoiceFullById(id: unknown) {
 				},
 			},
 			createdBy: true,
+			advisedBy: {
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
 		},
 	})
 
@@ -309,18 +350,21 @@ export async function createInvoice(data: unknown) {
 	}
 
 	// Run all read operations in parallel OUTSIDE the transaction for speed
-	const [isAdmin, quotation] = await Promise.all([
+	const [isAdmin, quotation, dbUser] = await Promise.all([
 		getCachedIsUserAdmin(user.id),
 		prisma.quotation.findUnique({
 			where: { id: validatedData.quotationId },
 			select: {
 				id: true,
 				createdById: true,
+				advisedById: true,
 				discountValue: true,
 				discountType: true,
 				services: {
 					where: { customServiceId: null }, // Only regular services
 					select: {
+						price: true,
+						quantity: true,
 						service: { select: { basePrice: true } },
 					},
 				},
@@ -330,23 +374,35 @@ export async function createInvoice(data: unknown) {
 				},
 			},
 		}),
+		prisma.user.findUnique({
+			where: { supabase_id: user.id },
+			select: { id: true, supabase_id: true },
+		}),
 	])
 
 	if (!quotation) {
 		throw new Error("Quotation not found")
 	}
 
-	// Determine final createdById based on admin status
-	let finalCreatedById: string
-	if (!isAdmin) {
-		// Non-admin: always use their own ID (ignore any provided createdById)
-		finalCreatedById = user.id
-	} else {
-		// Admin: default to quotation creator, but allow override if provided
-		finalCreatedById = validatedData.createdById ?? quotation.createdById
+	if (!dbUser) {
+		throw new Error("User not found in database")
 	}
 
-	// Validate that the selected user exists (outside transaction)
+	// createdById is ALWAYS the logged-in user's supabase_id (immutable audit trail)
+	const finalCreatedById = user.id
+
+	// Determine advisedById: admin can specify, otherwise non-admin defaults to self
+	let finalAdvisedById: string
+	if (isAdmin && validatedData.advisedById) {
+		finalAdvisedById = validatedData.advisedById
+	} else if (isAdmin && quotation.advisedById) {
+		finalAdvisedById = quotation.advisedById
+	} else {
+		// Non-admin always uses self; admin fallback to self
+		finalAdvisedById = dbUser.id
+	}
+
+	// Validate that the creator user exists (outside transaction)
 	const selectedUser = await prisma.user.findUnique({
 		where: { supabase_id: finalCreatedById },
 		select: { supabase_id: true },
@@ -356,9 +412,20 @@ export async function createInvoice(data: unknown) {
 		throw new Error("Selected creator user not found")
 	}
 
+	// Validate that the advised user exists (if not defaulting to current user)
+	if (finalAdvisedById !== dbUser.id) {
+		const advisedUser = await prisma.user.findUnique({
+			where: { id: finalAdvisedById },
+			select: { id: true },
+		})
+		if (!advisedUser) {
+			throw new Error("Selected advisor user not found")
+		}
+	}
+
 	// Calculate quotation grand total (using pre-filtered data from DB)
 	const servicesTotal = quotation.services.reduce(
-		(sum, qs) => sum + (qs.service?.basePrice ?? 0),
+		(sum, qs) => sum + qs.price * qs.quantity,
 		0
 	)
 	const approvedCustomServicesTotal = quotation.customServices.reduce(
@@ -401,6 +468,7 @@ export async function createInvoice(data: unknown) {
 						quotationId: validatedData.quotationId,
 						amount: validatedData.amount,
 						createdById: finalCreatedById,
+						advisedById: finalAdvisedById,
 						status: "active",
 						...(isAdmin && validatedData.invoiceDate
 							? { created_at: new Date(validatedData.invoiceDate) }
@@ -415,6 +483,7 @@ export async function createInvoice(data: unknown) {
 						created_at: true,
 						quotationId: true,
 						createdById: true,
+						advisedById: true,
 						quotation: {
 							select: {
 								id: true,
@@ -432,6 +501,14 @@ export async function createInvoice(data: unknown) {
 						createdBy: {
 							select: {
 								supabase_id: true,
+								firstName: true,
+								lastName: true,
+								email: true,
+							},
+						},
+						advisedBy: {
+							select: {
+								id: true,
 								firstName: true,
 								lastName: true,
 								email: true,
@@ -476,9 +553,10 @@ export async function createInvoice(data: unknown) {
 }
 
 /**
- * Update invoice (change createdById or status)
- * - Admins can update any invoice and change createdById
+ * Update invoice (change advisedById or status)
+ * - Admins can update any invoice and change advisedById
  * - Non-admins can only cancel/reactivate their own invoices (status only)
+ * - createdById is immutable and cannot be changed
  */
 export async function updateInvoiceAdmin(
 	invoiceId: unknown,
@@ -528,31 +606,31 @@ export async function updateInvoiceAdmin(
 		throw new Error("You can only update your own invoices")
 	}
 
-	// Non-admins cannot change createdById
-	if (!isAdmin && validatedData.createdById !== undefined) {
-		throw new Error("Only administrators can change invoice creator")
+	// Non-admins cannot change advisedById
+	if (!isAdmin && validatedData.advisedById !== undefined) {
+		throw new Error("Only administrators can change invoice advisor")
 	}
 
 	// Build update data
 	const updateData: Prisma.InvoiceUncheckedUpdateInput = {}
-	
-	if (validatedData.createdById !== undefined) {
-		// Only admins can change createdById
+
+	if (validatedData.advisedById !== undefined) {
+		// Only admins can change advisedById
 		if (!isAdmin) {
-			throw new Error("Only administrators can change invoice creator")
+			throw new Error("Only administrators can change invoice advisor")
 		}
 
-		// Validate that the selected user exists
-		const selectedUser = await prisma.user.findUnique({
-			where: { supabase_id: validatedData.createdById },
-			select: { supabase_id: true },
+		// Validate that the selected user exists (advisedById references User.id cuid)
+		const advisedUser = await prisma.user.findUnique({
+			where: { id: validatedData.advisedById },
+			select: { id: true },
 		})
 
-		if (!selectedUser) {
-			throw new Error("Selected creator user not found")
+		if (!advisedUser) {
+			throw new Error("Selected advisor user not found")
 		}
 
-		updateData.createdById = validatedData.createdById
+		updateData.advisedById = validatedData.advisedById
 	}
 
 	if (validatedData.status !== undefined) {

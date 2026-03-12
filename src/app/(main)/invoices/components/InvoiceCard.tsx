@@ -196,7 +196,13 @@ export default function InvoiceCard({
 							{invoice.createdBy && (
 								<>
 									<span className="text-gray-400">•</span>
-									<span>By {invoice.createdBy.firstName} {invoice.createdBy.lastName}</span>
+									<span>Created by {invoice.createdBy.firstName} {invoice.createdBy.lastName}</span>
+								</>
+							)}
+							{invoice.advisedBy && (
+								<>
+									<span className="text-gray-400">•</span>
+									<span>Advised by {invoice.advisedBy.firstName} {invoice.advisedBy.lastName}</span>
 								</>
 							)}
 						</div>

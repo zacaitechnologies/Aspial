@@ -557,7 +557,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   // Calculate totals
   const regularServices = quotation.services.filter((qs) => !qs.customServiceId);
   const servicesTotal = regularServices.reduce(
-    (sum, serviceItem) => sum + (serviceItem.service?.basePrice ?? 0),
+    (sum, serviceItem) => sum + serviceItem.price * serviceItem.quantity,
     0
   );
   const customServicesTotal = customServices.reduce(
@@ -565,7 +565,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
     0
   );
   const subtotal = servicesTotal + customServicesTotal;
-  
+
   let discountAmount = 0;
   if (quotation.discountValue && quotation.discountValue > 0) {
     discountAmount =
@@ -573,15 +573,17 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
         ? (subtotal * quotation.discountValue) / 100
         : quotation.discountValue;
   }
-  
+
   const grandTotal = subtotal - discountAmount;
   const originalPrice = subtotal;
-  
-  // Get advisor name (createdBy)
-  const advisorName = quotation.createdBy
-    ? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
-    : 'ADMIN';
-  
+
+  // Get advisor name (advisedBy with fallback to createdBy)
+  const advisorName = (quotation as any).advisedBy
+    ? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+    : quotation.createdBy
+      ? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
+      : 'ADMIN';
+
   // Get client info
   const clientInfo: ClientInfoPdf = {
     name: quotation.Client?.name || '',
@@ -608,24 +610,26 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
     ...regularServices.map((s) => ({
       name: sanitizePdfText(s.service?.name ?? ""),
       description: sanitizePdfText(s.service?.description ?? ""),
-      price: s.service?.basePrice ?? 0,
+      price: s.price,
+      quantity: s.quantity,
       type: "service",
     })),
     ...customServices.map((cs) => ({
       name: sanitizePdfText(cs.name),
       description: sanitizePdfText(cs.description || ""),
       price: cs.price,
+      quantity: 1,
       type: "custom",
     })),
   ];
-  
+
   // Services table - create a row for each service
   const tableData: any[] = [];
   const rowHeights: number[] = [];
   // Use the actual column width autoTable will assign (must match columnStyles below)
   const descColWidth = (pageWidth - 2 * margin) / 15 * 7;
   const descCellWidth = descColWidth - 6; // Subtract cell padding (3 left + 3 right)
-  
+
   // Calculate row height for each service and create table rows
   allServices.forEach((service, index) => {
     // Measure name height (bold 9pt)
@@ -633,7 +637,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
     doc.setFontSize(9);
     const nameLines = doc.splitTextToSize(service.name, descCellWidth);
     let contentHeight = nameLines.length * DESC_LINE_HEIGHT;
-    
+
     if (service.description) {
       // Gap between name and description
       contentHeight += 2;
@@ -643,23 +647,24 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
       const descLines = splitDescriptionLines(service.description);
       contentHeight += measureDescriptionHeight(doc, descLines, descCellWidth);
     }
-    
+
     // Add cell padding (5 top + 5 bottom)
     const rowHeight = Math.max(20, contentHeight + 10);
     rowHeights.push(rowHeight);
-    
+
     // Put actual text in description cell so autoTable calculates correct row height
     // and can split tall rows across pages. Text rendering is suppressed in willDrawCell;
     // formatted bold name + normal description is drawn in didDrawCell.
     const cellText = service.description
       ? `${service.name}\n${service.description}`
       : service.name;
+    const qty = (service as { quantity?: number }).quantity ?? 1;
     tableData.push([
       String(index + 1),
       cellText,
-      "1.00", // Package quantity
-      formatNumber(service.price), // Price per package
-      formatNumber(service.price) // Total
+      formatNumber(qty),
+      formatNumber(service.price),
+      formatNumber(service.price * qty)
     ]);
   });
 
@@ -964,7 +969,7 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   // Calculate totals
   const regularServices = quotation.services.filter((qs) => !qs.customServiceId);
   const servicesTotal = regularServices.reduce(
-    (sum, serviceItem) => sum + (serviceItem.service?.basePrice ?? 0),
+    (sum, serviceItem) => sum + serviceItem.price * serviceItem.quantity,
     0
   );
   const customServicesTotal = customServices.reduce(
@@ -972,7 +977,7 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
     0
   );
   const subtotal = servicesTotal + customServicesTotal;
-  
+
   let discountAmount = 0;
   if (quotation.discountValue && quotation.discountValue > 0) {
     discountAmount =
@@ -980,15 +985,17 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
         ? (subtotal * quotation.discountValue) / 100
         : quotation.discountValue;
   }
-  
+
   const grandTotal = subtotal - discountAmount;
   const originalPrice = subtotal;
-  
-  // Get advisor name (createdBy)
-  const advisorName = quotation.createdBy
-    ? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
-    : 'ADMIN';
-  
+
+  // Get advisor name (advisedBy with fallback to createdBy)
+  const advisorName = (quotation as any).advisedBy
+    ? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+    : quotation.createdBy
+      ? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
+      : 'ADMIN';
+
   // Get client info
   const clientInfo: ClientInfoPdf = {
     name: quotation.Client?.name || '',
@@ -1015,24 +1022,26 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
     ...regularServices.map((s) => ({
       name: sanitizePdfText(s.service?.name ?? ""),
       description: sanitizePdfText(s.service?.description ?? ""),
-      price: s.service?.basePrice ?? 0,
+      price: s.price,
+      quantity: s.quantity,
       type: "service",
     })),
     ...customServices.map((cs) => ({
       name: sanitizePdfText(cs.name),
       description: sanitizePdfText(cs.description || ""),
       price: cs.price,
+      quantity: 1,
       type: "custom",
     })),
   ];
-  
+
   // Services table - create a row for each service
   const tableData: any[] = [];
   const rowHeights: number[] = [];
   // Use the actual column width autoTable will assign (must match columnStyles below)
   const descColWidth = (pageWidth - 2 * margin) / 15 * 7;
   const descCellWidth = descColWidth - 6; // Subtract cell padding (3 left + 3 right)
-  
+
   // Calculate row height for each service and create table rows
   allServices.forEach((service, index) => {
     // Measure name height (bold 9pt)
@@ -1040,7 +1049,7 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
     doc.setFontSize(9);
     const nameLines = doc.splitTextToSize(service.name, descCellWidth);
     let contentHeight = nameLines.length * DESC_LINE_HEIGHT;
-    
+
     if (service.description) {
       // Gap between name and description
       contentHeight += 2;
@@ -1050,23 +1059,24 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
       const descLines = splitDescriptionLines(service.description);
       contentHeight += measureDescriptionHeight(doc, descLines, descCellWidth);
     }
-    
+
     // Add cell padding (5 top + 5 bottom)
     const rowHeight = Math.max(20, contentHeight + 10);
     rowHeights.push(rowHeight);
-    
+
     // Put actual text in description cell so autoTable calculates correct row height
     // and can split tall rows across pages. Text rendering is suppressed in willDrawCell;
     // formatted bold name + normal description is drawn in didDrawCell.
     const cellText = service.description
       ? `${service.name}\n${service.description}`
       : service.name;
+    const qty = (service as { quantity?: number }).quantity ?? 1;
     tableData.push([
       String(index + 1),
       cellText,
-      "1.00", // Package quantity
-      formatNumber(service.price), // Price per package
-      formatNumber(service.price) // Total
+      formatNumber(qty),
+      formatNumber(service.price),
+      formatNumber(service.price * qty)
     ]);
   });
 

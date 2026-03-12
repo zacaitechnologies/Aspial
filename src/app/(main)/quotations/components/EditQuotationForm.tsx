@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -68,9 +67,9 @@ export default function EditQuotationForm({
   const [services, setServices] = useState<Services[]>([]);
   const [customServices, setCustomServices] = useState<any[]>([]);
   const [isLoadingCustomServices, setIsLoadingCustomServices] = useState(false);
-  const [editSelectedServiceIds, setEditSelectedServiceIds] = useState<
-    string[]
-  >([]);
+  type SelectedService = { serviceId: string; name: string; description: string; price: number; quantity: number };
+  const [editSelectedServices, setEditSelectedServices] = useState<SelectedService[]>([]);
+  const [editServiceSearchQuery, setEditServiceSearchQuery] = useState("");
   const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] = useState(false);
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
   const [projectMode, setProjectMode] = useState<"existing" | "new">(
@@ -96,7 +95,7 @@ export default function EditQuotationForm({
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; email: string; supabase_id: string }>>([]);
-  const [selectedCreatedById, setSelectedCreatedById] = useState<string>("");
+  const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("");
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [activeInvoicesCount, setActiveInvoicesCount] = useState<number | null>(null);
   const [activeReceiptsCount, setActiveReceiptsCount] = useState<number | null>(null);
@@ -267,27 +266,28 @@ export default function EditQuotationForm({
       },
     });
     
-    // Set the selected createdBy user if admin
-    if (quotation.createdBy?.supabase_id) {
-      setSelectedCreatedById(quotation.createdBy.supabase_id);
+    // Set the selected advisedBy user if admin (use User.id cuid)
+    if ((quotation as any).advisedBy?.id) {
+      setSelectedAdvisedById((quotation as any).advisedBy.id);
+    } else if (quotation.createdBy?.id) {
+      setSelectedAdvisedById(quotation.createdBy.id);
     }
     
-    // Use serviceId if available (from list view), otherwise use service.id (from full fetch)
-    setEditSelectedServiceIds(
+    setEditSelectedServices(
       quotation.services
+        .filter((qs) => !qs.customServiceId)
         .map((qs) => {
-          // List view has serviceId but empty service object
-          // Full fetch has full service object with id
-          if (qs.serviceId) {
-            return qs.serviceId.toString();
-          }
-          // Fallback to service.id if service object is available
-          if (qs.service?.id) {
-            return qs.service.id.toString();
-          }
-          return null;
+          const serviceId = qs.serviceId ? qs.serviceId.toString() : (qs.service?.id?.toString() ?? null);
+          if (!serviceId) return null;
+          return {
+            serviceId,
+            name: qs.service?.name ?? "",
+            description: qs.service?.description ?? "",
+            price: qs.price ?? qs.service?.basePrice ?? 0,
+            quantity: qs.quantity ?? 1,
+          };
         })
-        .filter((id): id is string => id !== null)
+        .filter((s): s is SelectedService => s !== null)
     );
 
     // Set project mode based on whether there's an existing project
@@ -329,13 +329,7 @@ export default function EditQuotationForm({
 
   // Calculate edit total price based on selected services
   const calculateEditTotalPrice = () => {
-    const selectedServices = services.filter((service) =>
-      editSelectedServiceIds.includes(service.id.toString())
-    );
-    return selectedServices.reduce(
-      (total, service) => total + service.basePrice,
-      0
-    );
+    return editSelectedServices.reduce((total, s) => total + s.price * s.quantity, 0);
   };
 
   // Calculate edit discounted total price
@@ -371,6 +365,25 @@ export default function EditQuotationForm({
     return customServices
       .filter((cs) => cs.status === "APPROVED")
       .reduce((sum, cs) => sum + cs.price, 0);
+  };
+
+  const handleAddEditService = (serviceId: string) => {
+    const service = services.find((s) => s.id.toString() === serviceId);
+    if (!service) return;
+    if (editSelectedServices.some((s) => s.serviceId === serviceId)) return;
+    setEditSelectedServices((prev) => [...prev, { serviceId, name: service.name, description: service.description, price: service.basePrice, quantity: 1 }]);
+  };
+
+  const handleRemoveEditService = (serviceId: string) => {
+    setEditSelectedServices((prev) => prev.filter((s) => s.serviceId !== serviceId));
+  };
+
+  const handleEditServicePriceChange = (serviceId: string, price: number) => {
+    setEditSelectedServices((prev) => prev.map((s) => s.serviceId === serviceId ? { ...s, price } : s));
+  };
+
+  const handleEditServiceQuantityChange = (serviceId: string, quantity: number) => {
+    setEditSelectedServices((prev) => prev.map((s) => s.serviceId === serviceId ? { ...s, quantity } : s));
   };
 
   const handleCustomServiceCreated = (newCustomService: any) => {
@@ -565,12 +578,12 @@ export default function EditQuotationForm({
         discountType: editForm.discountValue
           ? editForm.discountType
           : undefined,
-        serviceIds: editSelectedServiceIds,
+        services: editSelectedServices.map((s) => ({ serviceId: s.serviceId, price: s.price, quantity: s.quantity })),
         duration: editForm.duration ? parseInt(editForm.duration) : undefined,
         startDate: editForm.startDate || undefined,
         quotationDate: editForm.quotationDate || undefined,
         projectId: projectId,
-        createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined, // Only pass if admin changed it
+        advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined, // Only pass if admin changed it
       });
 
       onSuccess();
@@ -933,26 +946,26 @@ export default function EditQuotationForm({
               </div>
             )}
 
-            {/* Created By (Admin only) */}
+            {/* Advised By (Admin only) */}
             {isAdmin && editingQuotation && (
               <div className="grid gap-2">
-                <Label htmlFor="edit-created-by">Created By</Label>
+                <Label htmlFor="edit-advised-by">Advised By</Label>
                 <Select
-                  value={selectedCreatedById}
-                  onValueChange={setSelectedCreatedById}
+                  value={selectedAdvisedById}
+                  onValueChange={setSelectedAdvisedById}
                 >
-                  <SelectTrigger id="edit-created-by">
-                    <SelectValue placeholder="Select creator" />
+                  <SelectTrigger id="edit-advised-by">
+                    <SelectValue placeholder="Select advisor" />
                   </SelectTrigger>
                   <SelectContent>
                     {allUsers.map((user) => (
-                      <SelectItem key={user.supabase_id} value={user.supabase_id}>
+                      <SelectItem key={user.id} value={user.id}>
                         {user.firstName} {user.lastName} ({user.email})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Only admins can change the creator of a quotation</p>
+                <p className="text-xs text-muted-foreground">Only admins can change the advisor of a quotation</p>
               </div>
             )}
 
@@ -1054,41 +1067,90 @@ export default function EditQuotationForm({
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
               <div>
                 <Label className="text-lg font-semibold">Services <span className="text-red-500">*</span></Label>
-                <p className="text-xs text-muted-foreground mt-1">Select or deselect services for this quotation (at least one service required)</p>
+                <p className="text-xs text-muted-foreground mt-1">Add services with custom price and quantity (at least one required)</p>
               </div>
-              {services.map((service) => (
-                <div
-                  key={service.id}
-                  className="flex items-start space-x-3 p-3 border rounded-lg"
-                >
-                  <Checkbox
-                    checked={editSelectedServiceIds.includes(
-                      service.id.toString()
-                    )}
-                    onCheckedChange={() => {
-                      setEditSelectedServiceIds((prev) =>
-                        prev.includes(service.id.toString())
-                          ? prev.filter((id) => id !== service.id.toString())
-                          : [...prev, service.id.toString()]
-                      );
-                    }}
-                  />
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Search services to add..."
+                  value={editServiceSearchQuery}
+                  onChange={(e) => setEditServiceSearchQuery(e.target.value)}
+                />
+              </div>
+              {editServiceSearchQuery && (
+                <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-background">
+                  {services
+                    .filter(
+                      (service) =>
+                        !editSelectedServices.some((s) => s.serviceId === service.id.toString()) &&
+                        (service.name.toLowerCase().includes(editServiceSearchQuery.toLowerCase()) ||
+                          service.description.toLowerCase().includes(editServiceSearchQuery.toLowerCase()))
+                    )
+                    .map((service) => (
+                      <div
+                        key={service.id}
+                        className="flex items-center justify-between p-2 hover:bg-muted rounded cursor-pointer"
+                        onClick={() => { handleAddEditService(service.id.toString()); setEditServiceSearchQuery(""); }}
+                      >
                         <div>
-                        <p className="font-medium">{service.name}</p>
-                        <FormattedDescription
-                          text={service.description ?? ""}
-                          className="text-sm text-muted-foreground"
+                          <p className="font-medium text-sm">{service.name}</p>
+                          <p className="text-xs text-muted-foreground">RM{formatNumber(service.basePrice)}</p>
+                        </div>
+                        <Button type="button" size="sm" variant="ghost"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                    ))}
+                </div>
+              )}
+              {editSelectedServices.length > 0 && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
+                    <span className="col-span-4">Service</span>
+                    <span className="col-span-3">Price (RM)</span>
+                    <span className="col-span-2">Qty</span>
+                    <span className="col-span-2 text-right">Total</span>
+                    <span className="col-span-1"></span>
+                  </div>
+                  {editSelectedServices.map((s) => (
+                    <div key={s.serviceId} className="grid grid-cols-12 gap-2 items-center p-2 border rounded-lg">
+                      <div className="col-span-4">
+                        <p className="font-medium text-sm">{s.name}</p>
+                      </div>
+                      <div className="col-span-3">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={s.price}
+                          onChange={(e) => handleEditServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="h-8 text-sm"
                         />
                       </div>
-                      <Badge variant="outline">
-                        RM{formatNumber(service.basePrice)}
-                      </Badge>
+                      <div className="col-span-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={s.quantity}
+                          onChange={(e) => handleEditServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="col-span-2 text-right text-sm font-medium">
+                        RM{formatNumber(s.price * s.quantity)}
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveEditService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {editSelectedServices.length === 0 && (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  Search and add services above
+                </div>
+              )}
             </div>
 
             {/* Custom Services Section */}

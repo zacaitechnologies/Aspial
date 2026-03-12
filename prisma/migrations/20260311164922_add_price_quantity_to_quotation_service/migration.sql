@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "quotation_services" ADD COLUMN     "price" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "quantity" INTEGER NOT NULL DEFAULT 1;

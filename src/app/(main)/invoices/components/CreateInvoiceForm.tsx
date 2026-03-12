@@ -67,7 +67,8 @@ export default function CreateInvoiceForm({
 	const [amountWarning, setAmountWarning] = useState<string>("")
 	const [isAdmin, setIsAdmin] = useState(false)
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
-	const [selectedCreatedById, setSelectedCreatedById] = useState<string>("")
+	/** Advised By: User.id (cuid) - only admins can change; defaults to quotation advisor */
+	const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("")
 
 	// Use isAdminProp if provided (from parent) to skip redundant check
 	useEffect(() => {
@@ -107,6 +108,15 @@ export default function CreateInvoiceForm({
 		if (!prefilledQuotationId || !isOpen) return
 		handleQuotationSelect(prefilledQuotationId)
 	}, [prefilledQuotationId, isOpen, prefetchedQuotation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+	// Sync advisedBy whenever the referenced quotation changes (ensures advisor loads even if isAdmin loads late)
+	useEffect(() => {
+		if (selectedQuotation?.advisedBy?.id) {
+			setSelectedAdvisedById(selectedQuotation.advisedBy.id)
+		} else {
+			setSelectedAdvisedById("")
+		}
+	}, [selectedQuotation?.id, selectedQuotation?.advisedBy?.id])
 
 	// When quotation is selected: use balance (quotation total minus all non-cancelled invoices)
 	// for display, pre-fill and validation instead of quotation total.
@@ -186,10 +196,7 @@ export default function CreateInvoiceForm({
 			if (fetchedQuotation) {
 				setSelectedQuotation(fetchedQuotation)
 				setInvoiceForm(prev => ({ ...prev, quotationId }))
-				// If admin, set default createdById to quotation creator
-				if (isAdmin && fetchedQuotation.createdBy?.supabase_id) {
-					setSelectedCreatedById(fetchedQuotation.createdBy.supabase_id)
-				}
+				// advisedBy is synced by useEffect when selectedQuotation changes
 				setSearchQuery("")
 				setSearchResults([])
 			} else {
@@ -243,8 +250,8 @@ export default function CreateInvoiceForm({
 				quotationId: invoiceForm.quotationId,
 				type: invoiceForm.type,
 				amount: parseFloat(invoiceForm.amount),
-				// Only pass createdById if admin selected someone (non-admin will be set to self server-side)
-				createdById: isAdmin && selectedCreatedById ? selectedCreatedById : undefined,
+				// Only admins can pass advisedById; non-admin defaults to self server-side
+				advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
 				// Invoice date: only applied server-side when user is admin
 				invoiceDate: invoiceForm.invoiceDate || undefined,
 			})
@@ -265,7 +272,7 @@ export default function CreateInvoiceForm({
 				invoiceDate: formatLocalDate(new Date()),
 			})
 			setSelectedQuotation(null)
-			setSelectedCreatedById("")
+			setSelectedAdvisedById("")
 			setSearchQuery("")
 			setSearchResults([])
 			setAmountWarning("")
@@ -456,28 +463,28 @@ export default function CreateInvoiceForm({
 						)}
 					</div>
 
-					{/* Created By (Admin Only) */}
+					{/* Advised By (Admin Only) - Created By is always the logged-in user and cannot be changed */}
 					{isAdmin && (
 						<div className="space-y-2">
-							<Label htmlFor="created-by">Created By (Advisor)</Label>
+							<Label htmlFor="advised-by">Advised By</Label>
 							<Select
-								value={selectedCreatedById}
-								onValueChange={setSelectedCreatedById}
+								value={selectedAdvisedById}
+								onValueChange={setSelectedAdvisedById}
 								disabled={!selectedQuotation || isSaving}
 							>
-								<SelectTrigger id="created-by">
+								<SelectTrigger id="advised-by">
 									<SelectValue placeholder="Select advisor" />
 								</SelectTrigger>
 								<SelectContent>
 									{users.map((user) => (
-										<SelectItem key={user.supabase_id} value={user.supabase_id}>
+										<SelectItem key={user.id} value={user.id}>
 											{user.firstName} {user.lastName} ({user.email})
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
 							<p className="text-xs text-muted-foreground">
-								Defaults to quotation creator. You can select a different advisor.
+								Defaults to the quotation&apos;s advisor. You can select a different advisor.
 							</p>
 						</div>
 					)}

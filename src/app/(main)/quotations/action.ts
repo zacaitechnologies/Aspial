@@ -198,6 +198,14 @@ async function _getQuotationsPaginatedInternal(
             updated_at: true,
           },
         },
+        advisedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
         Client: {
           select: {
             id: true,
@@ -277,11 +285,14 @@ async function _getQuotationsPaginatedInternal(
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
+    advisedBy: quotation.advisedBy ?? null,
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
       serviceId: service.serviceId,
       customServiceId: service.customServiceId ?? undefined,
+      price: 0,
+      quantity: 1,
       // Minimal service object for type compatibility (not used in list view)
       // Must match Services type from Prisma schema
       service: {
@@ -427,6 +438,14 @@ export async function getQuotationById(id: string) {
       },
       project: true,
       createdBy: true,
+      advisedBy: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
       Client: true,
       customServices: true,
       invoices: {
@@ -470,11 +489,14 @@ export async function getQuotationById(id: string) {
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
+    advisedBy: quotation.advisedBy ?? null,
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
       serviceId: service.serviceId,
       customServiceId: service.customServiceId ?? undefined,
+      price: service.price,
+      quantity: service.quantity,
       service: service.service,
     })),
     project: quotation.project ? {
@@ -532,6 +554,14 @@ export async function getQuotationFullById(id: string) {
       },
       project: true,
       createdBy: true,
+      advisedBy: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
       Client: true,
       customServices: {
         include: {
@@ -588,11 +618,14 @@ export async function getQuotationFullById(id: string) {
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
+    advisedBy: quotation.advisedBy ?? null,
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
       serviceId: service.serviceId,
       customServiceId: service.customServiceId ?? undefined,
+      price: service.price,
+      quantity: service.quantity,
       service: service.service,
     })),
     project: quotation.project ? {
@@ -680,12 +713,14 @@ export async function createQuotation(data: unknown) {
     throw new Error("User not found in database")
   }
 
-  // Never trust client-provided createdById - use server session
-  // Only allow admin to set different createdById (handled separately if needed)
+  // createdById is ALWAYS the logged-in user's supabase_id (immutable audit trail)
+  // advisedById can be set by admin to point to a different user (User.id / cuid)
   const isAdmin = await getCachedIsUserAdmin(user.id)
-  const finalCreatedById = isAdmin && validatedData.createdById !== user.id
-    ? validatedData.createdById
-    : user.id
+  const finalCreatedById = user.id // Always the logged-in user's supabase_id
+  // Determine advisedById: admin can specify, otherwise default to dbUser.id (cuid)
+  const finalAdvisedById = isAdmin && validatedData.advisedById
+    ? validatedData.advisedById
+    : dbUser.id
 
   // Retry logic for handling unique constraint violations (race conditions)
   // Use SERIALIZABLE isolation to ensure strict serialization of quotation number generation
@@ -765,7 +800,8 @@ export async function createQuotation(data: unknown) {
             name: quotationNumber,
             description: validatedData.description,
             totalPrice: validatedData.totalPrice,
-            createdById: finalCreatedById, // Use supabase_id string directly
+            createdById: finalCreatedById, // Always the logged-in user's supabase_id
+            advisedById: finalAdvisedById, // User.id (cuid) - defaults to current user
             workflowStatus: validatedData.workflowStatus || "draft", // Default to draft, user sets to final when ready
             paymentStatus: validatedData.paymentStatus || "unpaid", // Default to unpaid
             clientId: finalClientId,
@@ -778,8 +814,10 @@ export async function createQuotation(data: unknown) {
             created_at: validatedData.quotationDate ? new Date(validatedData.quotationDate) : new Date(),
 
             services: {
-              create: validatedData.serviceIds.map((serviceId) => ({
-                serviceId: Number.parseInt(serviceId),
+              create: validatedData.services.map((svc) => ({
+                serviceId: Number.parseInt(svc.serviceId),
+                price: svc.price,
+                quantity: svc.quantity,
               })),
             },
           },
@@ -791,6 +829,14 @@ export async function createQuotation(data: unknown) {
               },
             },
             createdBy: true,
+            advisedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
           },
         })
         
@@ -882,25 +928,25 @@ export async function editQuotationById(
     throw new Error("User must be authenticated to edit a quotation")
   }
 
-  // Check if admin is trying to change createdBy
-  let finalCreatedById: string | undefined = undefined
-  if (validatedData.createdById) {
+  // Check if admin is trying to change advisedBy
+  let finalAdvisedById: string | undefined = undefined
+  if (validatedData.advisedById) {
     const isAdmin = await getCachedIsUserAdmin(user.id)
     if (!isAdmin) {
-      throw new Error("Only admins can change the creator of a quotation")
+      throw new Error("Only admins can change the advisor of a quotation")
     }
-    
-    // Verify the user exists
+
+    // Verify the user exists (advisedById references User.id cuid)
     const dbUser = await prisma.user.findUnique({
-      where: { supabase_id: validatedData.createdById },
-      select: { supabase_id: true }
+      where: { id: validatedData.advisedById },
+      select: { id: true }
     })
-    
+
     if (!dbUser) {
-      throw new Error("Selected user not found in database")
+      throw new Error("Selected advisor user not found in database")
     }
-    
-    finalCreatedById = validatedData.createdById
+
+    finalAdvisedById = validatedData.advisedById
   }
 
   // Check authorization: Only admin or quotation creator can edit
@@ -939,53 +985,53 @@ export async function editQuotationById(
   
   // Check if this is a payment-status-only update (non-admin editing finalized quotation)
   // We check by seeing if only paymentStatus is being changed and all other fields match current values
-  const isPaymentStatusOnlyUpdate = isFinalizedQuotation && 
+  const isPaymentStatusOnlyUpdate = isFinalizedQuotation &&
     validatedData.paymentStatus !== undefined &&
     validatedData.paymentStatus !== currentQuotationForAuth.paymentStatus &&
     validatedData.description === currentQuotationForAuth.description &&
     validatedData.totalPrice === currentQuotationForAuth.totalPrice &&
     (validatedData.workflowStatus === undefined || validatedData.workflowStatus === currentQuotationForAuth.workflowStatus) &&
-    !validatedData.serviceIds && // No service changes
+    !validatedData.services && // No service changes
     (validatedData.clientId === undefined || validatedData.clientId === currentQuotationForAuth.clientId) &&
     !validatedData.newClient && // No new client
     (validatedData.projectId === undefined || validatedData.projectId === currentQuotationForAuth.projectId) &&
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.createdById === undefined // No creator change
+    validatedData.advisedById === undefined // No advisor change
 
   // Check if this is a cancellation update (non-admin cancelling finalized quotation without project)
-  const isCancellationUpdate = isFinalizedQuotation && 
+  const isCancellationUpdate = isFinalizedQuotation &&
     !hasProject &&
     validatedData.workflowStatus === "cancelled" &&
     validatedData.description === currentQuotationForAuth.description &&
     validatedData.totalPrice === currentQuotationForAuth.totalPrice &&
     (validatedData.paymentStatus === undefined || validatedData.paymentStatus === currentQuotationForAuth.paymentStatus) &&
-    !validatedData.serviceIds && // No service changes
+    !validatedData.services && // No service changes
     (validatedData.clientId === undefined || validatedData.clientId === currentQuotationForAuth.clientId) &&
     !validatedData.newClient && // No new client
     (validatedData.projectId === undefined || validatedData.projectId === currentQuotationForAuth.projectId) &&
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.createdById === undefined // No creator change
+    validatedData.advisedById === undefined // No advisor change
 
   // Check if this is a combined update (payment status + cancellation)
-  const isCombinedUpdate = isFinalizedQuotation && 
+  const isCombinedUpdate = isFinalizedQuotation &&
     !hasProject &&
     validatedData.workflowStatus === "cancelled" &&
     validatedData.paymentStatus !== undefined &&
     validatedData.paymentStatus !== currentQuotationForAuth.paymentStatus &&
     validatedData.description === currentQuotationForAuth.description &&
     validatedData.totalPrice === currentQuotationForAuth.totalPrice &&
-    !validatedData.serviceIds && // No service changes
+    !validatedData.services && // No service changes
     (validatedData.clientId === undefined || validatedData.clientId === currentQuotationForAuth.clientId) &&
     !validatedData.newClient && // No new client
     (validatedData.projectId === undefined || validatedData.projectId === currentQuotationForAuth.projectId) &&
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.createdById === undefined // No creator change
+    validatedData.advisedById === undefined // No advisor change
 
   // Non-admin users who are not the creator can only set draft quotations to "draft" or "cancelled".
   // Creators may finalize their own draft quotations (change to "final").
@@ -1130,11 +1176,15 @@ export async function editQuotationById(
       updateData.startDate = validatedData.startDate ? new Date(validatedData.startDate) : new Date()
       updateData.endDate = endDate || new Date()
       updateData.created_at = validatedData.quotationDate ? new Date(validatedData.quotationDate) : undefined
-      updateData.createdById = finalCreatedById !== undefined ? finalCreatedById : undefined
-      updateData.services = validatedData.serviceIds
+      if (finalAdvisedById !== undefined) {
+        updateData.advisedById = finalAdvisedById
+      }
+      updateData.services = validatedData.services
         ? {
-            create: validatedData.serviceIds.map((serviceId) => ({
-              serviceId: Number.parseInt(serviceId),
+            create: validatedData.services.map((svc) => ({
+              serviceId: Number.parseInt(svc.serviceId),
+              price: svc.price,
+              quantity: svc.quantity,
             })),
           }
         : undefined
@@ -1886,6 +1936,8 @@ export async function updateCustomServiceStatus(
         data: {
           quotationId: customService.quotationId,
           customServiceId: validated.customServiceId,
+          price: customService.price,
+          quantity: 1,
           // serviceId omitted: custom services are linked via customServiceId only; DB stores NULL
         },
       });

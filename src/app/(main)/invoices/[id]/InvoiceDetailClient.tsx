@@ -614,6 +614,14 @@ export default function InvoiceDetailClient({
 									{invoice.createdBy.firstName} {invoice.createdBy.lastName}
 								</p>
 							</div>
+							{invoice.advisedBy && (
+								<div>
+									<p className="text-sm font-medium text-muted-foreground">Advised By</p>
+									<p className="font-medium">
+										{invoice.advisedBy.firstName} {invoice.advisedBy.lastName}
+									</p>
+								</div>
+							)}
 						</CardContent>
 					</Card>
 				</div>
