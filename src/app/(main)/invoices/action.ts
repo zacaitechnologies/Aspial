@@ -24,15 +24,19 @@ async function _getInvoicesPaginatedInternal(
 	filters: {
 		typeFilter?: string
 		searchQuery?: string
+		advisorFilter?: string
 	} = {}
 ) {
 	const skip = (page - 1) * pageSize
-	const { typeFilter, searchQuery } = filters
+	const { typeFilter, searchQuery, advisorFilter } = filters
 
 	// Build where clause
 	const where: Prisma.InvoiceWhereInput = {}
 	if (typeFilter && typeFilter !== 'all') {
 		where.type = typeFilter as "SO" | "EPO" | "EO"
+	}
+	if (advisorFilter && advisorFilter !== 'all') {
+		where.advisedById = advisorFilter
 	}
 
 	const searchTerm = searchQuery?.trim()
@@ -163,6 +167,7 @@ export async function getInvoicesPaginated(
 	filters: {
 		typeFilter?: string
 		searchQuery?: string
+		advisorFilter?: string
 	} = {},
 	useCache: boolean = false
 ) {
@@ -180,10 +185,30 @@ export async function getInvoicesPaginatedFresh(
 	filters: {
 		typeFilter?: string
 		searchQuery?: string
+		advisorFilter?: string
 	} = {}
 ) {
 	unstable_noStore()
 	return await _getInvoicesPaginatedInternal(page, pageSize, filters)
+}
+
+// Get all unique advisors that appear on invoices (for filter dropdown)
+export async function getInvoiceAdvisors() {
+	unstable_noStore()
+	const rows = await prisma.invoice.findMany({
+		where: { advisedById: { not: null } },
+		select: {
+			advisedBy: {
+				select: { id: true, firstName: true, lastName: true },
+			},
+		},
+		distinct: ["advisedById"],
+	})
+	return rows
+		.flatMap((r) => (r.advisedBy ? [r.advisedBy] : []))
+		.sort((a, b) =>
+			`${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+		)
 }
 
 // Invalidate invoices cache

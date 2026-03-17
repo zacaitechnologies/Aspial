@@ -28,12 +28,14 @@ interface InvoicesClientProps {
 	}
 	userId: string
 	isAdmin: boolean
+	initialAdvisors: { id: string; firstName: string; lastName: string }[]
 }
 
-export default function InvoicesClient({ initialData, userId, isAdmin }: InvoicesClientProps) {
+export default function InvoicesClient({ initialData, userId, isAdmin, initialAdvisors }: InvoicesClientProps) {
 	const [isMounted, setIsMounted] = useState(false)
 	const [isCreateOpen, setIsCreateOpen] = useState(false)
 	const [typeFilter, setTypeFilter] = useState<string>("all")
+	const [advisorFilter, setAdvisorFilter] = useState<string>("all")
 	const [searchInput, setSearchInput] = useState("")
 	const [searchQuery, setSearchQuery] = useState("")
 
@@ -63,6 +65,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 			const result = await getInvoicesPaginatedFresh(page, pageSize, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 				searchQuery: searchQuery || undefined,
+				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -74,7 +77,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		} finally {
 			setLoading(false)
 		}
-	}, [page, pageSize, typeFilter, searchQuery])
+	}, [page, pageSize, typeFilter, searchQuery, advisorFilter])
 
 	const handleSuccess = useCallback(async () => {
 		await invalidateInvoicesCache()
@@ -90,6 +93,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 			const result = await getInvoicesPaginatedFresh(1, pageSize, {
 				typeFilter: value !== "all" ? value : undefined,
 				searchQuery: searchQuery || undefined,
+				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -101,16 +105,17 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		} finally {
 			setLoading(false)
 		}
-	}, [pageSize, searchQuery])
+	}, [pageSize, searchQuery, advisorFilter])
 
-	// Handle page changes - fetch directly
-	const goToPage = useCallback(async (newPage: number) => {
-		setPage(newPage)
+	const handleAdvisorFilterChange = useCallback(async (value: string) => {
+		setAdvisorFilter(value)
+		setPage(1)
 		setLoading(true)
 		try {
-			const result = await getInvoicesPaginatedFresh(newPage, pageSize, {
+			const result = await getInvoicesPaginatedFresh(1, pageSize, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 				searchQuery: searchQuery || undefined,
+				advisorFilter: value !== "all" ? value : undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -124,14 +129,15 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		}
 	}, [pageSize, typeFilter, searchQuery])
 
-	const setPageSize = useCallback(async (size: number) => {
-		setPageSizeState(size)
-		setPage(1)
+	// Handle page changes - fetch directly
+	const goToPage = useCallback(async (newPage: number) => {
+		setPage(newPage)
 		setLoading(true)
 		try {
-			const result = await getInvoicesPaginatedFresh(1, size, {
+			const result = await getInvoicesPaginatedFresh(newPage, pageSize, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 				searchQuery: searchQuery || undefined,
+				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -143,7 +149,29 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		} finally {
 			setLoading(false)
 		}
-	}, [typeFilter, searchQuery])
+	}, [pageSize, typeFilter, searchQuery, advisorFilter])
+
+	const setPageSize = useCallback(async (size: number) => {
+		setPageSizeState(size)
+		setPage(1)
+		setLoading(true)
+		try {
+			const result = await getInvoicesPaginatedFresh(1, size, {
+				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				searchQuery: searchQuery || undefined,
+				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+			})
+			setInvoices(result.data as InvoiceWithQuotation[])
+			setTotal(result.total)
+			setTotalPages(result.totalPages)
+		} catch (error) {
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error fetching invoices:", error)
+			}
+		} finally {
+			setLoading(false)
+		}
+	}, [typeFilter, searchQuery, advisorFilter])
 
 	// When search query changes, reset to page 1 and refetch (skip initial mount to avoid overwriting server data)
 	const prevSearchQueryRef = useRef<string | undefined>(undefined)
@@ -160,6 +188,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 		getInvoicesPaginatedFresh(1, pageSize, {
 			typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 			searchQuery: searchQuery || undefined,
+			advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 		})
 			.then((result) => {
 				setInvoices(result.data as InvoiceWithQuotation[])
@@ -209,15 +238,33 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 							))}
 						</SelectContent>
 					</Select>
-					{typeFilter !== "all" && (
+					{initialAdvisors.length > 0 && (
+						<Select value={advisorFilter} onValueChange={handleAdvisorFilterChange}>
+							<SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+								<SelectValue placeholder="All Advisors" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Advisors</SelectItem>
+								{initialAdvisors.map((advisor) => (
+									<SelectItem key={advisor.id} value={advisor.id}>
+										{advisor.firstName} {advisor.lastName}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
+					{(typeFilter !== "all" || advisorFilter !== "all") && (
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={() => handleTypeFilterChange("all")}
+							onClick={() => {
+								if (typeFilter !== "all") handleTypeFilterChange("all")
+								if (advisorFilter !== "all") handleAdvisorFilterChange("all")
+							}}
 							className="bg-white border-2"
 							style={{ borderColor: "#BDC4A5" }}
 						>
-							Clear Filter
+							Clear Filters
 						</Button>
 					)}
 					<div className="relative flex-1 min-w-[200px] max-w-sm ml-auto">
@@ -271,14 +318,14 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 					)}
 				</div>
 
-				{!loading && invoices.length === 0 && total === 0 && typeFilter === "all" && !searchQuery && (
+				{!loading && invoices.length === 0 && total === 0 && typeFilter === "all" && advisorFilter === "all" && !searchQuery && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-muted-foreground">No invoices available.</p>
 					</div>
 				)}
 
-				{!loading && invoices.length === 0 && (typeFilter !== "all" || searchQuery) && (
+				{!loading && invoices.length === 0 && (typeFilter !== "all" || advisorFilter !== "all" || searchQuery) && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-muted-foreground">
@@ -290,10 +337,11 @@ export default function InvoicesClient({ initialData, userId, isAdmin }: Invoice
 							style={{ borderColor: "#BDC4A5" }}
 							onClick={() => {
 								if (typeFilter !== "all") handleTypeFilterChange("all")
+								if (advisorFilter !== "all") handleAdvisorFilterChange("all")
 								if (searchQuery) { setSearchInput(""); setSearchQuery("") }
 							}}
 						>
-							Clear {typeFilter !== "all" && searchQuery ? "Filters" : typeFilter !== "all" ? "Filter" : "Search"}
+							Clear Filters
 						</Button>
 					</div>
 				)}

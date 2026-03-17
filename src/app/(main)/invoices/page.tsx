@@ -1,5 +1,5 @@
 import { getCachedUser } from "@/lib/auth-cache";
-import { getInvoicesPaginated } from "./action";
+import { getInvoicesPaginated, getInvoiceAdvisors } from "./action";
 import InvoicesClient from "./components/InvoicesClient";
 import { checkIsOperationUser, checkHasFullAccess } from "../actions/admin-actions";
 import AccessDenied from "../components/AccessDenied";
@@ -26,9 +26,12 @@ export default async function InvoicesPage() {
 		return <AccessDenied />;
 	}
 
-	// Fetch initial data on server with caching enabled for better performance
-	const initialData = await getInvoicesPaginated(1, 10, {}, true);
+	// Fetch initial data and advisors in parallel
+	const [initialData, advisors] = await Promise.all([
+		getInvoicesPaginated(1, 10, {}, true),
+		getInvoiceAdvisors(),
+	]);
 
-	return <InvoicesClient initialData={initialData as any} userId={user.id} isAdmin={isAdmin} />;
+	return <InvoicesClient initialData={initialData as any} userId={user.id} isAdmin={isAdmin} initialAdvisors={advisors} />;
 }
 
