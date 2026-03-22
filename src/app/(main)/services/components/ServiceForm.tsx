@@ -266,7 +266,7 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
               <div className="space-y-2">
                 <Label htmlFor="basePrice" className="text-sm font-medium flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-gray-500" />
-                  Base Price *
+                  Base Price (RM)
                 </Label>
                 <Input
                   id="basePrice"
@@ -276,9 +276,9 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
                   value={formData.basePrice}
                   onChange={(e) => setFormData({ ...formData, basePrice: parseFloat(e.target.value) || 0 })}
                   placeholder="0.00"
-                  required
                   className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
+                <p className="text-xs text-muted-foreground">0 is allowed (e.g. complimentary or bundled services).</p>
               </div>
             </div>
 
@@ -493,7 +493,13 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
               type="submit" 
               className="text-white px-6"
               style={{ backgroundColor: "#202F21" }}
-              disabled={!formData.name.trim() || formData.basePrice <= 0 || isSubmitting || isUploadingImage}
+              disabled={
+                !formData.name.trim() ||
+                !Number.isFinite(formData.basePrice) ||
+                formData.basePrice < 0 ||
+                isSubmitting ||
+                isUploadingImage
+              }
             >
               {(isSubmitting || isUploadingImage) ? (
                 <>

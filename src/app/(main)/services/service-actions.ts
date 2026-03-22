@@ -4,8 +4,11 @@ import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { createClient } from "@/utils/supabase/server"
 import { revalidateTag } from "next/cache"
+import { z } from "zod"
 import { checkIsAdmin } from "../actions/admin-actions"
 import { CreateServiceData, UpdateServiceData, CreateServiceTagData, UpdateServiceTagData, Service, ServiceTag } from "./types"
+
+const serviceBasePriceSchema = z.number().finite().min(0, "Base price must be 0 or greater")
 
 const SERVICE_IMAGES_BUCKET = "service"
 
@@ -304,6 +307,11 @@ export async function createService(data: CreateServiceData): Promise<Service> {
     throw new Error("Unauthorized: Admin access required")
   }
 
+  const priceParse = serviceBasePriceSchema.safeParse(data.basePrice)
+  if (!priceParse.success) {
+    throw new Error(priceParse.error.errors[0]?.message ?? "Invalid base price")
+  }
+
   const { tagIds, imageUrl, ...serviceData } = data
   
   const service = await prisma.services.create({
@@ -364,6 +372,13 @@ export async function updateService(id: number, data: UpdateServiceData): Promis
   const isAdmin = await checkIsAdmin(user.id)
   if (!isAdmin) {
     throw new Error("Unauthorized: Admin access required")
+  }
+
+  if (data.basePrice !== undefined) {
+    const priceParse = serviceBasePriceSchema.safeParse(data.basePrice)
+    if (!priceParse.success) {
+      throw new Error(priceParse.error.errors[0]?.message ?? "Invalid base price")
+    }
   }
 
   const { tagIds, imageUrl, ...serviceData } = data
