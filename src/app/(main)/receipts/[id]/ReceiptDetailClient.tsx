@@ -45,6 +45,7 @@ import { Label } from "@/components/ui/label"
 import { formatLocalDate } from "@/lib/date-utils"
 import { formatNumber } from "@/lib/format-number"
 import { FormattedDescription } from "@/components/FormattedDescription"
+import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../types"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
 
 interface ReceiptDetailClientProps {
@@ -412,8 +413,15 @@ export default function ReceiptDetailClient({
 								</span>
 							</div>
 
-							<Separator />
 
+							<div className="flex justify-between">
+								<span className="text-muted-foreground">Payment Method:</span>
+								<span className="font-semibold">
+									{PAYMENT_METHOD_LABELS[(receipt as any).paymentMethod as PaymentMethodType] || (receipt as any).paymentMethod || "N/A"}
+								</span>
+							</div>
+
+							<Separator />
 							<div className="flex justify-between">
 								<span className="text-muted-foreground">Amount Received (up to this receipt):</span>
 								<span className="font-semibold">

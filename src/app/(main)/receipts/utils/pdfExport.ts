@@ -1,7 +1,8 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { formatNumber } from "@/lib/format-number"
-import type { ReceiptWithInvoice } from "../types"
+import type { ReceiptWithInvoice, PaymentMethodType } from "../types"
+import { PAYMENT_METHOD_LABELS } from "../types"
 import { getReceiptFullById, getReceiptsForInvoice, getQuotationInvoicesTotalAsOf, getPreviousInvoiceAmount } from "../action"
 
 /** Quotation shape returned by getReceiptFullById (includes services). Used only for PDF generation. */
@@ -283,7 +284,7 @@ function renderDescriptionLines(
 }
 
 // Info box dimensions
-const INFO_BOX_HEIGHT = 36
+const INFO_BOX_HEIGHT = 41
 const INFO_BOX_START_Y = CONTENT_START_Y
 const CONTENT_AFTER_INFO_BOX_Y = CONTENT_START_Y + INFO_BOX_HEIGHT + 8
 
@@ -338,7 +339,7 @@ function addReceiptHeader(
 // Client info type for Bill To section (includes Company Reg No and IC for PDF output)
 type ClientInfoPdf = { name: string; company: string; phone: string; email: string; companyRegistrationNumber?: string; ic?: string }
 
-// Add receipt info box to every page (RECEIPT label, Bill To, RECEIPT NO, DATE, ADVISOR, PAGE NO)
+// Add receipt info box to every page (RECEIPT label, Bill To, RECEIPT NO, DATE, ADVISOR, PAYMENT METHOD, PAGE NO)
 function addReceiptInfoBox(
 	doc: jsPDF,
 	pageNumber: number,
@@ -346,7 +347,8 @@ function addReceiptInfoBox(
 	receiptNumber: string,
 	receiptDate: string,
 	advisorName: string,
-	clientInfo: ClientInfoPdf
+	clientInfo: ClientInfoPdf,
+	paymentMethodLabel?: string
 ) {
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const margin = 20
@@ -410,7 +412,12 @@ function addReceiptInfoBox(
 	
 	doc.text(`ADVISOR : ${advisorName}`, rightCol - 3, rightY, { align: "right" })
 	rightY += 5
-	
+
+	if (paymentMethodLabel) {
+		doc.text(`PAYMENT METHOD : ${paymentMethodLabel}`, rightCol - 3, rightY, { align: "right" })
+		rightY += 5
+	}
+
 	// Page number
 	doc.text(`PAGE NO : ${pageNumber} of ${totalPages}`, rightCol - 3, rightY, { align: "right" })
 	
@@ -510,10 +517,11 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	}
 
 	const receiptDate = formatDate(new Date(receipt.created_at))
-	
+	const paymentMethodLabel = PAYMENT_METHOD_LABELS[(receipt as any).paymentMethod as PaymentMethodType] || (receipt as any).paymentMethod || undefined
+
 	// Add header and info box to first page
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	
 	// Start content after the info box
 	let currentY = CONTENT_AFTER_INFO_BOX_Y
@@ -730,7 +738,7 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 		didDrawPage: (data: { pageNumber: number }) => {
 			const totalPages = doc.getNumberOfPages()
 			addReceiptHeader(doc, logoBase64)
-			addReceiptInfoBox(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+			addReceiptInfoBox(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 		},
 	})
 	
@@ -747,7 +755,7 @@ const addNewPage = () => {
 	doc.addPage()
 	totalPages = doc.getNumberOfPages()
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, totalPages, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, totalPages, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	return CONTENT_AFTER_INFO_BOX_Y
 }
 
@@ -821,7 +829,7 @@ autoTable(doc, {
 	},
 	didDrawPage: (data: { pageNumber: number }) => {
 		addReceiptHeader(doc, logoBase64)
-		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	},
 })
 
@@ -830,7 +838,7 @@ const finalTotalPages = doc.getNumberOfPages()
 for (let i = 1; i <= finalTotalPages; i++) {
 	doc.setPage(i)
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 }
 	
 	const fileName = `receipt-${receipt.receiptNumber}-${
@@ -943,10 +951,11 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	}
 
 	const receiptDate = formatDate(new Date(fullReceipt.created_at))
-	
+	const paymentMethodLabel = PAYMENT_METHOD_LABELS[(fullReceipt as any).paymentMethod as PaymentMethodType] || (fullReceipt as any).paymentMethod || undefined
+
 	// Add header and info box to first page
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, 1, 1, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, 1, 1, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	
 	// Start content after the info box
 	let currentY = CONTENT_AFTER_INFO_BOX_Y
@@ -1135,7 +1144,7 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 			},
 		didDrawPage: (data: { pageNumber: number }) => {
 			addReceiptHeader(doc, logoBase64)
-			addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+			addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 		},
 	})
 	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
@@ -1151,7 +1160,7 @@ const addNewPage = () => {
 	doc.addPage()
 	totalPages = doc.getNumberOfPages()
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, totalPages, totalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, totalPages, totalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	return CONTENT_AFTER_INFO_BOX_Y
 }
 
@@ -1206,7 +1215,7 @@ autoTable(doc, {
 	styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
 	didDrawPage: (data: { pageNumber: number }) => {
 		addReceiptHeader(doc, logoBase64)
-		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	},
 })
 
@@ -1215,7 +1224,7 @@ const finalTotalPages = doc.getNumberOfPages()
 for (let i = 1; i <= finalTotalPages; i++) {
 	doc.setPage(i)
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, i, finalTotalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, i, finalTotalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 }
 	
 	return doc.output('datauristring').split(',')[1]

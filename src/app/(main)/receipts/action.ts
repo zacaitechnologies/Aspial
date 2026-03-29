@@ -41,6 +41,7 @@ async function _getReceiptsPaginatedInternal(
 				amount: true,
 				invoiceId: true,
 				status: true,
+				paymentMethod: true,
 				created_at: true,
 				updated_at: true,
 				invoice: {
@@ -100,6 +101,7 @@ async function _getReceiptsPaginatedInternal(
 		amount: receipt.amount,
 		invoiceId: receipt.invoiceId,
 		status: receipt.status,
+		paymentMethod: receipt.paymentMethod,
 		created_at: receipt.created_at,
 		updated_at: receipt.updated_at,
 		invoice: receipt.invoice ? {
@@ -452,6 +454,8 @@ export async function createReceipt(data: {
 	advisedById?: string
 	/** Receipt date (created_at). Only applied when user is admin. */
 	receiptDate?: string
+	/** Payment method used for this receipt */
+	paymentMethod?: "cash" | "bank_transfer" | "mydebit" | "visa" | "mastercard" | "qr"
 }) {
 	// Validate amount
 	if (data.amount <= 0) {
@@ -551,6 +555,7 @@ export async function createReceipt(data: {
 						receiptNumber,
 						invoiceId: data.invoiceId,
 						amount: data.amount,
+						paymentMethod: data.paymentMethod || "bank_transfer",
 						createdById: finalCreatedById,
 						advisedById: finalAdvisedById,
 						status: "active",
@@ -563,6 +568,7 @@ export async function createReceipt(data: {
 						receiptNumber: true,
 						amount: true,
 						status: true,
+						paymentMethod: true,
 						created_at: true,
 						invoiceId: true,
 						createdById: true,
@@ -756,6 +762,8 @@ export async function updateReceiptAdmin(
 		status?: "active" | "cancelled"
 		/** Receipt date (created_at). Admin only. */
 		receiptDate?: string
+		/** Payment method */
+		paymentMethod?: "cash" | "bank_transfer" | "mydebit" | "visa" | "mastercard" | "qr"
 	}
 ) {
 	// Get current user
@@ -849,6 +857,10 @@ export async function updateReceiptAdmin(
 			throw new Error("Only administrators can change the receipt date")
 		}
 		updateData.created_at = new Date(data.receiptDate)
+	}
+
+	if (data.paymentMethod !== undefined) {
+		updateData.paymentMethod = data.paymentMethod
 	}
 
 	if (Object.keys(updateData).length === 0) {

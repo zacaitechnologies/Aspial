@@ -23,7 +23,7 @@ import {
 	Calendar,
 } from "lucide-react"
 import { formatNumber } from "@/lib/format-number"
-import { ReceiptWithInvoice } from "../types"
+import { ReceiptWithInvoice, PAYMENT_METHOD_LABELS, PaymentMethodType } from "../types"
 import { generateReceiptPDF } from "../utils/pdfExport"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
 import {
@@ -121,6 +121,12 @@ export default function ReceiptCard({
 								<>
 									<span className="text-gray-400">•</span>
 									<span>Created by {receipt.createdBy.firstName} {receipt.createdBy.lastName}</span>
+								</>
+							)}
+							{receipt.paymentMethod && (
+								<>
+									<span className="text-gray-400">•</span>
+									<span>{PAYMENT_METHOD_LABELS[receipt.paymentMethod as PaymentMethodType] || receipt.paymentMethod}</span>
 								</>
 							)}
 							{receipt.advisedBy && (

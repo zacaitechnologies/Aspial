@@ -223,6 +223,7 @@ model Receipt {
   status        ReceiptStatus  @default(active)
   created_at    DateTime       @default(now())
   updated_at    DateTime       @default(now())
+  paymentMethod PaymentMethod  @default(bank_transfer)
   advisedById   String?
   advisedBy     User?          @relation("ReceiptAdvisor", fields: [advisedById], references: [id])
   invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
@@ -261,6 +262,15 @@ enum InvoiceStatus {
 enum ReceiptStatus {
   active
   cancelled
+}
+
+enum PaymentMethod {
+  cash
+  bank_transfer
+  mydebit
+  visa
+  mastercard
+  qr
 }
 
 enum PaymentStatus {

@@ -1,9 +1,21 @@
+export type PaymentMethodType = "cash" | "bank_transfer" | "mydebit" | "visa" | "mastercard" | "qr"
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethodType, string> = {
+	cash: "Cash",
+	bank_transfer: "Bank Transfer",
+	mydebit: "MyDebit",
+	visa: "VISA",
+	mastercard: "MasterCard",
+	qr: "QR",
+}
+
 export interface ReceiptWithInvoice {
 	id: string
 	receiptNumber: string
 	amount: number
 	invoiceId: string
 	status: "active" | "cancelled"
+	paymentMethod: PaymentMethodType
 	created_at: Date
 	updated_at: Date
 	invoice: {
