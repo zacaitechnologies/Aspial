@@ -318,9 +318,9 @@ export default function ClientDetailClient({
 												</Badge>
 											</div>
 											<div className="flex items-center justify-between">
-												<span className="text-sm font-medium text-muted-foreground">Created:</span>
+												<span className="text-sm font-medium text-muted-foreground">Quotation date:</span>
 												<span className="text-sm text-muted-foreground">
-													{formatDate(quotation.created_at)}
+													{formatDate(quotation.quotationDate ?? quotation.created_at)}
 												</span>
 											</div>
 											<Link href={`/quotations/${quotation.id}`}>
@@ -339,7 +339,7 @@ export default function ClientDetailClient({
 					<TabsContent value="invoices">
 						{/* Invoices Content */}
 						{(() => {
-							type InvoiceWithReceipts = { id: string; invoiceNumber: string; amount: number; type: string; status: string; created_at: Date; receipts?: { amount: number }[] }
+							type InvoiceWithReceipts = { id: string; invoiceNumber: string; amount: number; type: string; status: string; created_at: Date; invoiceDate?: Date; receipts?: { amount: number }[] }
 							type QuotationWithInvoices = { id: number; name: string; workflowStatus?: string; invoices?: InvoiceWithReceipts[] }
 							const invoiceWithQuotation = client.quotations.flatMap((q) => {
 								const quotation = q as QuotationWithInvoices
@@ -397,9 +397,9 @@ export default function ClientDetailClient({
 													</Badge>
 												</div>
 												<div className="flex items-center justify-between">
-													<span className="text-sm font-medium text-muted-foreground">Created:</span>
+													<span className="text-sm font-medium text-muted-foreground">Invoice date:</span>
 													<span className="text-sm text-muted-foreground">
-														{formatDate(invoice.created_at)}
+														{formatDate(invoice.invoiceDate ?? invoice.created_at)}
 													</span>
 												</div>
 												<div className="flex gap-2 mt-2">
@@ -426,7 +426,7 @@ export default function ClientDetailClient({
 					<TabsContent value="receipts">
 						{/* Receipts Content */}
 						{(() => {
-							type ReceiptItem = { id: string; receiptNumber: string; amount: number; created_at: Date; status: string }
+							type ReceiptItem = { id: string; receiptNumber: string; amount: number; created_at: Date; receiptDate?: Date; status: string }
 							type InvoiceWithReceiptsList = { id: string; invoiceNumber: string; receipts?: ReceiptItem[] }
 							type QuotationWithInvoicesReceipts = { id: number; name: string; workflowStatus?: string; invoices?: InvoiceWithReceiptsList[] }
 							const receiptWithContext = client.quotations.flatMap((q) => {
@@ -475,9 +475,9 @@ export default function ClientDetailClient({
 													</Badge>
 												</div>
 												<div className="flex items-center justify-between">
-													<span className="text-sm font-medium text-muted-foreground">Created:</span>
+													<span className="text-sm font-medium text-muted-foreground">Receipt date:</span>
 													<span className="text-sm text-muted-foreground">
-														{formatDate(receipt.created_at)}
+														{formatDate(receipt.receiptDate ?? receipt.created_at)}
 													</span>
 												</div>
 												<div className="flex gap-2 mt-2">

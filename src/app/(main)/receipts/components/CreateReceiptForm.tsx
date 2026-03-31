@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Search, Loader2, AlertTriangle, CheckCircle } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { createReceipt, searchInvoicesForReceipt, getInvoiceReceiptSummary } from "../action"
-import { ReceiptFormData } from "../types"
+import { ReceiptFormData, PaymentMethodType, PAYMENT_METHOD_LABELS } from "../types"
 import { useSession } from "../../contexts/SessionProvider"
 import { toast } from "@/components/ui/use-toast"
 import { Card, CardContent } from "@/components/ui/card"
@@ -69,6 +69,7 @@ export default function CreateReceiptForm({
 	const [isAdmin, setIsAdmin] = useState(false)
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
 	const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("")
+	const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType>("bank_transfer")
 
 	// Use isAdminProp if provided (from parent) to skip redundant check
 	useEffect(() => {
@@ -286,6 +287,7 @@ export default function CreateReceiptForm({
 				advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
 				// Receipt date: only applied server-side when user is admin
 				receiptDate: receiptForm.receiptDate || undefined,
+				paymentMethod: selectedPaymentMethod,
 			})
 
 			toast({
@@ -301,6 +303,7 @@ export default function CreateReceiptForm({
 			})
 			setSelectedInvoice(null)
 			setSelectedAdvisedById("")
+			setSelectedPaymentMethod("bank_transfer")
 			setSearchQuery("")
 			setSearchResults([])
 			setAmountWarning("")
@@ -466,6 +469,27 @@ export default function CreateReceiptForm({
 						)}
 					</div>
 
+					{/* Payment Method */}
+					<div className="space-y-2">
+						<Label htmlFor="payment-method">Payment Method <span className="text-red-500">*</span></Label>
+						<Select
+							value={selectedPaymentMethod}
+							onValueChange={(value) => setSelectedPaymentMethod(value as PaymentMethodType)}
+							disabled={!selectedInvoice || isSaving}
+						>
+							<SelectTrigger id="payment-method">
+								<SelectValue placeholder="Select payment method" />
+							</SelectTrigger>
+							<SelectContent>
+								{(Object.keys(PAYMENT_METHOD_LABELS) as PaymentMethodType[]).map((method) => (
+									<SelectItem key={method} value={method}>
+										{PAYMENT_METHOD_LABELS[method]}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
 					{/* Receipt Date - editable only by admin */}
 					<div className="space-y-2">
 						<Label htmlFor="receipt-date">Receipt Date</Label>
@@ -521,6 +545,7 @@ export default function CreateReceiptForm({
 							})
 							setSelectedInvoice(null)
 							setSelectedAdvisedById("")
+							setSelectedPaymentMethod("bank_transfer")
 							setSearchQuery("")
 							setSearchResults([])
 							setAmountWarning("")

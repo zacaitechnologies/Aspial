@@ -1,7 +1,8 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { formatNumber } from "@/lib/format-number"
-import type { ReceiptWithInvoice } from "../types"
+import type { ReceiptWithInvoice, PaymentMethodType } from "../types"
+import { PAYMENT_METHOD_LABELS } from "../types"
 import { getReceiptFullById, getReceiptsForInvoice, getQuotationInvoicesTotalAsOf, getPreviousInvoiceAmount } from "../action"
 
 /** Quotation shape returned by getReceiptFullById (includes services). Used only for PDF generation. */
@@ -203,27 +204,40 @@ const DESC_BLANK_LINE_GAP = 3
  */
 function sanitizePdfText(text: string): string {
 	return text
-		.replace(/\u2981/g, "\u00B7") // ⦁ Z NOTATION SPOT
-		.replace(/\u2022/g, "\u00B7") // • BULLET
-		.replace(/\u2023/g, ">")      // ‣ TRIANGULAR BULLET
-		.replace(/\u25CF/g, "\u00B7") // ● BLACK CIRCLE
-		.replace(/\u25E6/g, "o")      // ◦ WHITE BULLET
-		.replace(/\u2219/g, "\u00B7") // ∙ BULLET OPERATOR
-		.replace(/\u2718/g, "x")      // ✘ HEAVY BALLOT X
-		.replace(/\u2717/g, "x")      // ✗ BALLOT X
-		.replace(/\u2716/g, "x")      // ✖ HEAVY MULTIPLICATION X
-		.replace(/\u2714/g, "\u221A") // ✔ HEAVY CHECK MARK
-		.replace(/\u2713/g, "\u221A") // ✓ CHECK MARK
-		.replace(/\u2705/g, "[OK]")   // ✅ emoji
-		.replace(/\u274C/g, "[X]")    // ❌ emoji
+		// Zero-width / invisible characters -> remove entirely
+		.replace(/[\u200B\u200C\u200D\uFEFF]/g, "")   // ZWSP, ZWNJ, ZWJ, BOM
+		.replace(/[\u2060\u2061\u2062\u2063]/g, "")     // Word Joiner, invisible operators
+		.replace(/[\u00AD]/g, "")                        // Soft Hyphen
+		// Unicode spaces -> normal ASCII space
+		.replace(/[\u2000-\u200A]/g, " ")  // EN QUAD through HAIR SPACE
+		.replace(/\u202F/g, " ")           // NARROW NO-BREAK SPACE
+		.replace(/\u205F/g, " ")           // MEDIUM MATHEMATICAL SPACE
+		.replace(/\u3000/g, " ")           // IDEOGRAPHIC SPACE
+		.replace(/\u00A0/g, " ")           // NO-BREAK SPACE
+		// Bullet-like characters -> ASCII bullet (U+00B7, within Latin-1)
+		.replace(/[\u2022\u2023\u2043\u2981\u25CF\u25E6\u2219\u2981]/g, "\u00B7")
+		// Cross / check marks -> ASCII equivalents
+		.replace(/[\u2716\u2717\u2718]/g, "x")
+		.replace(/[\u2713\u2714]/g, "v")
+		.replace(/\u2705/g, "[OK]")
+		.replace(/\u274C/g, "[X]")
+		// Arrows
+		.replace(/[\u2190]/g, "<-")  // ←
+		.replace(/[\u2192]/g, "->")  // →
+		.replace(/[\u2194]/g, "<->") // ↔
+		// Common typographic marks
 		.replace(/\u2014/g, "--")     // — EM DASH
 		.replace(/\u2013/g, "-")      // – EN DASH
-		.replace(/\u2019/g, "'")      // ' RIGHT SINGLE QUOTATION MARK
-		.replace(/\u2018/g, "'")      // ' LEFT SINGLE QUOTATION MARK
-		.replace(/\u201C/g, '"')      // " LEFT DOUBLE QUOTATION MARK
-		.replace(/\u201D/g, '"')      // " RIGHT DOUBLE QUOTATION MARK
+		.replace(/[\u2018\u2019\u201A]/g, "'")  // Curly single quotes
+		.replace(/[\u201C\u201D\u201E]/g, '"')  // Curly double quotes
 		.replace(/\u2026/g, "...")    // … HORIZONTAL ELLIPSIS
-		.replace(/[^\x00-\xFF]/g, "?")
+		.replace(/\u2011/g, "-")      // NON-BREAKING HYPHEN
+		// Misc symbols
+		.replace(/\u00AE/g, "(R)")    // ® REGISTERED SIGN
+		.replace(/\u2122/g, "(TM)")   // ™ TRADE MARK
+		.replace(/\u00A9/g, "(C)")    // © COPYRIGHT
+		// Strip any remaining non-Latin-1 characters (silently remove instead of inserting ?)
+		.replace(/[^\x00-\xFF]/g, "")
 }
 
 /** Split service description into individual lines preserving dashes, numbering, and blank lines. */
@@ -267,14 +281,14 @@ function renderDescriptionLines(
 ): number {
 	let y = startY
 	for (const line of lines) {
-		if (y >= maxY) break
+		if (y > maxY) break
 		if (line.length === 0) {
 			y += DESC_BLANK_LINE_GAP
 			continue
 		}
 		const wrapped = doc.splitTextToSize(line, cellWidth)
 		for (const wl of wrapped) {
-			if (y >= maxY) break
+			if (y > maxY) break
 			doc.text(wl, x, y)
 			y += DESC_LINE_HEIGHT
 		}
@@ -283,7 +297,7 @@ function renderDescriptionLines(
 }
 
 // Info box dimensions
-const INFO_BOX_HEIGHT = 36
+const INFO_BOX_HEIGHT = 41
 const INFO_BOX_START_Y = CONTENT_START_Y
 const CONTENT_AFTER_INFO_BOX_Y = CONTENT_START_Y + INFO_BOX_HEIGHT + 8
 
@@ -338,7 +352,7 @@ function addReceiptHeader(
 // Client info type for Bill To section (includes Company Reg No and IC for PDF output)
 type ClientInfoPdf = { name: string; company: string; phone: string; email: string; companyRegistrationNumber?: string; ic?: string }
 
-// Add receipt info box to every page (RECEIPT label, Bill To, RECEIPT NO, DATE, ADVISOR, PAGE NO)
+// Add receipt info box to every page (RECEIPT label, Bill To, RECEIPT NO, DATE, ADVISOR, PAYMENT METHOD, PAGE NO)
 function addReceiptInfoBox(
 	doc: jsPDF,
 	pageNumber: number,
@@ -346,7 +360,8 @@ function addReceiptInfoBox(
 	receiptNumber: string,
 	receiptDate: string,
 	advisorName: string,
-	clientInfo: ClientInfoPdf
+	clientInfo: ClientInfoPdf,
+	paymentMethodLabel?: string
 ) {
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const margin = 20
@@ -410,7 +425,12 @@ function addReceiptInfoBox(
 	
 	doc.text(`ADVISOR : ${advisorName}`, rightCol - 3, rightY, { align: "right" })
 	rightY += 5
-	
+
+	if (paymentMethodLabel) {
+		doc.text(`PAYMENT METHOD : ${paymentMethodLabel}`, rightCol - 3, rightY, { align: "right" })
+		rightY += 5
+	}
+
 	// Page number
 	doc.text(`PAGE NO : ${pageNumber} of ${totalPages}`, rightCol - 3, rightY, { align: "right" })
 	
@@ -477,18 +497,21 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	const receiptAmount = receipt.amount
 	const invoiceAmount = invoice.amount
 	
-	// Get receipts to calculate invoice balance (only up to this receipt date, non-cancelled)
-	const receiptCreatedAt = new Date(receipt.created_at)
-	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
+	// Get receipts to calculate invoice balance (only up to this receipt document date, non-cancelled)
+	const receiptDocumentDate = new Date(receipt.receiptDate)
+	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptDocumentDate)
 	const totalReceived = allReceipts.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0)
 	const invoiceBalance = Math.max(0, invoiceAmount - totalReceived)
 	
-	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice's creation time
+	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice document date
 	const quotationId = (quotationRaw as { id: number }).id
-	const invoiceCreatedAt = invoice.created_at ? new Date(invoice.created_at) : receiptCreatedAt
+	const invoiceForDoc = invoice as { invoiceDate?: Date | null; created_at?: Date | null }
+	const invoiceDocumentDate = invoiceForDoc.invoiceDate
+		? new Date(invoiceForDoc.invoiceDate)
+		: receiptDocumentDate
 	const [totalInvoicedAsOf, previousInvoiceAmount] = await Promise.all([
-		getQuotationInvoicesTotalAsOf(quotationId, invoiceCreatedAt),
-		getPreviousInvoiceAmount(quotationId, invoiceCreatedAt),
+		getQuotationInvoicesTotalAsOf(quotationId, invoiceDocumentDate),
+		getPreviousInvoiceAmount(quotationId, invoiceDocumentDate),
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
@@ -509,11 +532,12 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 		ic: quotation.Client?.ic ?? undefined,
 	}
 
-	const receiptDate = formatDate(new Date(receipt.created_at))
-	
+	const receiptDate = formatDate(new Date(receipt.receiptDate))
+	const paymentMethodLabel = PAYMENT_METHOD_LABELS[(receipt as any).paymentMethod as PaymentMethodType] || (receipt as any).paymentMethod || undefined
+
 	// Add header and info box to first page
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, 1, 1, receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	
 	// Start content after the info box
 	let currentY = CONTENT_AFTER_INFO_BOX_Y
@@ -651,15 +675,12 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 					const cellWidth = data.cell.width - 6 // 3 left + 3 right padding
 					const x = data.cell.x + 3
 					const topPad = 5
-					const botPad = 3
+					const botPad = 2
 					let renderY = data.cell.y + topPad
 					const maxRenderY = data.cell.y + data.cell.height - botPad
 
-				// Content offset: mm of content already rendered on previous page fragments
 				const contentOffset = rowPageOffsets.get(serviceIndex) || 0
 				let virtualY = 0
-				// Tracks the actual bottom of the last rendered item so the next page fragment
-				// starts exactly where this one ended (prevents duplicates and spacing drift).
 				let lastRenderedBottom = contentOffset
 
 				// --- Name (bold) ---
@@ -669,7 +690,7 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 				const nameLines = doc.splitTextToSize(service.name, cellWidth)
 				for (const nameLine of nameLines) {
 					const lineBottom = virtualY + DESC_LINE_HEIGHT
-					if (virtualY >= contentOffset && renderY < maxRenderY) {
+					if (virtualY >= contentOffset && renderY <= maxRenderY) {
 						doc.text(nameLine, x, renderY)
 						renderY += DESC_LINE_HEIGHT
 						lastRenderedBottom = lineBottom
@@ -679,13 +700,11 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 
 				// --- Description (normal) ---
 				if (service.description) {
-					// Gap between name and description
 					const gapBottom = virtualY + 2
-					if (virtualY >= contentOffset && renderY < maxRenderY) {
+					if (virtualY >= contentOffset && renderY <= maxRenderY) {
 						renderY += 2
 						lastRenderedBottom = gapBottom
-					} else if (virtualY < contentOffset && gapBottom > contentOffset && renderY < maxRenderY) {
-						// Gap straddles the page boundary: add only the remaining portion
+					} else if (virtualY < contentOffset && gapBottom > contentOffset && renderY <= maxRenderY) {
 						renderY += gapBottom - contentOffset
 						lastRenderedBottom = gapBottom
 					}
@@ -698,11 +717,10 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 					for (const dLine of descLines) {
 						if (dLine.length === 0) {
 							const blankBottom = virtualY + DESC_BLANK_LINE_GAP
-							if (virtualY >= contentOffset && renderY < maxRenderY) {
+							if (virtualY >= contentOffset && renderY <= maxRenderY) {
 								renderY += DESC_BLANK_LINE_GAP
 								lastRenderedBottom = blankBottom
-							} else if (virtualY < contentOffset && blankBottom > contentOffset && renderY < maxRenderY) {
-								// Blank gap straddles the boundary: add only the remaining portion
+							} else if (virtualY < contentOffset && blankBottom > contentOffset && renderY <= maxRenderY) {
 								renderY += blankBottom - contentOffset
 								lastRenderedBottom = blankBottom
 							}
@@ -712,7 +730,7 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 						const wrapped = doc.splitTextToSize(dLine, cellWidth)
 						for (const wl of wrapped) {
 							const lineBottom = virtualY + DESC_LINE_HEIGHT
-							if (virtualY >= contentOffset && renderY < maxRenderY) {
+							if (virtualY >= contentOffset && renderY <= maxRenderY) {
 								doc.text(wl, x, renderY)
 								renderY += DESC_LINE_HEIGHT
 								lastRenderedBottom = lineBottom
@@ -730,7 +748,7 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 		didDrawPage: (data: { pageNumber: number }) => {
 			const totalPages = doc.getNumberOfPages()
 			addReceiptHeader(doc, logoBase64)
-			addReceiptInfoBox(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+			addReceiptInfoBox(doc, data.pageNumber, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 		},
 	})
 	
@@ -747,7 +765,7 @@ const addNewPage = () => {
 	doc.addPage()
 	totalPages = doc.getNumberOfPages()
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, totalPages, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, totalPages, totalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	return CONTENT_AFTER_INFO_BOX_Y
 }
 
@@ -821,7 +839,7 @@ autoTable(doc, {
 	},
 	didDrawPage: (data: { pageNumber: number }) => {
 		addReceiptHeader(doc, logoBase64)
-		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	},
 })
 
@@ -830,7 +848,7 @@ const finalTotalPages = doc.getNumberOfPages()
 for (let i = 1; i <= finalTotalPages; i++) {
 	doc.setPage(i)
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, i, finalTotalPages, receipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 }
 	
 	const fileName = `receipt-${receipt.receiptNumber}-${
@@ -912,17 +930,20 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	const receiptAmount = fullReceipt.amount
 	const invoiceAmount = invoice.amount
 	
-	const receiptCreatedAt = new Date(fullReceipt.created_at)
-	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
+	const receiptDocumentDate = new Date(fullReceipt.receiptDate)
+	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptDocumentDate)
 	const totalReceived = allReceipts.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0)
 	const invoiceBalance = Math.max(0, invoiceAmount - totalReceived)
 	
-	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice's creation time
+	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice document date
 	const quotationId = (quotationRaw as { id: number }).id
-	const invoiceCreatedAt = invoice.created_at ? new Date(invoice.created_at) : receiptCreatedAt
+	const invoiceForDoc = invoice as { invoiceDate?: Date | null; created_at?: Date | null }
+	const invoiceDocumentDate = invoiceForDoc.invoiceDate
+		? new Date(invoiceForDoc.invoiceDate)
+		: receiptDocumentDate
 	const [totalInvoicedAsOf, previousInvoiceAmount] = await Promise.all([
-		getQuotationInvoicesTotalAsOf(quotationId, invoiceCreatedAt),
-		getPreviousInvoiceAmount(quotationId, invoiceCreatedAt),
+		getQuotationInvoicesTotalAsOf(quotationId, invoiceDocumentDate),
+		getPreviousInvoiceAmount(quotationId, invoiceDocumentDate),
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
@@ -942,11 +963,12 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 		ic: quotation.Client?.ic ?? undefined,
 	}
 
-	const receiptDate = formatDate(new Date(fullReceipt.created_at))
-	
+	const receiptDate = formatDate(new Date(fullReceipt.receiptDate))
+	const paymentMethodLabel = PAYMENT_METHOD_LABELS[(fullReceipt as any).paymentMethod as PaymentMethodType] || (fullReceipt as any).paymentMethod || undefined
+
 	// Add header and info box to first page
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, 1, 1, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, 1, 1, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	
 	// Start content after the info box
 	let currentY = CONTENT_AFTER_INFO_BOX_Y
@@ -1057,15 +1079,12 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 					const cellWidth = data.cell.width - 6 // 3 left + 3 right padding
 					const x = data.cell.x + 3
 					const topPad = 5
-					const botPad = 3
+					const botPad = 2
 					let renderY = data.cell.y + topPad
 					const maxRenderY = data.cell.y + data.cell.height - botPad
 
-				// Content offset: mm of content already rendered on previous page fragments
 				const contentOffset = rowPageOffsets.get(serviceIndex) || 0
 				let virtualY = 0
-				// Tracks the actual bottom of the last rendered item so the next page fragment
-				// starts exactly where this one ended (prevents duplicates and spacing drift).
 				let lastRenderedBottom = contentOffset
 
 				// --- Name (bold) ---
@@ -1075,7 +1094,7 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 				const nameLines = doc.splitTextToSize(service.name, cellWidth)
 				for (const nameLine of nameLines) {
 					const lineBottom = virtualY + DESC_LINE_HEIGHT
-					if (virtualY >= contentOffset && renderY < maxRenderY) {
+					if (virtualY >= contentOffset && renderY <= maxRenderY) {
 						doc.text(nameLine, x, renderY)
 						renderY += DESC_LINE_HEIGHT
 						lastRenderedBottom = lineBottom
@@ -1085,13 +1104,11 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 
 				// --- Description (normal) ---
 				if (service.description) {
-					// Gap between name and description
 					const gapBottom = virtualY + 2
-					if (virtualY >= contentOffset && renderY < maxRenderY) {
+					if (virtualY >= contentOffset && renderY <= maxRenderY) {
 						renderY += 2
 						lastRenderedBottom = gapBottom
-					} else if (virtualY < contentOffset && gapBottom > contentOffset && renderY < maxRenderY) {
-						// Gap straddles the page boundary: add only the remaining portion
+					} else if (virtualY < contentOffset && gapBottom > contentOffset && renderY <= maxRenderY) {
 						renderY += gapBottom - contentOffset
 						lastRenderedBottom = gapBottom
 					}
@@ -1104,11 +1121,10 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 					for (const dLine of descLines) {
 						if (dLine.length === 0) {
 							const blankBottom = virtualY + DESC_BLANK_LINE_GAP
-							if (virtualY >= contentOffset && renderY < maxRenderY) {
+							if (virtualY >= contentOffset && renderY <= maxRenderY) {
 								renderY += DESC_BLANK_LINE_GAP
 								lastRenderedBottom = blankBottom
-							} else if (virtualY < contentOffset && blankBottom > contentOffset && renderY < maxRenderY) {
-								// Blank gap straddles the boundary: add only the remaining portion
+							} else if (virtualY < contentOffset && blankBottom > contentOffset && renderY <= maxRenderY) {
 								renderY += blankBottom - contentOffset
 								lastRenderedBottom = blankBottom
 							}
@@ -1118,7 +1134,7 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 						const wrapped = doc.splitTextToSize(dLine, cellWidth)
 						for (const wl of wrapped) {
 							const lineBottom = virtualY + DESC_LINE_HEIGHT
-							if (virtualY >= contentOffset && renderY < maxRenderY) {
+							if (virtualY >= contentOffset && renderY <= maxRenderY) {
 								doc.text(wl, x, renderY)
 								renderY += DESC_LINE_HEIGHT
 								lastRenderedBottom = lineBottom
@@ -1135,7 +1151,7 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 			},
 		didDrawPage: (data: { pageNumber: number }) => {
 			addReceiptHeader(doc, logoBase64)
-			addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+			addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 		},
 	})
 	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
@@ -1151,7 +1167,7 @@ const addNewPage = () => {
 	doc.addPage()
 	totalPages = doc.getNumberOfPages()
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, totalPages, totalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, totalPages, totalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	return CONTENT_AFTER_INFO_BOX_Y
 }
 
@@ -1206,7 +1222,7 @@ autoTable(doc, {
 	styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
 	didDrawPage: (data: { pageNumber: number }) => {
 		addReceiptHeader(doc, logoBase64)
-		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+		addReceiptInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 	},
 })
 
@@ -1215,7 +1231,7 @@ const finalTotalPages = doc.getNumberOfPages()
 for (let i = 1; i <= finalTotalPages; i++) {
 	doc.setPage(i)
 	addReceiptHeader(doc, logoBase64)
-	addReceiptInfoBox(doc, i, finalTotalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo)
+	addReceiptInfoBox(doc, i, finalTotalPages, fullReceipt.receiptNumber, receiptDate, advisorName, clientInfo, paymentMethodLabel)
 }
 	
 	return doc.output('datauristring').split(',')[1]

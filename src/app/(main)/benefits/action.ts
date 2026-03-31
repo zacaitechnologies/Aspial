@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@prisma/client"
 import { getCachedUser } from "@/lib/auth-cache"
 import { formatLocalDate } from "@/lib/date-utils"
 import { unstable_noStore, unstable_cache, revalidateTag } from "next/cache"
@@ -128,10 +129,10 @@ async function _getEmployeeSalesDataInternal(
       endDate = new Date(year, 11, 31, 23, 59, 59)
     }
 
-    // Build where clause for invoices based on user role
-    const whereClause: any = {
+    // Build where clause for invoices based on user role (sales attributed by invoice document date)
+    const whereClause: Prisma.InvoiceWhereInput = {
       status: "active", // Exclude cancelled invoices
-      created_at: {
+      invoiceDate: {
         gte: startDate,
         lte: endDate,
       },
@@ -184,7 +185,7 @@ async function _getEmployeeSalesDataInternal(
       select: {
         id: true,
         amount: true,
-        created_at: true,
+        invoiceDate: true,
         quotation: {
           select: {
             id: true,
@@ -194,7 +195,7 @@ async function _getEmployeeSalesDataInternal(
         },
       },
       orderBy: {
-        created_at: "asc",
+        created_at: "desc",
       },
     })
 
@@ -215,7 +216,7 @@ async function _getEmployeeSalesDataInternal(
 
     // Aggregate sales by month from invoices
     invoices.forEach((invoice) => {
-      const date = new Date(invoice.created_at)
+      const date = new Date(invoice.invoiceDate)
       const monthIndex = date.getMonth()
       const year = date.getFullYear()
       const key = `${year}-${monthIndex}`
@@ -599,12 +600,12 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
     prisma.invoice.findMany({
       where: {
         status: 'active',
-        created_at: { gte: startOfYear, lte: endOfYear },
+        invoiceDate: { gte: startOfYear, lte: endOfYear },
         quotation: { advisedById: { in: userIds } },
       },
       select: {
         amount: true,
-        created_at: true,
+        invoiceDate: true,
         quotation: { select: { advisedById: true } },
       },
     }),
@@ -630,7 +631,7 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
     if (!advisedById) return
     const entry = salesByUserId.get(advisedById)
     if (!entry) return
-    const d = new Date(inv.created_at)
+    const d = new Date(inv.invoiceDate)
     if (d.getFullYear() === year) {
       entry.byMonth[d.getMonth()] += inv.amount
       entry.yearly += inv.amount

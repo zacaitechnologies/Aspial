@@ -192,7 +192,7 @@ export default function InvoiceCard({
 							)}
 							<span>Quotation: {invoice.quotation?.name || 'N/A'}</span>
 							<span className="text-gray-400">•</span>
-							<span>{new Date(invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+							<span>{new Date(invoice.invoiceDate ?? invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
 							{invoice.createdBy && (
 								<>
 									<span className="text-gray-400">•</span>
@@ -358,7 +358,7 @@ export default function InvoiceCard({
 												onClick={(e) => {
 													e.stopPropagation()
 													e.preventDefault()
-													setEditInvoiceDate(invoice.created_at ? formatLocalDate(new Date(invoice.created_at)) : formatLocalDate(new Date()))
+													setEditInvoiceDate(invoice.invoiceDate ? formatLocalDate(new Date(invoice.invoiceDate)) : formatLocalDate(new Date()))
 													setIsEditDateDialogOpen(true)
 												}}
 												onPointerDown={(e) => e.stopPropagation()}

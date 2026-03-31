@@ -177,6 +177,7 @@ async function _getQuotationsPaginatedInternal(
         startDate: true,
         endDate: true,
         clientId: true,
+        quotationDate: true,
         created_at: true,
         updated_at: true,
         project: {
@@ -269,6 +270,7 @@ async function _getQuotationsPaginatedInternal(
     startDate: quotation.startDate ?? undefined,
     endDate: quotation.endDate ?? undefined,
     clientId: quotation.clientId ?? undefined,
+    quotationDate: quotation.quotationDate,
     created_at: quotation.created_at,
     updated_at: quotation.updated_at,
     Client: quotation.Client ? {
@@ -404,6 +406,7 @@ export async function getInvoicesForQuotation(quotationId: number) {
 			amount: true,
 			status: true,
 			created_at: true,
+			invoiceDate: true,
 			createdBy: {
 				select: {
 					firstName: true,
@@ -473,6 +476,7 @@ export async function getQuotationById(id: string) {
     startDate: quotation.startDate ?? undefined,
     endDate: quotation.endDate ?? undefined,
     clientId: quotation.clientId ?? undefined,
+    quotationDate: quotation.quotationDate,
     created_at: quotation.created_at,
     updated_at: quotation.updated_at,
     Client: quotation.Client ? {
@@ -602,6 +606,7 @@ export async function getQuotationFullById(id: string) {
     startDate: quotation.startDate ?? undefined,
     endDate: quotation.endDate ?? undefined,
     clientId: quotation.clientId ?? undefined,
+    quotationDate: quotation.quotationDate,
     created_at: quotation.created_at,
     updated_at: quotation.updated_at,
     Client: quotation.Client ? {
@@ -811,7 +816,9 @@ export async function createQuotation(data: unknown) {
             duration: validatedData.duration || 0,
             startDate: validatedData.startDate ? new Date(validatedData.startDate) : new Date(),
             endDate: endDate || new Date(),
-            created_at: validatedData.quotationDate ? new Date(validatedData.quotationDate) : new Date(),
+            quotationDate: validatedData.quotationDate
+              ? new Date(validatedData.quotationDate)
+              : new Date(),
 
             services: {
               create: validatedData.services.map((svc) => ({
@@ -1096,7 +1103,76 @@ export async function editQuotationById(
       throw new Error("Quotation not found")
     }
 
-    // Delete existing quotation services
+    // Payment-only / cancel-only updates must NOT run deleteMany on line items — those
+    // branches do not recreate QuotationService rows, which would wipe services and
+    // leave totalPrice inconsistent with the UI (and break reactivation / admin edits).
+    if (isPaymentStatusOnlyUpdate || isCancellationUpdate || isCombinedUpdate) {
+      const restrictedUpdate: Prisma.QuotationUpdateInput = isPaymentStatusOnlyUpdate
+        ? { paymentStatus: validatedData.paymentStatus }
+        : isCancellationUpdate
+          ? { workflowStatus: validatedData.workflowStatus }
+          : {
+              paymentStatus: validatedData.paymentStatus,
+              workflowStatus: validatedData.workflowStatus,
+            }
+
+      const updatedQuotation = await tx.quotation.update({
+        where: { id: quotationId },
+        data: restrictedUpdate,
+        include: {
+          Client: true,
+          services: {
+            include: {
+              service: true,
+            },
+          },
+          createdBy: true,
+          project: true,
+        },
+      })
+
+      if (validatedData.workflowStatus === "cancelled" && currentQuotation.workflowStatus !== "cancelled") {
+        const activeInvoices = await tx.invoice.findMany({
+          where: {
+            quotationId,
+            status: "active",
+          },
+          select: {
+            id: true,
+          },
+        })
+
+        const invoiceIds = activeInvoices.map(inv => inv.id)
+
+        if (invoiceIds.length > 0) {
+          await tx.invoice.updateMany({
+            where: {
+              id: { in: invoiceIds },
+              status: "active",
+            },
+            data: {
+              status: "cancelled",
+              updated_at: new Date(),
+            },
+          })
+
+          await tx.receipt.updateMany({
+            where: {
+              invoiceId: { in: invoiceIds },
+              status: "active",
+            },
+            data: {
+              status: "cancelled",
+              updated_at: new Date(),
+            },
+          })
+        }
+      }
+
+      return updatedQuotation
+    }
+
+    // Full edit: replace catalogue line items (custom services live in CustomService)
     await tx.quotationService.deleteMany({
       where: { quotationId },
     });
@@ -1147,47 +1223,34 @@ export async function editQuotationById(
       throw new Error("Client ID is required");
     }
 
-    // Update the quotation (don't update name as it's auto-generated)
-    // Note: createdById in Quotation model references User.supabase_id (String), not User.id (number)
-    // For non-admin users updating payment status or cancelling finalized quotations, only update allowed fields
-    const updateData: any = {}
-    
-    if (isPaymentStatusOnlyUpdate) {
-      // Non-admin user updating only payment status for finalized quotation
-      updateData.paymentStatus = validatedData.paymentStatus
-    } else if (isCancellationUpdate) {
-      // Non-admin user cancelling finalized quotation (not linked to project)
-      updateData.workflowStatus = validatedData.workflowStatus
-    } else if (isCombinedUpdate) {
-      // Non-admin user updating payment status and cancelling in same update
-      updateData.paymentStatus = validatedData.paymentStatus
-      updateData.workflowStatus = validatedData.workflowStatus
-    } else {
-      // Admin or creator editing full quotation
-      updateData.description = validatedData.description
-      updateData.totalPrice = validatedData.totalPrice
-      updateData.workflowStatus = validatedData.workflowStatus
-      updateData.paymentStatus = validatedData.paymentStatus
-      updateData.clientId = finalClientId
-      updateData.projectId = validatedData.projectId !== undefined ? validatedData.projectId : currentQuotation.projectId
-      updateData.discountValue = validatedData.discountValue !== undefined ? validatedData.discountValue : null
-      updateData.discountType = validatedData.discountType !== undefined ? validatedData.discountType : null
-      updateData.duration = validatedData.duration !== undefined ? validatedData.duration : 0
-      updateData.startDate = validatedData.startDate ? new Date(validatedData.startDate) : new Date()
-      updateData.endDate = endDate || new Date()
-      updateData.created_at = validatedData.quotationDate ? new Date(validatedData.quotationDate) : undefined
-      if (finalAdvisedById !== undefined) {
-        updateData.advisedById = finalAdvisedById
-      }
-      updateData.services = validatedData.services
+    // Full quotation edit (restricted payment/cancel-only updates returned above)
+    const updateData: Prisma.QuotationUncheckedUpdateInput = {
+      description: validatedData.description,
+      totalPrice: validatedData.totalPrice,
+      workflowStatus: validatedData.workflowStatus,
+      paymentStatus: validatedData.paymentStatus,
+      clientId: finalClientId,
+      projectId: validatedData.projectId !== undefined ? validatedData.projectId : currentQuotation.projectId,
+      discountValue: validatedData.discountValue !== undefined ? validatedData.discountValue : null,
+      discountType: validatedData.discountType !== undefined ? validatedData.discountType : null,
+      duration: validatedData.duration !== undefined ? validatedData.duration : 0,
+      startDate: validatedData.startDate ? new Date(validatedData.startDate) : new Date(),
+      endDate: endDate || new Date(),
+      ...(validatedData.quotationDate
+        ? { quotationDate: new Date(validatedData.quotationDate) }
+        : {}),
+      ...(finalAdvisedById !== undefined ? { advisedById: finalAdvisedById } : {}),
+      ...(validatedData.services
         ? {
-            create: validatedData.services.map((svc) => ({
-              serviceId: Number.parseInt(svc.serviceId),
-              price: svc.price,
-              quantity: svc.quantity,
-            })),
+            services: {
+              create: validatedData.services.map((svc) => ({
+                serviceId: Number.parseInt(svc.serviceId, 10),
+                price: svc.price,
+                quantity: svc.quantity,
+              })),
+            },
           }
-        : undefined
+        : {}),
     }
 
     const updatedQuotation = await tx.quotation.update({
@@ -2044,7 +2107,7 @@ export async function sendQuotationEmail(
         clientCompany: quotation.Client?.company || "",
         totalAmount: quotation.totalPrice,
         pdfBase64: pdfBase64,
-        quotationDate: formatLocalDateTime(new Date(quotation.created_at)),
+        quotationDate: formatLocalDateTime(new Date(quotation.quotationDate)),
       }),
     })
 

@@ -5,7 +5,9 @@
       "Bash(node:*)",
       "Bash(timeout /t 15:*)",
       "Bash(npx tsc:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(cat:*)",
+      "Bash(sed:*)"
     ]
   }
 }

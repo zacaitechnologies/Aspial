@@ -508,7 +508,7 @@ export default function QuotationCard({
                   <span className="text-gray-400">•</span>
                 </>
               )}
-              <span>{new Date(quotation.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+              <span>{new Date(quotation.quotationDate ?? quotation.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
               {quotation.createdBy && (
                 <>
                   <span className="text-gray-400">•</span>

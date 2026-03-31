@@ -15,6 +15,8 @@ export type QuotationWithServices = {
   startDate?: Date;
   endDate?: Date;
   clientId?: string;
+  /** Business / document date (editable). */
+  quotationDate?: Date;
   // Computed property for grand total
   grandTotal?: number;
   Client?: {

@@ -45,6 +45,7 @@ import { Label } from "@/components/ui/label"
 import { formatLocalDate } from "@/lib/date-utils"
 import { formatNumber } from "@/lib/format-number"
 import { FormattedDescription } from "@/components/FormattedDescription"
+import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../types"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
 
 interface ReceiptDetailClientProps {
@@ -172,7 +173,7 @@ export default function ReceiptDetailClient({
 							<Button
 								variant="outline"
 								onClick={() => {
-									setEditReceiptDate(receipt.created_at ? formatLocalDate(new Date(receipt.created_at)) : formatLocalDate(new Date()))
+									setEditReceiptDate(receipt.receiptDate ? formatLocalDate(new Date(receipt.receiptDate)) : formatLocalDate(new Date()))
 									setIsEditDateDialogOpen(true)
 								}}
 								className="flex items-center gap-2"
@@ -412,8 +413,15 @@ export default function ReceiptDetailClient({
 								</span>
 							</div>
 
-							<Separator />
 
+							<div className="flex justify-between">
+								<span className="text-muted-foreground">Payment Method:</span>
+								<span className="font-semibold">
+									{PAYMENT_METHOD_LABELS[(receipt as any).paymentMethod as PaymentMethodType] || (receipt as any).paymentMethod || "N/A"}
+								</span>
+							</div>
+
+							<Separator />
 							<div className="flex justify-between">
 								<span className="text-muted-foreground">Amount Received (up to this receipt):</span>
 								<span className="font-semibold">
@@ -447,7 +455,13 @@ export default function ReceiptDetailClient({
 						</CardHeader>
 						<CardContent className="space-y-3">
 							<div>
-								<p className="text-sm font-medium text-muted-foreground">Created</p>
+								<p className="text-sm font-medium text-muted-foreground">Receipt date</p>
+								<p className="font-medium">
+									{new Date(receipt.receiptDate ?? receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+								</p>
+							</div>
+							<div>
+								<p className="text-sm font-medium text-muted-foreground">Record created</p>
 								<p className="font-medium">
 									{new Date(receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 								</p>

@@ -240,9 +240,11 @@ export default function EditQuotationForm({
       startDate: quotation.startDate
         ? formatLocalDate(new Date(quotation.startDate))
         : "",
-      quotationDate: quotation.created_at
-        ? formatLocalDate(new Date(quotation.created_at))
-        : formatLocalDate(new Date()),
+      quotationDate: quotation.quotationDate
+        ? formatLocalDate(new Date(quotation.quotationDate))
+        : quotation.created_at
+          ? formatLocalDate(new Date(quotation.created_at))
+          : formatLocalDate(new Date()),
       clientId: quotation.clientId || "",
       projectId: quotation.project?.id || undefined,
       newClient: {
@@ -616,12 +618,25 @@ export default function EditQuotationForm({
     setIsSaving(true);
     try {
       await editQuotationById(editingQuotation.id.toString(), {
-        description: editingQuotation.description,
-        totalPrice: editingQuotation.totalPrice,
+        description: editForm.description,
+        totalPrice: editGrandTotal,
         workflowStatus: "cancelled",
         paymentStatus: editForm.paymentStatus,
         clientId: editingQuotation.clientId,
         projectId: editingQuotation.project?.id || undefined,
+        discountValue: editForm.discountValue
+          ? parseFloat(editForm.discountValue)
+          : undefined,
+        discountType: editForm.discountValue ? editForm.discountType : undefined,
+        services: editSelectedServices.map((s) => ({
+          serviceId: s.serviceId,
+          price: s.price,
+          quantity: s.quantity,
+        })),
+        duration: editForm.duration ? parseInt(editForm.duration, 10) : undefined,
+        startDate: editForm.startDate || undefined,
+        quotationDate: editForm.quotationDate || undefined,
+        advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
       });
       
       let description = "Quotation cancelled successfully.";

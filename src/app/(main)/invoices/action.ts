@@ -64,6 +64,7 @@ async function _getInvoicesPaginatedInternal(
 				status: true,
 				created_at: true,
 				updated_at: true,
+				invoiceDate: true,
 				receipts: {
 					where: { status: { not: "cancelled" } },
 					select: { amount: true },
@@ -125,6 +126,7 @@ async function _getInvoicesPaginatedInternal(
 			status: invoice.status,
 			created_at: invoice.created_at,
 			updated_at: invoice.updated_at,
+			invoiceDate: invoice.invoiceDate,
 			quotation: invoice.quotation
 				? {
 						id: invoice.quotation.id,
@@ -313,14 +315,14 @@ export async function getInvoiceFullById(id: unknown) {
 							},
 						},
 					},
-					// Include all non-cancelled invoices (with created_at) to compute balance as of this invoice's date
+					// Include all non-cancelled invoices (with invoiceDate) to compute balance as of this invoice's document date
 					invoices: {
 						where: { status: { not: "cancelled" } },
 						select: {
 							id: true,
 							amount: true,
 							status: true,
-							created_at: true,
+							invoiceDate: true,
 						},
 					},
 				},
@@ -495,9 +497,9 @@ export async function createInvoice(data: unknown) {
 						createdById: finalCreatedById,
 						advisedById: finalAdvisedById,
 						status: "active",
-						...(isAdmin && validatedData.invoiceDate
-							? { created_at: new Date(validatedData.invoiceDate) }
-							: {}),
+						invoiceDate: isAdmin && validatedData.invoiceDate
+							? new Date(validatedData.invoiceDate)
+							: new Date(),
 					},
 					select: {
 						id: true,
@@ -662,12 +664,12 @@ export async function updateInvoiceAdmin(
 		updateData.status = validatedData.status
 	}
 
-	// Invoice date (created_at): only admins can change it
+	// Invoice document date: only admins can change it
 	if (validatedData.invoiceDate !== undefined) {
 		if (!isAdmin) {
 			throw new Error("Only administrators can change the invoice date")
 		}
-		updateData.created_at = new Date(validatedData.invoiceDate)
+		updateData.invoiceDate = new Date(validatedData.invoiceDate)
 	}
 
 	updateData.updated_at = new Date()
@@ -880,7 +882,7 @@ export async function sendInvoiceEmail(
 				clientCompany: invoice.quotation.Client?.company || "",
 				amount: invoice.amount,
 				pdfBase64: pdfBase64,
-				invoiceDate: formatLocalDateTime(new Date(invoice.created_at)),
+				invoiceDate: formatLocalDateTime(new Date(invoice.invoiceDate)),
 			}),
 		})
 

@@ -23,7 +23,7 @@ import {
 	Calendar,
 } from "lucide-react"
 import { formatNumber } from "@/lib/format-number"
-import { ReceiptWithInvoice } from "../types"
+import { ReceiptWithInvoice, PAYMENT_METHOD_LABELS, PaymentMethodType } from "../types"
 import { generateReceiptPDF } from "../utils/pdfExport"
 import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
 import {
@@ -116,11 +116,17 @@ export default function ReceiptCard({
 							)}
 							<span>Invoice: {receipt.invoice?.invoiceNumber || 'N/A'}</span>
 							<span className="text-gray-400">•</span>
-							<span>{new Date(receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+							<span>{new Date(receipt.receiptDate ?? receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
 							{receipt.createdBy && (
 								<>
 									<span className="text-gray-400">•</span>
 									<span>Created by {receipt.createdBy.firstName} {receipt.createdBy.lastName}</span>
+								</>
+							)}
+							{receipt.paymentMethod && (
+								<>
+									<span className="text-gray-400">•</span>
+									<span>{PAYMENT_METHOD_LABELS[receipt.paymentMethod as PaymentMethodType] || receipt.paymentMethod}</span>
 								</>
 							)}
 							{receipt.advisedBy && (
@@ -247,7 +253,7 @@ export default function ReceiptCard({
 												onClick={(e) => {
 													e.stopPropagation()
 													e.preventDefault()
-													setEditReceiptDate(receipt.created_at ? formatLocalDate(new Date(receipt.created_at)) : formatLocalDate(new Date()))
+													setEditReceiptDate(receipt.receiptDate ? formatLocalDate(new Date(receipt.receiptDate)) : formatLocalDate(new Date()))
 													setIsEditDateDialogOpen(true)
 												}}
 												onPointerDown={(e) => e.stopPropagation()}

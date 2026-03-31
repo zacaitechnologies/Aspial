@@ -538,6 +538,7 @@ export async function getClientById(id: string) {
             workflowStatus: true,
             paymentStatus: true,
             created_at: true,
+            quotationDate: true,
             invoices: {
               where: { status: { not: "cancelled" } },
               select: {
@@ -547,9 +548,10 @@ export async function getClientById(id: string) {
                 type: true,
                 status: true,
                 created_at: true,
+                invoiceDate: true,
                 receipts: {
                   where: { status: { not: "cancelled" } },
-                  select: { id: true, receiptNumber: true, amount: true, created_at: true, status: true },
+                  select: { id: true, receiptNumber: true, amount: true, created_at: true, receiptDate: true, status: true },
                 },
               },
             },
@@ -1057,7 +1059,7 @@ export async function getSalesData(filters: unknown) {
     const where: Prisma.InvoiceWhereInput = {
       status: "active" as InvoiceStatus, // Exclude cancelled invoices
       ...(year && {
-        created_at: {
+        invoiceDate: {
           gte: new Date(year, month !== undefined ? month : 0, 1),
           lte: month !== undefined 
             ? new Date(year, month + 1, 0, 23, 59, 59, 999)
@@ -1112,6 +1114,7 @@ export async function getSalesData(filters: unknown) {
       amount: number
       createdById: string
       status: InvoiceStatus
+      invoiceDate: Date
       created_at: Date
       updated_at: Date
       quotation: {
@@ -1182,7 +1185,7 @@ export async function getSalesData(filters: unknown) {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
       monthlyBreakdown = months.map((monthName, monthIndex) => {
         const monthInvoices = invoices.filter(inv => {
-          const invDate = new Date(inv.created_at)
+          const invDate = new Date(inv.invoiceDate)
           return invDate.getMonth() === monthIndex
         })
         
@@ -1206,6 +1209,7 @@ export async function getSalesData(filters: unknown) {
         invoiceNumber: inv.invoiceNumber,
         type: inv.type,
         amount: inv.amount,
+        invoiceDate: inv.invoiceDate.toISOString(),
         created_at: inv.created_at.toISOString(),
         quotation: {
           id: inv.quotation.id,
