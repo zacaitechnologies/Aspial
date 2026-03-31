@@ -497,18 +497,21 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	const receiptAmount = receipt.amount
 	const invoiceAmount = invoice.amount
 	
-	// Get receipts to calculate invoice balance (only up to this receipt date, non-cancelled)
-	const receiptCreatedAt = new Date(receipt.created_at)
-	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
+	// Get receipts to calculate invoice balance (only up to this receipt document date, non-cancelled)
+	const receiptDocumentDate = new Date(receipt.receiptDate)
+	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptDocumentDate)
 	const totalReceived = allReceipts.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0)
 	const invoiceBalance = Math.max(0, invoiceAmount - totalReceived)
 	
-	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice's creation time
+	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice document date
 	const quotationId = (quotationRaw as { id: number }).id
-	const invoiceCreatedAt = invoice.created_at ? new Date(invoice.created_at) : receiptCreatedAt
+	const invoiceForDoc = invoice as { invoiceDate?: Date | null; created_at?: Date | null }
+	const invoiceDocumentDate = invoiceForDoc.invoiceDate
+		? new Date(invoiceForDoc.invoiceDate)
+		: receiptDocumentDate
 	const [totalInvoicedAsOf, previousInvoiceAmount] = await Promise.all([
-		getQuotationInvoicesTotalAsOf(quotationId, invoiceCreatedAt),
-		getPreviousInvoiceAmount(quotationId, invoiceCreatedAt),
+		getQuotationInvoicesTotalAsOf(quotationId, invoiceDocumentDate),
+		getPreviousInvoiceAmount(quotationId, invoiceDocumentDate),
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
@@ -529,7 +532,7 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 		ic: quotation.Client?.ic ?? undefined,
 	}
 
-	const receiptDate = formatDate(new Date(receipt.created_at))
+	const receiptDate = formatDate(new Date(receipt.receiptDate))
 	const paymentMethodLabel = PAYMENT_METHOD_LABELS[(receipt as any).paymentMethod as PaymentMethodType] || (receipt as any).paymentMethod || undefined
 
 	// Add header and info box to first page
@@ -927,17 +930,20 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	const receiptAmount = fullReceipt.amount
 	const invoiceAmount = invoice.amount
 	
-	const receiptCreatedAt = new Date(fullReceipt.created_at)
-	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptCreatedAt)
+	const receiptDocumentDate = new Date(fullReceipt.receiptDate)
+	const allReceipts = await getReceiptsForInvoice(invoice.id, receiptDocumentDate)
 	const totalReceived = allReceipts.reduce((sum: number, r: { amount: number }) => sum + r.amount, 0)
 	const invoiceBalance = Math.max(0, invoiceAmount - totalReceived)
 	
-	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice's creation time
+	// Project balance = quotation total − sum of non-cancelled invoices (for this quotation) up to this invoice document date
 	const quotationId = (quotationRaw as { id: number }).id
-	const invoiceCreatedAt = invoice.created_at ? new Date(invoice.created_at) : receiptCreatedAt
+	const invoiceForDoc = invoice as { invoiceDate?: Date | null; created_at?: Date | null }
+	const invoiceDocumentDate = invoiceForDoc.invoiceDate
+		? new Date(invoiceForDoc.invoiceDate)
+		: receiptDocumentDate
 	const [totalInvoicedAsOf, previousInvoiceAmount] = await Promise.all([
-		getQuotationInvoicesTotalAsOf(quotationId, invoiceCreatedAt),
-		getPreviousInvoiceAmount(quotationId, invoiceCreatedAt),
+		getQuotationInvoicesTotalAsOf(quotationId, invoiceDocumentDate),
+		getPreviousInvoiceAmount(quotationId, invoiceDocumentDate),
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
@@ -957,7 +963,7 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 		ic: quotation.Client?.ic ?? undefined,
 	}
 
-	const receiptDate = formatDate(new Date(fullReceipt.created_at))
+	const receiptDate = formatDate(new Date(fullReceipt.receiptDate))
 	const paymentMethodLabel = PAYMENT_METHOD_LABELS[(fullReceipt as any).paymentMethod as PaymentMethodType] || (fullReceipt as any).paymentMethod || undefined
 
 	// Add header and info box to first page

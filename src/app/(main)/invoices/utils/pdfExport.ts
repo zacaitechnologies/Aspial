@@ -560,11 +560,11 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 	const quotationGrandTotal = subtotal - discountAmount
 	const invoiceAmount = invoice.amount
 	
-	// Balance as of this invoice: only subtract invoices created on or before this invoice's created_at
-	const allQuotationInvoices = (quotation.invoices || []) as { id: string; amount: number; created_at?: Date }[]
-	const thisInvoiceCreatedAt = new Date(invoice.created_at).getTime()
+	// Balance as of this invoice: only subtract invoices with document date on or before this invoice's invoiceDate
+	const allQuotationInvoices = (quotation.invoices || []) as { id: string; amount: number; invoiceDate?: Date }[]
+	const thisInvoiceDocTime = new Date(invoice.invoiceDate).getTime()
 	const invoicesUpToThis = allQuotationInvoices.filter(
-		(inv) => !inv.created_at || new Date(inv.created_at).getTime() <= thisInvoiceCreatedAt
+		(inv) => !inv.invoiceDate || new Date(inv.invoiceDate).getTime() <= thisInvoiceDocTime
 	)
 	const totalPaid = invoicesUpToThis.reduce((sum, inv) => sum + inv.amount, 0)
 	const balance = Math.max(0, quotationGrandTotal - totalPaid)
@@ -591,7 +591,7 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		ic: client && 'ic' in client ? (client as { ic?: string | null }).ic ?? undefined : undefined,
 	}
 
-	const invoiceDate = formatDate(new Date(invoice.created_at))
+	const invoiceDate = formatDate(new Date(invoice.invoiceDate))
 	
 	// Add header and info box to first page
 	addInvoiceHeader(doc, logoBase64)
@@ -1011,11 +1011,11 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 	const quotationGrandTotal = subtotal - discountAmount
 	const invoiceAmount = fullInvoice.amount
 	
-	// Balance as of this invoice: only subtract invoices created on or before this invoice's created_at
-	const allQuotationInvoices = (quotation as { invoices?: { id: string; amount: number; status: string; created_at?: Date }[] }).invoices || []
-	const thisInvoiceCreatedAt = new Date(fullInvoice.created_at).getTime()
+	// Balance as of this invoice: document dates (invoiceDate)
+	const allQuotationInvoices = (quotation as { invoices?: { id: string; amount: number; status: string; invoiceDate?: Date }[] }).invoices || []
+	const thisInvoiceDocTime = new Date(fullInvoice.invoiceDate).getTime()
 	const invoicesUpToThis = allQuotationInvoices.filter(
-		(inv) => !inv.created_at || new Date(inv.created_at).getTime() <= thisInvoiceCreatedAt
+		(inv) => !inv.invoiceDate || new Date(inv.invoiceDate).getTime() <= thisInvoiceDocTime
 	)
 	const totalPaid = invoicesUpToThis.reduce((sum, inv) => sum + inv.amount, 0)
 	const balance = Math.max(0, quotationGrandTotal - totalPaid)
@@ -1041,7 +1041,7 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 		ic: client && 'ic' in client ? (client as { ic?: string | null }).ic ?? undefined : undefined,
 	}
 
-	const invoiceDate = formatDate(new Date(fullInvoice.created_at))
+	const invoiceDate = formatDate(new Date(fullInvoice.invoiceDate))
 	
 	// Add header and info box to first page
 	addInvoiceHeader(doc, logoBase64)

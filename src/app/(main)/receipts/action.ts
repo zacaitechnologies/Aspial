@@ -44,6 +44,7 @@ async function _getReceiptsPaginatedInternal(
 				paymentMethod: true,
 				created_at: true,
 				updated_at: true,
+				receiptDate: true,
 				invoice: {
 					select: {
 						id: true,
@@ -88,7 +89,7 @@ async function _getReceiptsPaginatedInternal(
 					},
 				},
 			},
-			orderBy: { updated_at: "desc" },
+			orderBy: { created_at: "desc" },
 			skip,
 			take: pageSize,
 		})
@@ -104,6 +105,7 @@ async function _getReceiptsPaginatedInternal(
 		paymentMethod: receipt.paymentMethod,
 		created_at: receipt.created_at,
 		updated_at: receipt.updated_at,
+		receiptDate: receipt.receiptDate,
 		invoice: receipt.invoice ? {
 			id: receipt.invoice.id,
 			invoiceNumber: receipt.invoice.invoiceNumber,
@@ -176,21 +178,21 @@ export async function invalidateReceiptsCache() {
 /**
  * Get all receipts for an invoice
  * @param invoiceId - The invoice ID
- * @param beforeDate - Optional: Only include receipts created at or before this date (for historical balance calculation)
+ * @param beforeDate - Optional: Only include receipts with receiptDate at or before this date (for historical balance calculation)
  * @param excludeCancelled - Optional: Exclude cancelled receipts (default: true for balance calculations)
  */
 export async function getReceiptsForInvoice(invoiceId: string, beforeDate?: Date, excludeCancelled: boolean = true) {
 	unstable_noStore()
-	const whereClause: any = { invoiceId }
+	const whereClause: Prisma.ReceiptWhereInput = { invoiceId }
 	
 	// Exclude cancelled receipts by default (for balance calculations)
 	if (excludeCancelled) {
 		whereClause.status = "active"
 	}
 	
-	// If beforeDate is provided, filter receipts by created_at <= beforeDate
+	// If beforeDate is provided, filter by document date
 	if (beforeDate) {
-		whereClause.created_at = {
+		whereClause.receiptDate = {
 			lte: beforeDate
 		}
 	}
@@ -203,6 +205,7 @@ export async function getReceiptsForInvoice(invoiceId: string, beforeDate?: Date
 			amount: true,
 			status: true,
 			created_at: true,
+			receiptDate: true,
 			createdBy: {
 				select: {
 					firstName: true,
@@ -218,19 +221,19 @@ export async function getReceiptsForInvoice(invoiceId: string, beforeDate?: Date
 }
 
 /**
- * Sum of non-cancelled invoice amounts for a quotation, for invoices created on or before a given date.
+ * Sum of non-cancelled invoice amounts for a quotation, for invoices with invoiceDate on or before a given date.
  * Used for receipt PDF "project balance" = quotation total − this sum.
  */
 export async function getQuotationInvoicesTotalAsOf(
 	quotationId: number,
-	invoiceCreatedAt: Date
+	asOfInvoiceDate: Date
 ): Promise<number> {
 	unstable_noStore()
 	const result = await prisma.invoice.aggregate({
 		where: {
 			quotationId,
 			status: { not: "cancelled" },
-			created_at: { lte: invoiceCreatedAt },
+			invoiceDate: { lte: asOfInvoiceDate },
 		},
 		_sum: { amount: true },
 	})
@@ -238,19 +241,19 @@ export async function getQuotationInvoicesTotalAsOf(
 }
 
 /**
- * Sum of non-cancelled invoice amounts for a quotation, for invoices created strictly before a given date.
+ * Sum of non-cancelled invoice amounts for a quotation, for invoices with invoiceDate strictly before a given date.
  * Used for receipt PDF "Previous Invoice Amount".
  */
 export async function getPreviousInvoiceAmount(
 	quotationId: number,
-	currentInvoiceCreatedAt: Date
+	currentInvoiceDocumentDate: Date
 ): Promise<number> {
 	unstable_noStore()
 	const result = await prisma.invoice.aggregate({
 		where: {
 			quotationId,
 			status: { not: "cancelled" },
-			created_at: { lt: currentInvoiceCreatedAt },
+			invoiceDate: { lt: currentInvoiceDocumentDate },
 		},
 		_sum: { amount: true },
 	})
@@ -258,21 +261,21 @@ export async function getPreviousInvoiceAmount(
 }
 
 /**
- * Sum of non-cancelled receipt amounts for a quotation, for receipts against invoices created
- * before a given invoice date, with receipt created_at <= receiptCreatedAt.
+ * Sum of non-cancelled receipt amounts for receipts against invoices with invoiceDate
+ * before a given invoice document date, with receipt receiptDate <= receiptDocumentDate.
  * Used for receipt PDF "Paid (Previous Invoice)".
  */
 export async function getPaidPreviousInvoice(
 	quotationId: number,
-	currentInvoiceCreatedAt: Date,
-	receiptCreatedAt: Date
+	currentInvoiceDocumentDate: Date,
+	receiptDocumentDate: Date
 ): Promise<number> {
 	unstable_noStore()
 	const previousInvoiceIds = await prisma.invoice.findMany({
 		where: {
 			quotationId,
 			status: { not: "cancelled" },
-			created_at: { lt: currentInvoiceCreatedAt },
+			invoiceDate: { lt: currentInvoiceDocumentDate },
 		},
 		select: { id: true },
 	})
@@ -282,7 +285,7 @@ export async function getPaidPreviousInvoice(
 		where: {
 			invoiceId: { in: ids },
 			status: { not: "cancelled" },
-			created_at: { lte: receiptCreatedAt },
+			receiptDate: { lte: receiptDocumentDate },
 		},
 		_sum: { amount: true },
 	})
@@ -559,9 +562,9 @@ export async function createReceipt(data: {
 						createdById: finalCreatedById,
 						advisedById: finalAdvisedById,
 						status: "active",
-						...(isAdmin && data.receiptDate
-							? { created_at: new Date(data.receiptDate) }
-							: {}),
+						receiptDate: isAdmin && data.receiptDate
+							? new Date(data.receiptDate)
+							: new Date(),
 					},
 					select: {
 						id: true,
@@ -851,12 +854,12 @@ export async function updateReceiptAdmin(
 		updateData.status = data.status
 	}
 
-	// Receipt date (created_at): only admins can change it
+	// Receipt document date: only admins can change it
 	if (data.receiptDate !== undefined) {
 		if (!isAdmin) {
 			throw new Error("Only administrators can change the receipt date")
 		}
-		updateData.created_at = new Date(data.receiptDate)
+		updateData.receiptDate = new Date(data.receiptDate)
 	}
 
 	if (data.paymentMethod !== undefined) {
@@ -949,7 +952,7 @@ export async function sendReceiptEmail(
 				clientCompany: receipt.invoice.quotation.Client?.company || "",
 				amount: receipt.amount,
 				pdfBase64: pdfBase64,
-				receiptDate: formatLocalDateTime(new Date(receipt.created_at)),
+				receiptDate: formatLocalDateTime(new Date(receipt.receiptDate)),
 			}),
 		})
 

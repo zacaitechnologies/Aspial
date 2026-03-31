@@ -116,7 +116,7 @@ export default function ReceiptCard({
 							)}
 							<span>Invoice: {receipt.invoice?.invoiceNumber || 'N/A'}</span>
 							<span className="text-gray-400">•</span>
-							<span>{new Date(receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+							<span>{new Date(receipt.receiptDate ?? receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
 							{receipt.createdBy && (
 								<>
 									<span className="text-gray-400">•</span>
@@ -253,7 +253,7 @@ export default function ReceiptCard({
 												onClick={(e) => {
 													e.stopPropagation()
 													e.preventDefault()
-													setEditReceiptDate(receipt.created_at ? formatLocalDate(new Date(receipt.created_at)) : formatLocalDate(new Date()))
+													setEditReceiptDate(receipt.receiptDate ? formatLocalDate(new Date(receipt.receiptDate)) : formatLocalDate(new Date()))
 													setIsEditDateDialogOpen(true)
 												}}
 												onPointerDown={(e) => e.stopPropagation()}

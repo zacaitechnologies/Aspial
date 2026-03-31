@@ -404,7 +404,7 @@ export default function QuotationDetailClient({
 													)}
 												</div>
 												<p className="text-xs text-muted-foreground mt-1">
-													{new Date(invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+													{new Date(invoice.invoiceDate ?? invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 												</p>
 											</div>
 											<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -545,7 +545,13 @@ export default function QuotationDetailClient({
 						</CardHeader>
 						<CardContent className="space-y-3">
 							<div>
-								<p className="text-sm font-medium text-muted-foreground">Created</p>
+								<p className="text-sm font-medium text-muted-foreground">Quotation date</p>
+								<p className="font-medium">
+									{new Date(quotation.quotationDate ?? quotation.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+								</p>
+							</div>
+							<div>
+								<p className="text-sm font-medium text-muted-foreground">Record created</p>
 								<p className="font-medium">
 									{new Date(quotation.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 								</p>

@@ -18,6 +18,7 @@ export interface ReceiptWithInvoice {
 	paymentMethod: PaymentMethodType
 	created_at: Date
 	updated_at: Date
+	receiptDate: Date
 	invoice: {
 		id: string
 		invoiceNumber: string
@@ -68,7 +69,7 @@ export interface ReceiptWithInvoice {
 export interface ReceiptFormData {
 	invoiceId?: string
 	amount: string
-	/** Receipt date (created_at). Editable only by admin. */
+	/** Receipt document date (receiptDate). Editable only by admin. */
 	receiptDate: string
 }
 

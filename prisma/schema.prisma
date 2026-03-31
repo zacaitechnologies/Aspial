@@ -118,6 +118,8 @@ model Quotation {
   name           String             @unique
   description    String
   totalPrice     Float
+  /// Business / document date (editable). Distinct from row audit timestamps.
+  quotationDate  DateTime           @default(now()) @map("quotation_date")
   created_at     DateTime           @default(now())
   updated_at     DateTime           @default(now())
   workflowStatus QuotationStatus    @default(draft)
@@ -186,6 +188,8 @@ model Invoice {
   amount        Float
   createdById   String
   status        InvoiceStatus  @default(active)
+  /// Business / document date (editable by admin). Used for sales analytics.
+  invoiceDate   DateTime       @default(now()) @map("invoice_date")
   created_at    DateTime       @default(now())
   updated_at    DateTime       @default(now())
   advisedById   String?
@@ -221,6 +225,8 @@ model Receipt {
   amount        Float
   createdById   String
   status        ReceiptStatus  @default(active)
+  /// Business / document date (editable by admin). Used for reporting.
+  receiptDate   DateTime       @default(now()) @map("receipt_date")
   created_at    DateTime       @default(now())
   updated_at    DateTime       @default(now())
   paymentMethod PaymentMethod  @default(bank_transfer)

@@ -43,6 +43,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       invoiceNumber: string
       type: string
       amount: number
+      invoiceDate: string
       created_at: string
       quotation: { id: number; name: string }
       client: { id: string; name: string; email: string; company: string | null; membershipType: string | null }
@@ -394,7 +395,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                         <TableHead className="font-bold whitespace-nowrap text-foreground">Client</TableHead>
                         <TableHead className="font-bold whitespace-nowrap text-foreground">Advisor</TableHead>
                         <TableHead className="text-right font-bold whitespace-nowrap text-foreground">Amount</TableHead>
-                        <TableHead className="font-bold whitespace-nowrap text-foreground">Date</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap text-foreground">Invoice date</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -429,7 +430,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                               RM {(invoice.amount / 1000).toFixed(1)}K
                             </TableCell>
                             <TableCell className="text-foreground">
-                              {new Date(invoice.created_at).toLocaleDateString('en-GB', {
+                              {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', {
                                 day: '2-digit',
                                 month: 'short',
                                 year: 'numeric'

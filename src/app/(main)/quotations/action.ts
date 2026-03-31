@@ -177,6 +177,7 @@ async function _getQuotationsPaginatedInternal(
         startDate: true,
         endDate: true,
         clientId: true,
+        quotationDate: true,
         created_at: true,
         updated_at: true,
         project: {
@@ -245,7 +246,7 @@ async function _getQuotationsPaginatedInternal(
           select: { amount: true },
         },
       },
-      orderBy: { updated_at: "desc" },
+      orderBy: { created_at: "desc" },
       skip,
       take: validatedPageSize,
     })
@@ -269,6 +270,7 @@ async function _getQuotationsPaginatedInternal(
     startDate: quotation.startDate ?? undefined,
     endDate: quotation.endDate ?? undefined,
     clientId: quotation.clientId ?? undefined,
+    quotationDate: quotation.quotationDate,
     created_at: quotation.created_at,
     updated_at: quotation.updated_at,
     Client: quotation.Client ? {
@@ -404,6 +406,7 @@ export async function getInvoicesForQuotation(quotationId: number) {
 			amount: true,
 			status: true,
 			created_at: true,
+			invoiceDate: true,
 			createdBy: {
 				select: {
 					firstName: true,
@@ -473,6 +476,7 @@ export async function getQuotationById(id: string) {
     startDate: quotation.startDate ?? undefined,
     endDate: quotation.endDate ?? undefined,
     clientId: quotation.clientId ?? undefined,
+    quotationDate: quotation.quotationDate,
     created_at: quotation.created_at,
     updated_at: quotation.updated_at,
     Client: quotation.Client ? {
@@ -602,6 +606,7 @@ export async function getQuotationFullById(id: string) {
     startDate: quotation.startDate ?? undefined,
     endDate: quotation.endDate ?? undefined,
     clientId: quotation.clientId ?? undefined,
+    quotationDate: quotation.quotationDate,
     created_at: quotation.created_at,
     updated_at: quotation.updated_at,
     Client: quotation.Client ? {
@@ -811,7 +816,9 @@ export async function createQuotation(data: unknown) {
             duration: validatedData.duration || 0,
             startDate: validatedData.startDate ? new Date(validatedData.startDate) : new Date(),
             endDate: endDate || new Date(),
-            created_at: validatedData.quotationDate ? new Date(validatedData.quotationDate) : new Date(),
+            quotationDate: validatedData.quotationDate
+              ? new Date(validatedData.quotationDate)
+              : new Date(),
 
             services: {
               create: validatedData.services.map((svc) => ({
@@ -1229,7 +1236,9 @@ export async function editQuotationById(
       duration: validatedData.duration !== undefined ? validatedData.duration : 0,
       startDate: validatedData.startDate ? new Date(validatedData.startDate) : new Date(),
       endDate: endDate || new Date(),
-      ...(validatedData.quotationDate ? { created_at: new Date(validatedData.quotationDate) } : {}),
+      ...(validatedData.quotationDate
+        ? { quotationDate: new Date(validatedData.quotationDate) }
+        : {}),
       ...(finalAdvisedById !== undefined ? { advisedById: finalAdvisedById } : {}),
       ...(validatedData.services
         ? {
@@ -2098,7 +2107,7 @@ export async function sendQuotationEmail(
         clientCompany: quotation.Client?.company || "",
         totalAmount: quotation.totalPrice,
         pdfBase64: pdfBase64,
-        quotationDate: formatLocalDateTime(new Date(quotation.created_at)),
+        quotationDate: formatLocalDateTime(new Date(quotation.quotationDate)),
       }),
     })
 

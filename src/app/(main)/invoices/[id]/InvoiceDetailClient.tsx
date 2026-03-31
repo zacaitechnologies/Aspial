@@ -274,7 +274,7 @@ export default function InvoiceDetailClient({
 							<Button
 								variant="outline"
 								onClick={() => {
-									setEditInvoiceDate(invoice.created_at ? formatLocalDate(new Date(invoice.created_at)) : formatLocalDate(new Date()))
+									setEditInvoiceDate(invoice.invoiceDate ? formatLocalDate(new Date(invoice.invoiceDate)) : formatLocalDate(new Date()))
 									setIsEditDateDialogOpen(true)
 								}}
 								className="flex items-center gap-2"
@@ -495,7 +495,7 @@ export default function InvoiceDetailClient({
 													)}
 												</div>
 												<p className="text-xs text-muted-foreground mt-1">
-													{new Date(receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+													{new Date(receipt.receiptDate ?? receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 												</p>
 											</div>
 											<div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -603,7 +603,13 @@ export default function InvoiceDetailClient({
 						</CardHeader>
 						<CardContent className="space-y-3">
 							<div>
-								<p className="text-sm font-medium text-muted-foreground">Created</p>
+								<p className="text-sm font-medium text-muted-foreground">Invoice date</p>
+								<p className="font-medium">
+									{new Date(invoice.invoiceDate ?? invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+								</p>
+							</div>
+							<div>
+								<p className="text-sm font-medium text-muted-foreground">Record created</p>
 								<p className="font-medium">
 									{new Date(invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
 								</p>

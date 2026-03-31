@@ -240,9 +240,11 @@ export default function EditQuotationForm({
       startDate: quotation.startDate
         ? formatLocalDate(new Date(quotation.startDate))
         : "",
-      quotationDate: quotation.created_at
-        ? formatLocalDate(new Date(quotation.created_at))
-        : formatLocalDate(new Date()),
+      quotationDate: quotation.quotationDate
+        ? formatLocalDate(new Date(quotation.quotationDate))
+        : quotation.created_at
+          ? formatLocalDate(new Date(quotation.created_at))
+          : formatLocalDate(new Date()),
       clientId: quotation.clientId || "",
       projectId: quotation.project?.id || undefined,
       newClient: {

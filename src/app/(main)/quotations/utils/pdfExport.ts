@@ -603,7 +603,7 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   };
 
   // Prepare header data
-  const quotationDate = formatDate(new Date(quotation.created_at));
+  const quotationDate = formatDate(new Date(quotation.quotationDate ?? quotation.created_at));
 
   // Add header and info box to first page (we'll update total pages later)
   addHeader(doc, logoBase64);
@@ -1008,7 +1008,7 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   };
 
   // Prepare header data
-  const quotationDate = formatDate(new Date(quotation.created_at));
+  const quotationDate = formatDate(new Date(quotation.quotationDate ?? quotation.created_at));
 
   // Add header and info box to first page (we'll update total pages later)
   addHeader(doc, logoBase64);

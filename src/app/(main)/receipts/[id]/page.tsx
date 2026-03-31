@@ -36,9 +36,9 @@ export default async function ReceiptDetailPage({
 
 	// Calculate remaining amount on server
 	let remainingAmount: number | null = null
-	if (receipt.invoiceId && receipt.created_at) {
-		const receiptCreatedAt = new Date(receipt.created_at)
-		const allReceipts = await getReceiptsForInvoice(receipt.invoiceId, receiptCreatedAt, true)
+	if (receipt.invoiceId && receipt.receiptDate) {
+		const receiptDocumentDate = new Date(receipt.receiptDate)
+		const allReceipts = await getReceiptsForInvoice(receipt.invoiceId, receiptDocumentDate, true)
 		const totalReceived = allReceipts.reduce((sum, r) => sum + r.amount, 0)
 		const invoiceAmount = receipt.invoice?.amount || 0
 		remainingAmount = Math.max(0, invoiceAmount - totalReceived)

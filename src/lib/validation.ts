@@ -240,7 +240,7 @@ export const createInvoiceSchema = z.object({
 	amount: z.number().positive("Invoice amount must be greater than 0"),
 	createdById: z.string().optional(),
 	advisedById: z.string().optional(),
-	/** Invoice date (created_at). Only applied when user is admin. */
+	/** Invoice document date (invoiceDate). Only applied when user is admin. */
 	invoiceDate: z.string().optional(),
 });
 
@@ -249,7 +249,7 @@ export type CreateInvoiceValues = z.infer<typeof createInvoiceSchema>;
 export const updateInvoiceAdminSchema = z.object({
 	advisedById: z.string().optional(),
 	status: invoiceStatusSchema.optional(),
-	/** Invoice date (created_at). Admin only. */
+	/** Invoice document date (invoiceDate). Admin only. */
 	invoiceDate: z.string().optional(),
 }).refine((data) => {
 	// At least one field must be provided
