@@ -88,7 +88,7 @@ async function _getReceiptsPaginatedInternal(
 					},
 				},
 			},
-			orderBy: { created_at: "desc" },
+			orderBy: { updated_at: "desc" },
 			skip,
 			take: pageSize,
 		})

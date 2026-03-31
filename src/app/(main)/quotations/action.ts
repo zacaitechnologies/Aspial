@@ -245,7 +245,7 @@ async function _getQuotationsPaginatedInternal(
           select: { amount: true },
         },
       },
-      orderBy: { created_at: "desc" },
+      orderBy: { updated_at: "desc" },
       skip,
       take: validatedPageSize,
     })

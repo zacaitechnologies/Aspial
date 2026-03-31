@@ -105,7 +105,7 @@ async function _getInvoicesPaginatedInternal(
 					},
 				},
 			},
-			orderBy: { created_at: "desc" },
+			orderBy: { updated_at: "desc" },
 			skip,
 			take: pageSize,
 		})
