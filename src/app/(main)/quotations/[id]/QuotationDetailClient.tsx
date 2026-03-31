@@ -589,7 +589,7 @@ export default function QuotationDetailClient({
 				onConfirm={async () => {
 					setIsReactivating(true)
 					try {
-						await reactivateQuotationCascade(quotation.id, {
+						await reactivateQuotationCascade(String(quotation.id), {
 							reactivateInvoices,
 							reactivateReceipts,
 						})
