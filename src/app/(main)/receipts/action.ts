@@ -5,21 +5,52 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
-import { Prisma } from "@prisma/client"
+import { Prisma, type PaymentMethod } from "@prisma/client"
+import { receiptListFiltersSchema, type ReceiptListFilters } from "@/lib/validation"
 
 // Internal function - not cached, used by cached version
 async function _getReceiptsPaginatedInternal(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {
-		searchQuery?: string
-	} = {}
+	filters: ReceiptListFilters = {}
 ) {
 	const skip = (page - 1) * pageSize
-	const { searchQuery } = filters
+	const parsed = receiptListFiltersSchema.safeParse(filters)
+	const raw = parsed.success ? parsed.data : {}
+	const searchQuery = raw.searchQuery
+	const advisorFilter = raw.advisorFilter
+	const monthYear = raw.monthYear && /^\d{4}-\d{2}$/.test(raw.monthYear) ? raw.monthYear : undefined
+	const paymentMethodRaw = raw.paymentMethod
 
 	const searchTerm = searchQuery?.trim()
 	const where: Prisma.ReceiptWhereInput = {}
+	if (advisorFilter && advisorFilter !== "all") {
+		where.advisedById = advisorFilter
+	}
+	if (monthYear) {
+		const parts = monthYear.split("-")
+		const y = Number(parts[0])
+		const m = Number(parts[1])
+		if (!Number.isNaN(y) && m >= 1 && m <= 12) {
+			const monthIndex = m - 1
+			const start = new Date(y, monthIndex, 1)
+			const end = new Date(y, monthIndex + 1, 0, 23, 59, 59, 999)
+			where.receiptDate = { gte: start, lte: end }
+		}
+	}
+	if (paymentMethodRaw && paymentMethodRaw !== "all") {
+		const allowed: PaymentMethod[] = [
+			"cash",
+			"bank_transfer",
+			"mydebit",
+			"visa",
+			"mastercard",
+			"qr",
+		]
+		if (allowed.includes(paymentMethodRaw as PaymentMethod)) {
+			where.paymentMethod = paymentMethodRaw as PaymentMethod
+		}
+	}
 	if (searchTerm && searchTerm.length > 0) {
 		where.OR = [
 			{ receiptNumber: { contains: searchTerm, mode: "insensitive" } },
@@ -146,9 +177,7 @@ const getCachedReceiptsPaginated = unstable_cache(
 export async function getReceiptsPaginated(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {
-		searchQuery?: string
-	} = {},
+	filters: ReceiptListFilters = {},
 	useCache: boolean = false
 ) {
 	if (useCache) {
@@ -162,12 +191,29 @@ export async function getReceiptsPaginated(
 export async function getReceiptsPaginatedFresh(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {
-		searchQuery?: string
-	} = {}
+	filters: ReceiptListFilters = {}
 ) {
 	unstable_noStore()
 	return await _getReceiptsPaginatedInternal(page, pageSize, filters)
+}
+
+/** Distinct brand advisors on receipts (for filter dropdown). */
+export async function getReceiptAdvisors() {
+	unstable_noStore()
+	const rows = await prisma.receipt.findMany({
+		where: { advisedById: { not: null } },
+		select: {
+			advisedBy: {
+				select: { id: true, firstName: true, lastName: true },
+			},
+		},
+		distinct: ["advisedById"],
+	})
+	return rows
+		.flatMap((r) => (r.advisedBy ? [r.advisedBy] : []))
+		.sort((a, b) =>
+			`${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+		)
 }
 
 // Invalidate receipts cache

@@ -117,12 +117,6 @@ export default function ReceiptCard({
 							<span>Invoice: {receipt.invoice?.invoiceNumber || 'N/A'}</span>
 							<span className="text-gray-400">•</span>
 							<span>{new Date(receipt.receiptDate ?? receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-							{receipt.createdBy && (
-								<>
-									<span className="text-gray-400">•</span>
-									<span>Created by {receipt.createdBy.firstName} {receipt.createdBy.lastName}</span>
-								</>
-							)}
 							{receipt.paymentMethod && (
 								<>
 									<span className="text-gray-400">•</span>

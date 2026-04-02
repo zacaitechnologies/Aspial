@@ -1,5 +1,5 @@
 import { getCachedUser } from "@/lib/auth-cache";
-import { getQuotationsPaginated } from "./action";
+import { getQuotationsPaginated, getQuotationAdvisors } from "./action";
 import QuotationsClient from "./components/QuotationsClient";
 import { checkIsOperationUser } from "../actions/admin-actions";
 import AccessDenied from "../components/AccessDenied";
@@ -22,8 +22,10 @@ export default async function QuotationsPage() {
     return <AccessDenied />;
   }
 
-  // Fetch initial data on server with caching enabled for better performance
-  const initialData = await getQuotationsPaginated(1, 10, {}, true);
+  const [initialData, advisors] = await Promise.all([
+    getQuotationsPaginated(1, 10, {}, true),
+    getQuotationAdvisors(),
+  ]);
 
-  return <QuotationsClient initialData={initialData} userId={user.id} />;
+  return <QuotationsClient initialData={initialData} initialAdvisors={advisors} />;
 }

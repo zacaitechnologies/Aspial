@@ -140,9 +140,23 @@ export type StopTimeEntryValues = z.infer<typeof stopTimeEntrySchema>;
 export const quotationFiltersSchema = z.object({
   statusFilter: z.enum(["all", "draft", "in_review", "final", "accepted", "rejected", "cancelled"]).optional(),
   searchQuery: z.string().max(200).optional(),
+  advisorFilter: z.string().optional(),
+  /** YYYY-MM — filters by quotation document date (quotationDate) within that calendar month */
+  monthYear: z.string().optional(),
 });
 
 export type QuotationFilters = z.infer<typeof quotationFiltersSchema>;
+
+/** Paginated receipts list filters */
+export const receiptListFiltersSchema = z.object({
+  searchQuery: z.string().max(200).optional(),
+  advisorFilter: z.string().optional(),
+  /** YYYY-MM — filters by receipt document date (receiptDate) within that calendar month */
+  monthYear: z.string().optional(),
+  paymentMethod: z.string().optional(),
+});
+
+export type ReceiptListFilters = z.infer<typeof receiptListFiltersSchema>;
 
 export const quotationPaginationSchema = z.object({
   page: z.number().int().positive().default(1),
@@ -266,6 +280,16 @@ export const sendInvoiceEmailSchema = z.object({
 });
 
 export type SendInvoiceEmailValues = z.infer<typeof sendInvoiceEmailSchema>;
+
+/** Filters for paginated invoice list (`monthYear`: YYYY-MM, matches **invoiceDate** month). */
+export const invoiceListFiltersSchema = z.object({
+	typeFilter: z.string().optional(),
+	searchQuery: z.string().optional(),
+	advisorFilter: z.string().optional(),
+	monthYear: z.string().optional(),
+});
+
+export type InvoiceListFilters = z.infer<typeof invoiceListFiltersSchema>;
 
 export const invoiceIdSchema = z.string().min(1, "Invoice ID is required");
 

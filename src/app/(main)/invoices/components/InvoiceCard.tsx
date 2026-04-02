@@ -193,12 +193,6 @@ export default function InvoiceCard({
 							<span>Quotation: {invoice.quotation?.name || 'N/A'}</span>
 							<span className="text-gray-400">•</span>
 							<span>{new Date(invoice.invoiceDate ?? invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-							{invoice.createdBy && (
-								<>
-									<span className="text-gray-400">•</span>
-									<span>Created by {invoice.createdBy.firstName} {invoice.createdBy.lastName}</span>
-								</>
-							)}
 							{invoice.advisedBy && (
 								<>
 									<span className="text-gray-400">•</span>
