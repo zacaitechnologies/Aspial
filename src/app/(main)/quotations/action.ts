@@ -108,12 +108,26 @@ async function _getQuotationsPaginatedInternal(
   }
 
   const skip = (validatedPage - 1) * validatedPageSize
-  const { statusFilter, searchQuery } = validatedFilters
+  const { statusFilter, searchQuery, advisorFilter, monthYear } = validatedFilters
 
   // Build where clause
   const where: Prisma.QuotationWhereInput = {}
   if (statusFilter && statusFilter !== 'all') {
     where.workflowStatus = statusFilter
+  }
+  if (advisorFilter && advisorFilter !== "all") {
+    where.advisedById = advisorFilter
+  }
+  if (monthYear && /^\d{4}-\d{2}$/.test(monthYear)) {
+    const parts = monthYear.split("-")
+    const y = Number(parts[0])
+    const m = Number(parts[1])
+    if (!Number.isNaN(y) && m >= 1 && m <= 12) {
+      const monthIndex = m - 1
+      const start = new Date(y, monthIndex, 1)
+      const end = new Date(y, monthIndex + 1, 0, 23, 59, 59, 999)
+      where.quotationDate = { gte: start, lte: end }
+    }
   }
 
   const searchTerm = searchQuery?.trim()
@@ -379,6 +393,25 @@ export async function getQuotationsPaginatedFresh(
   const user = await getCachedUser()
   const userId = user?.id
   return await _getQuotationsPaginatedInternal(page, pageSize, filters, userId)
+}
+
+/** Distinct brand advisors on quotations (for filter dropdown). */
+export async function getQuotationAdvisors() {
+  unstable_noStore()
+  const rows = await prisma.quotation.findMany({
+    where: { advisedById: { not: null } },
+    select: {
+      advisedBy: {
+        select: { id: true, firstName: true, lastName: true },
+      },
+    },
+    distinct: ["advisedById"],
+  })
+  return rows
+    .flatMap((r) => (r.advisedBy ? [r.advisedBy] : []))
+    .sort((a, b) =>
+      `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
+    )
 }
 
 // Invalidate quotations cache

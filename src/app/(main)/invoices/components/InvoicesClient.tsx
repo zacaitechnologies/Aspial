@@ -2,8 +2,9 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, FileText, Filter, Search } from "lucide-react"
-import { useState, useCallback, useEffect, useRef } from "react"
+import { Plus, FileText, Filter, Search, Calendar } from "lucide-react"
+import { useState, useCallback, useEffect, useRef, useMemo } from "react"
+import type { InvoiceListFilters } from "@/lib/validation"
 import { getInvoicesPaginatedFresh, invalidateInvoicesCache } from "../action"
 import CreateInvoiceForm from "./CreateInvoiceForm"
 import InvoiceCard from "./InvoiceCard"
@@ -36,8 +37,32 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 	const [isCreateOpen, setIsCreateOpen] = useState(false)
 	const [typeFilter, setTypeFilter] = useState<string>("all")
 	const [advisorFilter, setAdvisorFilter] = useState<string>("all")
+	const [monthYearFilter, setMonthYearFilter] = useState<string>("all")
 	const [searchInput, setSearchInput] = useState("")
 	const [searchQuery, setSearchQuery] = useState("")
+
+	const monthYearOptions = useMemo(() => {
+		const options: { value: string; label: string }[] = [{ value: "all", label: "All months" }]
+		const now = new Date()
+		for (let i = 0; i < 36; i++) {
+			const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+			const y = d.getFullYear()
+			const m = d.getMonth() + 1
+			const value = `${y}-${String(m).padStart(2, "0")}`
+			const label = d.toLocaleString("en-GB", { month: "long", year: "numeric" })
+			options.push({ value, label })
+		}
+		return options
+	}, [])
+
+	const buildListFilters = useCallback((): InvoiceListFilters => {
+		return {
+			typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+			searchQuery: searchQuery || undefined,
+			advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+			monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+		}
+	}, [typeFilter, searchQuery, advisorFilter, monthYearFilter])
 
 	// State from initial data - use initial data directly, no copying to state unless it changes
 	const [invoices, setInvoices] = useState<InvoiceWithQuotation[]>(initialData.data)
@@ -62,11 +87,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 	const fetchInvoices = useCallback(async () => {
 		setLoading(true)
 		try {
-			const result = await getInvoicesPaginatedFresh(page, pageSize, {
-				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
-				searchQuery: searchQuery || undefined,
-				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
-			})
+			const result = await getInvoicesPaginatedFresh(page, pageSize, buildListFilters())
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
 			setTotalPages(result.totalPages)
@@ -77,7 +98,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		} finally {
 			setLoading(false)
 		}
-	}, [page, pageSize, typeFilter, searchQuery, advisorFilter])
+	}, [page, pageSize, buildListFilters])
 
 	const handleSuccess = useCallback(async () => {
 		await invalidateInvoicesCache()
@@ -94,6 +115,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 				typeFilter: value !== "all" ? value : undefined,
 				searchQuery: searchQuery || undefined,
 				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -105,7 +127,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		} finally {
 			setLoading(false)
 		}
-	}, [pageSize, searchQuery, advisorFilter])
+	}, [pageSize, searchQuery, advisorFilter, monthYearFilter])
 
 	const handleAdvisorFilterChange = useCallback(async (value: string) => {
 		setAdvisorFilter(value)
@@ -116,6 +138,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 				searchQuery: searchQuery || undefined,
 				advisorFilter: value !== "all" ? value : undefined,
+				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -127,7 +150,30 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		} finally {
 			setLoading(false)
 		}
-	}, [pageSize, typeFilter, searchQuery])
+	}, [pageSize, typeFilter, searchQuery, monthYearFilter])
+
+	const handleMonthYearFilterChange = useCallback(async (value: string) => {
+		setMonthYearFilter(value)
+		setPage(1)
+		setLoading(true)
+		try {
+			const result = await getInvoicesPaginatedFresh(1, pageSize, {
+				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				searchQuery: searchQuery || undefined,
+				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+				monthYear: value !== "all" ? value : undefined,
+			})
+			setInvoices(result.data as InvoiceWithQuotation[])
+			setTotal(result.total)
+			setTotalPages(result.totalPages)
+		} catch (error) {
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error fetching invoices:", error)
+			}
+		} finally {
+			setLoading(false)
+		}
+	}, [pageSize, typeFilter, searchQuery, advisorFilter])
 
 	// Handle page changes - fetch directly
 	const goToPage = useCallback(async (newPage: number) => {
@@ -138,6 +184,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 				searchQuery: searchQuery || undefined,
 				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -149,7 +196,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		} finally {
 			setLoading(false)
 		}
-	}, [pageSize, typeFilter, searchQuery, advisorFilter])
+	}, [pageSize, typeFilter, searchQuery, advisorFilter, monthYearFilter])
 
 	const setPageSize = useCallback(async (size: number) => {
 		setPageSizeState(size)
@@ -160,6 +207,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 				searchQuery: searchQuery || undefined,
 				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
 			})
 			setInvoices(result.data as InvoiceWithQuotation[])
 			setTotal(result.total)
@@ -171,7 +219,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		} finally {
 			setLoading(false)
 		}
-	}, [typeFilter, searchQuery, advisorFilter])
+	}, [typeFilter, searchQuery, advisorFilter, monthYearFilter])
 
 	// When search query changes, reset to page 1 and refetch (skip initial mount to avoid overwriting server data)
 	const prevSearchQueryRef = useRef<string | undefined>(undefined)
@@ -189,6 +237,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 			typeFilter: typeFilter !== "all" ? typeFilter : undefined,
 			searchQuery: searchQuery || undefined,
 			advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+			monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
 		})
 			.then((result) => {
 				setInvoices(result.data as InvoiceWithQuotation[])
@@ -220,68 +269,102 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 					</Button>
 				</div>
 
-			{/* Filter Section */}
+			{/* Filter Section: full-width search, then filters on one row */}
 			{isMounted && (
-				<div className="mb-6 flex flex-wrap items-center gap-3">
-					<Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-					<span className="text-sm font-medium shrink-0">Filter by type:</span>
-					<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
-						<SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-							<SelectValue placeholder="All types" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All Types</SelectItem>
-							{invoiceTypeOptions.map((type) => (
-								<SelectItem key={type.value} value={type.value}>
-									{type.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					{initialAdvisors.length > 0 && (
-						<Select value={advisorFilter} onValueChange={handleAdvisorFilterChange}>
-							<SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
-								<SelectValue placeholder="All Advisors" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Advisors</SelectItem>
-								{initialAdvisors.map((advisor) => (
-									<SelectItem key={advisor.id} value={advisor.id}>
-										{advisor.firstName} {advisor.lastName}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					)}
-					{(typeFilter !== "all" || advisorFilter !== "all") && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => {
-								if (typeFilter !== "all") handleTypeFilterChange("all")
-								if (advisorFilter !== "all") handleAdvisorFilterChange("all")
-							}}
-							className="bg-white border-2"
-							style={{ borderColor: "#BDC4A5" }}
-						>
-							Clear Filters
-						</Button>
-					)}
-					<div className="relative flex-1 min-w-[200px] max-w-sm ml-auto">
-						<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+				<div className="mb-6 flex flex-col gap-3">
+					<div className="relative w-full">
+						<Search className="absolute left-3 top-1/2 z-10 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
 						<Input
 							type="search"
 							placeholder="Search invoices, client..."
 							value={searchInput}
 							onChange={(e) => setSearchInput(e.target.value)}
-							className="pl-9 bg-white border-2"
+							className="w-full pl-9 bg-white border-2"
 							style={{ borderColor: "#BDC4A5" }}
 							aria-label="Search invoices"
 						/>
 					</div>
-					<span className="text-sm text-muted-foreground shrink-0">
-						Showing {invoices.length} of {total} invoices
-					</span>
+					<div className="flex w-full min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:gap-3">
+						<Filter className="w-4 h-4 shrink-0 text-muted-foreground" />
+						<span className="shrink-0 text-sm font-medium">Filters</span>
+						<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
+							<SelectTrigger className="h-9 w-[min(12rem,100%)] shrink-0 bg-white border-2 sm:w-48" style={{ borderColor: "#BDC4A5" }}>
+								<SelectValue placeholder="All types" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Types</SelectItem>
+								{invoiceTypeOptions.map((type) => (
+									<SelectItem key={type.value} value={type.value}>
+										{type.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						{initialAdvisors.length > 0 && (
+							<Select value={advisorFilter} onValueChange={handleAdvisorFilterChange}>
+								<SelectTrigger className="h-9 w-[min(12rem,100%)] shrink-0 bg-white border-2 sm:w-48" style={{ borderColor: "#BDC4A5" }}>
+									<SelectValue placeholder="All Advisors" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Advisors</SelectItem>
+									{initialAdvisors.map((advisor) => (
+										<SelectItem key={advisor.id} value={advisor.id}>
+											{advisor.firstName} {advisor.lastName}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+						<div className="flex shrink-0 items-center gap-1.5">
+							<Calendar className="h-4 w-4 text-muted-foreground" aria-hidden />
+							<Select value={monthYearFilter} onValueChange={handleMonthYearFilterChange}>
+								<SelectTrigger className="h-9 w-[min(12.5rem,85vw)] bg-white border-2 sm:w-[200px]" style={{ borderColor: "#BDC4A5" }}>
+									<SelectValue placeholder="All months" />
+								</SelectTrigger>
+								<SelectContent className="max-h-72">
+									{monthYearOptions.map((opt) => (
+										<SelectItem key={opt.value} value={opt.value}>
+											{opt.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						{(typeFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all") && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={async () => {
+									setTypeFilter("all")
+									setAdvisorFilter("all")
+									setMonthYearFilter("all")
+									setPage(1)
+									setLoading(true)
+									try {
+										const result = await getInvoicesPaginatedFresh(1, pageSize, {
+											searchQuery: searchQuery || undefined,
+										})
+										setInvoices(result.data as InvoiceWithQuotation[])
+										setTotal(result.total)
+										setTotalPages(result.totalPages)
+									} catch (error) {
+										if (process.env.NODE_ENV === "development") {
+											console.error("Error fetching invoices:", error)
+										}
+									} finally {
+										setLoading(false)
+									}
+								}}
+								className="shrink-0 bg-white border-2"
+								style={{ borderColor: "#BDC4A5" }}
+							>
+								Clear Filters
+							</Button>
+						)}
+						<span className="ml-auto shrink-0 pl-2 text-sm text-muted-foreground whitespace-nowrap">
+							Showing {invoices.length} of {total} invoices
+						</span>
+					</div>
 				</div>
 			)}
 
@@ -318,14 +401,14 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 					)}
 				</div>
 
-				{!loading && invoices.length === 0 && total === 0 && typeFilter === "all" && advisorFilter === "all" && !searchQuery && (
+				{!loading && invoices.length === 0 && total === 0 && typeFilter === "all" && advisorFilter === "all" && monthYearFilter === "all" && !searchQuery && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-muted-foreground">No invoices available.</p>
 					</div>
 				)}
 
-				{!loading && invoices.length === 0 && (typeFilter !== "all" || advisorFilter !== "all" || searchQuery) && (
+				{!loading && invoices.length === 0 && (typeFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all" || searchQuery) && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-muted-foreground">
@@ -335,10 +418,28 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 							variant="outline"
 							className="mt-4 bg-white border-2"
 							style={{ borderColor: "#BDC4A5" }}
-							onClick={() => {
-								if (typeFilter !== "all") handleTypeFilterChange("all")
-								if (advisorFilter !== "all") handleAdvisorFilterChange("all")
-								if (searchQuery) { setSearchInput(""); setSearchQuery("") }
+							onClick={async () => {
+								setTypeFilter("all")
+								setAdvisorFilter("all")
+								setMonthYearFilter("all")
+								if (searchQuery) {
+									setSearchInput("")
+									setSearchQuery("")
+								}
+								setPage(1)
+								setLoading(true)
+								try {
+									const result = await getInvoicesPaginatedFresh(1, pageSize, {})
+									setInvoices(result.data as InvoiceWithQuotation[])
+									setTotal(result.total)
+									setTotalPages(result.totalPages)
+								} catch (error) {
+									if (process.env.NODE_ENV === "development") {
+										console.error("Error fetching invoices:", error)
+									}
+								} finally {
+									setLoading(false)
+								}
 							}}
 						>
 							Clear Filters

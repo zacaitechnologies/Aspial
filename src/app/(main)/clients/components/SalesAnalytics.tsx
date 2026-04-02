@@ -12,6 +12,7 @@ import { DollarSign, TrendingUp, Users, FileText, Search, Calendar, Building2, U
 import { getSalesData, getAllAdvisors } from "../action"
 import { checkIsAdmin } from "../../actions/admin-actions"
 import { useSession } from "../../contexts/SessionProvider"
+import { formatNumber } from "@/lib/format-number"
 
 interface SalesAnalyticsProps {
   defaultYear?: number
@@ -236,8 +237,8 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Sales</p>
-                    <p className="text-3xl font-bold text-foreground">
-                      RM {(salesData.totalSales / 1000).toFixed(1)}K
+                    <p className="text-3xl font-bold text-foreground tabular-nums">
+                      RM {formatNumber(salesData.totalSales)}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-accent">
@@ -284,8 +285,11 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Avg per Invoice</p>
-                    <p className="text-3xl font-bold text-foreground">
-                      RM {salesData.totalInvoices > 0 ? (salesData.totalSales / salesData.totalInvoices / 1000).toFixed(1) : '0'}K
+                    <p className="text-3xl font-bold text-foreground tabular-nums">
+                      RM{" "}
+                      {salesData.totalInvoices > 0
+                        ? formatNumber(salesData.totalSales / salesData.totalInvoices)
+                        : formatNumber(0)}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-accent">
@@ -316,8 +320,8 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                         <div className="text-sm font-bold mb-2 text-muted-foreground">
                           {monthData.month}
                         </div>
-                        <div className="text-2xl font-bold mb-1 text-foreground">
-                          RM {(monthData.sales / 1000).toFixed(1)}K
+                        <div className="text-2xl font-bold mb-1 text-foreground tabular-nums break-words">
+                          RM {formatNumber(monthData.sales)}
                         </div>
                         <div className="text-xs space-y-1 text-muted-foreground">
                           <div>{monthData.invoices} invoices</div>
@@ -354,8 +358,8 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                         <TableCell className="font-medium text-foreground">
                           {advisor.advisorName}
                         </TableCell>
-                        <TableCell className="text-right font-bold text-foreground">
-                          RM {(advisor.totalSales / 1000).toFixed(1)}K
+                        <TableCell className="text-right font-bold text-foreground tabular-nums">
+                          RM {formatNumber(advisor.totalSales)}
                         </TableCell>
                         <TableCell className="text-center text-foreground">
                           {advisor.invoicesCount}
@@ -363,8 +367,11 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                         <TableCell className="text-center text-foreground">
                           {advisor.clientsCount}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-foreground">
-                          RM {(advisor.totalSales / advisor.invoicesCount / 1000).toFixed(1)}K
+                        <TableCell className="text-right font-medium text-foreground tabular-nums">
+                          RM{" "}
+                          {formatNumber(
+                            advisor.invoicesCount > 0 ? advisor.totalSales / advisor.invoicesCount : 0
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -426,8 +433,8 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                                 {invoice.createdBy?.name || 'N/A'}
                               </div>
                             </TableCell>
-                            <TableCell className="text-right font-bold text-foreground">
-                              RM {(invoice.amount / 1000).toFixed(1)}K
+                            <TableCell className="text-right font-bold text-foreground tabular-nums whitespace-nowrap">
+                              RM {formatNumber(invoice.amount)}
                             </TableCell>
                             <TableCell className="text-foreground">
                               {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', {

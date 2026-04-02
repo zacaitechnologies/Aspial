@@ -509,12 +509,6 @@ export default function QuotationCard({
                 </>
               )}
               <span>{new Date(quotation.quotationDate ?? quotation.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-              {quotation.createdBy && (
-                <>
-                  <span className="text-gray-400">•</span>
-                  <span>Created by {quotation.createdBy.firstName} {quotation.createdBy.lastName}</span>
-                </>
-              )}
               {quotation.advisedBy && (
                 <>
                   <span className="text-gray-400">•</span>

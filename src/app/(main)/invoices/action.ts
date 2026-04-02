@@ -12,23 +12,27 @@ import {
 	sendInvoiceEmailSchema,
 	invoiceIdSchema,
 	searchQuotationsForInvoiceSchema,
+	invoiceListFiltersSchema,
 	type CreateInvoiceValues,
 	type UpdateInvoiceAdminValues,
 	type SendInvoiceEmailValues,
+	type InvoiceListFilters,
 } from "@/lib/validation"
 
 // Internal function - not cached, used by cached version
 async function _getInvoicesPaginatedInternal(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {
-		typeFilter?: string
-		searchQuery?: string
-		advisorFilter?: string
-	} = {}
+	filters: InvoiceListFilters = {}
 ) {
 	const skip = (page - 1) * pageSize
-	const { typeFilter, searchQuery, advisorFilter } = filters
+	const parsed = invoiceListFiltersSchema.safeParse(filters)
+	const raw = parsed.success ? parsed.data : {}
+	const typeFilter = raw.typeFilter
+	const searchQuery = raw.searchQuery
+	const advisorFilter = raw.advisorFilter
+	const monthYear =
+		raw.monthYear && /^\d{4}-\d{2}$/.test(raw.monthYear) ? raw.monthYear : undefined
 
 	// Build where clause
 	const where: Prisma.InvoiceWhereInput = {}
@@ -37,6 +41,17 @@ async function _getInvoicesPaginatedInternal(
 	}
 	if (advisorFilter && advisorFilter !== 'all') {
 		where.advisedById = advisorFilter
+	}
+	if (monthYear) {
+		const parts = monthYear.split("-")
+		const y = Number(parts[0])
+		const m = Number(parts[1])
+		if (!Number.isNaN(y) && m >= 1 && m <= 12) {
+			const monthIndex = m - 1
+			const start = new Date(y, monthIndex, 1)
+			const end = new Date(y, monthIndex + 1, 0, 23, 59, 59, 999)
+			where.invoiceDate = { gte: start, lte: end }
+		}
 	}
 
 	const searchTerm = searchQuery?.trim()
@@ -166,11 +181,7 @@ const getCachedInvoicesPaginated = unstable_cache(
 export async function getInvoicesPaginated(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {
-		typeFilter?: string
-		searchQuery?: string
-		advisorFilter?: string
-	} = {},
+	filters: InvoiceListFilters = {},
 	useCache: boolean = false
 ) {
 	if (useCache) {
@@ -184,11 +195,7 @@ export async function getInvoicesPaginated(
 export async function getInvoicesPaginatedFresh(
 	page: number = 1,
 	pageSize: number = 10,
-	filters: {
-		typeFilter?: string
-		searchQuery?: string
-		advisorFilter?: string
-	} = {}
+	filters: InvoiceListFilters = {}
 ) {
 	unstable_noStore()
 	return await _getInvoicesPaginatedInternal(page, pageSize, filters)
