@@ -10,6 +10,7 @@ import {
   Bell,
   Calendar,
   CalendarClockIcon,
+  CalendarDays,
   Wrench,
   Receipt,
   Briefcase,
@@ -63,6 +64,11 @@ const mainNavItems = [
     title: "Time Tracking",
     url: "/time-tracking",
     icon: Clock,
+  },
+  {
+    title: "Leave",
+    url: "/leave",
+    icon: CalendarDays,
   },
   {
     title: "Calendar",
@@ -161,7 +167,7 @@ export function AppSidebar() {
               {mainNavItems
                 .filter((item) => {
                   // Operation users can only see: Projects, Appointment Bookings, Time Tracking, Calendar (no Benefits)
-                  const allowedUrlsForOperationUser = ["/projects", "/appointment-bookings", "/time-tracking", "/calendar"];
+                  const allowedUrlsForOperationUser = ["/projects", "/appointment-bookings", "/time-tracking", "/leave", "/calendar"];
                   
                   // If role check is still in progress, show only allowed items (safer default)
                   if (isOperationUser === null) {

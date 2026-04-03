@@ -70,6 +70,11 @@ model User {
   advisedQuotations        Quotation[]               @relation("QuotationAdvisor")
   advisedInvoices          Invoice[]                 @relation("InvoiceAdvisor")
   advisedReceipts          Receipt[]                 @relation("ReceiptAdvisor")
+  leaveApplications        LeaveApplication[]
+  reviewedLeaves           LeaveApplication[]        @relation("LeaveReviewer")
+  leaveBalances            LeaveBalance[]
+  leaveChangeRequests      LeaveChangeRequest[]      @relation("ChangeRequestor")
+  reviewedChangeRequests   LeaveChangeRequest[]      @relation("ChangeRequestReviewer")
 
   @@index([supabase_id])
   @@map("user")
@@ -668,4 +673,122 @@ model Contract {
   uploader   User     @relation(fields: [uploadedBy], references: [supabase_id], onDelete: Cascade)
 
   @@map("contracts")
+}
+
+// Leave Application Module
+
+enum LeaveType {
+  ANNUAL
+  MEDICAL
+  EMERGENCY
+  UNPAID
+  HOSPITALIZATION
+  COMPASSIONATE
+  MATERNITY
+  PATERNITY
+  REPLACEMENT
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeaveHalfDay {
+  NONE
+  FIRST_HALF
+  SECOND_HALF
+}
+
+enum ChangeRequestType {
+  CANCEL
+  EDIT
+}
+
+enum ChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LeaveApplication {
+  id             Int                  @id @default(autoincrement())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id])
+  leaveType      LeaveType
+  startDate      DateTime
+  endDate        DateTime
+  halfDay        LeaveHalfDay         @default(NONE)
+  reason         String
+  attachmentUrl  String?
+  status         LeaveStatus          @default(PENDING)
+  adminRemarks   String?
+  reviewedById   String?
+  reviewedBy     User?                @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  totalDays      Float
+  unpaidDays     Float                @default(0)
+  created_at     DateTime             @default(now())
+  updated_at     DateTime             @updatedAt
+  changeRequests LeaveChangeRequest[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("leave_application")
+}
+
+model LeaveBalance {
+  id        Int       @id @default(autoincrement())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  leaveType LeaveType
+  year      Int
+  entitled  Float
+  used      Float     @default(0)
+  pending   Float     @default(0)
+  balance   Float
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([userId, leaveType, year])
+  @@index([userId, year])
+  @@map("leave_balance")
+}
+
+model LeaveChangeRequest {
+  id                 Int                 @id @default(autoincrement())
+  leaveApplicationId Int
+  leaveApplication   LeaveApplication    @relation(fields: [leaveApplicationId], references: [id])
+  requestedById      String
+  requestedBy        User                @relation("ChangeRequestor", fields: [requestedById], references: [id])
+  type               ChangeRequestType
+  status             ChangeRequestStatus @default(PENDING)
+  reason             String
+  newStartDate       DateTime?
+  newEndDate         DateTime?
+  newLeaveType       LeaveType?
+  newHalfDay         LeaveHalfDay?
+  newReason          String?
+  adminRemarks       String?
+  reviewedById       String?
+  reviewedBy         User?               @relation("ChangeRequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt         DateTime?
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+
+  @@index([leaveApplicationId])
+  @@map("leave_change_request")
+}
+
+model LeaveEntitlementDefault {
+  id           Int       @id @default(autoincrement())
+  leaveType    LeaveType @unique
+  entitledDays Float
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  @@map("leave_entitlement_default")
 }
