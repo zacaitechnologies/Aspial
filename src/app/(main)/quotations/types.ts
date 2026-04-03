@@ -185,4 +185,7 @@ export const limitedPaymentStatusOptions = [
 ] as const;
 
 // Backwards compatibility - use workflow status
-export const statusOptions = workflowStatusOptions; 
+export const statusOptions = workflowStatusOptions;
+
+/** Browser event: list should refetch (e.g. after custom service approval from notifications). */
+export const QUOTATIONS_LIST_REFRESH_EVENT = "aspial:quotations-invalidate" as const;

@@ -414,10 +414,13 @@ export async function getQuotationAdvisors() {
     )
 }
 
-// Invalidate quotations cache
-export async function invalidateQuotationsCache() {
+// Invalidate quotations cache (optional quotationId revalidates detail page)
+export async function invalidateQuotationsCache(quotationId?: number) {
   revalidateTag("quotations", { expire: 0 })
   revalidatePath("/quotations")
+  if (quotationId != null) {
+    revalidatePath(`/quotations/${quotationId}`)
+  }
 }
 
 /**
@@ -2004,7 +2007,7 @@ export async function updateCustomServiceStatus(
     throw new Error("User not found in database")
   }
 
-  return await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     const customService = await tx.customService.update({
       where: { id: validated.customServiceId },
       data: {
@@ -2026,17 +2029,31 @@ export async function updateCustomServiceStatus(
       },
     });
 
-    // If approved, create QuotationService entry (serviceId omitted for custom services)
+    // If approved, create QuotationService line and add price to stored total (matches edit form: discounted standard + approved custom)
     if (validated.status === "APPROVED") {
-      await tx.quotationService.create({
-        data: {
+      const existingLine = await tx.quotationService.findFirst({
+        where: {
           quotationId: customService.quotationId,
           customServiceId: validated.customServiceId,
-          price: customService.price,
-          quantity: 1,
-          // serviceId omitted: custom services are linked via customServiceId only; DB stores NULL
         },
-      });
+      })
+      if (!existingLine) {
+        await tx.quotationService.create({
+          data: {
+            quotationId: customService.quotationId,
+            customServiceId: validated.customServiceId,
+            price: customService.price,
+            quantity: 1,
+            // serviceId omitted: custom services are linked via customServiceId only; DB stores NULL
+          },
+        })
+        await tx.quotation.update({
+          where: { id: customService.quotationId },
+          data: {
+            totalPrice: { increment: customService.price },
+          },
+        })
+      }
     }
 
     // Check if there are any pending custom services
@@ -2064,6 +2081,9 @@ export async function updateCustomServiceStatus(
 
     return customService;
   }, { timeout: 15000 }); // Increased timeout for production network latency
+
+  await invalidateQuotationsCache(updated.quotationId)
+  return updated
 }
 
 // Approve custom service

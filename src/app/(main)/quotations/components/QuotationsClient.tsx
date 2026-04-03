@@ -9,7 +9,7 @@ import { getQuotationsPaginatedFresh, deleteQuotationById, invalidateQuotationsC
 import CreateQuotationForm from "./CreateQuotationForm";
 import EditQuotationForm from "./EditQuotationForm";
 import QuotationCard from "./QuotationCard";
-import { QuotationWithServices, statusOptions } from "../types";
+import { QuotationWithServices, QUOTATIONS_LIST_REFRESH_EVENT, statusOptions } from "../types";
 import { useSession } from "../../contexts/SessionProvider";
 import { checkHasFullAccess } from "../../actions/admin-actions";
 import {
@@ -125,6 +125,14 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
       setLoading(false);
     }
   }, [page, pageSize, buildListFilters]);
+
+  useEffect(() => {
+    const onListRefresh = () => {
+      void fetchQuotations();
+    };
+    window.addEventListener(QUOTATIONS_LIST_REFRESH_EVENT, onListRefresh);
+    return () => window.removeEventListener(QUOTATIONS_LIST_REFRESH_EVENT, onListRefresh);
+  }, [fetchQuotations]);
 
   const handleStatusFilterChange = useCallback(
     async (value: string) => {

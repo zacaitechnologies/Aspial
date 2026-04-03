@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -27,6 +28,7 @@ import {
   approveCustomService,
   rejectCustomService,
 } from "../../quotations/action";
+import { QUOTATIONS_LIST_REFRESH_EVENT } from "../../quotations/types";
 import { toast } from "@/components/ui/use-toast";
 
 type CustomServiceRequest = {
@@ -66,6 +68,7 @@ export default function CustomServiceNotifications({
   userId,
   isAdmin = false,
 }: CustomServiceNotificationsProps) {
+  const router = useRouter();
   const [pendingServices, setPendingServices] = useState<CustomServiceRequest[]>([]);
   const [allServices, setAllServices] = useState<CustomServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +137,10 @@ export default function CustomServiceNotifications({
       setSelectedService(null);
       setApprovalComment("");
       fetchCustomServices();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(QUOTATIONS_LIST_REFRESH_EVENT));
+      }
+      router.refresh();
       toast({
         title: "Success",
         description: "Custom service approved successfully!",
@@ -167,6 +174,10 @@ export default function CustomServiceNotifications({
       setSelectedService(null);
       setRejectionComment("");
       fetchCustomServices();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(QUOTATIONS_LIST_REFRESH_EVENT));
+      }
+      router.refresh();
       toast({
         title: "Success",
         description: "Custom service rejected.",
