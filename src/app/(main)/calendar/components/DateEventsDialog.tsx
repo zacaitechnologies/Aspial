@@ -17,10 +17,10 @@ interface DateEventsDialogProps {
 }
 
 const eventTypeColors: Record<CalendarBooking["type"], string> = {
-  appointment: "bg-blue-500",
-  task: "bg-red-500",
-  leave: "bg-calendar-leave",
-  blocker: "bg-calendar-blocker",
+  appointment: "bg-blue-500 text-primary-foreground",
+  task: "bg-red-500 text-primary-foreground",
+  leave: "bg-calendar-leave text-foreground",
+  blocker: "bg-calendar-blocker text-calendar-blocker-foreground",
 }
 
 const eventTypeLabels: Record<CalendarBooking["type"], string> = {
@@ -99,7 +99,7 @@ export function DateEventsDialog({
                   <div className="flex items-center gap-2">
                     <Badge 
                       variant="secondary" 
-                      className={`${eventTypeColors[event.type]} text-foreground`}
+                      className={eventTypeColors[event.type]}
                     >
                       {eventTypeLabels[event.type]}
                     </Badge>

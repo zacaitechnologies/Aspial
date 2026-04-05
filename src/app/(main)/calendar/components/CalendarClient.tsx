@@ -52,7 +52,7 @@ const getBadgeClasses = (appointmentType: CalendarEventType): { variant: "defaul
 		PHOTO_SELECTION: { variant: "secondary", className: "bg-calendar-photo-selection text-foreground" },
 		OTHERS: { variant: "secondary", className: "bg-calendar-others text-foreground" },
 		LEAVE: { variant: "secondary", className: "bg-calendar-leave text-foreground" },
-		BLOCKER: { variant: "secondary", className: "bg-calendar-blocker text-foreground" },
+		BLOCKER: { variant: "secondary", className: "bg-calendar-blocker text-calendar-blocker-foreground" },
 	}
 	return badgeMap[appointmentType] || { variant: "secondary", className: "bg-calendar-others text-foreground" }
 }

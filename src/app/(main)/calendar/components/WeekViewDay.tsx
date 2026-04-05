@@ -75,7 +75,7 @@ export function WeekViewDay({
 						{allDayEvents.slice(0, 3).map(event => (
 							<div
 								key={event.id}
-								className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} text-foreground hover:opacity-90 transition-opacity truncate`}
+								className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} hover:opacity-90 transition-opacity truncate`}
 								onClick={(e) => {
 									e.stopPropagation()
 									onEventClick(event)
@@ -107,14 +107,14 @@ export function WeekViewDay({
 									{slotEvents.map(event => (
 										<div
 											key={event.id}
-											className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} text-foreground hover:opacity-90 transition-opacity`}
+											className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} hover:opacity-90 transition-opacity`}
 											onClick={(e) => {
 												e.stopPropagation()
 												onEventClick(event)
 											}}
 										>
 											<div className="font-medium truncate">{event.title}</div>
-											<div className="text-[10px] text-foreground/80 truncate">
+											<div className="text-[10px] truncate opacity-80">
 												{event.startTime} - {event.endTime}
 											</div>
 										</div>
