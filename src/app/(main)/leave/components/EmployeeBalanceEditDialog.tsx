@@ -49,7 +49,7 @@ export default function EmployeeBalanceEditDialog({
     try {
       await updateEmployeeBalance({
         userId,
-        leaveType: leaveType as "ANNUAL",
+        leaveType: leaveType as "PAID" | "UNPAID",
         year: currentYear,
         entitled: parseFloat(entitled),
       })

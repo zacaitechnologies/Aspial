@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarBooking } from "../actions"
+import { type CalendarBooking } from "../actions"
 import { formatDate, getDetailedTimeSlots, parseTime, isToday } from "../utils/calendar-utils"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
@@ -12,9 +12,10 @@ interface DayViewProps {
 	onEventClick: (event: CalendarBooking) => void
 }
 
-const bookingTypeLabels = {
-	appointment: 'Appointment',
-	task: 'Task'
+const bookingTypeLabels: Record<CalendarBooking["type"], string> = {
+	appointment: "Appointment",
+	task: "Task",
+	leave: "Leave",
 }
 
 export function DayView({
@@ -31,14 +32,13 @@ export function DayView({
 		[bookings, dateString]
 	)
 	
-	// Separate all-day events (tasks) from time-specific events
 	const allDayEvents = useMemo(
-		() => dayEvents.filter(e => e.type === 'task'),
+		() => dayEvents.filter(e => e.type === "task" || e.type === "leave"),
 		[dayEvents]
 	)
 	
 	const timedEvents = useMemo(
-		() => dayEvents.filter(e => e.type !== 'task'),
+		() => dayEvents.filter(e => e.type !== "task" && e.type !== "leave"),
 		[dayEvents]
 	)
 	

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -56,7 +57,10 @@ interface AdminLeaveViewProps {
   initialEntitlementDefaults: EntitlementDefaultDTO[]
   allUsers: { id: string; firstName: string; lastName: string; email: string; profilePicture: string | null }[]
   currentUserId: string
+  /** Malaysia calendar year (used for balance year when applying leave). */
   currentYear: number
+  /** Calendar year for the employee overview table (filter). */
+  overviewYear: number
 }
 
 export default function AdminLeaveView({
@@ -68,11 +72,11 @@ export default function AdminLeaveView({
   allUsers,
   currentUserId,
   currentYear,
+  overviewYear,
 }: AdminLeaveViewProps) {
   const router = useRouter()
   const { toast } = useToast()
 
-  const [applications] = useState(initialApplications)
   const [showApplyForm, setShowApplyForm] = useState(false)
   const [selectedApp, setSelectedApp] = useState<LeaveApplicationDTO | null>(null)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
@@ -93,15 +97,18 @@ export default function AdminLeaveView({
   } | null>(null)
   const [confirmRemarks, setConfirmRemarks] = useState("")
   const [confirmLoading, setConfirmLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState("overview")
 
-  const filteredApplications = applications.filter((app) => {
+  const filteredApplications = initialApplications.filter((app) => {
     if (statusFilter !== "all" && app.status !== statusFilter) return false
     if (typeFilter !== "all" && app.leaveType !== typeFilter) return false
     if (employeeFilter !== "all" && app.userId !== employeeFilter) return false
     return true
   })
 
-  const refresh = useCallback(() => router.refresh(), [router])
+  const refresh = useCallback(async () => {
+    await router.refresh()
+  }, [router])
 
   async function handleConfirmAction() {
     if (!confirmAction) return
@@ -119,7 +126,7 @@ export default function AdminLeaveView({
       })
       setConfirmAction(null)
       setConfirmRemarks("")
-      refresh()
+      await refresh()
     } catch (error) {
       toast({
         title: "Error",
@@ -151,35 +158,78 @@ export default function AdminLeaveView({
         </Button>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="applications">
-            Applications
-            {initialStats.pending > 0 && (
-              <span className="ml-1.5 bg-yellow-100 text-yellow-800 text-xs rounded-full px-1.5 py-0.5">
-                {initialStats.pending}
+      <Tabs
+        defaultValue="overview"
+        className="w-full"
+        onValueChange={setActiveTab}
+      >
+        <div className="relative w-full overflow-x-auto">
+          <TabsList className="grid min-h-11 w-full min-w-[280px] grid-cols-4 gap-0 bg-transparent border border-primary rounded-lg p-1 transition-all duration-300 ease-in-out sm:min-w-0">
+            <TabsTrigger
+              value="overview"
+              className="relative z-10 rounded-md px-1 py-2 text-[11px] transition-all duration-300 ease-in-out data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none sm:px-2 sm:text-sm"
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="applications"
+              className="relative z-10 rounded-md px-1 py-2 text-[11px] transition-all duration-300 ease-in-out data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none sm:px-2 sm:text-sm"
+            >
+              <span className="inline-flex items-center justify-center gap-1">
+                <span className="leading-tight">Applications</span>
+                {initialStats.pending > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground tabular-nums data-[state=active]:bg-primary-foreground/25 data-[state=active]:text-primary-foreground">
+                    {initialStats.pending}
+                  </span>
+                )}
               </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="change-requests">
-            Change Requests
-            {initialChangeRequests.length > 0 && (
-              <span className="ml-1.5 bg-orange-100 text-orange-800 text-xs rounded-full px-1.5 py-0.5">
-                {initialChangeRequests.length}
+            </TabsTrigger>
+            <TabsTrigger
+              value="change-requests"
+              className="relative z-10 rounded-md px-1 py-2 text-[11px] transition-all duration-300 ease-in-out data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none sm:px-2 sm:text-sm"
+            >
+              <span className="inline-flex items-center justify-center gap-1">
+                <span className="leading-tight hidden min-[400px]:inline">Requests</span>
+                <span className="leading-tight min-[400px]:hidden">Req.</span>
+                {initialChangeRequests.length > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground tabular-nums data-[state=active]:bg-primary-foreground/25 data-[state=active]:text-primary-foreground">
+                    {initialChangeRequests.length}
+                  </span>
+                )}
               </span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="settings"
+              className="relative z-10 rounded-md px-1 py-2 text-[11px] transition-all duration-300 ease-in-out data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none sm:px-2 sm:text-sm"
+            >
+              <span className="inline-flex items-center justify-center gap-1">
+                <Settings2 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                <span className="leading-tight hidden sm:inline">Settings</span>
+              </span>
+            </TabsTrigger>
+          </TabsList>
+          <div
+            className={cn(
+              "pointer-events-none absolute top-1 z-0 h-[calc(100%-8px)] rounded-md bg-primary transition-all duration-300 ease-in-out",
+              activeTab === "overview" && "left-1 w-[calc(25%-4px)]",
+              activeTab === "applications" && "left-[calc(25%+2px)] w-[calc(25%-4px)]",
+              activeTab === "change-requests" && "left-[calc(50%+2px)] w-[calc(25%-4px)]",
+              activeTab === "settings" && "left-[calc(75%+2px)] w-[calc(25%-4px)]"
             )}
-          </TabsTrigger>
-          <TabsTrigger value="settings">
-            <Settings2 className="h-4 w-4 mr-1" />
-            Settings
-          </TabsTrigger>
-        </TabsList>
+            aria-hidden
+          />
+        </div>
 
         <TabsContent value="overview" className="space-y-6 mt-4">
           <LeaveOverviewCards stats={initialStats} />
-          <EmployeeLeaveOverviewTable employees={initialEmployeeOverview} />
-          <LeaveCalendar applications={applications} showEmployeeName />
+          <EmployeeLeaveOverviewTable
+            employees={initialEmployeeOverview}
+            selectedYear={overviewYear}
+            yearMin={currentYear - 10}
+            yearMax={currentYear + 1}
+            onYearChange={(y) => router.replace(`/leave?year=${y}`)}
+          />
+          <LeaveCalendar applications={initialApplications} showEmployeeName />
         </TabsContent>
 
         <TabsContent value="applications" className="space-y-4 mt-4">

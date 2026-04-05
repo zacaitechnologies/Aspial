@@ -1,7 +1,7 @@
 import * as XLSX from '@e965/xlsx'
 import { parseLocalDateString, formatDateStringDirect } from '@/lib/date-utils'
 import { CalendarBooking } from '../actions'
-import { APPOINTMENT_TYPES } from '../constants'
+import { CALENDAR_EVENT_TYPES } from '../constants'
 
 interface ExportOptions {
 	bookings: CalendarBooking[]
@@ -57,7 +57,7 @@ export function exportCalendarToExcel(options: ExportOptions): void {
 		// Prepare data for Excel
 		const excelData = sortedBookings.map((booking) => {
 			const bookingDate = parseLocalDateString(booking.date)
-			const appointmentTypeLabel = APPOINTMENT_TYPES[booking.appointmentType]?.label || 'Others'
+			const appointmentTypeLabel = CALENDAR_EVENT_TYPES[booking.appointmentType]?.label || "Others"
 			
 			return {
 				'Date': formatDateStringDirect(booking.date),

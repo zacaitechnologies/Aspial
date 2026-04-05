@@ -342,7 +342,7 @@ export type UpdateClientMembershipValues = z.infer<typeof updateClientMembership
 
 // Leave Application validation schemas
 export const applyLeaveSchema = z.object({
-  leaveType: z.enum(["ANNUAL", "MEDICAL", "EMERGENCY", "UNPAID", "HOSPITALIZATION", "COMPASSIONATE", "MATERNITY", "PATERNITY", "REPLACEMENT"]),
+  leaveType: z.enum(["PAID", "UNPAID"]),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).default("NONE"),
@@ -372,7 +372,7 @@ export type ReviewLeaveValues = z.infer<typeof reviewLeaveSchema>;
 
 export const adminEditLeaveSchema = z.object({
   leaveId: z.number().int().positive(),
-  leaveType: z.enum(["ANNUAL", "MEDICAL", "EMERGENCY", "UNPAID", "HOSPITALIZATION", "COMPASSIONATE", "MATERNITY", "PATERNITY", "REPLACEMENT"]).optional(),
+  leaveType: z.enum(["PAID", "UNPAID"]).optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
   halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).optional(),
@@ -387,12 +387,27 @@ export const leaveChangeRequestSchema = z.object({
   reason: z.string().trim().min(1, "Reason is required").max(500),
   newStartDate: z.coerce.date().optional(),
   newEndDate: z.coerce.date().optional(),
-  newLeaveType: z.enum(["ANNUAL", "MEDICAL", "EMERGENCY", "UNPAID", "HOSPITALIZATION", "COMPASSIONATE", "MATERNITY", "PATERNITY", "REPLACEMENT"]).optional(),
+  newLeaveType: z.enum(["PAID", "UNPAID"]).optional(),
   newHalfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).optional(),
   newReason: z.string().max(500).optional(),
 });
 
 export type LeaveChangeRequestValues = z.infer<typeof leaveChangeRequestSchema>;
+
+/** Employee cancels their own pending application (no admin / change request). */
+export const cancelOwnPendingLeaveSchema = z.object({
+  leaveApplicationId: z.number().int().positive(),
+  reason: z.string().trim().max(500).optional(),
+});
+
+export type CancelOwnPendingLeaveValues = z.infer<typeof cancelOwnPendingLeaveSchema>;
+
+/** Employee withdraws a pending change request before admin review. */
+export const withdrawChangeRequestSchema = z.object({
+  requestId: z.number().int().positive(),
+});
+
+export type WithdrawChangeRequestValues = z.infer<typeof withdrawChangeRequestSchema>;
 
 export const reviewChangeRequestSchema = z.object({
   requestId: z.number().int().positive(),
@@ -403,7 +418,7 @@ export type ReviewChangeRequestValues = z.infer<typeof reviewChangeRequestSchema
 
 export const leaveFiltersSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
-  leaveType: z.enum(["ANNUAL", "MEDICAL", "EMERGENCY", "UNPAID", "HOSPITALIZATION", "COMPASSIONATE", "MATERNITY", "PATERNITY", "REPLACEMENT"]).optional(),
+  leaveType: z.enum(["PAID", "UNPAID"]).optional(),
   userId: z.string().optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
@@ -412,7 +427,7 @@ export const leaveFiltersSchema = z.object({
 export type LeaveFilters = z.infer<typeof leaveFiltersSchema>;
 
 export const updateEntitlementDefaultSchema = z.object({
-  leaveType: z.enum(["ANNUAL", "MEDICAL", "EMERGENCY", "UNPAID", "HOSPITALIZATION", "COMPASSIONATE", "MATERNITY", "PATERNITY", "REPLACEMENT"]),
+  leaveType: z.enum(["PAID", "UNPAID"]),
   entitledDays: z.number().min(0, "Must be 0 or more"),
 });
 
@@ -420,7 +435,7 @@ export type UpdateEntitlementDefaultValues = z.infer<typeof updateEntitlementDef
 
 export const updateEmployeeBalanceSchema = z.object({
   userId: z.string().min(1),
-  leaveType: z.enum(["ANNUAL", "MEDICAL", "EMERGENCY", "UNPAID", "HOSPITALIZATION", "COMPASSIONATE", "MATERNITY", "PATERNITY", "REPLACEMENT"]),
+  leaveType: z.enum(["PAID", "UNPAID"]),
   year: z.number().int().positive(),
   entitled: z.number().min(0),
 });

@@ -678,15 +678,8 @@ model Contract {
 // Leave Application Module
 
 enum LeaveType {
-  ANNUAL
-  MEDICAL
-  EMERGENCY
+  PAID
   UNPAID
-  HOSPITALIZATION
-  COMPASSIONATE
-  MATERNITY
-  PATERNITY
-  REPLACEMENT
 }
 
 enum LeaveStatus {

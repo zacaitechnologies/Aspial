@@ -24,14 +24,14 @@ export function WeekViewDay({
 	const dateString = formatDate(date)
 	const today = isToday(date)
 	
-	// Separate all-day events (tasks) from time-specific events
+	// All-day: tasks and leave (not tied to a single time slot)
 	const allDayEvents = useMemo(
-		() => events.filter(e => e.type === 'task'),
+		() => events.filter(e => e.type === "task" || e.type === "leave"),
 		[events]
 	)
 	
 	const timedEvents = useMemo(
-		() => events.filter(e => e.type !== 'task'),
+		() => events.filter(e => e.type !== "task" && e.type !== "leave"),
 		[events]
 	)
 	

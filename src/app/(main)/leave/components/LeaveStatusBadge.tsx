@@ -1,10 +1,10 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { leaveStatusColorMap, leaveTypeColorMap } from "../types"
+import { leaveStatusColorMap, leaveTypeColorMap, leaveTypeOptions } from "../types"
 
 export function LeaveStatusBadge({ status }: { status: string }) {
-  const colorClass = leaveStatusColorMap[status] ?? "bg-gray-100 text-gray-800"
+  const colorClass = leaveStatusColorMap[status] ?? "bg-muted text-foreground"
   const label = status.charAt(0) + status.slice(1).toLowerCase()
   return (
     <Badge variant="outline" className={`${colorClass} border-0 font-medium`}>
@@ -14,13 +14,15 @@ export function LeaveStatusBadge({ status }: { status: string }) {
 }
 
 export function LeaveTypeBadge({ type }: { type: string }) {
-  const colorClass = leaveTypeColorMap[type] ?? "bg-gray-100 text-gray-800"
-  const label = type
-    .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-    .join(" ")
+  const colorClass = leaveTypeColorMap[type] ?? "bg-muted text-foreground border border-border"
+  const label =
+    leaveTypeOptions.find((o) => o.value === type)?.label ??
+    type
+      .split("_")
+      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+      .join(" ")
   return (
-    <Badge variant="outline" className={`${colorClass} border-0 font-medium`}>
+    <Badge variant="outline" className={`${colorClass} border font-medium`}>
       {label}
     </Badge>
   )

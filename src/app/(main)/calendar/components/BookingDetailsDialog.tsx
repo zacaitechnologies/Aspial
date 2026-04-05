@@ -1,7 +1,7 @@
 "use client"
 
 import { CalendarBooking } from "@/app/(main)/calendar/actions"
-import { APPOINTMENT_TYPES } from "@/app/(main)/calendar/constants"
+import { CALENDAR_EVENT_TYPES } from "@/app/(main)/calendar/constants"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,14 @@ interface BookingDetailsDialogProps {
   onDelete?: (bookingId: string) => void
 }
 
+function leaveStatusLabel(booking: CalendarBooking): string | null {
+  if (booking.type !== "leave") return null
+  const raw = booking.originalData
+  if (raw === null || typeof raw !== "object" || !("status" in raw)) return null
+  const s = (raw as { status?: unknown }).status
+  return typeof s === "string" ? s : null
+}
+
 export function BookingDetailsDialog({ 
   booking, 
   isOpen, 
@@ -23,14 +31,15 @@ export function BookingDetailsDialog({
 }: BookingDetailsDialogProps) {
   if (!booking) return null
 
-  const appointmentTypeLabel = APPOINTMENT_TYPES[booking.appointmentType]?.label || 'Others'
+  const appointmentTypeLabel = CALENDAR_EVENT_TYPES[booking.appointmentType]?.label || "Others"
+  const leaveStatus = leaveStatusLabel(booking)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            Booking Details
+            {booking.type === "leave" ? "Leave details" : "Booking Details"}
           </DialogTitle>
         </DialogHeader>
 
@@ -52,10 +61,17 @@ export function BookingDetailsDialog({
             </div>
 
             <div className="space-y-2">
-              {booking.type !== "task" && booking.creatorName && (
+              {booking.type === "appointment" && booking.creatorName && (
                 <div className="flex items-center gap-2 text-sm">
                   <User className="w-4 h-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Booked by:</span>
+                  <span>{booking.creatorName}</span>
+                </div>
+              )}
+              {booking.type === "leave" && booking.creatorName && (
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Applicant:</span>
                   <span>{booking.creatorName}</span>
                 </div>
               )}
@@ -70,7 +86,7 @@ export function BookingDetailsDialog({
                 <Calendar className="w-4 h-4 text-muted-foreground" />
                 <span>{formatDateStringDirect(booking.date)}</span>
               </div>
-              {booking.type !== "task" && (
+              {booking.type === "appointment" && (
                 <>
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="w-4 h-4 text-muted-foreground" />
@@ -84,6 +100,20 @@ export function BookingDetailsDialog({
                     <Users className="w-4 h-4 text-muted-foreground" />
                     <span>{booking.attendees} attendees</span>
                   </div>
+                </>
+              )}
+              {booking.type === "leave" && (
+                <>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <span>{booking.startTime} - {booking.endTime}</span>
+                  </div>
+                  {leaveStatus && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">Status:</span>
+                      <span className="capitalize">{leaveStatus.toLowerCase()}</span>
+                    </div>
+                  )}
                 </>
               )}
               {booking.type === "task" && (

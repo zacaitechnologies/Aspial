@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import {
@@ -11,18 +11,22 @@ import {
   reviewLeaveSchema,
   adminEditLeaveSchema,
   leaveChangeRequestSchema,
+  cancelOwnPendingLeaveSchema,
+  withdrawChangeRequestSchema,
   reviewChangeRequestSchema,
   updateEntitlementDefaultSchema,
   updateEmployeeBalanceSchema,
   type ApplyLeaveValues,
   type AdminEditLeaveValues,
   type LeaveChangeRequestValues,
+  type CancelOwnPendingLeaveValues,
+  type WithdrawChangeRequestValues,
   type LeaveFilters,
   type UpdateEntitlementDefaultValues,
   type UpdateEmployeeBalanceValues,
 } from "@/lib/validation"
-import { eachDayOfInterval, isWeekend } from "date-fns"
-import { DEFAULT_ENTITLEMENTS } from "./types"
+import { eachDayOfInterval } from "date-fns"
+import { DEFAULT_ENTITLEMENTS, isMalaysiaNonWorkingDay } from "./types"
 import type {
   LeaveApplicationDTO,
   LeaveBalanceDTO,
@@ -31,6 +35,11 @@ import type {
   LeaveStats,
   EntitlementDefaultDTO,
 } from "./types"
+
+function revalidateLeaveAndCalendar() {
+	revalidatePath("/leave")
+	revalidateTag("calendar", { expire: 0 })
+}
 
 // ─── Auth ────────────────────────────────────────────────────────
 
@@ -77,7 +86,7 @@ function calculateLeaveDays(
   if (halfDay !== "NONE") return 0.5
 
   const days = eachDayOfInterval({ start: startDate, end: endDate })
-  return days.filter((d) => !isWeekend(d)).length
+  return days.filter((d) => !isMalaysiaNonWorkingDay(d)).length
 }
 
 async function getOrCreateEntitlementDefaults(): Promise<Record<string, number>> {
@@ -94,9 +103,9 @@ async function getOrCreateEntitlementDefaults(): Promise<Record<string, number>>
   // Seed defaults
   await prisma.leaveEntitlementDefault.createMany({
     data: Object.entries(DEFAULT_ENTITLEMENTS).map(([leaveType, entitledDays]) => ({
-      leaveType: leaveType as keyof typeof DEFAULT_ENTITLEMENTS extends string ? string : never,
+      leaveType: leaveType as "PAID" | "UNPAID",
       entitledDays,
-    })) as { leaveType: "ANNUAL" | "MEDICAL" | "EMERGENCY" | "UNPAID" | "HOSPITALIZATION" | "COMPASSIONATE" | "MATERNITY" | "PATERNITY" | "REPLACEMENT"; entitledDays: number }[],
+    })),
   })
   return { ...DEFAULT_ENTITLEMENTS }
 }
@@ -108,7 +117,7 @@ export async function initializeLeaveBalances(userId: string, year: number) {
   if (existing.length > 0) return existing
 
   const defaults = await getOrCreateEntitlementDefaults()
-  const leaveTypes = Object.keys(defaults) as ("ANNUAL" | "MEDICAL" | "EMERGENCY" | "UNPAID" | "HOSPITALIZATION" | "COMPASSIONATE" | "MATERNITY" | "PATERNITY" | "REPLACEMENT")[]
+  const leaveTypes = Object.keys(defaults) as ("PAID" | "UNPAID")[]
 
   const data = leaveTypes.map((leaveType) => ({
     userId,
@@ -210,9 +219,17 @@ export async function fetchAllLeaveBalances(
   }) as unknown as (LeaveBalanceDTO & { user: { firstName: string; lastName: string } })[]
 }
 
+/** Ensures every user has PAID/UNPAID balance rows for the calendar year (idempotent). */
+export async function ensureLeaveBalancesForYearForAllUsers(year: number) {
+  const users = await prisma.user.findMany({ select: { id: true } })
+  await Promise.all(users.map((u) => initializeLeaveBalances(u.id, year)))
+}
+
 export async function fetchAllEmployeeLeaveOverview(
   year: number
 ): Promise<EmployeeLeaveOverview[]> {
+  await ensureLeaveBalancesForYearForAllUsers(year)
+
   const today = new Date()
 
   const users = await prisma.user.findMany({
@@ -439,7 +456,7 @@ export async function applyForLeave(data: ApplyLeaveValues) {
     }
   }
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
   return leave
 }
 
@@ -490,7 +507,7 @@ export async function approveLeave(leaveId: number, remarks?: string) {
     }
   }
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
 }
 
 export async function rejectLeave(leaveId: number, remarks?: string) {
@@ -541,7 +558,7 @@ export async function rejectLeave(leaveId: number, remarks?: string) {
     }
   }
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
 }
 
 export async function cancelLeave(leaveId: number, remarks?: string) {
@@ -612,7 +629,86 @@ export async function cancelLeave(leaveId: number, remarks?: string) {
     }
   }
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
+}
+
+/** Employee cancels their own pending leave immediately (no admin or change request). */
+export async function cancelOwnPendingLeave(data: CancelOwnPendingLeaveValues) {
+  const user = await getCurrentUser()
+  const validated = cancelOwnPendingLeaveSchema.parse(data)
+
+  const dbUser = await prisma.user.findUnique({
+    where: { supabase_id: user.id },
+  })
+  if (!dbUser) throw new Error("User not found")
+
+  const leave = await prisma.leaveApplication.findUnique({
+    where: { id: validated.leaveApplicationId },
+  })
+  if (!leave) throw new Error("Leave application not found")
+  if (leave.userId !== dbUser.id) throw new Error("Unauthorized")
+  if (leave.status !== "PENDING") {
+    throw new Error(
+      "Only pending applications can be cancelled here. For approved leave, use a cancel request."
+    )
+  }
+
+  await prisma.leaveApplication.update({
+    where: { id: validated.leaveApplicationId },
+    data: {
+      status: "CANCELLED",
+      adminRemarks: validated.reason?.trim() || "Cancelled by employee",
+      reviewedAt: new Date(),
+    },
+  })
+
+  const year = leave.startDate.getFullYear()
+  if (leave.leaveType !== "UNPAID") {
+    const paidDays = leave.totalDays - leave.unpaidDays
+    if (paidDays > 0) {
+      await prisma.leaveBalance.update({
+        where: {
+          userId_leaveType_year: {
+            userId: leave.userId,
+            leaveType: leave.leaveType,
+            year,
+          },
+        },
+        data: {
+          pending: { decrement: paidDays },
+          balance: { increment: paidDays },
+        },
+      })
+    }
+  }
+
+  revalidateLeaveAndCalendar()
+}
+
+/** Employee withdraws a pending change request (before admin approves or rejects). */
+export async function withdrawLeaveChangeRequest(data: WithdrawChangeRequestValues) {
+  const user = await getCurrentUser()
+  const validated = withdrawChangeRequestSchema.parse(data)
+
+  const dbUser = await prisma.user.findUnique({
+    where: { supabase_id: user.id },
+  })
+  if (!dbUser) throw new Error("User not found")
+
+  const cr = await prisma.leaveChangeRequest.findUnique({
+    where: { id: validated.requestId },
+  })
+  if (!cr) throw new Error("Change request not found")
+  if (cr.requestedById !== dbUser.id) throw new Error("Unauthorized")
+  if (cr.status !== "PENDING") {
+    throw new Error("Only pending change requests can be withdrawn")
+  }
+
+  await prisma.leaveChangeRequest.delete({
+    where: { id: validated.requestId },
+  })
+
+  revalidateLeaveAndCalendar()
 }
 
 export async function adminEditLeave(data: AdminEditLeaveValues) {
@@ -710,7 +806,7 @@ export async function adminEditLeave(data: AdminEditLeaveValues) {
     },
   })
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
 }
 
 export async function requestLeaveChange(data: LeaveChangeRequestValues) {
@@ -729,6 +825,12 @@ export async function requestLeaveChange(data: LeaveChangeRequestValues) {
   if (leave.userId !== dbUser.id) throw new Error("Unauthorized")
   if (leave.status !== "APPROVED" && leave.status !== "PENDING") {
     throw new Error("Can only request changes for pending or approved leaves")
+  }
+
+  if (validated.type === "CANCEL" && leave.status === "PENDING") {
+    throw new Error(
+      "Pending applications can be cancelled immediately from your applications list—no change request needed."
+    )
   }
 
   // Check for existing pending change request
@@ -756,7 +858,7 @@ export async function requestLeaveChange(data: LeaveChangeRequestValues) {
     },
   })
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
 }
 
 export async function approveChangeRequest(requestId: number, remarks?: string) {
@@ -897,7 +999,7 @@ export async function approveChangeRequest(requestId: number, remarks?: string) 
     })
   }
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
 }
 
 export async function rejectChangeRequest(requestId: number, remarks?: string) {
@@ -927,7 +1029,7 @@ export async function rejectChangeRequest(requestId: number, remarks?: string) {
     },
   })
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
 }
 
 export async function updateEntitlementDefault(data: UpdateEntitlementDefaultValues) {
@@ -946,7 +1048,7 @@ export async function updateEntitlementDefault(data: UpdateEntitlementDefaultVal
     },
   })
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
 }
 
 export async function updateEmployeeBalance(data: UpdateEmployeeBalanceValues) {
@@ -986,5 +1088,5 @@ export async function updateEmployeeBalance(data: UpdateEmployeeBalanceValues) {
     },
   })
 
-  revalidatePath("/leave")
+  revalidateLeaveAndCalendar()
 }

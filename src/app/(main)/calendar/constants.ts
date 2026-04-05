@@ -26,4 +26,17 @@ export const APPOINTMENT_TYPES = {
 	},
 } as const
 
+/** Matches Prisma `AppointmentType` for real appointment bookings (forms, DB). */
 export type AppointmentType = keyof typeof APPOINTMENT_TYPES
+
+/** Calendar UI only: appointment categories plus leave (not a Prisma appointment type). */
+export const CALENDAR_EVENT_TYPES = {
+	...APPOINTMENT_TYPES,
+	LEAVE: {
+		label: "Leave",
+		color: "bg-calendar-leave",
+		value: "LEAVE",
+	},
+} as const
+
+export type CalendarEventType = keyof typeof CALENDAR_EVENT_TYPES

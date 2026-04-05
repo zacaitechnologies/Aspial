@@ -3,8 +3,14 @@
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import type { LeaveApplicationDTO } from "../types"
-import { leaveTypeColorMap, leaveTypeOptions } from "../types"
+import { isMalaysiaNonWorkingDay, leaveTypeColorMap, leaveTypeOptions } from "../types"
 import {
   format,
   startOfMonth,
@@ -16,9 +22,9 @@ import {
   subMonths,
   startOfWeek,
   endOfWeek,
-  isWeekend,
 } from "date-fns"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
+import { cn } from "@/lib/utils"
 import {
   Tooltip,
   TooltipContent,
@@ -35,7 +41,8 @@ export default function LeaveCalendar({
   applications,
   showEmployeeName = false,
 }: LeaveCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()))
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
@@ -67,82 +74,117 @@ export default function LeaveCalendar({
     leaveTypeOptions.find((o) => o.value === type)?.label ?? type
 
   return (
-    <Card className="shadow-sm">
+    <Card className="shadow-sm border bg-card">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Leave Calendar</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-medium min-w-[120px] text-center">
-              {format(currentMonth, "MMMM yyyy")}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardTitle className="text-base font-semibold text-foreground">
+            Leave Calendar
+          </CardTitle>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-border"
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Go to month
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  selected={currentMonth}
+                  onSelect={(d) => {
+                    if (d) {
+                      setCurrentMonth(startOfMonth(d))
+                      setPickerOpen(false)
+                    }
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+            <div className="flex items-center gap-1 rounded-md border border-border bg-background px-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-semibold min-w-[130px] text-center text-foreground tabular-nums">
+                {format(currentMonth, "MMMM yyyy")}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                aria-label="Next month"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-7 gap-px bg-muted rounded-md overflow-hidden">
-          {/* Header */}
+        <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden border border-border">
           {weekDays.map((day) => (
             <div
               key={day}
-              className="bg-background p-2 text-center text-xs font-medium text-muted-foreground"
+              className="bg-muted/50 p-2 text-center text-xs font-semibold text-foreground"
             >
               {day}
             </div>
           ))}
 
-          {/* Days */}
           {calendarDays.map((day) => {
             const dayLeaves = getLeavesForDay(day)
             const isCurrentMonth = isSameMonth(day, currentMonth)
             const isToday = isSameDay(day, new Date())
-            const isWeekendDay = isWeekend(day)
+            const isSundayOff = isMalaysiaNonWorkingDay(day)
 
             return (
               <div
                 key={day.toISOString()}
-                className={`bg-background p-1 min-h-[60px] ${
-                  !isCurrentMonth ? "opacity-30" : ""
-                } ${isWeekendDay ? "bg-muted/30" : ""}`}
+                className={cn(
+                  "bg-background p-1 min-h-[64px] sm:min-h-[72px]",
+                  !isCurrentMonth && "bg-muted/30",
+                  isSundayOff && isCurrentMonth && "bg-muted/20"
+                )}
               >
                 <div
-                  className={`text-xs mb-0.5 ${
-                    isToday
-                      ? "bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center"
-                      : "text-muted-foreground"
-                  }`}
+                  className={cn(
+                    "text-xs mb-0.5 font-medium tabular-nums",
+                    isToday &&
+                      "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center font-semibold",
+                    !isToday && !isCurrentMonth && "text-muted-foreground",
+                    !isToday && isCurrentMonth && "text-foreground"
+                  )}
                 >
                   {format(day, "d")}
                 </div>
                 <div className="space-y-0.5">
                   {dayLeaves.slice(0, 3).map((leave) => {
-                    const bgColor =
-                      leaveTypeColorMap[leave.leaveType]?.split(" ")[0] ?? "bg-gray-100"
-                    const textColor =
-                      leaveTypeColorMap[leave.leaveType]?.split(" ")[1] ?? "text-gray-800"
+                    const chipClass =
+                      leaveTypeColorMap[leave.leaveType] ??
+                      "bg-muted text-foreground border border-border"
                     return (
                       <TooltipProvider key={leave.id}>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <div
-                              className={`text-[10px] px-1 py-0.5 rounded truncate cursor-default ${bgColor} ${textColor} ${
-                                leave.status === "PENDING" ? "opacity-60" : ""
-                              }`}
+                              className={cn(
+                                "text-[10px] px-1 py-0.5 rounded-sm truncate cursor-default font-medium border",
+                                chipClass,
+                                leave.status === "PENDING" && "opacity-80 ring-1 ring-foreground/20"
+                              )}
                             >
                               {showEmployeeName
                                 ? `${leave.user.firstName} ${leave.user.lastName.charAt(0)}.`
@@ -162,7 +204,7 @@ export default function LeaveCalendar({
                     )
                   })}
                   {dayLeaves.length > 3 && (
-                    <div className="text-[10px] text-muted-foreground px-1">
+                    <div className="text-[10px] text-muted-foreground px-1 font-medium">
                       +{dayLeaves.length - 3} more
                     </div>
                   )}

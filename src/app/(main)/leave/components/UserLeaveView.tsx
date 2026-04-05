@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -12,14 +13,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus } from "lucide-react"
+import { Plus, X } from "lucide-react"
 import LeaveBalanceCards from "./LeaveBalanceCards"
 import LeaveApplicationTable from "./LeaveApplicationTable"
 import LeaveApplicationForm from "./LeaveApplicationForm"
 import LeaveDetailDialog from "./LeaveDetailDialog"
 import LeaveChangeRequestDialog from "./LeaveChangeRequestDialog"
 import LeaveCalendar from "./LeaveCalendar"
-import { requestLeaveChange } from "../action"
+import { cancelOwnPendingLeave, withdrawLeaveChangeRequest } from "../action"
 import { useToast } from "@/components/ui/use-toast"
 import type {
   LeaveApplicationDTO,
@@ -58,6 +59,7 @@ export default function UserLeaveView({
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [activeTab, setActiveTab] = useState("overview")
 
   const filteredApplications = initialApplications.filter((app) => {
     if (statusFilter !== "all" && app.status !== statusFilter) return false
@@ -87,19 +89,51 @@ export default function UserLeaveView({
   const nextLeave = futureLeaves[0] ?? null
 
   async function handleCancelPending(app: LeaveApplicationDTO) {
-    // For PENDING leaves, user can cancel directly by creating a cancel request
+    if (
+      !window.confirm(
+        "Cancel this pending leave application? Your paid leave balance will be restored immediately."
+      )
+    ) {
+      return
+    }
     try {
-      await requestLeaveChange({
+      await cancelOwnPendingLeave({
         leaveApplicationId: app.id,
-        type: "CANCEL",
-        reason: "User cancelled pending leave",
+        reason: "Cancelled by employee",
       })
-      toast({ title: "Cancel request submitted" })
+      toast({
+        title: "Leave cancelled",
+        description: "Your pending application has been cancelled.",
+      })
       refresh()
     } catch (error) {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to cancel",
+        variant: "destructive",
+      })
+    }
+  }
+
+  async function handleWithdrawChangeRequest(requestId: number) {
+    if (
+      !window.confirm(
+        "Withdraw this change request? You can submit a new request later if needed."
+      )
+    ) {
+      return
+    }
+    try {
+      await withdrawLeaveChangeRequest({ requestId })
+      toast({
+        title: "Change request withdrawn",
+        description: "The request has been removed.",
+      })
+      refresh()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to withdraw",
         variant: "destructive",
       })
     }
@@ -115,11 +149,36 @@ export default function UserLeaveView({
         </Button>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="applications">My Applications</TabsTrigger>
-        </TabsList>
+      <Tabs
+        defaultValue="overview"
+        className="w-full"
+        onValueChange={setActiveTab}
+      >
+        <div className="relative">
+          <TabsList className="grid w-full grid-cols-2 h-11 bg-transparent border border-primary rounded-lg p-1 transition-all duration-300 ease-in-out">
+            <TabsTrigger
+              value="overview"
+              className="relative z-10 rounded-md transition-all duration-300 ease-in-out data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="applications"
+              className="relative z-10 rounded-md transition-all duration-300 ease-in-out data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              My Applications
+            </TabsTrigger>
+          </TabsList>
+          <div
+            className={cn(
+              "pointer-events-none absolute top-1 z-0 h-[calc(100%-8px)] rounded-md bg-primary transition-all duration-300 ease-in-out",
+              activeTab === "overview"
+                ? "left-1 w-[calc(50%-4px)]"
+                : "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+            )}
+            aria-hidden
+          />
+        </div>
 
         <TabsContent value="overview" className="space-y-6 mt-4">
           <LeaveBalanceCards balances={initialBalances} />
@@ -248,14 +307,16 @@ export default function UserLeaveView({
               <div className="space-y-2">
                 {initialChangeRequests.map((cr) => (
                   <Card key={cr.id} className="shadow-sm">
-                    <CardContent className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    <CardContent className="p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
                         <span
-                          className={`text-sm font-medium ${
-                            cr.type === "CANCEL" ? "text-red-600" : "text-blue-600"
+                          className={`text-sm font-medium shrink-0 ${
+                            cr.type === "CANCEL"
+                              ? "text-destructive"
+                              : "text-primary"
                           }`}
                         >
-                          {cr.type === "CANCEL" ? "Cancel" : "Edit"} Request
+                          {cr.type === "CANCEL" ? "Cancel" : "Edit"} request
                         </span>
                         <span className="text-sm text-muted-foreground">
                           for {cr.leaveApplication.leaveType.toLowerCase()} leave (
@@ -263,7 +324,21 @@ export default function UserLeaveView({
                           {format(new Date(cr.leaveApplication.endDate), "MMM d")})
                         </span>
                       </div>
-                      <LeaveStatusBadge status={cr.status} />
+                      <div className="flex items-center gap-2 shrink-0">
+                        <LeaveStatusBadge status={cr.status} />
+                        {cr.status === "PENDING" && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => handleWithdrawChangeRequest(cr.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            Withdraw
+                          </Button>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 ))}

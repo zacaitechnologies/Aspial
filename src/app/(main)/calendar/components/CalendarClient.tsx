@@ -14,7 +14,7 @@ import { ViewSwitcher } from "./ViewSwitcher"
 import { WeekView } from "./WeekView"
 import { DayView } from "./DayView"
 import { fetchAllBookings, type CalendarBooking } from "../actions"
-import { APPOINTMENT_TYPES, type AppointmentType } from "../constants"
+import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import { parseLocalDateString, formatDateStringDirect } from "@/lib/date-utils"
@@ -29,25 +29,27 @@ interface CalendarClientProps {
 }
 
 // Map appointment type to border color using calendar theme tokens
-const getBorderColorClass = (appointmentType: AppointmentType): string => {
-	const borderColorMap: Record<AppointmentType, string> = {
+const getBorderColorClass = (appointmentType: CalendarEventType): string => {
+	const borderColorMap: Record<CalendarEventType, string> = {
 		PHOTO_SHOOT: "border-l-calendar-photo-shoot",
 		VIDEO_SHOOT: "border-l-calendar-video-shoot",
 		CONSULTATION: "border-l-calendar-consultation",
 		PHOTO_SELECTION: "border-l-calendar-photo-selection",
 		OTHERS: "border-l-calendar-others",
+		LEAVE: "border-l-calendar-leave",
 	}
 	return borderColorMap[appointmentType] || "border-l-calendar-others"
 }
 
 // Map appointment type to badge classes using calendar theme tokens
-const getBadgeClasses = (appointmentType: AppointmentType): { variant: "default" | "secondary" | "destructive" | "outline"; className: string } => {
-	const badgeMap: Record<AppointmentType, { variant: "default" | "secondary" | "destructive" | "outline"; className: string }> = {
+const getBadgeClasses = (appointmentType: CalendarEventType): { variant: "default" | "secondary" | "destructive" | "outline"; className: string } => {
+	const badgeMap: Record<CalendarEventType, { variant: "default" | "secondary" | "destructive" | "outline"; className: string }> = {
 		PHOTO_SHOOT: { variant: "secondary", className: "bg-calendar-photo-shoot text-foreground" },
 		VIDEO_SHOOT: { variant: "secondary", className: "bg-calendar-video-shoot text-foreground" },
 		CONSULTATION: { variant: "secondary", className: "bg-calendar-consultation text-foreground" },
 		PHOTO_SELECTION: { variant: "secondary", className: "bg-calendar-photo-selection text-foreground" },
 		OTHERS: { variant: "secondary", className: "bg-calendar-others text-foreground" },
+		LEAVE: { variant: "secondary", className: "bg-calendar-leave text-foreground" },
 	}
 	return badgeMap[appointmentType] || { variant: "secondary", className: "bg-calendar-others text-foreground" }
 }
@@ -186,7 +188,7 @@ export default function CalendarClient({
 			// Filter by project (only if a specific project is selected)
 			if (selectedProject !== "all") {
 				const projectId = parseInt(selectedProject)
-				if (booking.projectId !== projectId) return false
+				if (booking.type !== "leave" && booking.projectId !== projectId) return false
 			}
 			
 			// Filter by task ownership (only for tasks mapped to OTHERS)
@@ -334,7 +336,7 @@ export default function CalendarClient({
 	// Memoize stats counts
 	const statsCounts = useMemo(() => {
 		const counts: Record<string, number> = {}
-		Object.keys(APPOINTMENT_TYPES).forEach((appointmentKey) => {
+		Object.keys(CALENDAR_EVENT_TYPES).forEach((appointmentKey) => {
 			counts[appointmentKey] = statsBookings.filter((b) => b.appointmentType === appointmentKey).length
 		})
 		return counts
@@ -357,7 +359,7 @@ export default function CalendarClient({
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="all">All Appointments</SelectItem>
-									{Object.entries(APPOINTMENT_TYPES).map(([key, config]) => (
+									{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => (
 										<SelectItem key={key} value={key}>
 											{config.label}
 										</SelectItem>
@@ -410,8 +412,8 @@ export default function CalendarClient({
 					</div>
 
 					{/* Stats Cards */}
-					<div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-						{Object.entries(APPOINTMENT_TYPES).map(([appointmentKey, config]) => {
+					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+						{Object.entries(CALENDAR_EVENT_TYPES).map(([appointmentKey, config]) => {
 							const count = statsCounts[appointmentKey] || 0
 							return (
 								<Card
@@ -535,25 +537,27 @@ export default function CalendarClient({
 															{formatDateStringDirect(booking.date)}
 														</div>
 														{booking.type !== "task" && (
-															<>
-																<div className="flex items-center gap-1">
-																	<Clock className="w-3 h-3" />
-																	{booking.startTime} - {booking.endTime}
-																</div>
-																<div className="flex items-center gap-1">
-																	<Users className="w-3 h-3" />
-																	{booking.attendees} attendees
-																</div>
-															</>
+															<div className="flex items-center gap-1">
+																<Clock className="w-3 h-3" />
+																{booking.startTime} - {booking.endTime}
+															</div>
 														)}
-														<div className="flex items-center gap-1">
-															<MapPin className="w-3 h-3" />
-															{booking.location}
-														</div>
+														{booking.type === "appointment" && (
+															<div className="flex items-center gap-1">
+																<Users className="w-3 h-3" />
+																{booking.attendees} attendees
+															</div>
+														)}
+														{booking.type !== "task" && (
+															<div className="flex items-center gap-1">
+																<MapPin className="w-3 h-3" />
+																{booking.location}
+															</div>
+														)}
 													</div>
 												</div>
 												<Badge variant={badgeConfig.variant} className={badgeConfig.className}>
-													{APPOINTMENT_TYPES[booking.appointmentType]?.label || 'Others'}
+													{CALENDAR_EVENT_TYPES[booking.appointmentType]?.label || "Others"}
 												</Badge>
 											</div>
 										</div>

@@ -1,5 +1,10 @@
 import type { LeaveType, LeaveStatus, LeaveHalfDay, ChangeRequestType, ChangeRequestStatus } from "@prisma/client"
-import { eachDayOfInterval, isWeekend } from "date-fns"
+import { eachDayOfInterval, isSunday } from "date-fns"
+
+/** Mon–Sat are working days; only Sunday is off (common Malaysia office pattern). */
+export function isMalaysiaNonWorkingDay(date: Date): boolean {
+  return isSunday(date)
+}
 
 export function calculateLeaveDaysClient(
   startDate: Date,
@@ -9,7 +14,7 @@ export function calculateLeaveDaysClient(
   if (halfDay !== "NONE") return 0.5
   try {
     const days = eachDayOfInterval({ start: startDate, end: endDate })
-    return days.filter((d) => !isWeekend(d)).length
+    return days.filter((d) => !isMalaysiaNonWorkingDay(d)).length
   } catch {
     return 0
   }
@@ -128,15 +133,8 @@ export interface EntitlementDefaultDTO {
 }
 
 export const leaveTypeOptions = [
-  { value: "ANNUAL", label: "Annual" },
-  { value: "MEDICAL", label: "Medical/Sick" },
-  { value: "EMERGENCY", label: "Emergency" },
-  { value: "UNPAID", label: "Unpaid" },
-  { value: "HOSPITALIZATION", label: "Hospitalization" },
-  { value: "COMPASSIONATE", label: "Compassionate" },
-  { value: "MATERNITY", label: "Maternity" },
-  { value: "PATERNITY", label: "Paternity" },
-  { value: "REPLACEMENT", label: "Replacement" },
+  { value: "PAID", label: "Paid leave" },
+  { value: "UNPAID", label: "Unpaid leave" },
 ] as const
 
 export const leaveStatusOptions = [
@@ -152,16 +150,10 @@ export const halfDayOptions = [
   { value: "SECOND_HALF", label: "Second Half (PM)" },
 ] as const
 
+/** Calendar / chip styles — theme tokens for contrast */
 export const leaveTypeColorMap: Record<string, string> = {
-  ANNUAL: "bg-blue-100 text-blue-800",
-  MEDICAL: "bg-red-100 text-red-800",
-  EMERGENCY: "bg-orange-100 text-orange-800",
-  UNPAID: "bg-gray-100 text-gray-800",
-  HOSPITALIZATION: "bg-purple-100 text-purple-800",
-  COMPASSIONATE: "bg-pink-100 text-pink-800",
-  MATERNITY: "bg-teal-100 text-teal-800",
-  PATERNITY: "bg-cyan-100 text-cyan-800",
-  REPLACEMENT: "bg-yellow-100 text-yellow-800",
+  PAID: "bg-primary/20 text-primary border border-primary/40",
+  UNPAID: "bg-muted text-foreground border border-border",
 }
 
 export const leaveStatusColorMap: Record<string, string> = {
@@ -172,13 +164,6 @@ export const leaveStatusColorMap: Record<string, string> = {
 }
 
 export const DEFAULT_ENTITLEMENTS: Record<string, number> = {
-  ANNUAL: 14,
-  MEDICAL: 14,
-  EMERGENCY: 3,
+  PAID: 14,
   UNPAID: 0,
-  HOSPITALIZATION: 60,
-  COMPASSIONATE: 3,
-  MATERNITY: 60,
-  PATERNITY: 7,
-  REPLACEMENT: 0,
 }

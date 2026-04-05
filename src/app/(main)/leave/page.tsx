@@ -17,11 +17,29 @@ import {
 import AdminLeaveView from "./components/AdminLeaveView"
 import UserLeaveView from "./components/UserLeaveView"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
+import { getMalaysiaYear } from "@/lib/malaysia-time"
 
-export default async function LeavePage() {
+function parseOverviewYear(
+  yearParam: string | undefined,
+  malaysiaYear: number
+): number {
+  if (!yearParam || !/^\d{4}$/.test(yearParam)) {
+    return malaysiaYear
+  }
+  const y = Number.parseInt(yearParam, 10)
+  return Math.min(Math.max(y, malaysiaYear - 10), malaysiaYear + 1)
+}
+
+export default async function LeavePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }> | { year?: string }
+}) {
   try {
     const { user, isAdmin } = await getUserWithRole()
-    const currentYear = new Date().getFullYear()
+    const malaysiaYear = getMalaysiaYear()
+    const resolvedSearch = await Promise.resolve(searchParams)
+    const overviewYear = parseOverviewYear(resolvedSearch?.year, malaysiaYear)
 
     if (isAdmin) {
       const [
@@ -33,7 +51,7 @@ export default async function LeavePage() {
         allUsers,
       ] = await Promise.all([
         fetchAllLeaveApplications(),
-        fetchAllEmployeeLeaveOverview(currentYear),
+        fetchAllEmployeeLeaveOverview(overviewYear),
         fetchLeaveStats(),
         fetchPendingChangeRequests(),
         fetchEntitlementDefaults(),
@@ -49,13 +67,14 @@ export default async function LeavePage() {
           initialEntitlementDefaults={entitlementDefaults}
           allUsers={allUsers}
           currentUserId={user.id}
-          currentYear={currentYear}
+          currentYear={malaysiaYear}
+          overviewYear={overviewYear}
         />
       )
     } else {
       const [applications, balances, changeRequests] = await Promise.all([
         fetchUserLeaveApplications(user.id),
-        fetchLeaveBalances(user.id, currentYear),
+        fetchLeaveBalances(user.id, malaysiaYear),
         fetchUserChangeRequests(user.id),
       ])
 
@@ -65,7 +84,7 @@ export default async function LeavePage() {
           initialBalances={balances}
           initialChangeRequests={changeRequests}
           userId={user.id}
-          currentYear={currentYear}
+          currentYear={malaysiaYear}
         />
       )
     }

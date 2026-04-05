@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon } from "lucide-react"
 import { formatDateStringDirect } from "@/lib/date-utils"
-import { CalendarBooking } from "../actions"
+import { type CalendarBooking } from "../actions"
 
 interface DateEventsDialogProps {
   isOpen: boolean
@@ -16,14 +16,30 @@ interface DateEventsDialogProps {
   onEventClick: (event: CalendarBooking) => void
 }
 
-const eventTypeColors = {
+const eventTypeColors: Record<CalendarBooking["type"], string> = {
   appointment: "bg-blue-500",
-  task: "bg-red-500"
+  task: "bg-red-500",
+  leave: "bg-calendar-leave",
 }
 
-const eventTypeLabels = {
+const eventTypeLabels: Record<CalendarBooking["type"], string> = {
   appointment: "Appointment",
-  task: "Task"
+  task: "Task",
+  leave: "Leave",
+}
+
+function formatEventTimeRange(event: CalendarBooking): string {
+  if (event.type === "task") {
+    return "All day"
+  }
+  if (
+    event.type === "leave" &&
+    event.startTime === "00:00" &&
+    event.endTime === "23:59"
+  ) {
+    return "All day"
+  }
+  return `${event.startTime} - ${event.endTime}`
 }
 
 export function DateEventsDialog({
@@ -50,13 +66,6 @@ export function DateEventsDialog({
     }
     setShowContent(false)
   }, [isOpen])
-
-  const formatTime = (timeString: string) => {
-    if (timeString === "00:00" && events.some(e => e.type === "task")) {
-      return "All day"
-    }
-    return timeString
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -103,9 +112,7 @@ export function DateEventsDialog({
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
-                    <span>
-                      {formatTime(event.startTime)} - {formatTime(event.endTime)}
-                    </span>
+                    <span>{formatEventTimeRange(event)}</span>
                   </div>
                   
                   {event.location && (

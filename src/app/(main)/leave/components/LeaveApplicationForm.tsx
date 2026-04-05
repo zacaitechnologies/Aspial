@@ -55,7 +55,7 @@ export default function LeaveApplicationForm({
   const form = useForm({
     resolver: zodResolver(applyLeaveSchema),
     defaultValues: {
-      leaveType: "ANNUAL",
+      leaveType: "PAID",
       halfDay: "NONE",
       reason: "",
     },
@@ -69,15 +69,32 @@ export default function LeaveApplicationForm({
   const selectedBalance = balances.find((b) => b.leaveType === watchLeaveType)
   const estimatedDays =
     watchStartDate && watchEndDate
-      ? calculateLeaveDaysClient(new Date(watchStartDate), new Date(watchEndDate), watchHalfDay)
+      ? calculateLeaveDaysClient(
+          new Date(watchStartDate),
+          new Date(watchEndDate),
+          watchHalfDay ?? "NONE"
+        )
       : 0
 
+  /** Days still available before this application (excludes other pending). */
   const remaining = selectedBalance
     ? selectedBalance.balance - selectedBalance.pending
     : 0
   const exceedsBalance =
     watchLeaveType !== "UNPAID" && estimatedDays > remaining && remaining >= 0
   const unpaidDays = exceedsBalance ? Math.max(0, estimatedDays - Math.max(0, remaining)) : 0
+
+  /** Paid days this request will consume (capped by what’s left). */
+  const paidDaysFromThisRequest =
+    watchLeaveType === "UNPAID" || estimatedDays <= 0
+      ? 0
+      : Math.min(estimatedDays, Math.max(0, remaining))
+
+  /** Balance remaining if this application is submitted (paid pool only). */
+  const balanceAfterThisRequest =
+    watchLeaveType === "UNPAID" || !selectedBalance
+      ? null
+      : Math.max(0, remaining - paidDaysFromThisRequest)
 
   async function onSubmit(data: Record<string, unknown>) {
     setIsSubmitting(true)
@@ -223,17 +240,32 @@ export default function LeaveApplicationForm({
                   <span className="font-medium">Duration:</span> {estimatedDays} day(s)
                 </p>
                 {selectedBalance && watchLeaveType !== "UNPAID" && (
-                  <p className="text-sm">
-                    <span className="font-medium">Remaining balance:</span>{" "}
-                    {Math.max(0, remaining)} / {selectedBalance.entitled} days
-                  </p>
+                  <div className="text-sm space-y-0.5">
+                    <p>
+                      <span className="font-medium">
+                        {estimatedDays > 0
+                          ? "Balance after this request:"
+                          : "Available balance:"}
+                      </span>{" "}
+                      {estimatedDays > 0 && balanceAfterThisRequest !== null
+                        ? balanceAfterThisRequest
+                        : Math.max(0, remaining)}{" "}
+                      / {selectedBalance.entitled} days
+                    </p>
+                    {estimatedDays > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Currently available before this leave:{" "}
+                        {Math.max(0, remaining)} day(s)
+                      </p>
+                    )}
+                  </div>
                 )}
                 {exceedsBalance && unpaidDays > 0 && (
-                  <div className="flex items-start gap-2 text-sm text-orange-600 mt-2">
+                  <div className="flex items-start gap-2 text-sm text-destructive mt-2">
                     <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                     <span>
-                      You have {Math.max(0, remaining)} {watchLeaveType.toLowerCase()} day(s)
-                      remaining. {unpaidDays} day(s) will be counted as unpaid leave.
+                      You have {Math.max(0, remaining)} paid leave day(s) remaining.{" "}
+                      {unpaidDays} day(s) will be counted as unpaid leave.
                     </span>
                   </div>
                 )}

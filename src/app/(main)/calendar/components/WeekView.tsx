@@ -87,6 +87,52 @@ export function WeekView({
 					})}
 				</div>
 			</div>
+
+			{/* All-day row: tasks + leave (same as timed grid — excluded from slots below) */}
+			<div className="flex border-b-2 border-(--color-border)] shrink-0 bg-(--color-muted)]/30">
+				<div className="w-16 shrink-0 p-2 text-[10px] text-(--color-muted-foreground)] font-medium border-r border-(--color-border)] flex items-start pt-3">
+					All day
+				</div>
+				<div className="flex-1 grid grid-cols-7 min-h-[56px]">
+					{weekDays.map((date) => {
+						const dateString = formatDate(date)
+						const today = isToday(date)
+						const dayEvents = getEventsForDay(date)
+						const allDayEvents = dayEvents.filter(
+							(e) => e.type === "task" || e.type === "leave"
+						)
+						return (
+							<div
+								key={`allday-${dateString}`}
+								className={`border-r border-(--color-border)] last:border-r-0 p-1 ${
+									today ? "bg-(--color-primary)]/5" : ""
+								}`}
+							>
+								<div className="space-y-1">
+									{allDayEvents.slice(0, 4).map((event) => (
+										<div
+											key={event.id}
+											className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} text-foreground hover:opacity-90 transition-opacity truncate`}
+											onClick={(e) => {
+												e.stopPropagation()
+												onEventClick(event)
+											}}
+											title={event.title}
+										>
+											{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
+										</div>
+									))}
+									{allDayEvents.length > 4 && (
+										<div className="text-[10px] text-(--color-muted-foreground)] px-1">
+											+{allDayEvents.length - 4} more
+										</div>
+									)}
+								</div>
+							</div>
+						)
+					})}
+				</div>
+			</div>
 			
 			{/* Time slots with synchronized columns - scrollable */}
 			<div className="flex-1 overflow-y-auto hide-scrollbar">
@@ -106,7 +152,9 @@ export function WeekView({
 									const dateString = formatDate(date)
 									const today = isToday(date)
 									const dayEvents = getEventsForDay(date)
-									const timedEvents = dayEvents.filter(e => e.type !== 'task')
+									const timedEvents = dayEvents.filter(
+										e => e.type !== "task" && e.type !== "leave"
+									)
 									
 									// Get events for this time slot
 									const slotEvents = timedEvents.filter(event => {
