@@ -20,12 +20,14 @@ const eventTypeColors: Record<CalendarBooking["type"], string> = {
   appointment: "bg-blue-500",
   task: "bg-red-500",
   leave: "bg-calendar-leave",
+  blocker: "bg-calendar-blocker",
 }
 
 const eventTypeLabels: Record<CalendarBooking["type"], string> = {
   appointment: "Appointment",
   task: "Task",
   leave: "Leave",
+  blocker: "Blocker",
 }
 
 function formatEventTimeRange(event: CalendarBooking): string {

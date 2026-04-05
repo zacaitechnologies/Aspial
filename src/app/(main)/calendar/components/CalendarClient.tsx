@@ -13,10 +13,11 @@ import { ExportCalendarDialog } from "./ExportCalendarDialog"
 import { ViewSwitcher } from "./ViewSwitcher"
 import { WeekView } from "./WeekView"
 import { DayView } from "./DayView"
-import { fetchAllBookings, type CalendarBooking } from "../actions"
+import { BlockerFormDialog } from "./BlockerFormDialog"
+import { fetchAllBookings, deleteCalendarBlocker, type CalendarBooking } from "../actions"
 import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
+import { Download, ShieldAlert } from "lucide-react"
 import { parseLocalDateString, formatDateStringDirect } from "@/lib/date-utils"
 import { CalendarView, getWeekDays, formatDate } from "../utils/calendar-utils"
 
@@ -37,6 +38,7 @@ const getBorderColorClass = (appointmentType: CalendarEventType): string => {
 		PHOTO_SELECTION: "border-l-calendar-photo-selection",
 		OTHERS: "border-l-calendar-others",
 		LEAVE: "border-l-calendar-leave",
+		BLOCKER: "border-l-calendar-blocker",
 	}
 	return borderColorMap[appointmentType] || "border-l-calendar-others"
 }
@@ -50,6 +52,7 @@ const getBadgeClasses = (appointmentType: CalendarEventType): { variant: "defaul
 		PHOTO_SELECTION: { variant: "secondary", className: "bg-calendar-photo-selection text-foreground" },
 		OTHERS: { variant: "secondary", className: "bg-calendar-others text-foreground" },
 		LEAVE: { variant: "secondary", className: "bg-calendar-leave text-foreground" },
+		BLOCKER: { variant: "secondary", className: "bg-calendar-blocker text-foreground" },
 	}
 	return badgeMap[appointmentType] || { variant: "secondary", className: "bg-calendar-others text-foreground" }
 }
@@ -80,6 +83,15 @@ export default function CalendarClient({
 	const [selectedDate, setSelectedDate] = useState<string>("")
 	const [isDateEventsDialogOpen, setIsDateEventsDialogOpen] = useState(false)
 	const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+	const [isBlockerDialogOpen, setIsBlockerDialogOpen] = useState(false)
+	const [editingBlocker, setEditingBlocker] = useState<{
+		id: number
+		title: string
+		description: string | null
+		startDateTime: string
+		endDateTime: string
+		blocksAppointments: boolean
+	} | null>(null)
 
 	const isAdmin = initialIsAdmin
 	const projects = initialProjects
@@ -275,13 +287,52 @@ export default function CalendarClient({
 		setIsDetailsDialogOpen(true)
 	}
 
-	// Edit and delete handlers disabled - calendar is read-only
-	const handleBookingEdit = () => {
-		// No-op - editing disabled
+	// Clear cache and refetch current range
+	const refreshBookings = () => {
+		rangeCacheRef.current.clear()
+		fetchAllBookings(userId, userName, { start: dateRange.start, end: dateRange.end }).then((data) => {
+			const key = getRangeKey(dateRange.start, dateRange.end)
+			rangeCacheRef.current.set(key, data)
+			setBookings(data)
+		})
 	}
 
-	const handleBookingDelete = () => {
-		// No-op - deletion disabled
+	const handleBlockerSuccess = () => {
+		setEditingBlocker(null)
+		refreshBookings()
+	}
+
+	const handleBookingEdit = (booking: CalendarBooking) => {
+		if (booking.type === "blocker" && isAdmin) {
+			const data = booking.originalData as {
+				blockerId: number
+				blocksAppointments: boolean
+				startDateTime: string
+				endDateTime: string
+			}
+			setEditingBlocker({
+				id: data.blockerId,
+				title: booking.title,
+				description: booking.description === `Blocker: ${booking.title}` ? null : booking.description,
+				startDateTime: data.startDateTime,
+				endDateTime: data.endDateTime,
+				blocksAppointments: data.blocksAppointments,
+			})
+			setIsBlockerDialogOpen(true)
+			setIsDetailsDialogOpen(false)
+		}
+	}
+
+	const handleBookingDelete = async (booking: CalendarBooking) => {
+		if (booking.type === "blocker" && isAdmin) {
+			const data = booking.originalData as { blockerId: number }
+			const result = await deleteCalendarBlocker(data.blockerId)
+			if (result.success) {
+				setIsDetailsDialogOpen(false)
+				setSelectedBooking(null)
+				refreshBookings()
+			}
+		}
 	}
 
 	const handleDateClick = (dateString: string) => {
@@ -449,6 +500,19 @@ export default function CalendarClient({
 									currentView={viewMode}
 									onViewChange={handleViewChange}
 								/>
+								{isAdmin && (
+									<Button
+										variant="default"
+										onClick={() => {
+											setEditingBlocker(null)
+											setIsBlockerDialogOpen(true)
+										}}
+										className="flex items-center gap-2"
+									>
+										<ShieldAlert className="w-4 h-4" />
+										Add Blocker
+									</Button>
+								)}
 								<Button
 									variant="outline"
 									onClick={() => setIsExportDialogOpen(true)}
@@ -582,6 +646,7 @@ export default function CalendarClient({
 					}}
 					onEdit={handleBookingEdit}
 					onDelete={handleBookingDelete}
+					isAdmin={isAdmin}
 				/>
 
 				{/* Date Events Dialog */}
@@ -606,6 +671,19 @@ export default function CalendarClient({
 					onClose={() => setIsExportDialogOpen(false)}
 					bookings={bookings}
 				/>
+
+				{/* Blocker Form Dialog (admin only) */}
+				{isAdmin && (
+					<BlockerFormDialog
+						open={isBlockerDialogOpen}
+						onOpenChange={(open) => {
+							setIsBlockerDialogOpen(open)
+							if (!open) setEditingBlocker(null)
+						}}
+						blocker={editingBlocker}
+						onSuccess={handleBlockerSuccess}
+					/>
+				)}
 			</div>
 		</div>
 	)

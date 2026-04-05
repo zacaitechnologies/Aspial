@@ -16,6 +16,7 @@ const bookingTypeLabels: Record<CalendarBooking["type"], string> = {
 	appointment: "Appointment",
 	task: "Task",
 	leave: "Leave",
+	blocker: "Blocker",
 }
 
 export function DayView({

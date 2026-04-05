@@ -1,11 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { CalendarBooking } from "@/app/(main)/calendar/actions"
 import { CALENDAR_EVENT_TYPES } from "@/app/(main)/calendar/constants"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, MapPin, User, UserCircle, Users } from "lucide-react"
+import { Calendar, Clock, MapPin, User, UserCircle, Users, Pencil, Trash2, ShieldAlert, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 interface BookingDetailsDialogProps {
@@ -13,7 +14,8 @@ interface BookingDetailsDialogProps {
   isOpen: boolean
   onClose: () => void
   onEdit?: (booking: CalendarBooking) => void
-  onDelete?: (bookingId: string) => void
+  onDelete?: (booking: CalendarBooking) => void
+  isAdmin?: boolean
 }
 
 function leaveStatusLabel(booking: CalendarBooking): string | null {
@@ -24,22 +26,41 @@ function leaveStatusLabel(booking: CalendarBooking): string | null {
   return typeof s === "string" ? s : null
 }
 
-export function BookingDetailsDialog({ 
-  booking, 
-  isOpen, 
-  onClose
+export function BookingDetailsDialog({
+  booking,
+  isOpen,
+  onClose,
+  onEdit,
+  onDelete,
+  isAdmin = false,
 }: BookingDetailsDialogProps) {
+  const [isDeleting, setIsDeleting] = useState(false)
+
   if (!booking) return null
 
   const appointmentTypeLabel = CALENDAR_EVENT_TYPES[booking.appointmentType]?.label || "Others"
   const leaveStatus = leaveStatusLabel(booking)
+  const isBlocker = booking.type === "blocker"
+  const blockerData = isBlocker
+    ? (booking.originalData as { blockerId: number; blocksAppointments: boolean; startDateTime: string; endDateTime: string })
+    : null
+
+  const handleDelete = async () => {
+    if (!onDelete || !booking) return
+    setIsDeleting(true)
+    try {
+      await onDelete(booking)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {booking.type === "leave" ? "Leave details" : "Booking Details"}
+            {isBlocker ? "Blocker Details" : booking.type === "leave" ? "Leave details" : "Booking Details"}
           </DialogTitle>
         </DialogHeader>
 
@@ -48,6 +69,12 @@ export function BookingDetailsDialog({
             <Badge variant="secondary" className={`${booking.color} text-foreground`}>
               {appointmentTypeLabel}
             </Badge>
+            {isBlocker && blockerData?.blocksAppointments && (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <ShieldAlert className="w-3 h-3" />
+                Blocks Appointments
+              </Badge>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -82,6 +109,13 @@ export function BookingDetailsDialog({
                   <span>{booking.assigneeName}</span>
                 </div>
               )}
+              {isBlocker && booking.creatorName && (
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Created by:</span>
+                  <span>{booking.creatorName}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
                 <span>{formatDateStringDirect(booking.date)}</span>
@@ -101,6 +135,12 @@ export function BookingDetailsDialog({
                     <span>{booking.attendees} attendees</span>
                   </div>
                 </>
+              )}
+              {isBlocker && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span>{booking.startTime} - {booking.endTime}</span>
+                </div>
               )}
               {booking.type === "leave" && (
                 <>
@@ -141,7 +181,21 @@ export function BookingDetailsDialog({
             </div>
           </div>
 
-          <div className="flex justify-end pt-4 border-t">
+          <div className="flex justify-between pt-4 border-t">
+            <div className="flex gap-2">
+              {isBlocker && isAdmin && onEdit && (
+                <Button variant="outline" size="sm" onClick={() => onEdit(booking)}>
+                  <Pencil className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+              )}
+              {isBlocker && isAdmin && onDelete && (
+                <Button variant="destructive" size="sm" onClick={handleDelete} disabled={isDeleting}>
+                  {isDeleting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                  Delete
+                </Button>
+              )}
+            </div>
             <Button variant="outline" onClick={onClose}>
               Close
             </Button>

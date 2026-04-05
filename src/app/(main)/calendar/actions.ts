@@ -1,5 +1,6 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { formatLocalDate, formatLocalDateTime } from "@/lib/date-utils"
 import type { LeaveHalfDay } from "@prisma/client"
@@ -27,7 +28,7 @@ export interface CalendarBooking {
 	date: string
 	startTime: string
 	endTime: string
-	type: "appointment" | "task" | "leave"
+	type: "appointment" | "task" | "leave" | "blocker"
 	appointmentType: CalendarEventType
 	location: string
 	attendees: number
@@ -483,6 +484,214 @@ async function _fetchTaskBookings(
 	return results
 }
 
+/** Fetch calendar blockers, normalized to CalendarBooking[]. Visible to all users. */
+async function _fetchCalendarBlockers(
+	safeRange?: { start: Date; end: Date }
+): Promise<CalendarBooking[]> {
+	const blockers = await prisma.calendarBlocker.findMany({
+		where: safeRange
+			? {
+					startDateTime: { lte: safeRange.end },
+					endDateTime: { gte: safeRange.start },
+				}
+			: {},
+		include: {
+			createdBy: {
+				select: { firstName: true, lastName: true, email: true },
+			},
+		},
+		orderBy: { startDateTime: "asc" },
+	})
+
+	const results: CalendarBooking[] = []
+
+	for (const blocker of blockers) {
+		const start = new Date(blocker.startDateTime)
+		const end = new Date(blocker.endDateTime)
+		const creatorName = `${blocker.createdBy.firstName} ${blocker.createdBy.lastName}`.trim() || blocker.createdBy.email
+
+		// Expand across days if blocker spans multiple days
+		const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+		const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+
+		while (cur <= endDay) {
+			const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
+
+			// Calculate start/end time for this specific day
+			const isSameStartDay = cur.getFullYear() === start.getFullYear() && cur.getMonth() === start.getMonth() && cur.getDate() === start.getDate()
+			const isSameEndDay = cur.getFullYear() === end.getFullYear() && cur.getMonth() === end.getMonth() && cur.getDate() === end.getDate()
+
+			const dayStartTime = isSameStartDay ? start.toTimeString().slice(0, 5) : "00:00"
+			const dayEndTime = isSameEndDay ? end.toTimeString().slice(0, 5) : "23:59"
+
+			results.push({
+				id: `blocker-${blocker.id}-${dateStr}`,
+				title: blocker.title,
+				bookingName: blocker.title,
+				description: blocker.description || `Blocker: ${blocker.title}`,
+				date: dateStr,
+				startTime: dayStartTime,
+				endTime: dayEndTime,
+				type: "blocker",
+				appointmentType: "BLOCKER",
+				location: blocker.blocksAppointments ? "Blocks Appointments" : "Informational",
+				attendees: 0,
+				color: CALENDAR_EVENT_TYPES.BLOCKER.color,
+				projectId: null,
+				projectName: null,
+				clientName: null,
+				creatorName,
+				assigneeName: null,
+				taskStartDate: null,
+				taskDueDate: null,
+				isUserBooking: false,
+				isTeamBooking: false,
+				assigneeId: null,
+				creatorId: blocker.createdById,
+				originalData: {
+					blockerId: blocker.id,
+					blocksAppointments: blocker.blocksAppointments,
+					startDateTime: blocker.startDateTime.toISOString(),
+					endDateTime: blocker.endDateTime.toISOString(),
+				},
+			})
+
+			cur.setDate(cur.getDate() + 1)
+		}
+	}
+
+	return results
+}
+
+// ─── Calendar Blocker CRUD (admin-only) ───────────────────────────────────────
+
+export async function createCalendarBlocker(formData: FormData) {
+	const user = await (await import("@/lib/auth-cache")).getCachedUser()
+	if (!user) return { success: false, error: "Not authenticated" }
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) return { success: false, error: "Admin access required" }
+
+	const title = formData.get("title") as string
+	const description = (formData.get("description") as string) || null
+	const startDateTime = formData.get("startDateTime") as string
+	const endDateTime = formData.get("endDateTime") as string
+	const blocksAppointments = formData.get("blocksAppointments") === "true"
+
+	if (!title || !startDateTime || !endDateTime) {
+		return { success: false, error: "Title, start time, and end time are required" }
+	}
+
+	const start = new Date(startDateTime)
+	const end = new Date(endDateTime)
+	if (end <= start) {
+		return { success: false, error: "End time must be after start time" }
+	}
+
+	try {
+		await prisma.calendarBlocker.create({
+			data: {
+				title,
+				description,
+				startDateTime: start,
+				endDateTime: end,
+				blocksAppointments,
+				createdById: user.id,
+			},
+		})
+		revalidatePath("/calendar")
+		return { success: true }
+	} catch (error) {
+		console.error("Error creating calendar blocker:", error)
+		return { success: false, error: "Failed to create blocker" }
+	}
+}
+
+export async function updateCalendarBlocker(id: number, formData: FormData) {
+	const user = await (await import("@/lib/auth-cache")).getCachedUser()
+	if (!user) return { success: false, error: "Not authenticated" }
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) return { success: false, error: "Admin access required" }
+
+	const title = formData.get("title") as string
+	const description = (formData.get("description") as string) || null
+	const startDateTime = formData.get("startDateTime") as string
+	const endDateTime = formData.get("endDateTime") as string
+	const blocksAppointments = formData.get("blocksAppointments") === "true"
+
+	if (!title || !startDateTime || !endDateTime) {
+		return { success: false, error: "Title, start time, and end time are required" }
+	}
+
+	const start = new Date(startDateTime)
+	const end = new Date(endDateTime)
+	if (end <= start) {
+		return { success: false, error: "End time must be after start time" }
+	}
+
+	try {
+		await prisma.calendarBlocker.update({
+			where: { id },
+			data: {
+				title,
+				description,
+				startDateTime: start,
+				endDateTime: end,
+				blocksAppointments,
+			},
+		})
+		revalidatePath("/calendar")
+		return { success: true }
+	} catch (error) {
+		console.error("Error updating calendar blocker:", error)
+		return { success: false, error: "Failed to update blocker" }
+	}
+}
+
+export async function deleteCalendarBlocker(id: number) {
+	const user = await (await import("@/lib/auth-cache")).getCachedUser()
+	if (!user) return { success: false, error: "Not authenticated" }
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) return { success: false, error: "Admin access required" }
+
+	try {
+		await prisma.calendarBlocker.delete({ where: { id } })
+		revalidatePath("/calendar")
+		return { success: true }
+	} catch (error) {
+		console.error("Error deleting calendar blocker:", error)
+		return { success: false, error: "Failed to delete blocker" }
+	}
+}
+
+/** Fetch blockers that block appointments in a date range (used by appointment booking). */
+export async function getActiveBlockers(startDate: Date | string, endDate: Date | string) {
+	try {
+		const start = coerceToDate(startDate)
+		const end = coerceToDate(endDate)
+
+		return await prisma.calendarBlocker.findMany({
+			where: {
+				blocksAppointments: true,
+				startDateTime: { lte: end },
+				endDateTime: { gte: start },
+			},
+			select: {
+				id: true,
+				title: true,
+				startDateTime: true,
+				endDateTime: true,
+			},
+			orderBy: { startDateTime: "asc" },
+		})
+	} catch (error) {
+		console.error("Error fetching active blockers:", error)
+		return []
+	}
+}
+
 // Fetch all bookings with permission filtering. Runs appointments, tasks, and leave in parallel.
 export async function fetchAllBookings(
 	userId: string,
@@ -501,16 +710,18 @@ export async function fetchAllBookings(
 			getUserProjectIds(userId),
 		])
 
-		const [appointments, tasks, leave] = await Promise.allSettled([
+		const [appointments, tasks, leave, blockers] = await Promise.allSettled([
 			_fetchAppointmentBookings(userId, userName, isAdmin, userProjectIds, safeRange),
 			_fetchTaskBookings(userId, safeRange),
 			_fetchLeaveBookings(userId, safeRange),
+			_fetchCalendarBlockers(safeRange),
 		])
 
 		const out: CalendarBooking[] = []
 		if (appointments.status === "fulfilled") out.push(...appointments.value)
 		if (tasks.status === "fulfilled") out.push(...tasks.value)
 		if (leave.status === "fulfilled") out.push(...leave.value)
+		if (blockers.status === "fulfilled") out.push(...blockers.value)
 		return out
 	} catch (error) {
 		if (process.env.NODE_ENV === "development") {

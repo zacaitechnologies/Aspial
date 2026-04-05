@@ -14,6 +14,7 @@ import { format, addDays, startOfWeek, addHours, startOfDay, isBefore, isSameDay
 import { cn } from "@/lib/utils"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import { createAppointmentBooking, getUserProjects, getAppointmentBookings, getProjectUsersEmails } from "@/app/(main)/appointment-bookings/actions"
+import { getActiveBlockers } from "@/app/(main)/calendar/actions"
 import type { ProjectWithClient } from "@/app/(main)/appointment-bookings/types"
 import { EmailListInput } from "./EmailListInput"
 import { FieldOverwriteDialog } from "./FieldOverwriteDialog"
@@ -63,6 +64,7 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 	const [error, setError] = useState<string | null>(null)
 	const [existingBookings, setExistingBookings] = useState<BookingSlot[]>([])
 	const [isLoadingBookings, setIsLoadingBookings] = useState(false)
+	const [blockers, setBlockers] = useState<{ id: number; title: string; startDateTime: Date; endDateTime: Date }[]>([])
 	const [calendarOpen, setCalendarOpen] = useState(false)
 	const [clientEmails, setClientEmails] = useState<string[]>([""])
 	const [showResultDialog, setShowResultDialog] = useState(false)
@@ -161,26 +163,30 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 		handleProjectSelection()
 	}, [selectedProject, projects])
 
-	// Fetch bookings when week changes
+	// Fetch bookings and blockers when week changes
 	useEffect(() => {
-		const fetchBookings = async () => {
+		const fetchBookingsAndBlockers = async () => {
 			if (appointment.id) {
 				setIsLoadingBookings(true)
 				const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 })
-				const bookings = await getAppointmentBookings(
-					appointment.id,
-					currentWeekStart,
-					weekEnd
-				)
+				const [bookings, activeBlockers] = await Promise.all([
+					getAppointmentBookings(appointment.id, currentWeekStart, weekEnd),
+					getActiveBlockers(currentWeekStart, weekEnd),
+				])
 				setExistingBookings(bookings.map(b => ({
 					...b,
 					startDate: new Date(b.startDate),
 					endDate: new Date(b.endDate),
 				})))
+				setBlockers(activeBlockers.map(b => ({
+					...b,
+					startDateTime: new Date(b.startDateTime),
+					endDateTime: new Date(b.endDateTime),
+				})))
 				setIsLoadingBookings(false)
 			}
 		}
-		fetchBookings()
+		fetchBookingsAndBlockers()
 	}, [appointment.id, currentWeekStart])
 
 	const userName = enhancedUser.profile 
@@ -248,11 +254,31 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 		return owner === userName
 	}
 
+	const isSlotBlocked = (day: Date, hour: number) => {
+		const slotStart = addHours(startOfDay(day), hour)
+		const slotEnd = addHours(slotStart, 1)
+
+		return blockers.some(blocker => {
+			return slotStart < blocker.endDateTime && slotEnd > blocker.startDateTime
+		})
+	}
+
+	const getSlotBlockerTitle = (day: Date, hour: number): string | null => {
+		const slotStart = addHours(startOfDay(day), hour)
+		const slotEnd = addHours(slotStart, 1)
+
+		const blocker = blockers.find(b => {
+			return slotStart < b.endDateTime && slotEnd > b.startDateTime
+		})
+
+		return blocker ? blocker.title : null
+	}
+
 	const toggleSlot = (day: Date, hour: number) => {
 		const slotStart = addHours(startOfDay(day), hour)
 		const slotEnd = addHours(slotStart, 1)
 
-		if (isSlotPast(day, hour) || isSlotBooked(day, hour)) return
+		if (isSlotPast(day, hour) || isSlotBooked(day, hour) || isSlotBlocked(day, hour)) return
 
 		setSelectedSlots(prev => {
 			const exists = prev.some(slot => slot.start.getTime() === slotStart.getTime())
@@ -570,6 +596,10 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 					<span>Booked by Others</span>
 				</div>
 				<div className="flex items-center gap-2">
+					<div className="w-4 h-4 bg-amber-400 rounded border border-amber-500 opacity-80"></div>
+					<span>Blocked (Event/Holiday)</span>
+				</div>
+				<div className="flex items-center gap-2">
 					<div className="w-4 h-4 bg-gray-300 border border-gray-400 rounded opacity-60"></div>
 					<span>Past</span>
 				</div>
@@ -610,32 +640,37 @@ export function WeeklyCalendarBooking({ appointment, initialDate, onClose, onSuc
 								const isPast = isSlotPast(day, hour)
 								const isBooked = isSlotBooked(day, hour)
 								const isBookedByUser = isSlotBookedByUser(day, hour)
+								const isBlocked = isSlotBlocked(day, hour)
 
 								return (
 									<button
 										key={idx}
 										type="button"
-										disabled={isPast || isBooked}
+										disabled={isPast || isBooked || isBlocked}
 										onClick={() => toggleSlot(day, hour)}
 										className={cn(
 											"p-3 text-xs border-r last:border-r-0 transition-colors min-h-[40px]",
 											isSelected && "bg-primary text-primary-foreground hover:bg-primary/90",
-											!isSelected && !isPast && !isBooked && "hover:bg-muted bg-white border-2 border-gray-400",
-											isPast && "opacity-60 cursor-not-allowed bg-gray-300 border border-gray-400",
-											isBookedByUser && "bg-[var(--color-chart-3)] text-primary-foreground cursor-not-allowed",
-											isBooked && !isBookedByUser && "bg-destructive cursor-not-allowed opacity-80"
+											isBlocked && !isSelected && "bg-amber-400 cursor-not-allowed opacity-80 border border-amber-500",
+											!isSelected && !isPast && !isBooked && !isBlocked && "hover:bg-muted bg-white border-2 border-gray-400",
+											isPast && !isBlocked && "opacity-60 cursor-not-allowed bg-gray-300 border border-gray-400",
+											isBookedByUser && !isBlocked && "bg-[var(--color-chart-3)] text-primary-foreground cursor-not-allowed",
+											isBooked && !isBookedByUser && !isBlocked && "bg-destructive cursor-not-allowed opacity-80"
 										)}
 										title={
-											isBookedByUser 
-												? `Booked by you (${getSlotBookingOwner(day, hour)})`
-												: isBooked 
-													? `Booked by ${getSlotBookingOwner(day, hour)}`
-													: isPast
-														? "Past time slot"
-														: "Available"
+											isBlocked
+												? `Blocked: ${getSlotBlockerTitle(day, hour) || "Event"}`
+												: isBookedByUser
+													? `Booked by you (${getSlotBookingOwner(day, hour)})`
+													: isBooked
+														? `Booked by ${getSlotBookingOwner(day, hour)}`
+														: isPast
+															? "Past time slot"
+															: "Available"
 										}
 									>
 										{isSelected && "✓"}
+										{isBlocked && !isSelected && "✕"}
 									</button>
 								)
 							})}

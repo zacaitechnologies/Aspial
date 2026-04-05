@@ -37,6 +37,11 @@ export const CALENDAR_EVENT_TYPES = {
 		color: "bg-calendar-leave",
 		value: "LEAVE",
 	},
+	BLOCKER: {
+		label: "Blocker",
+		color: "bg-calendar-blocker",
+		value: "BLOCKER",
+	},
 } as const
 
 export type CalendarEventType = keyof typeof CALENDAR_EVENT_TYPES
