@@ -1,7 +1,14 @@
 "use client"
 
 import { CalendarBooking } from "../actions"
-import { getWeekDays, formatDate, getTimeSlots, parseTime, isToday } from "../utils/calendar-utils"
+import {
+	getWeekDays,
+	formatDate,
+	getTimeSlots,
+	parseTime,
+	isToday,
+	isCalendarAllDayRowEvent,
+} from "../utils/calendar-utils"
 import { useMemo } from "react"
 
 interface WeekViewProps {
@@ -98,9 +105,7 @@ export function WeekView({
 						const dateString = formatDate(date)
 						const today = isToday(date)
 						const dayEvents = getEventsForDay(date)
-						const allDayEvents = dayEvents.filter(
-							(e) => e.type === "task" || e.type === "leave"
-						)
+						const allDayEvents = dayEvents.filter(isCalendarAllDayRowEvent)
 						return (
 							<div
 								key={`allday-${dateString}`}
@@ -152,9 +157,7 @@ export function WeekView({
 									const dateString = formatDate(date)
 									const today = isToday(date)
 									const dayEvents = getEventsForDay(date)
-									const timedEvents = dayEvents.filter(
-										e => e.type !== "task" && e.type !== "leave"
-									)
+									const timedEvents = dayEvents.filter((e) => !isCalendarAllDayRowEvent(e))
 									
 									// Get events for this time slot
 									const slotEvents = timedEvents.filter(event => {

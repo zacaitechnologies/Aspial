@@ -1,7 +1,7 @@
 "use client"
 
 import { CalendarBooking } from "../actions"
-import { isToday, formatDate, parseTime } from "../utils/calendar-utils"
+import { isToday, formatDate, parseTime, isCalendarAllDayRowEvent } from "../utils/calendar-utils"
 import { useMemo } from "react"
 
 interface WeekViewDayProps {
@@ -24,14 +24,13 @@ export function WeekViewDay({
 	const dateString = formatDate(date)
 	const today = isToday(date)
 	
-	// All-day: tasks and leave (not tied to a single time slot)
 	const allDayEvents = useMemo(
-		() => events.filter(e => e.type === "task" || e.type === "leave"),
+		() => events.filter(isCalendarAllDayRowEvent),
 		[events]
 	)
 	
 	const timedEvents = useMemo(
-		() => events.filter(e => e.type !== "task" && e.type !== "leave"),
+		() => events.filter((e) => !isCalendarAllDayRowEvent(e)),
 		[events]
 	)
 	

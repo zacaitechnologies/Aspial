@@ -3,6 +3,16 @@
  */
 
 import { formatLocalDate } from "@/lib/date-utils"
+import type { CalendarBooking } from "../actions"
+
+/**
+ * Week/day views: tasks and leave always use the all-day row; all-day blockers join them (not time columns).
+ */
+export function isCalendarAllDayRowEvent(booking: CalendarBooking): boolean {
+	if (booking.type === "task" || booking.type === "leave") return true
+	if (booking.type === "blocker" && booking.allDay === true) return true
+	return false
+}
 
 export type CalendarView = 'month' | 'week' | 'day'
 

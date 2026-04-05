@@ -1,7 +1,13 @@
 "use client"
 
 import { type CalendarBooking } from "../actions"
-import { formatDate, getDetailedTimeSlots, parseTime, isToday } from "../utils/calendar-utils"
+import {
+	formatDate,
+	getDetailedTimeSlots,
+	parseTime,
+	isToday,
+	isCalendarAllDayRowEvent,
+} from "../utils/calendar-utils"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
 import { useMemo } from "react"
@@ -34,12 +40,12 @@ export function DayView({
 	)
 	
 	const allDayEvents = useMemo(
-		() => dayEvents.filter(e => e.type === "task" || e.type === "leave"),
+		() => dayEvents.filter(isCalendarAllDayRowEvent),
 		[dayEvents]
 	)
 	
 	const timedEvents = useMemo(
-		() => dayEvents.filter(e => e.type !== "task" && e.type !== "leave"),
+		() => dayEvents.filter((e) => !isCalendarAllDayRowEvent(e)),
 		[dayEvents]
 	)
 	

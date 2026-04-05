@@ -45,6 +45,8 @@ export interface CalendarBooking {
 	isTeamBooking?: boolean
 	assigneeId?: string | null
 	creatorId?: string
+	/** Blockers only: true when the event is stored as full local days (week/day views use the all-day row). */
+	allDay?: boolean
 }
 
 /** Local calendar dates (YYYY-MM-DD) for each day of a leave span, optionally clipped to a visible range. */
@@ -510,6 +512,13 @@ async function _fetchCalendarBlockers(
 		const end = new Date(blocker.endDateTime)
 		const creatorName = `${blocker.createdBy.firstName} ${blocker.createdBy.lastName}`.trim() || blocker.createdBy.email
 
+		const blockerAllDay =
+			start.getHours() === 0 &&
+			start.getMinutes() === 0 &&
+			start.getSeconds() === 0 &&
+			end.getHours() === 23 &&
+			end.getMinutes() === 59
+
 		// Expand across days if blocker spans multiple days
 		const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate())
 		const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
@@ -548,11 +557,13 @@ async function _fetchCalendarBlockers(
 				isTeamBooking: false,
 				assigneeId: null,
 				creatorId: blocker.createdById,
+				allDay: blockerAllDay,
 				originalData: {
 					blockerId: blocker.id,
 					blocksAppointments: blocker.blocksAppointments,
 					startDateTime: blocker.startDateTime.toISOString(),
 					endDateTime: blocker.endDateTime.toISOString(),
+					allDay: blockerAllDay,
 				},
 			})
 

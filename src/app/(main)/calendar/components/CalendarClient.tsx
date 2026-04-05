@@ -91,6 +91,7 @@ export default function CalendarClient({
 		startDateTime: string
 		endDateTime: string
 		blocksAppointments: boolean
+		allDay?: boolean
 	} | null>(null)
 
 	const isAdmin = initialIsAdmin
@@ -309,6 +310,7 @@ export default function CalendarClient({
 				blocksAppointments: boolean
 				startDateTime: string
 				endDateTime: string
+				allDay?: boolean
 			}
 			setEditingBlocker({
 				id: data.blockerId,
@@ -317,6 +319,7 @@ export default function CalendarClient({
 				startDateTime: data.startDateTime,
 				endDateTime: data.endDateTime,
 				blocksAppointments: data.blocksAppointments,
+				allDay: data.allDay,
 			})
 			setIsBlockerDialogOpen(true)
 			setIsDetailsDialogOpen(false)
@@ -394,22 +397,31 @@ export default function CalendarClient({
 	}, [statsBookings])
 
 	return (
-		<div className="calendar-page min-h-screen bg-background p-6">
+		<div className="calendar-page min-h-screen bg-background px-4 py-5 sm:px-6 sm:py-6">
 			<div className="max-w-7xl mx-auto">
-				{/* Header */}
-				<div className="mb-8">
-					<div className="flex items-center justify-between mb-4">
-						<div>
-							<p className="text-muted-foreground">Manage your team&apos;s bookings and events</p>
-						</div>
-						<div className="flex items-center gap-4">
+				{/* Page intro + filters */}
+				<div className="mb-5 sm:mb-6 space-y-4">
+					<div>
+						<h1 className="text-lg font-semibold text-foreground tracking-tight sm:text-xl">
+							Calendar
+						</h1>
+						<p className="text-sm text-muted-foreground mt-0.5">
+							Manage your team&apos;s bookings and events
+						</p>
+					</div>
+
+					<div className="rounded-lg border border-border bg-card p-3 sm:p-4">
+						<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2.5">
+							Filters
+						</p>
+						<div className="flex flex-wrap items-center gap-2 sm:gap-3">
 							<Select value={filterType} onValueChange={setFilterType}>
-								<SelectTrigger className="w-48">
-									<Filter className="w-4 h-4 mr-2" />
-									<SelectValue />
+								<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,11rem)] border-border bg-background text-sm">
+									<Filter className="w-3.5 h-3.5 mr-1.5 shrink-0 opacity-70" />
+									<SelectValue placeholder="Type" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="all">All Appointments</SelectItem>
+									<SelectItem value="all">All types</SelectItem>
 									{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => (
 										<SelectItem key={key} value={key}>
 											{config.label}
@@ -419,36 +431,36 @@ export default function CalendarClient({
 							</Select>
 
 							<Select value={taskOwnershipFilter} onValueChange={setTaskOwnershipFilter}>
-								<SelectTrigger className="w-40">
+								<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,9.5rem)] border-border bg-background text-sm">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="all">All Tasks</SelectItem>
-									<SelectItem value="my">My Tasks</SelectItem>
-									<SelectItem value="teammate">Teammate Tasks</SelectItem>
+									<SelectItem value="all">All tasks</SelectItem>
+									<SelectItem value="my">My tasks</SelectItem>
+									<SelectItem value="teammate">Teammate tasks</SelectItem>
 								</SelectContent>
 							</Select>
-							
+
 							{!isAdmin && (
 								<>
 									<Select value={bookmarkScope} onValueChange={setBookmarkScope}>
-										<SelectTrigger className="w-40">
+										<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,9.5rem)] border-border bg-background text-sm">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="all">All Bookings</SelectItem>
-											<SelectItem value="own">My Bookings</SelectItem>
-											<SelectItem value="team">Team Bookings</SelectItem>
+											<SelectItem value="all">All bookings</SelectItem>
+											<SelectItem value="own">My bookings</SelectItem>
+											<SelectItem value="team">Team bookings</SelectItem>
 										</SelectContent>
 									</Select>
-									
+
 									{projects.length > 0 && (
 										<Select value={selectedProject} onValueChange={setSelectedProject}>
-											<SelectTrigger className="w-40">
-												<SelectValue placeholder="Filter by project" />
+											<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,12rem)] border-border bg-background text-sm">
+												<SelectValue placeholder="Project" />
 											</SelectTrigger>
 											<SelectContent>
-												<SelectItem value="all">All Projects</SelectItem>
+												<SelectItem value="all">All projects</SelectItem>
 												{projects.map((project) => (
 													<SelectItem key={project.id} value={String(project.id)}>
 														{project.name}
@@ -462,66 +474,73 @@ export default function CalendarClient({
 						</div>
 					</div>
 
-					{/* Stats Cards */}
-					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-						{Object.entries(CALENDAR_EVENT_TYPES).map(([appointmentKey, config]) => {
-							const count = statsCounts[appointmentKey] || 0
-							return (
-								<Card
-									key={appointmentKey}
-									className="bg-card border-border"
-								>
-									<CardContent className="p-4">
-										<div className="flex items-center justify-between">
-											<div>
-												<p className="text-sm text-muted-foreground">{config.label}</p>
-												<p className="text-2xl font-bold text-foreground">
-													{count}
-												</p>
-											</div>
-											<div className={`w-3 h-3 rounded-full shrink-0 ${config.color}`} />
+					{/* Compact legend + counts (single row on wide screens) */}
+					<div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3">
+						<p className="text-xs font-medium text-muted-foreground mb-2 sm:mb-2.5">
+							Counts in this period
+						</p>
+						<div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+							{Object.entries(CALENDAR_EVENT_TYPES).map(([appointmentKey, config]) => {
+								const count = statsCounts[appointmentKey] || 0
+								return (
+									<div
+										key={appointmentKey}
+										className="flex items-center gap-2 min-w-0 rounded-md bg-card/80 px-2 py-1.5 border border-border/60"
+									>
+										<span
+											className={`h-2 w-2 shrink-0 rounded-full ring-1 ring-border/50 ${config.color}`}
+											aria-hidden
+										/>
+										<div className="min-w-0 flex-1">
+											<p className="text-[11px] leading-tight text-muted-foreground truncate sm:text-xs">
+												{config.label}
+											</p>
+											<p className="text-sm font-semibold tabular-nums text-foreground leading-none mt-0.5">
+												{count}
+											</p>
 										</div>
-									</CardContent>
-								</Card>
-							)
-						})}
+									</div>
+								)
+							})}
+						</div>
 					</div>
 				</div>
 
 				{/* Calendar */}
-				<Card className="bg-card border-border">
-					<CardHeader>
-						<div className="flex items-center justify-between">
-							<CardTitle className="text-xl font-semibold text-foreground">
-								Calendar
-							</CardTitle>
-							<div className="flex items-center gap-4">
+				<Card className="bg-card border-border overflow-hidden">
+					<CardHeader className="space-y-0 pb-4 pt-4 px-4 sm:px-6 sm:pt-5">
+						<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+							<div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:flex-1 lg:min-w-0 lg:justify-end lg:order-2">
 								<ViewSwitcher
 									currentView={viewMode}
 									onViewChange={handleViewChange}
 								/>
 								{isAdmin && (
 									<Button
+										size="sm"
 										variant="default"
 										onClick={() => {
 											setEditingBlocker(null)
 											setIsBlockerDialogOpen(true)
 										}}
-										className="flex items-center gap-2"
+										className="shrink-0 gap-1.5 h-9"
 									>
-										<ShieldAlert className="w-4 h-4" />
-										Add Blocker
+										<ShieldAlert className="w-3.5 h-3.5" />
+										Blocker
 									</Button>
 								)}
 								<Button
+									size="sm"
 									variant="outline"
 									onClick={() => setIsExportDialogOpen(true)}
-									className="flex items-center gap-2"
+									className="shrink-0 gap-1.5 h-9"
 								>
-									<Download className="w-4 h-4" />
+									<Download className="w-3.5 h-3.5" />
 									Export
 								</Button>
-								<DatePicker 
+							</div>
+							<div className="w-full min-w-0 lg:order-1 lg:max-w-md xl:max-w-lg">
+								<DatePicker
 									currentDate={currentDate}
 									onDateChange={handleDateChange}
 									viewMode={viewMode}

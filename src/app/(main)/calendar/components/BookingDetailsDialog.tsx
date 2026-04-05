@@ -42,7 +42,13 @@ export function BookingDetailsDialog({
   const leaveStatus = leaveStatusLabel(booking)
   const isBlocker = booking.type === "blocker"
   const blockerData = isBlocker
-    ? (booking.originalData as { blockerId: number; blocksAppointments: boolean; startDateTime: string; endDateTime: string })
+    ? (booking.originalData as {
+        blockerId: number
+        blocksAppointments: boolean
+        startDateTime: string
+        endDateTime: string
+        allDay?: boolean
+      })
     : null
 
   const handleDelete = async () => {
@@ -139,7 +145,7 @@ export function BookingDetailsDialog({
               {isBlocker && (
                 <div className="flex items-center gap-2 text-sm">
                   <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span>{booking.startTime} - {booking.endTime}</span>
+                  <span>{blockerData?.allDay ? "All day" : `${booking.startTime} - ${booking.endTime}`}</span>
                 </div>
               )}
               {booking.type === "leave" && (
