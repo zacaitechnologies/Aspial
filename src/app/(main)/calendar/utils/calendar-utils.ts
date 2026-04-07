@@ -227,3 +227,9 @@ export function isFuture(date: Date): boolean {
 	compareDate.setHours(0, 0, 0, 0)
 	return compareDate > today
 }
+
+/** Current local time as { hours, minutes } (0-23, 0-59). */
+export function getLocalTime(): { hours: number; minutes: number } {
+	const now = new Date()
+	return { hours: now.getHours(), minutes: now.getMinutes() }
+}

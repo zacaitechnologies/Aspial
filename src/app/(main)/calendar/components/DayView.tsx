@@ -5,12 +5,14 @@ import {
 	formatDate,
 	getDetailedTimeSlots,
 	parseTime,
-	isToday,
 	isCalendarAllDayRowEvent,
+	isToday,
+	getLocalTime,
 } from "../utils/calendar-utils"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, useRef, useEffect } from "react"
+import { CurrentTimeLine } from "./CurrentTimeLine"
 
 interface DayViewProps {
 	currentDate: Date
@@ -34,7 +36,19 @@ export function DayView({
 }: DayViewProps) {
 	const dateString = formatDate(currentDate)
 	const today = isToday(currentDate)
-	
+	const scrollRef = useRef<HTMLDivElement>(null)
+	const HALF_HOUR_HEIGHT = 60
+	const HOUR_HEIGHT = HALF_HOUR_HEIGHT * 2
+
+	useEffect(() => {
+		const raf = requestAnimationFrame(() => {
+			if (!scrollRef.current) return
+			const { hours } = getLocalTime()
+			scrollRef.current.scrollTop = Math.max(0, (hours - 1) * HOUR_HEIGHT)
+		})
+		return () => cancelAnimationFrame(raf)
+	}, [HOUR_HEIGHT])
+
 	// Get events for the day
 	const dayEvents = useMemo(
 		() => bookings.filter(event => event.date === dateString),
@@ -144,73 +158,82 @@ export function DayView({
 			)}
 			
 			{/* Time Slots */}
-			<div className="flex-1 overflow-y-auto relative hide-scrollbar">
-				{timeSlots.map(slot => {
-					const slotEvents = getEventsForSlot(slot)
-					const isHourMark = slot.endsWith(':00')
-					
-					return (
-						<div
-							key={slot}
-							className={`flex ${isHourMark ? 'border-t border-(--color-border)]' : 'border-t border-(--color-border)]/30'} min-h-[60px] relative`}
-						>
-							{/* Time Label */}
-							<div className={`w-20 shrink-0 p-2 text-xs ${isHourMark ? 'font-medium' : ''} text-(--color-muted-foreground)] border-r border-(--color-border)]`}>
-								{isHourMark ? slot : ''}
-							</div>
-							
-							{/* Events */}
-							<div
-								className={`flex-1 p-2 transition-colors ${slotEvents.length === 0 ? 'cursor-pointer hover:bg-(--color-primary)]/10' : ''}`}
-								onClick={() => {
-									if (slotEvents.length === 0 && onTimeSlotClick) {
-										onTimeSlotClick(dateString, slot)
-									}
-								}}
-							>
-								{slotEvents.length > 0 && (
-									<div className="space-y-2">
-										{slotEvents.map(event => (
-											<div
-												key={event.id}
-												className="p-3 rounded-lg border border-(--color-border)] bg-(--color-card)] cursor-pointer hover:shadow-md transition-shadow"
-												onClick={() => onEventClick(event)}
-											>
-												<div className="flex items-start justify-between mb-2">
-													<div className="flex items-center gap-2">
-														<Badge variant="secondary" className={event.color}>
-															{bookingTypeLabels[event.type]}
-														</Badge>
-														<h4 className="font-semibold text-(--color-foreground)]">{event.title}</h4>
-													</div>
-												</div>
-												<p className="text-sm text-(--color-muted-foreground)] mb-2">{event.description}</p>
-												<div className="flex items-center gap-4 text-xs text-(--color-muted-foreground)]">
-													<div className="flex items-center gap-1">
-														<Clock className="w-3 h-3" />
-														{event.startTime} - {event.endTime}
-													</div>
-													{event.location && (
-														<div className="flex items-center gap-1">
-															<MapPin className="w-3 h-3" />
-															{event.location}
-														</div>
-													)}
-													{event.attendees > 1 && (
-														<div className="flex items-center gap-1">
-															<Users className="w-3 h-3" />
-															{event.attendees} attendees
-														</div>
-													)}
-												</div>
-											</div>
-										))}
-									</div>
-								)}
-							</div>
+			<div ref={scrollRef} className="flex-1 overflow-y-auto relative hide-scrollbar">
+				<div className="relative" style={{ minHeight: timeSlots.length * HALF_HOUR_HEIGHT }}>
+					{today && (
+						<div className="absolute inset-0 z-20 pointer-events-none" style={{ left: "5rem" }}>
+							<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
 						</div>
-					)
-				})}
+					)}
+
+					{timeSlots.map(slot => {
+						const slotEvents = getEventsForSlot(slot)
+						const isHourMark = slot.endsWith(':00')
+
+						return (
+							<div
+								key={slot}
+								className={`flex ${isHourMark ? 'border-t border-(--color-border)]' : 'border-t border-(--color-border)]/30'} relative`}
+								style={{ height: HALF_HOUR_HEIGHT }}
+							>
+								{/* Time Label */}
+								<div className={`w-20 shrink-0 p-2 text-xs ${isHourMark ? 'font-medium' : ''} text-(--color-muted-foreground)] border-r border-(--color-border)]`}>
+									{isHourMark ? slot : ''}
+								</div>
+
+								{/* Events */}
+								<div
+									className={`flex-1 p-2 transition-colors ${slotEvents.length === 0 ? 'cursor-pointer hover:bg-(--color-primary)]/10' : ''}`}
+									onClick={() => {
+										if (slotEvents.length === 0 && onTimeSlotClick) {
+											onTimeSlotClick(dateString, slot)
+										}
+									}}
+								>
+									{slotEvents.length > 0 && (
+										<div className="space-y-2">
+											{slotEvents.map(event => (
+												<div
+													key={event.id}
+													className="p-3 rounded-lg border border-(--color-border)] bg-(--color-card)] cursor-pointer hover:shadow-md transition-shadow"
+													onClick={() => onEventClick(event)}
+												>
+													<div className="flex items-start justify-between mb-2">
+														<div className="flex items-center gap-2">
+															<Badge variant="secondary" className={event.color}>
+																{bookingTypeLabels[event.type]}
+															</Badge>
+															<h4 className="font-semibold text-(--color-foreground)]">{event.title}</h4>
+														</div>
+													</div>
+													<p className="text-sm text-(--color-muted-foreground)] mb-2">{event.description}</p>
+													<div className="flex items-center gap-4 text-xs text-(--color-muted-foreground)]">
+														<div className="flex items-center gap-1">
+															<Clock className="w-3 h-3" />
+															{event.startTime} - {event.endTime}
+														</div>
+														{event.location && (
+															<div className="flex items-center gap-1">
+																<MapPin className="w-3 h-3" />
+																{event.location}
+															</div>
+														)}
+														{event.attendees > 1 && (
+															<div className="flex items-center gap-1">
+																<Users className="w-3 h-3" />
+																{event.attendees} attendees
+															</div>
+														)}
+													</div>
+												</div>
+											))}
+										</div>
+									)}
+								</div>
+							</div>
+						)
+					})}
+				</div>
 			</div>
 		</div>
 	)

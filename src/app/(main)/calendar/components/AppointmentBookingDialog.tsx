@@ -16,10 +16,9 @@ import {
 	Loader2,
 	MapPin,
 	AlertTriangle,
-	CheckCircle,
-	XCircle,
 	Plus,
 	Trash2,
+	Search,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
@@ -76,12 +75,6 @@ const TIME_SLOTS = Array.from({ length: 15 }, (_, i) => {
 	return `${String(hour).padStart(2, "0")}:00`
 })
 
-const TIME_OPTIONS = Array.from({ length: 30 }, (_, i) => {
-	const hour = Math.floor(i / 2) + 8
-	const minutes = (i % 2) * 30
-	return `${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
-})
-
 const REMINDER_OPTIONS = [
 	{ value: 60, label: "1 hour before" },
 	{ value: 120, label: "2 hours before" },
@@ -135,10 +128,10 @@ export function AppointmentBookingDialog({
 	const { enhancedUser } = useSession()
 	const [step, setStep] = useState<DialogStep>("select-appointment")
 	const [selectedAppointment, setSelectedAppointment] = useState<AvailableAppointment | null>(null)
+	const [appointmentSearch, setAppointmentSearch] = useState("")
 
 	// Time selection state
-	const [startTime, setStartTime] = useState("")
-	const [endTime, setEndTime] = useState("")
+	const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([])
 	const [existingBookings, setExistingBookings] = useState<BookingSlot[]>([])
 	const [blockers, setBlockers] = useState<BlockerSlot[]>([])
 	const [isLoadingSlots, setIsLoadingSlots] = useState(false)
@@ -170,8 +163,8 @@ export function AppointmentBookingDialog({
 		if (isOpen) {
 			setStep("select-appointment")
 			setSelectedAppointment(null)
-			setStartTime(initialTime || "")
-			setEndTime(initialTime ? `${String(parseInt(initialTime) + 1).padStart(2, "0")}:00` : "")
+			setAppointmentSearch("")
+			setSelectedTimeSlots(initialTime ? [initialTime] : [])
 			setPurpose("")
 			setAttendees("")
 			setSelectedProject("none")
@@ -334,12 +327,8 @@ export function AppointmentBookingDialog({
 		setError(null)
 
 		// Validate
-		if (!startTime || !endTime) {
-			setError("Please select a start and end time")
-			return
-		}
-		if (startTime >= endTime) {
-			setError("End time must be after start time")
+		if (selectedTimeSlots.length === 0) {
+			setError("Please select at least one available time slot")
 			return
 		}
 		if (selectedProject === "none") {
@@ -358,36 +347,58 @@ export function AppointmentBookingDialog({
 		}
 
 		setIsSubmitting(true)
-
-		const formData = new FormData()
-		formData.set("bookedBy", userName)
-		formData.set("startDate", `${initialDate}T${startTime}:00`)
-		formData.set("endDate", `${initialDate}T${endTime}:00`)
-		formData.set("purpose", purpose)
-		formData.set("appointmentType", selectedAppointment?.appointmentType || "OTHERS")
-		if (selectedProject !== "none") formData.set("projectId", selectedProject)
-		if (selectedAppointment) formData.set("appointmentId", String(selectedAppointment.id))
-		if (attendees) formData.set("attendees", attendees)
-		formData.set("bookingName", bookingName)
-		formData.set("companyName", companyName)
-		formData.set("contactNumber", contactNumber)
-		formData.set("remarks", remarks)
-		formData.set("clientEmails", JSON.stringify(validEmails))
-		formData.set("reminderOffsets", JSON.stringify(reminders))
+		const sortedSlots = [...selectedTimeSlots].sort((a, b) => a.localeCompare(b))
 
 		try {
-			const result = await createAppointmentBooking(formData)
-			if (result.success) {
+			const bookingResults = await Promise.all(
+				sortedSlots.map(async (slot) => {
+					const slotHour = parseInt(slot.split(":")[0], 10)
+					const slotInfo = getSlotStatus(slotHour, existingBookings, blockers, initialDate)
+					if (slotInfo.status !== "available") {
+						return { success: false as const, error: `Slot ${slot} is no longer available` }
+					}
+
+					const nextHour = String(slotHour + 1).padStart(2, "0")
+					const formData = new FormData()
+					formData.set("bookedBy", userName)
+					formData.set("startDate", `${initialDate}T${slot}:00`)
+					formData.set("endDate", `${initialDate}T${nextHour}:00:00`)
+					formData.set("purpose", purpose)
+					formData.set("appointmentType", selectedAppointment?.appointmentType || "OTHERS")
+					if (selectedProject !== "none") formData.set("projectId", selectedProject)
+					if (selectedAppointment) formData.set("appointmentId", String(selectedAppointment.id))
+					if (attendees) formData.set("attendees", attendees)
+					formData.set("bookingName", bookingName)
+					formData.set("companyName", companyName)
+					formData.set("contactNumber", contactNumber)
+					formData.set("remarks", remarks)
+					formData.set("clientEmails", JSON.stringify(validEmails))
+					formData.set("reminderOffsets", JSON.stringify(reminders))
+
+					return createAppointmentBooking(formData)
+				})
+			)
+
+			const successfulCount = bookingResults.filter((result) => result.success).length
+			const failedResults = bookingResults.filter((result) => !result.success)
+
+			if (failedResults.length === 0 && successfulCount > 0) {
 				toast({
-					title: "Appointment Booked",
-					description: result.emailSentCount
-						? `Booking confirmed. ${result.emailSentCount} confirmation email(s) sent.`
-						: "Booking confirmed successfully.",
+					title: successfulCount === 1 ? "Appointment Booked" : "Appointments Booked",
+					description:
+						successfulCount === 1
+							? "Booking confirmed successfully."
+							: `${successfulCount} appointments booked successfully.`,
 				})
 				onSuccess()
 				onClose()
 			} else {
-				setError(result.error || "Failed to create booking")
+				const firstError = failedResults[0]?.error || "Failed to create booking"
+				if (successfulCount > 0) {
+					setError(`${firstError}. ${successfulCount} slot(s) booked, ${failedResults.length} failed.`)
+				} else {
+					setError(firstError)
+				}
 			}
 		} catch {
 			setError("An unexpected error occurred")
@@ -404,6 +415,16 @@ export function AppointmentBookingDialog({
 				year: "numeric",
 			})
 		: ""
+
+	const normalizedAppointmentSearch = appointmentSearch.trim().toLowerCase()
+	const filteredAppointments = appointments.filter((apt) => {
+		if (!normalizedAppointmentSearch) return true
+		const typeConfig = APPOINTMENT_TYPES[apt.appointmentType as AppointmentType] || APPOINTMENT_TYPES.OTHERS
+		const haystack = [apt.name, apt.description ?? "", apt.location ?? "", typeConfig.label].join(" ").toLowerCase()
+		return haystack.includes(normalizedAppointmentSearch)
+	})
+
+	const sortedSelectedSlots = [...selectedTimeSlots].sort((a, b) => a.localeCompare(b))
 
 	return (
 		<>
@@ -444,40 +465,60 @@ export function AppointmentBookingDialog({
 									<p className="text-sm">There are no bookable appointments at the moment.</p>
 								</div>
 							) : (
-								appointments.map((apt) => {
-									const typeConfig = APPOINTMENT_TYPES[apt.appointmentType as AppointmentType] || APPOINTMENT_TYPES.OTHERS
-									return (
-										<div
-											key={apt.id}
-											className="border rounded-lg p-4 cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
-											onClick={() => {
-												setSelectedAppointment(apt)
-												setStep("select-time")
-											}}
-										>
-											<div className="flex items-start justify-between">
-												<div className="flex-1">
-													<div className="flex items-center gap-2 mb-1">
-														<h3 className="font-semibold">{apt.name}</h3>
-														<Badge variant="secondary" className={typeConfig.color}>
-															{typeConfig.label}
-														</Badge>
-													</div>
-													{apt.description && (
-														<p className="text-sm text-muted-foreground mb-2">{apt.description}</p>
-													)}
-													{apt.location && (
-														<div className="flex items-center gap-1 text-sm text-muted-foreground">
-															<MapPin className="w-3 h-3" />
-															{apt.location}
-														</div>
-													)}
-												</div>
-												<ArrowRight className="w-5 h-5 text-muted-foreground shrink-0 mt-1" />
-											</div>
+								<>
+									<div className="relative">
+										<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+										<Input
+											value={appointmentSearch}
+											onChange={(e) => setAppointmentSearch(e.target.value)}
+											placeholder="Search appointment name, type, description, or location"
+											className="pl-9"
+											aria-label="Search appointments"
+										/>
+									</div>
+
+									{filteredAppointments.length === 0 ? (
+										<div className="text-center py-8 text-muted-foreground border rounded-lg bg-muted/20">
+											<p className="font-medium">No matching appointments</p>
+											<p className="text-sm mt-1">Try a different keyword or clear your search.</p>
 										</div>
-									)
-								})
+									) : (
+										filteredAppointments.map((apt) => {
+											const typeConfig = APPOINTMENT_TYPES[apt.appointmentType as AppointmentType] || APPOINTMENT_TYPES.OTHERS
+											return (
+												<div
+													key={apt.id}
+													className="border rounded-lg p-4 cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
+													onClick={() => {
+														setSelectedAppointment(apt)
+														setStep("select-time")
+													}}
+												>
+													<div className="flex items-start justify-between">
+														<div className="flex-1">
+															<div className="flex items-center gap-2 mb-1">
+																<h3 className="font-semibold">{apt.name}</h3>
+																<Badge variant="secondary" className={typeConfig.color}>
+																	{typeConfig.label}
+																</Badge>
+															</div>
+															{apt.description && (
+																<p className="text-sm text-muted-foreground mb-2">{apt.description}</p>
+															)}
+															{apt.location && (
+																<div className="flex items-center gap-1 text-sm text-muted-foreground">
+																	<MapPin className="w-3 h-3" />
+																	{apt.location}
+																</div>
+															)}
+														</div>
+														<ArrowRight className="w-5 h-5 text-muted-foreground shrink-0 mt-1" />
+													</div>
+												</div>
+											)
+										})
+									)}
+								</>
 							)}
 						</div>
 					)}
@@ -512,15 +553,19 @@ export function AppointmentBookingDialog({
 
 									{/* Time slots visualization */}
 									<div className="space-y-1">
-										<p className="text-sm font-medium text-muted-foreground mb-2">Availability</p>
+										<p className="text-sm font-medium text-muted-foreground mb-2">
+											Availability (click available slots to select)
+										</p>
 										<div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
 											{TIME_SLOTS.map((slot) => {
 												const hour = parseInt(slot)
 												const slotInfo = getSlotStatus(hour, existingBookings, blockers, initialDate)
 												const isDisabled = slotInfo.status !== "available"
+												const isSelected = selectedTimeSlots.includes(slot)
 
 												return (
-													<div
+													<button
+														type="button"
 														key={slot}
 														className={`text-center p-2 rounded-md border text-sm ${
 															isDisabled
@@ -529,66 +574,49 @@ export function AppointmentBookingDialog({
 																	: slotInfo.status === "booked"
 																		? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 cursor-not-allowed"
 																		: "bg-muted text-muted-foreground cursor-not-allowed"
-																: "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
+																: isSelected
+																	? "bg-primary border-primary text-primary-foreground"
+																	: "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 hover:border-primary/70"
 														}`}
 														title={slotInfo.label}
+														disabled={isDisabled}
+														onClick={() => {
+															setSelectedTimeSlots((prev) =>
+																prev.includes(slot)
+																	? prev.filter((t) => t !== slot)
+																	: [...prev, slot]
+															)
+														}}
 													>
 														{slot}
 														<div className="text-[10px] mt-0.5 truncate">
-															{slotInfo.status === "available" && "Available"}
+															{slotInfo.status === "available" && (isSelected ? "Selected" : "Available")}
 															{slotInfo.status === "booked" && "Booked"}
 															{slotInfo.status === "blocked" && "Blocked"}
 															{slotInfo.status === "past" && "Past"}
 														</div>
-													</div>
+													</button>
 												)
 											})}
 										</div>
 									</div>
-
-									{/* Time selection */}
-									<div className="grid grid-cols-2 gap-4">
-										<div>
-											<Label>Start Time <span className="text-destructive">*</span></Label>
-											<Select value={startTime} onValueChange={(v) => {
-												setStartTime(v)
-												// Auto-set end time to 1 hour later
-												const startHour = parseInt(v)
-												const startMin = parseInt(v.split(":")[1])
-												const endHour = startHour + 1
-												if (endHour <= 22) {
-													setEndTime(`${String(endHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`)
-												}
-											}}>
-												<SelectTrigger>
-													<SelectValue placeholder="Select start time" />
-												</SelectTrigger>
-												<SelectContent>
-													{TIME_OPTIONS.map((t) => (
-														<SelectItem key={t} value={t}>{t}</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
+									{sortedSelectedSlots.length > 0 && (
+										<div className="rounded-md border border-border bg-muted/30 p-3">
+											<p className="text-sm font-medium mb-2">Selected slots ({sortedSelectedSlots.length})</p>
+											<div className="flex flex-wrap gap-2">
+												{sortedSelectedSlots.map((slot) => (
+													<Badge key={slot} variant="secondary">
+														{slot} - {String(parseInt(slot.split(":")[0], 10) + 1).padStart(2, "0")}:00
+													</Badge>
+												))}
+											</div>
 										</div>
-										<div>
-											<Label>End Time <span className="text-destructive">*</span></Label>
-											<Select value={endTime} onValueChange={setEndTime}>
-												<SelectTrigger>
-													<SelectValue placeholder="Select end time" />
-												</SelectTrigger>
-												<SelectContent>
-													{TIME_OPTIONS.filter((t) => t > startTime).map((t) => (
-														<SelectItem key={t} value={t}>{t}</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
-										</div>
-									</div>
+									)}
 
 									<div className="flex justify-end">
 										<Button
 											onClick={() => setStep("booking-form")}
-											disabled={!startTime || !endTime || startTime >= endTime}
+											disabled={selectedTimeSlots.length === 0}
 										>
 											Next
 											<ArrowRight className="w-4 h-4 ml-1" />
@@ -609,8 +637,15 @@ export function AppointmentBookingDialog({
 									<span className="font-medium">{selectedAppointment?.name}</span>
 								</div>
 								<p className="text-muted-foreground ml-6">
-									{formattedDate} &middot; {startTime} - {endTime}
+									{formattedDate}
 								</p>
+								<div className="ml-6 mt-2 flex flex-wrap gap-2">
+									{sortedSelectedSlots.map((slot) => (
+										<Badge key={slot} variant="secondary">
+											{slot} - {String(parseInt(slot.split(":")[0], 10) + 1).padStart(2, "0")}:00
+										</Badge>
+									))}
+								</div>
 							</div>
 
 							{error && (
