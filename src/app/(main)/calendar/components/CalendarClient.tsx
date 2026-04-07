@@ -14,17 +14,31 @@ import { ViewSwitcher } from "./ViewSwitcher"
 import { WeekView } from "./WeekView"
 import { DayView } from "./DayView"
 import { BlockerFormDialog } from "./BlockerFormDialog"
+import { AppointmentBookingDialog } from "./AppointmentBookingDialog"
+import { EditBookingDialog } from "./EditBookingDialog"
 import { fetchAllBookings, deleteCalendarBlocker, type CalendarBooking } from "../actions"
+import { cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
 import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
 import { Download, ShieldAlert } from "lucide-react"
 import { parseLocalDateString, formatDateStringDirect } from "@/lib/date-utils"
 import { CalendarView, getWeekDays, formatDate } from "../utils/calendar-utils"
+
+interface AvailableAppointment {
+	id: number
+	name: string
+	location: string | null
+	brand: string | null
+	description: string | null
+	appointmentType: string
+}
 
 interface CalendarClientProps {
 	initialBookings: CalendarBooking[]
 	initialIsAdmin: boolean
 	initialProjects: { id: number; name: string }[]
+	initialAppointments: AvailableAppointment[]
 	userId: string
 	userName: string
 }
@@ -61,9 +75,11 @@ export default function CalendarClient({
 	initialBookings,
 	initialIsAdmin,
 	initialProjects,
+	initialAppointments,
 	userId,
 	userName,
 }: CalendarClientProps) {
+	const { toast } = useToast()
 	// Fix hydration: initialize with a stable date, then update after mount if needed
 	const [currentDate, setCurrentDate] = useState<Date>(() => {
 		// Use a stable initial date to avoid hydration mismatches
@@ -93,6 +109,15 @@ export default function CalendarClient({
 		blocksAppointments: boolean
 		allDay?: boolean
 	} | null>(null)
+
+	// Appointment booking dialog state
+	const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false)
+	const [bookingInitialDate, setBookingInitialDate] = useState("")
+	const [bookingInitialTime, setBookingInitialTime] = useState<string | null>(null)
+
+	// Edit booking dialog state
+	const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false)
+	const [editingBooking, setEditingBooking] = useState<CalendarBooking | null>(null)
 
 	const isAdmin = initialIsAdmin
 	const projects = initialProjects
@@ -343,6 +368,46 @@ export default function CalendarClient({
 		setIsDateEventsDialogOpen(true)
 	}
 
+	const handleBookAppointment = (date: string, time?: string | null) => {
+		setBookingInitialDate(date)
+		setBookingInitialTime(time || null)
+		setIsDateEventsDialogOpen(false)
+		setIsBookingDialogOpen(true)
+	}
+
+	const handleTimeSlotClick = (date: string, hourOrTime: number | string) => {
+		const time = typeof hourOrTime === "number"
+			? `${String(hourOrTime).padStart(2, "0")}:00`
+			: String(hourOrTime)
+		handleBookAppointment(date, time)
+	}
+
+	const handleEditBooking = (booking: CalendarBooking) => {
+		setEditingBooking(booking)
+		setIsDetailsDialogOpen(false)
+		setIsEditBookingDialogOpen(true)
+	}
+
+	const handleCancelBooking = async (booking: CalendarBooking) => {
+		const idMatch = booking.id.match(/appointment-(\d+)/)
+		if (!idMatch) return
+
+		const numericId = parseInt(idMatch[1])
+		const result = await cancelAppointmentBooking(numericId)
+		if (result.success) {
+			toast({ title: "Booking Cancelled", description: "The appointment booking has been cancelled." })
+			setIsDetailsDialogOpen(false)
+			setSelectedBooking(null)
+			refreshBookings()
+		} else {
+			toast({ title: "Error", description: result.error || "Failed to cancel booking", variant: "destructive" })
+		}
+	}
+
+	const handleBookingSuccess = () => {
+		refreshBookings()
+	}
+
 	const getDaysInMonth = (date: Date) => {
 		return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
 	}
@@ -574,16 +639,18 @@ export default function CalendarClient({
 									bookings={bookingsInDateRange}
 									onEventClick={handleBookingClick}
 									onDateClick={handleDateClick}
+									onTimeSlotClick={handleTimeSlotClick}
 								/>
 							</div>
 						)}
-						
+
 						{viewMode === 'day' && (
 							<div className="h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
 								<DayView
 									currentDate={currentDate}
 									bookings={bookingsInDateRange}
 									onEventClick={handleBookingClick}
+									onTimeSlotClick={handleTimeSlotClick}
 								/>
 							</div>
 						)}
@@ -665,6 +732,8 @@ export default function CalendarClient({
 					}}
 					onEdit={handleBookingEdit}
 					onDelete={handleBookingDelete}
+					onEditBooking={handleEditBooking}
+					onCancelBooking={handleCancelBooking}
 					isAdmin={isAdmin}
 				/>
 
@@ -682,6 +751,7 @@ export default function CalendarClient({
 						setIsDateEventsDialogOpen(false)
 						setIsDetailsDialogOpen(true)
 					}}
+					onBookAppointment={(date) => handleBookAppointment(date)}
 				/>
 
 				{/* Export Calendar Dialog */}
@@ -703,6 +773,35 @@ export default function CalendarClient({
 						onSuccess={handleBlockerSuccess}
 					/>
 				)}
+
+				{/* Appointment Booking Dialog */}
+				<AppointmentBookingDialog
+					isOpen={isBookingDialogOpen}
+					onClose={() => {
+						setIsBookingDialogOpen(false)
+						setBookingInitialDate("")
+						setBookingInitialTime(null)
+					}}
+					initialDate={bookingInitialDate}
+					initialTime={bookingInitialTime}
+					appointments={initialAppointments}
+					userId={userId}
+					userName={userName}
+					onSuccess={handleBookingSuccess}
+				/>
+
+				{/* Edit Booking Dialog */}
+				<EditBookingDialog
+					isOpen={isEditBookingDialogOpen}
+					onClose={() => {
+						setIsEditBookingDialogOpen(false)
+						setEditingBooking(null)
+					}}
+					booking={editingBooking}
+					userName={userName}
+					isAdmin={isAdmin}
+					onSuccess={handleBookingSuccess}
+				/>
 			</div>
 		</div>
 	)

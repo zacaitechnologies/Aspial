@@ -16,6 +16,7 @@ interface WeekViewProps {
 	bookings: CalendarBooking[]
 	onEventClick: (event: CalendarBooking) => void
 	onDateClick: (dateString: string) => void
+	onTimeSlotClick?: (date: string, hour: number) => void
 }
 
 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -24,7 +25,8 @@ export function WeekView({
 	currentDate,
 	bookings,
 	onEventClick,
-	onDateClick
+	onDateClick,
+	onTimeSlotClick,
 }: WeekViewProps) {
 	const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate])
 	
@@ -167,11 +169,16 @@ export function WeekView({
 									})
 									
 									return (
-										<div 
+										<div
 											key={dateString}
-											className={`border-r border-(--color-border)] last:border-r-0 p-1 hover:bg-(--color-muted)]/20 transition-colors ${
+											className={`border-r border-(--color-border)] last:border-r-0 p-1 transition-colors cursor-pointer ${
 												today ? 'bg-(--color-primary)]/5' : ''
-											}`}
+											} ${slotEvents.length === 0 ? 'hover:bg-(--color-primary)]/10' : 'hover:bg-(--color-muted)]/20'}`}
+											onClick={() => {
+												if (slotEvents.length === 0 && onTimeSlotClick) {
+													onTimeSlotClick(dateString, slotHour)
+												}
+											}}
 										>
 											{slotEvents.length > 0 && (
 												<div className="space-y-1">

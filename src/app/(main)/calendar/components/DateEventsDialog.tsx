@@ -4,7 +4,7 @@ import { useMemo, useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon } from "lucide-react"
+import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon, Plus } from "lucide-react"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { type CalendarBooking } from "../actions"
 
@@ -14,6 +14,7 @@ interface DateEventsDialogProps {
   date: string
   events: CalendarBooking[]
   onEventClick: (event: CalendarBooking) => void
+  onBookAppointment?: (date: string) => void
 }
 
 const eventTypeColors: Record<CalendarBooking["type"], string> = {
@@ -49,7 +50,8 @@ export function DateEventsDialog({
   onClose,
   date,
   events,
-  onEventClick
+  onEventClick,
+  onBookAppointment,
 }: DateEventsDialogProps) {
   // Memoize formatted title so it doesn't recalc on every render during animation
   const formattedTitle = useMemo(
@@ -136,7 +138,17 @@ export function DateEventsDialog({
           )}
         </div>
         
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="flex justify-between gap-2 pt-4 border-t">
+          {onBookAppointment && (
+            <Button
+              onClick={() => onBookAppointment(date)}
+              className="gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              Book Appointment
+            </Button>
+          )}
+          <div className="flex-1" />
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>

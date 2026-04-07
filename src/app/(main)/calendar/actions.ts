@@ -703,6 +703,162 @@ export async function getActiveBlockers(startDate: Date | string, endDate: Date 
 	}
 }
 
+// ─── Appointment Booking from Calendar ───────────────────────────────────────
+
+/** Fetch all bookable appointments (isAvailable = true). */
+export async function getAvailableAppointments() {
+	try {
+		return await prisma.appointment.findMany({
+			where: { isAvailable: true },
+			select: {
+				id: true,
+				name: true,
+				location: true,
+				brand: true,
+				description: true,
+				appointmentType: true,
+			},
+			orderBy: { name: "asc" },
+		})
+	} catch (error) {
+		console.error("Error fetching available appointments:", error)
+		return []
+	}
+}
+
+/** Fetch full appointment booking details for editing. */
+export async function getAppointmentBookingDetails(bookingId: number) {
+	try {
+		const booking = await prisma.appointmentBooking.findUnique({
+			where: { id: bookingId },
+			include: {
+				appointment: {
+					select: {
+						id: true,
+						name: true,
+						location: true,
+						brand: true,
+						appointmentType: true,
+					},
+				},
+				project: {
+					select: {
+						id: true,
+						name: true,
+						clientName: true,
+						Client: {
+							select: {
+								id: true,
+								name: true,
+								email: true,
+								phone: true,
+								company: true,
+							},
+						},
+					},
+				},
+				bookingEmails: {
+					select: {
+						recipientEmail: true,
+					},
+				},
+				reminders: {
+					select: {
+						id: true,
+						offsetMinutes: true,
+						recipientEmail: true,
+					},
+				},
+			},
+		})
+
+		return booking
+	} catch (error) {
+		console.error("Error fetching appointment booking details:", error)
+		return null
+	}
+}
+
+/** Update an existing appointment booking (owner or admin). */
+export async function updateAppointmentBooking(
+	id: number,
+	formData: FormData,
+	currentUserName: string
+) {
+	const user = await (await import("@/lib/auth-cache")).getCachedUser()
+	if (!user) return { success: false, error: "Not authenticated" }
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+
+	// Fetch existing booking to check ownership
+	const existing = await prisma.appointmentBooking.findUnique({
+		where: { id },
+		select: { bookedBy: true, appointmentId: true, status: true },
+	})
+	if (!existing) return { success: false, error: "Booking not found" }
+	if (existing.status !== "active") return { success: false, error: "Booking is not active" }
+	if (existing.bookedBy !== currentUserName && !isAdmin) {
+		return { success: false, error: "You can only edit your own bookings" }
+	}
+
+	const startDateStr = formData.get("startDate") as string
+	const endDateStr = formData.get("endDate") as string
+	const startDate = new Date(startDateStr)
+	const endDate = new Date(endDateStr)
+	const purpose = formData.get("purpose") as string
+	const attendeesStr = formData.get("attendees") as string
+	const attendees = attendeesStr ? Number.parseInt(attendeesStr) : null
+	const remarks = (formData.get("remarks") as string)?.trim() || null
+	const bookingName = (formData.get("bookingName") as string)?.trim() || null
+	const companyName = (formData.get("companyName") as string)?.trim() || null
+	const contactNumber = (formData.get("contactNumber") as string)?.trim() || null
+
+	if (endDate <= startDate) {
+		return { success: false, error: "End time must be after start time" }
+	}
+
+	// Check for overlapping bookings (excluding this one)
+	const appointmentId = existing.appointmentId
+	if (appointmentId) {
+		const overlapping = await prisma.appointmentBooking.findMany({
+			where: {
+				appointmentId,
+				status: "active",
+				id: { not: id },
+				AND: [
+					{ startDate: { lt: endDate } },
+					{ endDate: { gt: startDate } },
+				],
+			},
+		})
+		if (overlapping.length > 0) {
+			return { success: false, error: "This time slot overlaps with another booking for the same appointment" }
+		}
+	}
+
+	try {
+		await prisma.appointmentBooking.update({
+			where: { id },
+			data: {
+				startDate,
+				endDate,
+				purpose: purpose || null,
+				attendees,
+				remarks,
+				bookingName,
+				companyName,
+				contactNumber,
+			},
+		})
+		revalidatePath("/calendar")
+		revalidatePath("/appointment-bookings")
+		return { success: true }
+	} catch (error) {
+		console.error("Error updating appointment booking:", error)
+		return { success: false, error: "Failed to update booking" }
+	}
+}
+
 // Fetch all bookings with permission filtering. Runs appointments, tasks, and leave in parallel.
 export async function fetchAllBookings(
 	userId: string,

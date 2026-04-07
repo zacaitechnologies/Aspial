@@ -16,6 +16,7 @@ interface DayViewProps {
 	currentDate: Date
 	bookings: CalendarBooking[]
 	onEventClick: (event: CalendarBooking) => void
+	onTimeSlotClick?: (date: string, time: string) => void
 }
 
 const bookingTypeLabels: Record<CalendarBooking["type"], string> = {
@@ -28,7 +29,8 @@ const bookingTypeLabels: Record<CalendarBooking["type"], string> = {
 export function DayView({
 	currentDate,
 	bookings,
-	onEventClick
+	onEventClick,
+	onTimeSlotClick,
 }: DayViewProps) {
 	const dateString = formatDate(currentDate)
 	const today = isToday(currentDate)
@@ -158,7 +160,14 @@ export function DayView({
 							</div>
 							
 							{/* Events */}
-							<div className="flex-1 p-2">
+							<div
+								className={`flex-1 p-2 transition-colors ${slotEvents.length === 0 ? 'cursor-pointer hover:bg-(--color-primary)]/10' : ''}`}
+								onClick={() => {
+									if (slotEvents.length === 0 && onTimeSlotClick) {
+										onTimeSlotClick(dateString, slot)
+									}
+								}}
+							>
 								{slotEvents.length > 0 && (
 									<div className="space-y-2">
 										{slotEvents.map(event => (

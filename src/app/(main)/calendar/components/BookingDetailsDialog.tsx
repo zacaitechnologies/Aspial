@@ -15,6 +15,8 @@ interface BookingDetailsDialogProps {
   onClose: () => void
   onEdit?: (booking: CalendarBooking) => void
   onDelete?: (booking: CalendarBooking) => void
+  onEditBooking?: (booking: CalendarBooking) => void
+  onCancelBooking?: (booking: CalendarBooking) => void
   isAdmin?: boolean
 }
 
@@ -32,9 +34,12 @@ export function BookingDetailsDialog({
   onClose,
   onEdit,
   onDelete,
+  onEditBooking,
+  onCancelBooking,
   isAdmin = false,
 }: BookingDetailsDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
 
   if (!booking) return null
 
@@ -60,6 +65,29 @@ export function BookingDetailsDialog({
       setIsDeleting(false)
     }
   }
+
+  const handleCancelBooking = async () => {
+    if (!onCancelBooking || !booking) return
+    setIsCancelling(true)
+    try {
+      await onCancelBooking(booking)
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
+  const isAppointment = booking?.type === "appointment"
+  const canEditAppointment = isAppointment && (booking?.isUserBooking || isAdmin)
+
+  // Extract additional details from originalData for appointments
+  const appointmentOriginalData = isAppointment && booking?.originalData
+    ? (booking.originalData as {
+        companyName?: string | null
+        contactNumber?: string | null
+        remarks?: string | null
+        purpose?: string | null
+      })
+    : null
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -187,6 +215,30 @@ export function BookingDetailsDialog({
             </div>
           </div>
 
+          {/* Appointment-specific extra details */}
+          {isAppointment && appointmentOriginalData && (
+            <div className="space-y-2 pt-2 border-t">
+              {appointmentOriginalData.companyName && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Company:</span>
+                  <span>{appointmentOriginalData.companyName}</span>
+                </div>
+              )}
+              {appointmentOriginalData.contactNumber && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Contact:</span>
+                  <span>{appointmentOriginalData.contactNumber}</span>
+                </div>
+              )}
+              {appointmentOriginalData.remarks && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">Remarks:</span>
+                  <span>{appointmentOriginalData.remarks}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-between pt-4 border-t">
             <div className="flex gap-2">
               {isBlocker && isAdmin && onEdit && (
@@ -199,6 +251,18 @@ export function BookingDetailsDialog({
                 <Button variant="destructive" size="sm" onClick={handleDelete} disabled={isDeleting}>
                   {isDeleting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
                   Delete
+                </Button>
+              )}
+              {canEditAppointment && onEditBooking && (
+                <Button variant="outline" size="sm" onClick={() => onEditBooking(booking)}>
+                  <Pencil className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+              )}
+              {canEditAppointment && onCancelBooking && (
+                <Button variant="destructive" size="sm" onClick={handleCancelBooking} disabled={isCancelling}>
+                  {isCancelling ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                  Cancel Booking
                 </Button>
               )}
             </div>
