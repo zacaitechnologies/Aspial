@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import {
 	Calendar,
 	CalendarIcon,
-	Clock,
 	Loader2,
 	AlertTriangle,
 } from "lucide-react"
@@ -36,16 +35,37 @@ interface EditBookingDialogProps {
 	onSuccess: () => void
 }
 
-const TIME_OPTIONS = Array.from({ length: 30 }, (_, i) => {
-	const hour = Math.floor(i / 2) + 8
-	const minutes = (i % 2) * 30
-	return `${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
-})
-
 const TIME_SLOTS = Array.from({ length: 15 }, (_, i) => {
 	const hour = i + 8
 	return `${String(hour).padStart(2, "0")}:00`
 })
+
+/** Expand a booking's [start, end) into hourly slot keys "HH:00". */
+function expandBookingToHourSlots(start: Date, end: Date): string[] {
+	const slots: string[] = []
+	const cur = new Date(start.getTime())
+	while (cur < end) {
+		slots.push(`${String(cur.getHours()).padStart(2, "0")}:00`)
+		cur.setHours(cur.getHours() + 1)
+	}
+	return slots
+}
+
+/** From sorted hour numbers, verify consecutive; return start "HH:00" and end next hour "HH:00:00" string parts. */
+function contiguousRangeFromSlots(slots: string[]): { startSlot: string; endTime: string } | null {
+	if (slots.length === 0) return null
+	const sorted = [...slots].sort((a, b) => a.localeCompare(b))
+	const hours = sorted.map((s) => parseInt(s.split(":")[0], 10))
+	for (let i = 1; i < hours.length; i++) {
+		if (hours[i] !== hours[i - 1] + 1) return null
+	}
+	const lastHour = hours[hours.length - 1]
+	const endHour = lastHour + 1
+	return {
+		startSlot: sorted[0],
+		endTime: `${String(endHour).padStart(2, "0")}:00:00`,
+	}
+}
 
 export function EditBookingDialog({
 	isOpen,
@@ -63,8 +83,7 @@ export function EditBookingDialog({
 
 	// Form state
 	const [selectedDate, setSelectedDate] = useState<Date | undefined>()
-	const [startTime, setStartTime] = useState("")
-	const [endTime, setEndTime] = useState("")
+	const [selectedSlots, setSelectedSlots] = useState<string[]>([])
 	const [purpose, setPurpose] = useState("")
 	const [attendees, setAttendees] = useState("")
 	const [bookingName, setBookingName] = useState("")
@@ -111,8 +130,7 @@ export function EditBookingDialog({
 			const end = new Date(details.endDate)
 
 			setSelectedDate(start)
-			setStartTime(start.toTimeString().slice(0, 5))
-			setEndTime(end.toTimeString().slice(0, 5))
+			setSelectedSlots(expandBookingToHourSlots(start, end))
 			setPurpose(details.purpose || "")
 			setAttendees(details.attendees ? String(details.attendees) : "")
 			setBookingName(details.bookingName || "")
@@ -197,12 +215,12 @@ export function EditBookingDialog({
 	const handleSubmit = async () => {
 		setError(null)
 
-		if (!selectedDate || !startTime || !endTime) {
-			setError("Please select a date, start time, and end time")
+		if (!selectedDate) {
+			setError("Please select a date")
 			return
 		}
-		if (startTime >= endTime) {
-			setError("End time must be after start time")
+		if (selectedSlots.length === 0) {
+			setError("Please select at least one time slot")
 			return
 		}
 		if (!bookingId) {
@@ -210,12 +228,27 @@ export function EditBookingDialog({
 			return
 		}
 
+		const range = contiguousRangeFromSlots(selectedSlots)
+		if (!range) {
+			setError("Selected times must be consecutive hours (no gaps). Adjust your selection.")
+			return
+		}
+
+		for (const slot of selectedSlots) {
+			const slotHour = parseInt(slot.split(":")[0], 10)
+			const info = getSlotStatus(slotHour)
+			if (info.status !== "available") {
+				setError(`The slot ${slot} is no longer available (${info.status})`)
+				return
+			}
+		}
+
 		setIsSubmitting(true)
 
 		const dateStr = format(selectedDate, "yyyy-MM-dd")
 		const formData = new FormData()
-		formData.set("startDate", `${dateStr}T${startTime}:00`)
-		formData.set("endDate", `${dateStr}T${endTime}:00`)
+		formData.set("startDate", `${dateStr}T${range.startSlot}:00`)
+		formData.set("endDate", `${dateStr}T${range.endTime}`)
 		formData.set("purpose", purpose)
 		if (attendees) formData.set("attendees", attendees)
 		formData.set("remarks", remarks)
@@ -309,16 +342,24 @@ export function EditBookingDialog({
 							</div>
 						)}
 
-						{/* Time slots visualization */}
+						{/* Clickable time slot selection (multi-select, toggle to unselect) */}
 						<div>
-							<p className="text-sm font-medium text-muted-foreground mb-2">Availability</p>
+							<p className="text-sm font-medium text-muted-foreground mb-2">
+								Select time slot(s) <span className="text-destructive">*</span>
+							</p>
+							<p className="text-xs text-muted-foreground mb-2">
+								Tap slots to add or remove. Hours must be consecutive when you save (e.g. 10:00, 11:00, 12:00).
+							</p>
 							<div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
 								{TIME_SLOTS.map((slot) => {
 									const hour = parseInt(slot)
 									const info = getSlotStatus(hour)
 									const isDisabled = info.status !== "available"
+									const isSelected = selectedSlots.includes(slot)
+
 									return (
-										<div
+										<button
+											type="button"
 											key={slot}
 											className={`text-center p-2 rounded-md border text-sm ${
 												isDisabled
@@ -327,60 +368,50 @@ export function EditBookingDialog({
 														: info.status === "booked"
 															? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 cursor-not-allowed"
 															: "bg-muted text-muted-foreground cursor-not-allowed"
-													: "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
+													: isSelected
+														? "bg-primary border-primary text-primary-foreground"
+														: "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 hover:border-primary/70"
 											}`}
 											title={info.label}
+											disabled={isDisabled}
+											onClick={() =>
+												setSelectedSlots((prev) =>
+													prev.includes(slot) ? prev.filter((s) => s !== slot) : [...prev, slot]
+												)
+											}
 										>
 											{slot}
 											<div className="text-[10px] mt-0.5 truncate">
-												{info.status === "available" && "Available"}
+												{info.status === "available" && (isSelected ? "Selected" : "Available")}
 												{info.status === "booked" && "Booked"}
 												{info.status === "blocked" && "Blocked"}
 												{info.status === "past" && "Past"}
 											</div>
-										</div>
+										</button>
 									)
 								})}
 							</div>
 						</div>
 
-						{/* Time selection */}
-						<div className="grid grid-cols-2 gap-4">
-							<div>
-								<Label>Start Time <span className="text-destructive">*</span></Label>
-								<Select value={startTime} onValueChange={(v) => {
-									setStartTime(v)
-									const startHour = parseInt(v)
-									const startMin = parseInt(v.split(":")[1])
-									const endHour = startHour + 1
-									if (endHour <= 22 && !endTime) {
-										setEndTime(`${String(endHour).padStart(2, "0")}:${String(startMin).padStart(2, "0")}`)
-									}
-								}}>
-									<SelectTrigger>
-										<SelectValue placeholder="Start time" />
-									</SelectTrigger>
-									<SelectContent>
-										{TIME_OPTIONS.map((t) => (
-											<SelectItem key={t} value={t}>{t}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+						{selectedSlots.length > 0 && (
+							<div className="rounded-md border border-border bg-muted/30 p-3">
+								<p className="text-sm font-medium mb-2">
+									Selected ({selectedSlots.length} hour{selectedSlots.length === 1 ? "" : "s"})
+								</p>
+								<div className="flex flex-wrap gap-2">
+									{[...selectedSlots]
+										.sort((a, b) => a.localeCompare(b))
+										.map((slot) => {
+											const h = parseInt(slot.split(":")[0], 10)
+											return (
+												<Badge key={slot} variant="secondary">
+													{slot} - {String(h + 1).padStart(2, "0")}:00
+												</Badge>
+											)
+										})}
+								</div>
 							</div>
-							<div>
-								<Label>End Time <span className="text-destructive">*</span></Label>
-								<Select value={endTime} onValueChange={setEndTime}>
-									<SelectTrigger>
-										<SelectValue placeholder="End time" />
-									</SelectTrigger>
-									<SelectContent>
-										{TIME_OPTIONS.filter((t) => t > startTime).map((t) => (
-											<SelectItem key={t} value={t}>{t}</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
+						)}
 
 						{/* Detail fields */}
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -417,7 +448,7 @@ export function EditBookingDialog({
 							<Button variant="outline" onClick={onClose} disabled={isSubmitting}>
 								Cancel
 							</Button>
-							<Button onClick={handleSubmit} disabled={isSubmitting}>
+							<Button onClick={handleSubmit} disabled={isSubmitting || selectedSlots.length === 0}>
 								{isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
 								Save Changes
 							</Button>
