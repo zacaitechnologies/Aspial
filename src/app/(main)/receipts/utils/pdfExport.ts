@@ -5,7 +5,7 @@ import type { PaymentMethodType } from "../types"
 import { PAYMENT_METHOD_LABELS } from "../types"
 import { getReceiptFullById, getReceiptsForInvoice, getQuotationInvoicesTotalAsOf, getPreviousInvoiceAmount } from "../action"
 
-/** Full receipt type as returned by getReceiptFullById (includes join-table advisors). */
+/** Full receipt type as returned by getReceiptFullById (advisors already flattened). */
 type ReceiptFull = NonNullable<Awaited<ReturnType<typeof getReceiptFullById>>>
 
 /** Quotation shape returned by getReceiptFullById (includes services). Used only for PDF generation. */
@@ -518,12 +518,10 @@ async function generateReceiptPDFInternal(receipt: ReceiptFull) {
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
-	// Get advisor name (advisors join table with fallback to createdBy)
-	const advisorName = (quotation as any).advisors && (quotation as any).advisors.length > 0
-		? (quotation as any).advisors.map((a: any) => {
-				const u = a.user || a
-				return `${u.firstName || ''} ${u.lastName || ''}`.trim()
-			}).filter(Boolean).join(', ')
+	// Get advisor name (flat advisors array with fallback to createdBy)
+	const quotationAdvisors = (quotation as any).advisors as Array<{ firstName?: string; lastName?: string }> | undefined
+	const advisorName = quotationAdvisors && quotationAdvisors.length > 0
+		? quotationAdvisors.map((a) => `${a.firstName || ''} ${a.lastName || ''}`.trim()).filter(Boolean).join(', ')
 		: quotation.createdBy
 			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 			: 'ADMIN'
@@ -953,12 +951,10 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptFull): Prom
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
-	// Get advisor name (advisors join table with fallback to createdBy)
-	const advisorName = (quotation as any).advisors && (quotation as any).advisors.length > 0
-		? (quotation as any).advisors.map((a: any) => {
-				const u = a.user || a
-				return `${u.firstName || ''} ${u.lastName || ''}`.trim()
-			}).filter(Boolean).join(', ')
+	// Get advisor name (flat advisors array with fallback to createdBy)
+	const quotationAdvisors2 = (quotation as any).advisors as Array<{ firstName?: string; lastName?: string }> | undefined
+	const advisorName = quotationAdvisors2 && quotationAdvisors2.length > 0
+		? quotationAdvisors2.map((a) => `${a.firstName || ''} ${a.lastName || ''}`.trim()).filter(Boolean).join(', ')
 		: quotation.createdBy
 			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 			: 'ADMIN'
