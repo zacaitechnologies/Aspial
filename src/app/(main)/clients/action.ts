@@ -52,10 +52,17 @@ export async function getAllClients() {
     const user = await getCurrentUser()
     const isAdmin = await getCachedIsUserAdmin(user.id)
     const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
-    const createdByIdFilter = isAdmin ? undefined : dbUser?.id
+
+    // Non-admin: see clients they created OR are advisor on
+    const whereClause = isAdmin ? undefined : dbUser ? {
+      OR: [
+        { createdById: dbUser.id },
+        { advisors: { some: { userId: dbUser.id } } },
+      ]
+    } : undefined
 
     const clients = await prisma.client.findMany({
-      where: createdByIdFilter !== undefined ? { createdById: createdByIdFilter } : undefined,
+      where: whereClause,
       include: {
         quotations: {
           select: {
@@ -79,18 +86,30 @@ export async function getAllClients() {
             lastName: true,
             email: true,
           }
+        },
+        advisors: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              }
+            }
+          }
         }
       },
       orderBy: {
         created_at: "desc"
       }
     })
-    
+
     // Handle empty database gracefully
     if (!clients || clients.length === 0) {
       return [];
     }
-    
+
     // Transform data to match the expected interface (totalValue = sum of invoice amounts)
     return clients.map(client => {
       const totalValue = client.quotations.reduce(
@@ -120,6 +139,12 @@ export async function getAllClients() {
         lastName: client.createdBy.lastName,
         email: client.createdBy.email,
       } : undefined,
+      advisors: client.advisors.map(a => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName,
+        email: a.user.email,
+      })),
       }
     })
   } catch (error: unknown) {
@@ -145,7 +170,7 @@ async function _getClientsPaginatedInternal(
     sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
     sortDirection?: 'asc' | 'desc'
   } = {},
-  createdByIdFilter?: string
+  advisorUserId?: string
 ) {
   const skip = (page - 1) * pageSize
   const {
@@ -156,15 +181,13 @@ async function _getClientsPaginatedInternal(
     sortDirection = 'desc',
   } = filters
 
-  // Build where clause (Brand Advisors see only clients they created; Admin sees all)
-  const where: {
-    OR?: Array<{ name?: { contains: string; mode: 'insensitive' }; email?: { contains: string; mode: 'insensitive' }; company?: { contains: string; mode: 'insensitive' } }>
-    industry?: string
-    membershipType?: 'MEMBER' | 'NON_MEMBER'
-    createdById?: string
-  } = {}
-  if (createdByIdFilter !== undefined) {
-    where.createdById = createdByIdFilter
+  // Build where clause (Brand Advisors see clients they created or are advisor on; Admin sees all)
+  const where: any = {}
+  if (advisorUserId !== undefined) {
+    where.OR = [
+      { createdById: advisorUserId },
+      { advisors: { some: { userId: advisorUserId } } },
+    ]
   }
 
   if (searchTerm) {
@@ -236,6 +259,7 @@ async function _getClientsPaginatedInternal(
           },
           projects: { select: { id: true } },
           createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+          advisors: { include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } },
         },
       })
       const orderMap = new Map(sortedIds.map((id, i) => [id, i]))
@@ -270,6 +294,12 @@ async function _getClientsPaginatedInternal(
               email: client.createdBy.email,
             }
           : undefined,
+        advisors: (client as any).advisors?.map((a: any) => ({
+          id: a.user.id,
+          firstName: a.user.firstName,
+          lastName: a.user.lastName,
+          email: a.user.email,
+        })) ?? [],
         }
       })
     }
@@ -301,6 +331,18 @@ async function _getClientsPaginatedInternal(
               lastName: true,
               email: true,
             }
+          },
+          advisors: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                }
+              }
+            }
           }
         },
         skip,
@@ -314,7 +356,7 @@ async function _getClientsPaginatedInternal(
   }
 
   // Transform data (if not already transformed); totalValue = sum of invoice amounts
-  const transformedClients = isTotalValueSort ? clients : clients.map(client => {
+  const transformedClients = isTotalValueSort ? clients : clients.map((client: any) => {
     const totalValue = client.quotations.reduce(
       (sum: number, q: { invoices?: { amount: number }[] }) =>
         sum + (q.invoices?.reduce((s: number, inv: { amount: number }) => s + inv.amount, 0) ?? 0),
@@ -343,6 +385,12 @@ async function _getClientsPaginatedInternal(
       lastName: client.createdBy.lastName,
       email: client.createdBy.email,
     } : undefined,
+    advisors: client.advisors?.map((a: any) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })) ?? [],
   }
   })
 
@@ -355,10 +403,10 @@ async function _getClientsPaginatedInternal(
   }
 }
 
-// Server-side cached version for initial page load (30 second cache). Cache key includes creatorScope so admin vs brand-advisor see correct lists.
+// Server-side cached version for initial page load (30 second cache). Cache key includes userScope so admin vs brand-advisor see correct lists.
 const getCachedClientsPaginated = unstable_cache(
   async (
-    creatorScope: string,
+    userScope: string,
     page: number,
     pageSize: number,
     searchTerm: string,
@@ -367,14 +415,14 @@ const getCachedClientsPaginated = unstable_cache(
     sortBy: string,
     sortDirection: string
   ) => {
-    const createdByIdFilter = creatorScope === "admin" ? undefined : creatorScope
+    const advisorUserId = userScope === "admin" ? undefined : userScope
     return await _getClientsPaginatedInternal(page, pageSize, {
       searchTerm: searchTerm || undefined,
       industry: industry || undefined,
       membershipType: (membershipType || 'all') as 'all' | 'MEMBER' | 'NON_MEMBER',
       sortBy: (sortBy || 'created_at') as 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at',
       sortDirection: (sortDirection || 'desc') as 'asc' | 'desc',
-    }, createdByIdFilter)
+    }, advisorUserId)
   },
   ["clients-paginated"],
   {
@@ -400,10 +448,10 @@ export async function getClientsPaginated(
       getCachedIsUserAdmin(user.id),
       prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
     ])
-    const creatorScope = isAdmin ? "admin" : (dbUser?.id ?? "none")
+    const userScope = isAdmin ? "admin" : (dbUser?.id ?? "none")
 
     return await getCachedClientsPaginated(
-      creatorScope,
+      userScope,
       page,
       pageSize,
       filters.searchTerm || "",
@@ -441,8 +489,8 @@ export async function getClientsPaginatedFresh(
     getCachedIsUserAdmin(user.id),
     prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
   ])
-  const createdByIdFilter = isAdmin ? undefined : dbUser?.id
-  return await _getClientsPaginatedInternal(page, pageSize, filters, createdByIdFilter)
+  const advisorUserId = isAdmin ? undefined : dbUser?.id
+  return await _getClientsPaginatedInternal(page, pageSize, filters, advisorUserId)
 }
 
 // Invalidate clients cache after mutations
@@ -469,7 +517,15 @@ export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotal
     } else {
       const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
       clientIdFilter = dbUser
-        ? (await prisma.client.findMany({ where: { createdById: dbUser.id }, select: { id: true } })).map((r) => r.id)
+        ? (await prisma.client.findMany({
+            where: {
+              OR: [
+                { createdById: dbUser.id },
+                { advisors: { some: { userId: dbUser.id } } },
+              ]
+            },
+            select: { id: true }
+          })).map((r) => r.id)
         : []
     }
 
@@ -581,11 +637,16 @@ export async function getClientById(id: string) {
       throw new Error("Client not found")
     }
 
-    // Brand Advisors: only allow access to clients they created. Admin: all clients.
+    // Brand Advisors: only allow access to clients they created or are advisor on. Admin: all clients.
     const isAdmin = await getCachedIsUserAdmin(user.id)
     if (!isAdmin) {
       const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
-      if (!dbUser || client.createdById !== dbUser.id) {
+      if (!dbUser) return null
+      const isCreator = client.createdById === dbUser.id
+      const isAdvisor = await prisma.clientAdvisor.findUnique({
+        where: { clientId_userId: { clientId: id, userId: dbUser.id } }
+      })
+      if (!isCreator && !isAdvisor) {
         return null
       }
     }
@@ -624,6 +685,10 @@ export async function createCustomerClient(data: unknown) {
       throw new Error("User not found in database")
     }
     
+    // Ensure creator is always in the advisor list
+    const advisorIds = new Set(validatedData.advisorIds ?? [])
+    advisorIds.add(dbUser.id)
+
     const client = await prisma.client.create({
       data: {
         name: validatedData.name,
@@ -638,9 +703,12 @@ export async function createCustomerClient(data: unknown) {
         yearlyRevenue: validatedData.yearlyRevenue,
         membershipType: validatedData.membershipType,
         createdById: dbUser.id,
+        advisors: {
+          create: Array.from(advisorIds).map(userId => ({ userId })),
+        },
       }
     })
-    
+
     revalidatePath("/clients")
     revalidateTag("clients", { expire: 0 })
     return client
@@ -670,70 +738,78 @@ export async function updateClient(id: string, data: {
   industry?: string
   yearlyRevenue?: number
   membershipType?: "MEMBER" | "NON_MEMBER"
+  advisorIds?: string[]
 }) {
   try {
     // Validate input
     const validatedData = updateClientSchema.parse(data)
-    
+
     const user = await getCurrentUser() // Ensure user is authenticated
-    
+
     // Get database user ID from Supabase ID
     const dbUser = await prisma.user.findUnique({
       where: { supabase_id: user.id },
       select: { id: true }
     })
-    
+
     if (!dbUser) {
       throw new Error("User not found")
     }
-    
-    // Check if user is admin or created the client
+
+    // Check if user is admin, creator, or advisor
     const client = await prisma.client.findUnique({
       where: { id },
-      select: { createdById: true }
+      select: {
+        createdById: true,
+        advisors: { select: { userId: true } },
+      }
     })
-    
+
     if (!client) {
       throw new Error("Client not found")
     }
-    
-    // Check if user is admin
-    const userWithRoles = await prisma.user.findUnique({
-      where: { supabase_id: user.id },
-      include: {
-        userRoles: {
-          include: {
-            role: true
-          }
-        }
-      }
-    })
-    
-    const isAdmin = userWithRoles?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
-    
-    // If not admin, check if user created the client
-    if (!isAdmin && client.createdById !== dbUser.id) {
-      throw new Error("You can only edit clients that you created")
+
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+    const isCreator = client.createdById === dbUser.id
+    const isAdvisor = client.advisors.some(a => a.userId === dbUser.id)
+
+    if (!isAdmin && !isCreator && !isAdvisor) {
+      throw new Error("You can only edit clients that you created or are assigned as advisor")
     }
-    
+
+    // Build update data
+    const updateData: any = {
+      name: validatedData.name,
+      email: validatedData.email,
+      ic: validatedData.ic,
+      phone: validatedData.phone,
+      company: validatedData.company,
+      companyRegistrationNumber: validatedData.companyRegistrationNumber,
+      address: validatedData.address,
+      notes: validatedData.notes,
+      industry: validatedData.industry,
+      yearlyRevenue: validatedData.yearlyRevenue,
+      membershipType: validatedData.membershipType,
+      updated_at: new Date(),
+    }
+
+    // Update advisors if provided
+    if (validatedData.advisorIds !== undefined) {
+      // Ensure creator is always in the advisor list
+      const advisorIds = new Set(validatedData.advisorIds)
+      advisorIds.add(client.createdById)
+
+      updateData.advisors = {
+        deleteMany: {},
+        create: Array.from(advisorIds).map(userId => ({ userId })),
+      }
+    }
+
     const updatedClient = await prisma.client.update({
       where: { id },
-      data: {
-        name: validatedData.name,
-        email: validatedData.email,
-        ic: validatedData.ic,
-        phone: validatedData.phone,
-        company: validatedData.company,
-        companyRegistrationNumber: validatedData.companyRegistrationNumber,
-        address: validatedData.address,
-        notes: validatedData.notes,
-        industry: validatedData.industry,
-        yearlyRevenue: validatedData.yearlyRevenue,
-        membershipType: validatedData.membershipType,
-        updated_at: new Date(),
-      }
+      data: updateData,
     })
-    
+
     revalidatePath("/clients")
     revalidatePath(`/clients/${id}`)
     revalidateTag("clients", { expire: 0 })
@@ -865,44 +941,36 @@ export async function getClientDeletionImpact(id: string): Promise<DeletionImpac
 export async function deleteClient(id: string) {
   try {
     const user = await getCurrentUser() // Ensure user is authenticated
-    
+
     // Get database user ID from Supabase ID
     const dbUser = await prisma.user.findUnique({
       where: { supabase_id: user.id },
       select: { id: true }
     })
-    
+
     if (!dbUser) {
       throw new Error("User not found")
     }
-    
-    // Check if user is admin or created the client
+
+    // Check if user is admin, creator, or advisor
     const client = await prisma.client.findUnique({
       where: { id },
-      select: { createdById: true }
+      select: {
+        createdById: true,
+        advisors: { select: { userId: true } },
+      }
     })
-    
+
     if (!client) {
       throw new Error("Client not found")
     }
-    
-    // Check if user is admin
-    const userWithRoles = await prisma.user.findUnique({
-      where: { supabase_id: user.id },
-      include: {
-        userRoles: {
-          include: {
-            role: true
-          }
-        }
-      }
-    })
-    
-    const isAdmin = userWithRoles?.userRoles.some((userRole) => userRole.role.slug === "admin") || false
-    
-    // If not admin, check if user created the client
-    if (!isAdmin && client.createdById !== dbUser.id) {
-      throw new Error("You can only delete clients that you created")
+
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+    const isCreator = client.createdById === dbUser.id
+    const isAdvisor = client.advisors.some(a => a.userId === dbUser.id)
+
+    if (!isAdmin && !isCreator && !isAdvisor) {
+      throw new Error("You can only delete clients that you created or are assigned as advisor")
     }
     
     await prisma.client.delete({
@@ -969,18 +1037,17 @@ export async function getCurrentUserId(): Promise<string | null> {
   }
 }
 
-// Get all advisors (users who have created quotations that have invoices)
+// Get all advisors (users who are advisors on quotations that have invoices)
 export async function getAllAdvisors() {
   try {
     const user = await getCachedUser()
     if (!user) return []
-    
+
     // Check if user is admin
     const isAdmin = await checkIsAdmin(user.id)
-    
+
     // If not admin, only return the current user
     if (!isAdmin) {
-      // Check if user has any advised quotations with invoices
       const dbUser = await prisma.user.findUnique({
         where: { supabase_id: user.id },
         select: { id: true, firstName: true, lastName: true, email: true }
@@ -988,12 +1055,10 @@ export async function getAllAdvisors() {
 
       if (!dbUser) return []
 
-      const hasAdvisedInvoicedQuotations = await prisma.quotation.count({
+      const hasAdvisedInvoicedQuotations = await prisma.quotationAdvisor.count({
         where: {
-          advisedById: dbUser.id, // Quotation.advisedById references User.id (cuid)
-          invoices: {
-            some: {}
-          }
+          userId: dbUser.id,
+          quotation: { invoices: { some: {} } },
         }
       }) > 0
 
@@ -1006,33 +1071,31 @@ export async function getAllAdvisors() {
       }]
     }
 
-    // Admin can see all advisors (users who have advised quotations with invoices)
-    const users = await prisma.user.findMany({
+    // Admin can see all advisors (users who are on quotations with invoices)
+    const advisorEntries = await prisma.quotationAdvisor.findMany({
       where: {
-        advisedQuotations: {
-          some: {
-            invoices: {
-              some: {}
-            }
+        quotation: { invoices: { some: {} } },
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
           }
         }
       },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-      },
-      orderBy: {
-        firstName: 'asc'
-      }
+      distinct: ['userId'],
     })
 
-    return users.map(user => ({
-      id: user.id,
-      name: `${user.firstName} ${user.lastName}`,
-      email: user.email,
-    }))
+    return advisorEntries
+      .map(entry => ({
+        id: entry.user.id,
+        name: `${entry.user.firstName} ${entry.user.lastName}`,
+        email: entry.user.email,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   } catch (error) {
     console.error('Error getting advisors:', error)
     return []
@@ -1066,13 +1129,15 @@ export async function getSalesData(filters: unknown) {
             : new Date(year, 11, 31, 23, 59, 59, 999),
         }
       }),
-      // Filter by advisor (advisedById of quotation that the invoice references)
+      // Filter by advisor (via join table)
       // For non-admin users, always filter by their own User.id (cuid), ignore advisorId parameter
       ...((!isAdmin || (advisorId && advisorId !== 'all')) && {
-        quotation: {
-          advisedById: !isAdmin
-            ? (await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }))?.id ?? user.id
-            : advisorId // advisorId is now User.id (cuid)
+        advisors: {
+          some: {
+            userId: !isAdmin
+              ? (await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }))?.id ?? user.id
+              : advisorId // advisorId is User.id (cuid)
+          }
         }
       })
     }
@@ -1081,6 +1146,18 @@ export async function getSalesData(filters: unknown) {
     const invoices = await prisma.invoice.findMany({
       where,
       include: {
+        advisors: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              }
+            }
+          }
+        },
         quotation: {
           include: {
             Client: {
@@ -1092,14 +1169,6 @@ export async function getSalesData(filters: unknown) {
                 membershipType: true,
               }
             },
-            advisedBy: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              }
-            }
           }
         }
       },
@@ -1117,11 +1186,19 @@ export async function getSalesData(filters: unknown) {
       invoiceDate: Date
       created_at: Date
       updated_at: Date
+      advisors: Array<{
+        userId: string
+        user: {
+          id: string
+          firstName: string
+          lastName: string
+          email: string
+        }
+      }>
       quotation: {
         id: number
         name: string
         clientId: string
-        advisedById: string | null
         Client: {
           id: string
           name: string
@@ -1129,12 +1206,6 @@ export async function getSalesData(filters: unknown) {
           company: string | null
           membershipType: string | null
         }
-        advisedBy: {
-          id: string
-          firstName: string
-          lastName: string
-          email: string
-        } | null
       }
     }>
     
@@ -1143,40 +1214,44 @@ export async function getSalesData(filters: unknown) {
     const totalClients = new Set(invoices.map(inv => inv.quotation.clientId)).size
     const totalInvoices = invoices.length
     
-    // Group by advisor (using quotation advisedById - User.id cuid)
+    // Group by advisor — split amount by number of advisors on each invoice
     const salesByAdvisor: Record<string, {
       advisorId: string
       advisorName: string
       totalSales: number
       invoicesCount: number
       clientsCount: number
+      _clientIds: Set<string>
     }> = {}
 
     invoices.forEach(inv => {
-      const advisorId = inv.quotation.advisedById ?? '' // User.id (cuid)
-      if (!advisorId) return
-      const advisorName = inv.quotation.advisedBy
-        ? `${inv.quotation.advisedBy.firstName} ${inv.quotation.advisedBy.lastName}`
-        : 'Unknown'
+      const advisorCount = inv.advisors.length || 1
+      const splitAmount = inv.amount / advisorCount
 
-      if (!salesByAdvisor[advisorId]) {
-        salesByAdvisor[advisorId] = {
-          advisorId,
-          advisorName,
-          totalSales: 0,
-          invoicesCount: 0,
-          clientsCount: 0
+      inv.advisors.forEach(advisorEntry => {
+        const advisorId = advisorEntry.user.id
+        const advisorName = `${advisorEntry.user.firstName} ${advisorEntry.user.lastName}`
+
+        if (!salesByAdvisor[advisorId]) {
+          salesByAdvisor[advisorId] = {
+            advisorId,
+            advisorName,
+            totalSales: 0,
+            invoicesCount: 0,
+            clientsCount: 0,
+            _clientIds: new Set(),
+          }
         }
-      }
 
-      salesByAdvisor[advisorId].totalSales += inv.amount
-      salesByAdvisor[advisorId].invoicesCount += 1
+        salesByAdvisor[advisorId].totalSales += splitAmount
+        salesByAdvisor[advisorId].invoicesCount += 1
+        salesByAdvisor[advisorId]._clientIds.add(inv.quotation.clientId)
+      })
     })
 
     // Calculate unique clients per advisor
-    Object.keys(salesByAdvisor).forEach(advisorId => {
-      const advisorInvoices = invoices.filter(inv => inv.quotation.advisedById === advisorId)
-      salesByAdvisor[advisorId].clientsCount = new Set(advisorInvoices.map(inv => inv.quotation.clientId)).size
+    Object.values(salesByAdvisor).forEach(entry => {
+      entry.clientsCount = entry._clientIds.size
     })
     
     // If yearly view, group by month
@@ -1216,15 +1291,15 @@ export async function getSalesData(filters: unknown) {
           name: inv.quotation.name,
         },
         client: inv.quotation.Client,
-        createdBy: {
-          id: inv.quotation.advisedById ?? '',
-          name: inv.quotation.advisedBy
-            ? `${inv.quotation.advisedBy.firstName} ${inv.quotation.advisedBy.lastName}`
-            : 'Unknown',
-          email: inv.quotation.advisedBy?.email ?? '',
-        }
+        advisors: inv.advisors.map(a => ({
+          id: a.user.id,
+          name: `${a.user.firstName} ${a.user.lastName}`,
+          email: a.user.email,
+        })),
       })),
-      salesByAdvisor: Object.values(salesByAdvisor).sort((a, b) => b.totalSales - a.totalSales),
+      salesByAdvisor: Object.values(salesByAdvisor)
+        .map(({ _clientIds, ...rest }) => rest)
+        .sort((a, b) => b.totalSales - a.totalSales),
     }
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {

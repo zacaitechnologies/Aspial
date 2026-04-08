@@ -173,9 +173,9 @@ async function _getEmployeeSalesDataInternal(
         projectId: { in: projectIds }
       }
     } else {
-      // For admin and brand-advisor: filter by quotation advisedById (User.id cuid)
-      whereClause.quotation = {
-        advisedById: user.id
+      // For admin and brand-advisor: filter by invoice's advisors join table (User.id cuid)
+      whereClause.advisors = {
+        some: { userId: user.id }
       }
     }
 
@@ -186,10 +186,12 @@ async function _getEmployeeSalesDataInternal(
         id: true,
         amount: true,
         invoiceDate: true,
+        _count: {
+          select: { advisors: true },
+        },
         quotation: {
           select: {
             id: true,
-            advisedById: true,
             projectId: true,
           },
         },
@@ -214,16 +216,18 @@ async function _getEmployeeSalesDataInternal(
       })
     }
 
-    // Aggregate sales by month from invoices
+    // Aggregate sales by month from invoices (split by advisor count)
     invoices.forEach((invoice) => {
       const date = new Date(invoice.invoiceDate)
       const monthIndex = date.getMonth()
       const year = date.getFullYear()
       const key = `${year}-${monthIndex}`
+      const advisorCount = invoice._count?.advisors || 1
+      const splitAmount = invoice.amount / advisorCount
 
       if (monthlyDataMap.has(key)) {
         const monthData = monthlyDataMap.get(key)!
-        monthData.sales += invoice.amount
+        monthData.sales += splitAmount
       }
     })
 
@@ -238,8 +242,11 @@ async function _getEmployeeSalesDataInternal(
         year: data.year,
       }))
 
-    // Calculate total yearly sales from invoices
-    const currentYearlySales = invoices.reduce((sum, inv) => sum + inv.amount, 0)
+    // Calculate total yearly sales from invoices (split by advisor count)
+    const currentYearlySales = invoices.reduce((sum, inv) => {
+      const advisorCount = inv._count?.advisors || 1
+      return sum + inv.amount / advisorCount
+    }, 0)
 
     // Calculate current month sales
     const currentMonth = new Date().getMonth()
@@ -601,12 +608,12 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
       where: {
         status: 'active',
         invoiceDate: { gte: startOfYear, lte: endOfYear },
-        quotation: { advisedById: { in: userIds } },
+        advisors: { some: { userId: { in: userIds } } },
       },
       select: {
         amount: true,
         invoiceDate: true,
-        quotation: { select: { advisedById: true } },
+        advisors: { select: { userId: true } },
       },
     }),
     prisma.complaint.findMany({
@@ -627,14 +634,18 @@ async function _getAllUsersBenefitsInternal(year: number = new Date().getFullYea
     salesByUserId.set(id, { yearly: 0, byMonth: Array(12).fill(0) })
   })
   invoices.forEach((inv) => {
-    const advisedById = inv.quotation?.advisedById
-    if (!advisedById) return
-    const entry = salesByUserId.get(advisedById)
-    if (!entry) return
+    const advisors = inv.advisors
+    if (!advisors || advisors.length === 0) return
+    const advisorCount = advisors.length
+    const splitAmount = inv.amount / advisorCount
     const d = new Date(inv.invoiceDate)
     if (d.getFullYear() === year) {
-      entry.byMonth[d.getMonth()] += inv.amount
-      entry.yearly += inv.amount
+      advisors.forEach((advisor) => {
+        const entry = salesByUserId.get(advisor.userId)
+        if (!entry) return
+        entry.byMonth[d.getMonth()] += splitAmount
+        entry.yearly += splitAmount
+      })
     }
   })
 

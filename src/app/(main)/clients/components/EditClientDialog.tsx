@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
-import { updateClient } from "../action"
+import { updateClient, getCurrentUserId } from "../action"
+import { getAllUsers } from "../../quotations/action"
+import { MultiSelectAdvisors, type AdvisorOption } from "@/components/ui/multi-select-advisors"
 import { toast } from "@/components/ui/use-toast"
 
 interface Client {
@@ -27,6 +29,7 @@ interface Client {
   quotationsCount: number
   totalValue: number
   created_at: string
+  advisors?: Array<{ id: string; firstName: string; lastName: string; email: string }>
 }
 
 interface EditClientDialogProps {
@@ -43,6 +46,10 @@ export default function EditClientDialog({
   onSuccess 
 }: EditClientDialogProps) {
   const [isUpdating, setIsUpdating] = useState(false)
+  const [allUsers, setAllUsers] = useState<AdvisorOption[]>([])
+  const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string>("")
+  const [isAdmin, setIsAdmin] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -56,6 +63,34 @@ export default function EditClientDialog({
     yearlyRevenue: "",
     membershipType: "NON_MEMBER"
   })
+  // Load users for advisor picker
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [users, userId] = await Promise.all([
+          getAllUsers(),
+          getCurrentUserId(),
+        ])
+        setAllUsers(users.map(u => ({ id: u.id, firstName: u.firstName ?? "", lastName: u.lastName ?? "", email: u.email })))
+        if (userId) setCurrentUserId(userId)
+      } catch {}
+    }
+    if (isOpen) loadData()
+  }, [isOpen])
+
+  useEffect(() => {
+    import("../action").then(mod => {
+      import("@/utils/supabase/client").then(({ createClient }) => {
+        const supabaseClient = createClient()
+        supabaseClient.auth.getUser().then(({ data }) => {
+          if (data?.user?.id) {
+            mod.checkIsAdmin(data.user.id).then(setIsAdmin)
+          }
+        })
+      })
+    }).catch(() => {})
+  }, [])
+
   // Update form data when client changes
   useEffect(() => {
     if (client) {
@@ -72,6 +107,7 @@ export default function EditClientDialog({
         yearlyRevenue: client.yearlyRevenue?.toString() || "",
         membershipType: client.membershipType || "NON_MEMBER"
       })
+      setSelectedAdvisorIds(client.advisors?.map(a => a.id) ?? [])
     }
   }, [client])
 
@@ -93,6 +129,7 @@ export default function EditClientDialog({
         industry: formData.industry || undefined,
         yearlyRevenue: formData.yearlyRevenue ? parseFloat(formData.yearlyRevenue) : undefined,
         membershipType: formData.membershipType as "MEMBER" | "NON_MEMBER",
+        advisorIds: selectedAdvisorIds,
       })
       
       onOpenChange(false)
@@ -219,9 +256,23 @@ export default function EditClientDialog({
               </Select>
             </div>
             <div className="col-span-2 space-y-2">
+              <Label>Advisors</Label>
+              <MultiSelectAdvisors
+                users={allUsers}
+                selectedIds={selectedAdvisorIds}
+                onChange={setSelectedAdvisorIds}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
+                placeholder="Select advisors"
+              />
+              <p className="text-xs text-muted-foreground">
+                {isAdmin ? "Select one or more advisors for this client" : "You are automatically included as an advisor"}
+              </p>
+            </div>
+            <div className="col-span-2 space-y-2">
               <Label htmlFor="edit-notes">Notes</Label>
-              <Textarea 
-                id="edit-notes" 
+              <Textarea
+                id="edit-notes"
                 placeholder="Additional notes about the client..." 
                 value={formData.notes}
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}

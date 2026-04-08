@@ -48,7 +48,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       created_at: string
       quotation: { id: number; name: string }
       client: { id: string; name: string; email: string; company: string | null; membershipType: string | null }
-      createdBy: { id: string; name: string; email: string }
+      advisors: Array<{ id: string; name: string; email: string }>
     }>
     salesByAdvisor: Array<{
       advisorId: string
@@ -134,7 +134,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       invoice.invoiceNumber.toLowerCase().includes(searchLower) ||
       invoice.quotation?.name?.toLowerCase().includes(searchLower) ||
       invoice.client?.name?.toLowerCase().includes(searchLower) ||
-      invoice.createdBy?.name?.toLowerCase().includes(searchLower)
+      invoice.advisors?.some(a => a.name?.toLowerCase().includes(searchLower))
     )
   }) || []
 
@@ -430,7 +430,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                             <TableCell className="text-foreground">
                               <div className="flex items-center gap-2">
                                 <UserIcon className="h-4 w-4 text-muted-foreground" />
-                                {invoice.createdBy?.name || 'N/A'}
+                                {invoice.advisors?.map(a => a.name).join(', ') || 'N/A'}
                               </div>
                             </TableCell>
                             <TableCell className="text-right font-bold text-foreground tabular-nums whitespace-nowrap">

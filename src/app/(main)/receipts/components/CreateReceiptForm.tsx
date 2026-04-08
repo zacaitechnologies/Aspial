@@ -31,6 +31,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
+import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors"
 
 interface CreateReceiptFormProps {
 	isOpen: boolean
@@ -38,7 +39,7 @@ interface CreateReceiptFormProps {
 	onSuccess: () => void
 	prefilledInvoiceId?: string
 	/** When opening from an invoice card, pass the invoice to avoid refetch and speed up popup */
-	prefetchedInvoice?: { id: string; amount: number; advisedBy?: { id: string } | null } | null
+	prefetchedInvoice?: { id: string; amount: number; advisors?: Array<{ user: { id: string } } | { id: string }> } | null
 	/** Pass isAdmin from parent to skip redundant check (speeds up dialog open) */
 	isAdminProp?: boolean
 }
@@ -68,37 +69,32 @@ export default function CreateReceiptForm({
 	const [amountWarning, setAmountWarning] = useState<string>("")
 	const [isAdmin, setIsAdmin] = useState(false)
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
-	const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("")
+	const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([])
 	const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType>("bank_transfer")
 
 	// Use isAdminProp if provided (from parent) to skip redundant check
+	// All users see the advisor picker, so always fetch user list
 	useEffect(() => {
 		if (!isOpen || !enhancedUser?.id) return
+		// Always fetch users for the advisor multi-select
+		getAllUsers().then(setUsers).catch(() => {})
 		// If isAdminProp is explicitly passed, use it and skip check
 		if (isAdminProp !== undefined) {
 			setIsAdmin(isAdminProp)
-			if (isAdminProp) {
-				// Still need to fetch users for admin
-				getAllUsers().then(setUsers).catch(() => {})
-			}
 			return
 		}
 		// Otherwise, check admin status
-		const checkAdminAndFetchUsers = async () => {
+		const checkAdminStatus = async () => {
 			try {
 				const adminStatus = await checkIsAdmin(enhancedUser.id)
 				setIsAdmin(adminStatus)
-				if (adminStatus) {
-					const allUsers = await getAllUsers()
-					setUsers(allUsers)
-				}
 			} catch (error) {
 				if (process.env.NODE_ENV === "development") {
 					console.error("Error checking admin status:", error)
 				}
 			}
 		}
-		checkAdminAndFetchUsers()
+		checkAdminStatus()
 	}, [isOpen, enhancedUser?.id, isAdminProp])
 
 	// Load prefilled invoice: use prefetched when available to avoid slow fetch
@@ -107,10 +103,10 @@ export default function CreateReceiptForm({
 		if (prefetchedInvoice && String(prefetchedInvoice.id) === String(prefilledInvoiceId)) {
 			setSelectedInvoice(prefetchedInvoice as any)
 			setReceiptForm(prev => ({ ...prev, invoiceId: prefilledInvoiceId }))
-			// Auto-load advisedBy from invoice (for admin dropdown)
-			const advisedBy = (prefetchedInvoice as { advisedBy?: { id: string } }).advisedBy
-			if (advisedBy?.id) {
-				setSelectedAdvisedById(advisedBy.id)
+			// Auto-load advisors from invoice (handle both join table and flat shapes)
+			const advisors = (prefetchedInvoice as any).advisors
+			if (advisors && advisors.length > 0) {
+				setSelectedAdvisorIds(advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean))
 			}
 			setSearchQuery("")
 			setSearchResults([])
@@ -119,14 +115,20 @@ export default function CreateReceiptForm({
 		handleInvoiceSelect(prefilledInvoiceId)
 	}, [prefilledInvoiceId, isOpen, prefetchedInvoice?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Sync advisedBy whenever the referenced invoice changes (ensures advisor loads even if isAdmin loads late)
+	// Sync advisors whenever the referenced invoice changes (ensures advisors load even if isAdmin loads late)
 	useEffect(() => {
-		if (selectedInvoice?.advisedBy?.id) {
-			setSelectedAdvisedById(selectedInvoice.advisedBy.id)
-		} else {
-			setSelectedAdvisedById("")
+		let ids: string[] = []
+		if (selectedInvoice?.advisors && selectedInvoice.advisors.length > 0) {
+			// advisors may be join table objects with .user or flat objects with .id
+			ids = selectedInvoice.advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean) as string[]
 		}
-	}, [selectedInvoice?.id, selectedInvoice?.advisedBy?.id])
+		// Non-admin: auto-include self
+		const currentDbId = enhancedUser?.profile?.id
+		if (!isAdmin && currentDbId && !ids.includes(currentDbId)) {
+			ids = [...ids, currentDbId]
+		}
+		setSelectedAdvisorIds(ids)
+	}, [selectedInvoice?.id, isAdmin, enhancedUser?.profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Load receipt summary when invoice is selected
 	useEffect(() => {
@@ -208,14 +210,14 @@ export default function CreateReceiptForm({
 	const handleInvoiceSelect = async (invoiceId: string) => {
 		// Find invoice in search results first
 		const invoice = searchResults.find(i => i.id === invoiceId)
-		
+
 		if (invoice) {
 			// If found in search results, use it
 			setSelectedInvoice(invoice)
 			setReceiptForm(prev => ({ ...prev, invoiceId }))
-			// Auto-fill advisor with invoice's advisedBy (admin only; handled in loadSummary effect)
-			if (invoice.advisedBy?.id) {
-				setSelectedAdvisedById(invoice.advisedBy.id)
+			// Auto-fill advisors from invoice's advisors join table
+			if (invoice.advisors && invoice.advisors.length > 0) {
+				setSelectedAdvisorIds(invoice.advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean))
 			}
 			setSearchQuery("")
 			setSearchResults([])
@@ -226,9 +228,9 @@ export default function CreateReceiptForm({
 				if (fetchedInvoice) {
 					setSelectedInvoice(fetchedInvoice)
 					setReceiptForm(prev => ({ ...prev, invoiceId }))
-					// Auto-fill advisor with invoice's advisedBy if available
-					if (fetchedInvoice.advisedBy?.id) {
-						setSelectedAdvisedById(fetchedInvoice.advisedBy.id)
+					// Auto-fill advisors from invoice's advisors join table
+					if (fetchedInvoice.advisors && fetchedInvoice.advisors.length > 0) {
+						setSelectedAdvisorIds(fetchedInvoice.advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean))
 					}
 				} else {
 					toast({
@@ -283,8 +285,8 @@ export default function CreateReceiptForm({
 			const receipt = await createReceipt({
 				invoiceId: receiptForm.invoiceId,
 				amount: parseFloat(receiptForm.amount),
-				// Only pass advisedById if admin selected someone (non-admin defaults to self server-side)
-				advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
+				// Pass selected advisor IDs (server-side ensures non-admin includes self)
+				advisorIds: selectedAdvisorIds.length > 0 ? selectedAdvisorIds : undefined,
 				// Receipt date: only applied server-side when user is admin
 				receiptDate: receiptForm.receiptDate || undefined,
 				paymentMethod: selectedPaymentMethod,
@@ -302,7 +304,7 @@ export default function CreateReceiptForm({
 				receiptDate: formatLocalDate(new Date()),
 			})
 			setSelectedInvoice(null)
-			setSelectedAdvisedById("")
+			setSelectedAdvisorIds([])
 			setSelectedPaymentMethod("bank_transfer")
 			setSearchQuery("")
 			setSearchResults([])
@@ -507,31 +509,22 @@ export default function CreateReceiptForm({
 						)}
 					</div>
 
-					{/* Advised By (Admin Only) */}
-					{isAdmin && (
-						<div className="space-y-2">
-							<Label htmlFor="advised-by">Advised By</Label>
-							<Select
-								value={selectedAdvisedById}
-								onValueChange={setSelectedAdvisedById}
-								disabled={!selectedInvoice || isSaving}
-							>
-								<SelectTrigger id="advised-by">
-									<SelectValue placeholder="Select advisor" />
-								</SelectTrigger>
-								<SelectContent>
-									{users.map((user) => (
-										<SelectItem key={user.id} value={user.id}>
-											{user.firstName} {user.lastName} ({user.email})
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							<p className="text-xs text-muted-foreground">
-								Defaults to invoice advisor. You can select a different advisor.
-							</p>
-						</div>
-					)}
+					{/* Advisors */}
+					<div className="space-y-2">
+						<Label>Advisors</Label>
+						<MultiSelectAdvisors
+							users={users}
+							selectedIds={selectedAdvisorIds}
+							onChange={setSelectedAdvisorIds}
+							currentUserId={enhancedUser?.profile?.id}
+							isAdmin={isAdmin}
+							disabled={!selectedInvoice || isSaving}
+							placeholder="Select advisors"
+						/>
+						<p className="text-xs text-muted-foreground">
+							Defaults to invoice advisors. {!isAdmin ? "You are automatically included." : "You can add or remove advisors."}
+						</p>
+					</div>
 				</div>
 				<DialogFooter className="shrink-0 px-6 pb-6 pt-2 border-t">
 					<Button
@@ -544,7 +537,7 @@ export default function CreateReceiptForm({
 								receiptDate: formatLocalDate(new Date()),
 							})
 							setSelectedInvoice(null)
-							setSelectedAdvisedById("")
+							setSelectedAdvisorIds([])
 							setSelectedPaymentMethod("bank_transfer")
 							setSearchQuery("")
 							setSearchResults([])

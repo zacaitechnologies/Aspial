@@ -40,7 +40,7 @@ async function _getInvoicesPaginatedInternal(
 		where.type = typeFilter as "SO" | "EPO" | "EO"
 	}
 	if (advisorFilter && advisorFilter !== 'all') {
-		where.advisedById = advisorFilter
+		where.advisors = { some: { userId: advisorFilter } }
 	}
 	if (monthYear) {
 		const parts = monthYear.split("-")
@@ -112,12 +112,16 @@ async function _getInvoicesPaginatedInternal(
 						updated_at: true,
 					},
 				},
-				advisedBy: {
-					select: {
-						id: true,
-						firstName: true,
-						lastName: true,
-						email: true,
+				advisors: {
+					include: {
+						user: {
+							select: {
+								id: true,
+								firstName: true,
+								lastName: true,
+								email: true,
+							},
+						},
 					},
 				},
 			},
@@ -153,7 +157,7 @@ async function _getInvoicesPaginatedInternal(
 					}
 				: null,
 			createdBy: invoice.createdBy,
-			advisedBy: invoice.advisedBy ?? null,
+			advisors: invoice.advisors.map((a) => a.user),
 			Client: invoice.quotation?.Client || null,
 		}
 	})
@@ -204,17 +208,16 @@ export async function getInvoicesPaginatedFresh(
 // Get all unique advisors that appear on invoices (for filter dropdown)
 export async function getInvoiceAdvisors() {
 	unstable_noStore()
-	const rows = await prisma.invoice.findMany({
-		where: { advisedById: { not: null } },
-		select: {
-			advisedBy: {
+	const rows = await prisma.invoiceAdvisor.findMany({
+		distinct: ["userId"],
+		include: {
+			user: {
 				select: { id: true, firstName: true, lastName: true },
 			},
 		},
-		distinct: ["advisedById"],
 	})
 	return rows
-		.flatMap((r) => (r.advisedBy ? [r.advisedBy] : []))
+		.map((r) => r.user)
 		.sort((a, b) =>
 			`${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
 		)
@@ -243,12 +246,16 @@ export async function getInvoiceById(id: string) {
 					},
 					project: true,
 					createdBy: true,
-					advisedBy: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							email: true,
+					advisors: {
+						include: {
+							user: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									email: true,
+								},
+							},
 						},
 					},
 					Client: true,
@@ -256,12 +263,16 @@ export async function getInvoiceById(id: string) {
 				},
 			},
 			createdBy: true,
-			advisedBy: {
-				select: {
-					id: true,
-					firstName: true,
-					lastName: true,
-					email: true,
+			advisors: {
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+						},
+					},
 				},
 			},
 		},
@@ -271,7 +282,22 @@ export async function getInvoiceById(id: string) {
 		return null
 	}
 
-	return invoice
+	// Transform advisors from join-table shape to flat array
+	const flatAdvisors = invoice.advisors.map((a) => a.user)
+	const flatQuotationAdvisors = invoice.quotation?.advisors?.map((a) => a.user) ?? []
+
+	return {
+		...invoice,
+		advisors: flatAdvisors,
+		quotation: invoice.quotation
+			? { ...invoice.quotation, advisors: flatQuotationAdvisors }
+			: invoice.quotation,
+	}
+}
+
+/** Helper to flatten join-table advisors to `{ id, firstName, lastName, email }[]`. */
+function flattenAdvisors(advisors: Array<{ user: { id: string; firstName: string; lastName: string; email: string } }>) {
+	return advisors.map((a) => a.user)
 }
 
 /**
@@ -282,7 +308,7 @@ export async function getInvoiceFullById(id: unknown) {
 	unstable_noStore()
 	// Validate input with Zod
 	const validatedId = invoiceIdSchema.parse(id)
-	
+
 	const invoice = await prisma.invoice.findUnique({
 		where: { id: validatedId },
 		include: {
@@ -295,12 +321,16 @@ export async function getInvoiceFullById(id: unknown) {
 					},
 					project: true,
 					createdBy: true,
-					advisedBy: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							email: true,
+					advisors: {
+						include: {
+							user: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									email: true,
+								},
+							},
 						},
 					},
 					Client: true,
@@ -335,12 +365,16 @@ export async function getInvoiceFullById(id: unknown) {
 				},
 			},
 			createdBy: true,
-			advisedBy: {
-				select: {
-					id: true,
-					firstName: true,
-					lastName: true,
-					email: true,
+			advisors: {
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+						},
+					},
 				},
 			},
 		},
@@ -350,7 +384,14 @@ export async function getInvoiceFullById(id: unknown) {
 		return null
 	}
 
-	return invoice
+	// Transform advisors from join-table shape to flat array
+	return {
+		...invoice,
+		advisors: flattenAdvisors(invoice.advisors),
+		quotation: invoice.quotation
+			? { ...invoice.quotation, advisors: flattenAdvisors(invoice.quotation.advisors) }
+			: invoice.quotation,
+	}
 }
 
 /**
@@ -391,7 +432,6 @@ export async function createInvoice(data: unknown) {
 			select: {
 				id: true,
 				createdById: true,
-				advisedById: true,
 				discountValue: true,
 				discountType: true,
 				services: {
@@ -425,15 +465,25 @@ export async function createInvoice(data: unknown) {
 	// createdById is ALWAYS the logged-in user's supabase_id (immutable audit trail)
 	const finalCreatedById = user.id
 
-	// Determine advisedById: admin can specify, otherwise non-admin defaults to self
-	let finalAdvisedById: string
-	if (isAdmin && validatedData.advisedById) {
-		finalAdvisedById = validatedData.advisedById
-	} else if (isAdmin && quotation.advisedById) {
-		finalAdvisedById = quotation.advisedById
+	// Determine advisor IDs: inherit from quotation's advisors join table, allow admin override
+	let finalAdvisorIds: string[]
+	if (isAdmin && validatedData.advisorIds && validatedData.advisorIds.length > 0) {
+		finalAdvisorIds = validatedData.advisorIds
 	} else {
-		// Non-admin always uses self; admin fallback to self
-		finalAdvisedById = dbUser.id
+		// Inherit advisors from the quotation's join table
+		const quotationAdvisors = await prisma.quotationAdvisor.findMany({
+			where: { quotationId: validatedData.quotationId },
+			select: { userId: true },
+		})
+		finalAdvisorIds = quotationAdvisors.map((a) => a.userId)
+	}
+	// Non-admin: always include self
+	if (!isAdmin && !finalAdvisorIds.includes(dbUser.id)) {
+		finalAdvisorIds.push(dbUser.id)
+	}
+	// Fallback: if still empty, default to current user
+	if (finalAdvisorIds.length === 0) {
+		finalAdvisorIds = [dbUser.id]
 	}
 
 	// Validate that the creator user exists (outside transaction)
@@ -444,17 +494,6 @@ export async function createInvoice(data: unknown) {
 
 	if (!selectedUser) {
 		throw new Error("Selected creator user not found")
-	}
-
-	// Validate that the advised user exists (if not defaulting to current user)
-	if (finalAdvisedById !== dbUser.id) {
-		const advisedUser = await prisma.user.findUnique({
-			where: { id: finalAdvisedById },
-			select: { id: true },
-		})
-		if (!advisedUser) {
-			throw new Error("Selected advisor user not found")
-		}
 	}
 
 	// Calculate quotation grand total (using pre-filtered data from DB)
@@ -495,18 +534,20 @@ export async function createInvoice(data: unknown) {
 			const invoice = await prisma.$transaction(async (tx) => {
 				const invoiceNumber = await generateInvoiceNumber(tx, validatedData.type)
 
-				return tx.invoice.create({
+				const created = await tx.invoice.create({
 					data: {
 						invoiceNumber,
 						type: validatedData.type,
 						quotationId: validatedData.quotationId,
 						amount: validatedData.amount,
 						createdById: finalCreatedById,
-						advisedById: finalAdvisedById,
 						status: "active",
 						invoiceDate: isAdmin && validatedData.invoiceDate
 							? new Date(validatedData.invoiceDate)
 							: new Date(),
+						advisors: {
+							create: finalAdvisorIds.map((id) => ({ userId: id })),
+						},
 					},
 					select: {
 						id: true,
@@ -517,7 +558,6 @@ export async function createInvoice(data: unknown) {
 						created_at: true,
 						quotationId: true,
 						createdById: true,
-						advisedById: true,
 						quotation: {
 							select: {
 								id: true,
@@ -540,16 +580,22 @@ export async function createInvoice(data: unknown) {
 								email: true,
 							},
 						},
-						advisedBy: {
-							select: {
-								id: true,
-								firstName: true,
-								lastName: true,
-								email: true,
+						advisors: {
+							include: {
+								user: {
+									select: {
+										id: true,
+										firstName: true,
+										lastName: true,
+										email: true,
+									},
+								},
 							},
 						},
 					},
 				})
+
+				return created
 			}, {
 				isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
 				maxWait: 5000,
@@ -587,8 +633,8 @@ export async function createInvoice(data: unknown) {
 }
 
 /**
- * Update invoice (change advisedById or status)
- * - Admins can update any invoice and change advisedById
+ * Update invoice (change advisors or status)
+ * - Admins can update any invoice and change advisors
  * - Non-admins can only cancel/reactivate their own invoices (status only)
  * - createdById is immutable and cannot be changed
  */
@@ -640,32 +686,13 @@ export async function updateInvoiceAdmin(
 		throw new Error("You can only update your own invoices")
 	}
 
-	// Non-admins cannot change advisedById
-	if (!isAdmin && validatedData.advisedById !== undefined) {
-		throw new Error("Only administrators can change invoice advisor")
+	// Non-admins cannot change advisors
+	if (!isAdmin && validatedData.advisorIds !== undefined) {
+		throw new Error("Only administrators can change invoice advisors")
 	}
 
 	// Build update data
 	const updateData: Prisma.InvoiceUncheckedUpdateInput = {}
-
-	if (validatedData.advisedById !== undefined) {
-		// Only admins can change advisedById
-		if (!isAdmin) {
-			throw new Error("Only administrators can change invoice advisor")
-		}
-
-		// Validate that the selected user exists (advisedById references User.id cuid)
-		const advisedUser = await prisma.user.findUnique({
-			where: { id: validatedData.advisedById },
-			select: { id: true },
-		})
-
-		if (!advisedUser) {
-			throw new Error("Selected advisor user not found")
-		}
-
-		updateData.advisedById = validatedData.advisedById
-	}
 
 	if (validatedData.status !== undefined) {
 		updateData.status = validatedData.status
@@ -699,6 +726,16 @@ export async function updateInvoiceAdmin(
 
 		// If reactivating the invoice, optionally reactivate receipts
 		// Note: Receipt reactivation is handled by a separate function call with reactivateReceipts option
+
+		// Update advisors via join table if provided (admin only)
+		if (validatedData.advisorIds !== undefined && isAdmin) {
+			await tx.invoiceAdvisor.deleteMany({ where: { invoiceId: validatedInvoiceId } })
+			if (validatedData.advisorIds.length > 0) {
+				await tx.invoiceAdvisor.createMany({
+					data: validatedData.advisorIds.map((id) => ({ invoiceId: validatedInvoiceId, userId: id })),
+				})
+			}
+		}
 
 		const invoice = await tx.invoice.update({
 			where: { id: validatedInvoiceId },

@@ -509,10 +509,10 @@ export default function QuotationCard({
                 </>
               )}
               <span>{new Date(quotation.quotationDate ?? quotation.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-              {quotation.advisedBy && (
+              {quotation.advisors && quotation.advisors.length > 0 && (
                 <>
                   <span className="text-gray-400">•</span>
-                  <span>Advised by {quotation.advisedBy.firstName} {quotation.advisedBy.lastName}</span>
+                  <span>Advisors: {quotation.advisors.map(a => `${a.firstName} ${a.lastName}`).join(', ')}</span>
                 </>
               )}
               {customServices.length > 0 && (

@@ -193,10 +193,10 @@ export default function InvoiceCard({
 							<span>Quotation: {invoice.quotation?.name || 'N/A'}</span>
 							<span className="text-gray-400">•</span>
 							<span>{new Date(invoice.invoiceDate ?? invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-							{invoice.advisedBy && (
+							{invoice.advisors && invoice.advisors.length > 0 && (
 								<>
 									<span className="text-gray-400">•</span>
-									<span>Advised by {invoice.advisedBy.firstName} {invoice.advisedBy.lastName}</span>
+									<span>Advisors: {invoice.advisors.map(a => `${a.firstName} ${a.lastName}`).join(', ')}</span>
 								</>
 							)}
 						</div>

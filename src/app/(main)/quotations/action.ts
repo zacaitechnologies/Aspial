@@ -75,7 +75,7 @@ export async function getAllQuotations(userId?: string) {
     // For admin and brand-advisor, show all quotations (empty where clause)
   }
 
-  return await prisma.quotation.findMany({
+  const quotations = await prisma.quotation.findMany({
     where: whereClause,
     include: {
       services: {
@@ -85,10 +85,33 @@ export async function getAllQuotations(userId?: string) {
       },
       project: true,
       createdBy: true,
+      advisors: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      },
       Client: true,
     },
     orderBy: { created_at: "desc" },
   })
+
+  // Transform advisors from join table shape to flat array
+  return quotations.map((q) => ({
+    ...q,
+    advisors: (q.advisors ?? []).map((a) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })),
+  }))
 }
 
 // Internal function - not cached, used by cached version
@@ -116,7 +139,7 @@ async function _getQuotationsPaginatedInternal(
     where.workflowStatus = statusFilter
   }
   if (advisorFilter && advisorFilter !== "all") {
-    where.advisedById = advisorFilter
+    where.advisors = { some: { userId: advisorFilter } }
   }
   if (monthYear && /^\d{4}-\d{2}$/.test(monthYear)) {
     const parts = monthYear.split("-")
@@ -213,12 +236,16 @@ async function _getQuotationsPaginatedInternal(
             updated_at: true,
           },
         },
-        advisedBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+        advisors: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
           },
         },
         Client: {
@@ -301,7 +328,12 @@ async function _getQuotationsPaginatedInternal(
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
-    advisedBy: quotation.advisedBy ?? null,
+    advisors: (quotation.advisors ?? []).map((a: any) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })),
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
@@ -398,17 +430,16 @@ export async function getQuotationsPaginatedFresh(
 /** Distinct brand advisors on quotations (for filter dropdown). */
 export async function getQuotationAdvisors() {
   unstable_noStore()
-  const rows = await prisma.quotation.findMany({
-    where: { advisedById: { not: null } },
+  const rows = await prisma.quotationAdvisor.findMany({
+    distinct: ["userId"],
     select: {
-      advisedBy: {
+      user: {
         select: { id: true, firstName: true, lastName: true },
       },
     },
-    distinct: ["advisedById"],
   })
   return rows
-    .flatMap((r) => (r.advisedBy ? [r.advisedBy] : []))
+    .map((r) => r.user)
     .sort((a, b) =>
       `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
     )
@@ -477,12 +508,16 @@ export async function getQuotationById(id: string) {
       },
       project: true,
       createdBy: true,
-      advisedBy: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
+      advisors: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       },
       Client: true,
@@ -529,7 +564,12 @@ export async function getQuotationById(id: string) {
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
-    advisedBy: quotation.advisedBy ?? null,
+    advisors: (quotation.advisors ?? []).map((a: any) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })),
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
@@ -582,7 +622,7 @@ export async function getQuotationById(id: string) {
 export async function getQuotationFullById(id: string) {
   // Validate and parse ID
   const quotationId = quotationIdSchema.parse(id)
-  
+
   unstable_noStore()
   const quotation = await prisma.quotation.findUnique({
     where: { id: quotationId },
@@ -594,12 +634,16 @@ export async function getQuotationFullById(id: string) {
       },
       project: true,
       createdBy: true,
-      advisedBy: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
+      advisors: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       },
       Client: true,
@@ -659,7 +703,12 @@ export async function getQuotationFullById(id: string) {
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
-    advisedBy: quotation.advisedBy ?? null,
+    advisors: (quotation.advisors ?? []).map((a: any) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })),
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
@@ -755,13 +804,21 @@ export async function createQuotation(data: unknown) {
   }
 
   // createdById is ALWAYS the logged-in user's supabase_id (immutable audit trail)
-  // advisedById can be set by admin to point to a different user (User.id / cuid)
+  // advisorIds can be set by admin to point to different users (User.id / cuid)
   const isAdmin = await getCachedIsUserAdmin(user.id)
   const finalCreatedById = user.id // Always the logged-in user's supabase_id
-  // Determine advisedById: admin can specify, otherwise default to dbUser.id (cuid)
-  const finalAdvisedById = isAdmin && validatedData.advisedById
-    ? validatedData.advisedById
-    : dbUser.id
+  // Determine advisorIds: admin can specify freely, non-admin always includes self
+  let finalAdvisorIds: string[] = []
+  if (isAdmin && validatedData.advisorIds && validatedData.advisorIds.length > 0) {
+    finalAdvisorIds = validatedData.advisorIds
+  } else if (validatedData.advisorIds && validatedData.advisorIds.length > 0) {
+    // Non-admin: ensure self is always included
+    finalAdvisorIds = validatedData.advisorIds.includes(dbUser.id)
+      ? validatedData.advisorIds
+      : [dbUser.id, ...validatedData.advisorIds]
+  } else {
+    finalAdvisorIds = [dbUser.id]
+  }
 
   // Retry logic for handling unique constraint violations (race conditions)
   // Use SERIALIZABLE isolation to ensure strict serialization of quotation number generation
@@ -842,7 +899,6 @@ export async function createQuotation(data: unknown) {
             description: validatedData.description,
             totalPrice: validatedData.totalPrice,
             createdById: finalCreatedById, // Always the logged-in user's supabase_id
-            advisedById: finalAdvisedById, // User.id (cuid) - defaults to current user
             workflowStatus: validatedData.workflowStatus || "draft", // Default to draft, user sets to final when ready
             paymentStatus: validatedData.paymentStatus || "unpaid", // Default to unpaid
             clientId: finalClientId,
@@ -863,6 +919,9 @@ export async function createQuotation(data: unknown) {
                 quantity: svc.quantity,
               })),
             },
+            advisors: {
+              create: finalAdvisorIds.map((id) => ({ userId: id })),
+            },
           },
           include: {
             Client: true,
@@ -872,12 +931,16 @@ export async function createQuotation(data: unknown) {
               },
             },
             createdBy: true,
-            advisedBy: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
+            advisors: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
               },
             },
           },
@@ -971,25 +1034,10 @@ export async function editQuotationById(
     throw new Error("User must be authenticated to edit a quotation")
   }
 
-  // Check if admin is trying to change advisedBy
-  let finalAdvisedById: string | undefined = undefined
-  if (validatedData.advisedById) {
-    const isAdmin = await getCachedIsUserAdmin(user.id)
-    if (!isAdmin) {
-      throw new Error("Only admins can change the advisor of a quotation")
-    }
-
-    // Verify the user exists (advisedById references User.id cuid)
-    const dbUser = await prisma.user.findUnique({
-      where: { id: validatedData.advisedById },
-      select: { id: true }
-    })
-
-    if (!dbUser) {
-      throw new Error("Selected advisor user not found in database")
-    }
-
-    finalAdvisedById = validatedData.advisedById
+  // Determine advisor IDs for the join table
+  let finalAdvisorIds: string[] | undefined = undefined
+  if (validatedData.advisorIds && validatedData.advisorIds.length > 0) {
+    finalAdvisorIds = validatedData.advisorIds
   }
 
   // Check authorization: Only admin or quotation creator can edit
@@ -1041,7 +1089,7 @@ export async function editQuotationById(
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.advisedById === undefined // No advisor change
+    validatedData.advisorIds === undefined // No advisor change
 
   // Check if this is a cancellation update (non-admin cancelling finalized quotation without project)
   const isCancellationUpdate = isFinalizedQuotation &&
@@ -1057,7 +1105,7 @@ export async function editQuotationById(
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.advisedById === undefined // No advisor change
+    validatedData.advisorIds === undefined // No advisor change
 
   // Check if this is a combined update (payment status + cancellation)
   const isCombinedUpdate = isFinalizedQuotation &&
@@ -1074,7 +1122,7 @@ export async function editQuotationById(
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.advisedById === undefined // No advisor change
+    validatedData.advisorIds === undefined // No advisor change
 
   // Non-admin users who are not the creator can only set draft quotations to "draft" or "cancelled".
   // Creators may finalize their own draft quotations (change to "final").
@@ -1275,7 +1323,7 @@ export async function editQuotationById(
       ...(validatedData.quotationDate
         ? { quotationDate: new Date(validatedData.quotationDate) }
         : {}),
-      ...(finalAdvisedById !== undefined ? { advisedById: finalAdvisedById } : {}),
+      ...(finalAdvisorIds !== undefined ? { advisors: { deleteMany: {}, create: finalAdvisorIds.map((id) => ({ userId: id })) } } : {}),
       ...(validatedData.services
         ? {
             services: {

@@ -472,11 +472,11 @@ export default function ReceiptDetailClient({
 									{receipt.createdBy.firstName} {receipt.createdBy.lastName}
 								</p>
 							</div>
-							{receipt.advisedBy && (
+							{receipt.advisors && receipt.advisors.length > 0 && (
 								<div>
 									<p className="text-sm font-medium text-muted-foreground">Advised By</p>
 									<p className="font-medium">
-										{receipt.advisedBy.firstName} {receipt.advisedBy.lastName}
+										{receipt.advisors.map(a => `${a.firstName} ${a.lastName}`).join(", ")}
 									</p>
 								</div>
 							)}

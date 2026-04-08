@@ -67,9 +67,10 @@ model User {
   tierSelections           TierSelection[]
   contracts                Contract[]
   createdClients           Client[]                  @relation("ClientCreator")
-  advisedQuotations        Quotation[]               @relation("QuotationAdvisor")
-  advisedInvoices          Invoice[]                 @relation("InvoiceAdvisor")
-  advisedReceipts          Receipt[]                 @relation("ReceiptAdvisor")
+  clientAdvisors           ClientAdvisor[]           @relation("ClientAdvisor")
+  quotationAdvisors        QuotationAdvisor[]        @relation("QuotationAdvisor")
+  invoiceAdvisors          InvoiceAdvisor[]          @relation("InvoiceAdvisor")
+  receiptAdvisors          ReceiptAdvisor[]          @relation("ReceiptAdvisor")
   leaveApplications        LeaveApplication[]
   reviewedLeaves           LeaveApplication[]        @relation("LeaveReviewer")
   leaveBalances            LeaveBalance[]
@@ -144,8 +145,7 @@ model Quotation {
   createdBy      User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
   project        Project?           @relation(fields: [projectId], references: [id])
 
-  advisedById    String?
-  advisedBy      User?            @relation("QuotationAdvisor", fields: [advisedById], references: [id])
+  advisors       QuotationAdvisor[]
 
   quotationEmails QuotationEmail[]
   invoices        Invoice[]
@@ -198,8 +198,7 @@ model Invoice {
   invoiceDate   DateTime       @default(now()) @map("invoice_date")
   created_at    DateTime       @default(now())
   updated_at    DateTime       @default(now())
-  advisedById   String?
-  advisedBy     User?          @relation("InvoiceAdvisor", fields: [advisedById], references: [id])
+  advisors      InvoiceAdvisor[]
   quotation     Quotation      @relation(fields: [quotationId], references: [id], onDelete: Restrict)
   createdBy     User           @relation("InvoiceCreator", fields: [createdById], references: [supabase_id])
   invoiceEmails InvoiceEmail[]
@@ -236,8 +235,7 @@ model Receipt {
   created_at    DateTime       @default(now())
   updated_at    DateTime       @default(now())
   paymentMethod PaymentMethod  @default(bank_transfer)
-  advisedById   String?
-  advisedBy     User?          @relation("ReceiptAdvisor", fields: [advisedById], references: [id])
+  advisors      ReceiptAdvisor[]
   invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   createdBy     User           @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
   receiptEmails ReceiptEmail[]
@@ -402,10 +400,51 @@ model Client {
   yearlyRevenue             Float?
   createdById               String
   createdBy                 User           @relation("ClientCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  advisors                  ClientAdvisor[]
   projects                  Project[]
   quotations                Quotation[]
 
   @@map("clients")
+}
+
+model ClientAdvisor {
+  clientId String
+  userId   String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user     User   @relation("ClientAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, userId])
+  @@map("client_advisors")
+}
+
+model QuotationAdvisor {
+  quotationId Int
+  userId      String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  user        User      @relation("QuotationAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([quotationId, userId])
+  @@map("quotation_advisors")
+}
+
+model InvoiceAdvisor {
+  invoiceId String
+  userId    String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user      User    @relation("InvoiceAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([invoiceId, userId])
+  @@map("invoice_advisors")
+}
+
+model ReceiptAdvisor {
+  receiptId String
+  userId    String
+  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  user      User    @relation("ReceiptAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([receiptId, userId])
+  @@map("receipt_advisors")
 }
 
 model Appointment {

@@ -57,6 +57,7 @@ export const createClientSchema = z.object({
   industry: z.string().trim().optional(),
   yearlyRevenue: z.number().positive().optional(),
   membershipType: z.enum(["MEMBER", "NON_MEMBER"]),
+  advisorIds: z.array(z.string()).optional(),
 });
 
 export type CreateClientValues = z.infer<typeof createClientSchema>;
@@ -73,6 +74,7 @@ export const updateClientSchema = z.object({
   industry: z.string().trim().optional(),
   yearlyRevenue: z.number().positive().optional(),
   membershipType: z.enum(["MEMBER", "NON_MEMBER"]).optional(),
+  advisorIds: z.array(z.string()).optional(),
 });
 
 export type UpdateClientValues = z.infer<typeof updateClientSchema>;
@@ -195,7 +197,7 @@ export const createQuotationSchema = z.object({
     quantity: z.number().int().positive("Quantity must be at least 1"),
   })).min(1, "At least one service is required"),
   createdById: z.string().min(1, "Creator ID is required"),
-  advisedById: z.string().optional(),
+  advisorIds: z.array(z.string()).optional(),
   workflowStatus: workflowStatusSchema.optional(),
   paymentStatus: paymentStatusSchema.optional(),
   discountValue: z.number().nonnegative().optional(),
@@ -237,7 +239,7 @@ export const editQuotationSchema = z.object({
   clientId: z.string().optional(),
   projectId: z.number().int().positive().optional().nullable(),
   createdById: z.string().optional(),
-  advisedById: z.string().optional(),
+  advisorIds: z.array(z.string()).optional(),
   newClient: newClientSchema.optional(),
 });
 
@@ -253,7 +255,7 @@ export const createInvoiceSchema = z.object({
 	type: invoiceTypeSchema,
 	amount: z.number().positive("Invoice amount must be greater than 0"),
 	createdById: z.string().optional(),
-	advisedById: z.string().optional(),
+	advisorIds: z.array(z.string()).optional(),
 	/** Invoice document date (invoiceDate). Only applied when user is admin. */
 	invoiceDate: z.string().optional(),
 });
@@ -261,13 +263,13 @@ export const createInvoiceSchema = z.object({
 export type CreateInvoiceValues = z.infer<typeof createInvoiceSchema>;
 
 export const updateInvoiceAdminSchema = z.object({
-	advisedById: z.string().optional(),
+	advisorIds: z.array(z.string()).optional(),
 	status: invoiceStatusSchema.optional(),
 	/** Invoice document date (invoiceDate). Admin only. */
 	invoiceDate: z.string().optional(),
 }).refine((data) => {
 	// At least one field must be provided
-	return data.advisedById !== undefined || data.status !== undefined || data.invoiceDate !== undefined;
+	return data.advisorIds !== undefined || data.status !== undefined || data.invoiceDate !== undefined;
 }, {
 	message: "At least one field must be provided",
 });

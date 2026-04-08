@@ -1,9 +1,12 @@
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { formatNumber } from "@/lib/format-number"
-import type { ReceiptWithInvoice, PaymentMethodType } from "../types"
+import type { PaymentMethodType } from "../types"
 import { PAYMENT_METHOD_LABELS } from "../types"
 import { getReceiptFullById, getReceiptsForInvoice, getQuotationInvoicesTotalAsOf, getPreviousInvoiceAmount } from "../action"
+
+/** Full receipt type as returned by getReceiptFullById (includes join-table advisors). */
+type ReceiptFull = NonNullable<Awaited<ReturnType<typeof getReceiptFullById>>>
 
 /** Quotation shape returned by getReceiptFullById (includes services). Used only for PDF generation. */
 interface QuotationWithServices {
@@ -450,13 +453,13 @@ export async function generateReceiptPDFWithFetch(receiptId: string) {
 		throw new Error("Receipt not found")
 	}
 	
-	return await generateReceiptPDFInternal(fullReceipt as ReceiptWithInvoice)
+	return await generateReceiptPDFInternal(fullReceipt)
 }
 
 /**
  * Internal PDF generation function
  */
-async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
+async function generateReceiptPDFInternal(receipt: ReceiptFull) {
 	const doc = new jsPDF()
 	const logoBase64 = await getLogoBase64()
 	const invoice = receipt.invoice
@@ -515,13 +518,16 @@ async function generateReceiptPDFInternal(receipt: ReceiptWithInvoice) {
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
-	// Get advisor name (advisedBy with fallback to createdBy)
-	const advisorName = (quotation as any).advisedBy
-		? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+	// Get advisor name (advisors join table with fallback to createdBy)
+	const advisorName = (quotation as any).advisors && (quotation as any).advisors.length > 0
+		? (quotation as any).advisors.map((a: any) => {
+				const u = a.user || a
+				return `${u.firstName || ''} ${u.lastName || ''}`.trim()
+			}).filter(Boolean).join(', ')
 		: quotation.createdBy
 			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 			: 'ADMIN'
-	
+
 	// Get client info
 	const clientInfo: ClientInfoPdf = {
 		name: quotation.Client?.name || '',
@@ -860,20 +866,20 @@ for (let i = 1; i <= finalTotalPages; i++) {
 /**
  * Generate receipt PDF (public export)
  */
-export async function generateReceiptPDF(receipt: ReceiptWithInvoice) {
+export async function generateReceiptPDF(receipt: { id: string }) {
 	// Always fetch full data to ensure services are loaded
 	const fullReceipt = await getReceiptFullById(receipt.id)
 	if (!fullReceipt) {
 		throw new Error("Receipt not found")
 	}
-	
-	return await generateReceiptPDFInternal(fullReceipt as ReceiptWithInvoice)
+
+	return await generateReceiptPDFInternal(fullReceipt)
 }
 
 /**
  * Generate receipt PDF as base64 string for email attachment
  */
-export async function generateReceiptPDFBase64(receipt: ReceiptWithInvoice): Promise<string> {
+export async function generateReceiptPDFBase64(receipt: { id: string }): Promise<string> {
 	const fullReceipt = await getReceiptFullById(receipt.id)
 	if (!fullReceipt) {
 		throw new Error("Receipt not found")
@@ -885,11 +891,11 @@ export async function generateReceiptPDFBase64(receipt: ReceiptWithInvoice): Pro
  * Generate receipt PDF from already-fetched full receipt (no refetch).
  * Use from send-email flow to avoid duplicate DB round-trip.
  */
-export async function generateReceiptPDFBase64FromFull(fullReceipt: ReceiptWithInvoice): Promise<string> {
+export async function generateReceiptPDFBase64FromFull(fullReceipt: ReceiptFull): Promise<string> {
 	return _generateReceiptPDFBase64Internal(fullReceipt)
 }
 
-async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice): Promise<string> {
+async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptFull): Promise<string> {
 	const doc = new jsPDF()
 	const logoBase64 = await getLogoBase64()
 	const invoice = fullReceipt.invoice
@@ -947,9 +953,12 @@ async function _generateReceiptPDFBase64Internal(fullReceipt: ReceiptWithInvoice
 	])
 	const projectBalance = Math.max(0, quotationGrandTotal - totalInvoicedAsOf)
 	
-	// Get advisor name (advisedBy with fallback to createdBy)
-	const advisorName = (quotation as any).advisedBy
-		? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+	// Get advisor name (advisors join table with fallback to createdBy)
+	const advisorName = (quotation as any).advisors && (quotation as any).advisors.length > 0
+		? (quotation as any).advisors.map((a: any) => {
+				const u = a.user || a
+				return `${u.firstName || ''} ${u.lastName || ''}`.trim()
+			}).filter(Boolean).join(', ')
 		: quotation.createdBy
 			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 			: 'ADMIN'
