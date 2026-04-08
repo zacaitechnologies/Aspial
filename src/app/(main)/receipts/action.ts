@@ -862,7 +862,11 @@ export async function searchInvoicesForReceipt(searchTerm: string) {
 		take: 20, // Limit results
 	})
 
-	return invoices
+	// Transform advisors from join-table shape to flat array
+	return invoices.map((inv) => ({
+		...inv,
+		advisors: flattenAdvisors(inv.advisors),
+	}))
 }
 
 /**

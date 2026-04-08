@@ -113,12 +113,12 @@ export default function CreateInvoiceForm({
 		handleQuotationSelect(prefilledQuotationId)
 	}, [prefilledQuotationId, isOpen, prefetchedQuotation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Sync advisors whenever the referenced quotation changes (inherit from quotation's advisors join table)
+	// Sync advisors whenever the referenced quotation changes (inherit from quotation's advisors)
 	useEffect(() => {
 		if (selectedQuotation) {
 			let ids: string[] = []
 			if (Array.isArray(selectedQuotation.advisors) && selectedQuotation.advisors.length > 0) {
-				ids = selectedQuotation.advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean)
+				ids = selectedQuotation.advisors.map((a: any) => a.id).filter(Boolean)
 			}
 			// Non-admin: ensure self is included
 			if (!isAdmin && currentDbUserId && !ids.includes(currentDbUserId)) {

@@ -39,7 +39,7 @@ interface CreateReceiptFormProps {
 	onSuccess: () => void
 	prefilledInvoiceId?: string
 	/** When opening from an invoice card, pass the invoice to avoid refetch and speed up popup */
-	prefetchedInvoice?: { id: string; amount: number; advisors?: Array<{ user: { id: string } } | { id: string }> } | null
+	prefetchedInvoice?: { id: string; amount: number; advisors?: Array<{ id: string }> } | null
 	/** Pass isAdmin from parent to skip redundant check (speeds up dialog open) */
 	isAdminProp?: boolean
 }
@@ -103,10 +103,10 @@ export default function CreateReceiptForm({
 		if (prefetchedInvoice && String(prefetchedInvoice.id) === String(prefilledInvoiceId)) {
 			setSelectedInvoice(prefetchedInvoice as any)
 			setReceiptForm(prev => ({ ...prev, invoiceId: prefilledInvoiceId }))
-			// Auto-load advisors from invoice (handle both join table and flat shapes)
+			// Auto-load advisors from invoice (flat shape)
 			const advisors = (prefetchedInvoice as any).advisors
 			if (advisors && advisors.length > 0) {
-				setSelectedAdvisorIds(advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean))
+				setSelectedAdvisorIds(advisors.map((a: any) => a.id).filter(Boolean))
 			}
 			setSearchQuery("")
 			setSearchResults([])
@@ -119,8 +119,7 @@ export default function CreateReceiptForm({
 	useEffect(() => {
 		let ids: string[] = []
 		if (selectedInvoice?.advisors && selectedInvoice.advisors.length > 0) {
-			// advisors may be join table objects with .user or flat objects with .id
-			ids = selectedInvoice.advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean) as string[]
+			ids = selectedInvoice.advisors.map((a: any) => a.id).filter(Boolean) as string[]
 		}
 		// Non-admin: auto-include self
 		const currentDbId = enhancedUser?.profile?.id
@@ -215,9 +214,9 @@ export default function CreateReceiptForm({
 			// If found in search results, use it
 			setSelectedInvoice(invoice)
 			setReceiptForm(prev => ({ ...prev, invoiceId }))
-			// Auto-fill advisors from invoice's advisors join table
+			// Auto-fill advisors from invoice (flat shape)
 			if (invoice.advisors && invoice.advisors.length > 0) {
-				setSelectedAdvisorIds(invoice.advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean))
+				setSelectedAdvisorIds(invoice.advisors.map((a: any) => a.id).filter(Boolean))
 			}
 			setSearchQuery("")
 			setSearchResults([])
@@ -228,9 +227,9 @@ export default function CreateReceiptForm({
 				if (fetchedInvoice) {
 					setSelectedInvoice(fetchedInvoice)
 					setReceiptForm(prev => ({ ...prev, invoiceId }))
-					// Auto-fill advisors from invoice's advisors join table
+					// Auto-fill advisors from invoice (flat shape)
 					if (fetchedInvoice.advisors && fetchedInvoice.advisors.length > 0) {
-						setSelectedAdvisorIds(fetchedInvoice.advisors.map((a: any) => a.user?.id ?? a.id).filter(Boolean))
+						setSelectedAdvisorIds(fetchedInvoice.advisors.map((a: any) => a.id).filter(Boolean))
 					}
 				} else {
 					toast({
