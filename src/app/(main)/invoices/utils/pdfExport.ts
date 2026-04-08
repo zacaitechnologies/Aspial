@@ -573,13 +573,10 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		.filter((inv) => inv.id !== invoice.id)
 		.reduce((sum, inv) => sum + inv.amount, 0)
 	
-	// Get advisor name (advisors join table with fallback to createdBy)
-	const quotationAdvisors = (quotation as any).advisors as Array<any> | undefined
+	// Get advisor name (flat advisors array with fallback to createdBy)
+	const quotationAdvisors = (quotation as any).advisors as Array<{ firstName?: string; lastName?: string }> | undefined
 	const advisorName = quotationAdvisors && quotationAdvisors.length > 0
-		? quotationAdvisors.map((a: any) => {
-			const u = a.user ?? a
-			return `${u.firstName || ''} ${u.lastName || ''}`.trim()
-		}).join(', ')
+		? quotationAdvisors.map((a) => `${a.firstName || ''} ${a.lastName || ''}`.trim()).join(', ')
 		: quotation.createdBy
 			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 			: 'ADMIN'
@@ -1028,13 +1025,10 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 		.filter((inv) => inv.id !== fullInvoice.id)
 		.reduce((sum, inv) => sum + inv.amount, 0)
 	
-	// Get advisor name (advisors join table with fallback to createdBy)
-	const quotationAdvisors2 = (quotation as any).advisors as Array<any> | undefined
+	// Get advisor name (flat advisors array with fallback to createdBy)
+	const quotationAdvisors2 = (quotation as any).advisors as Array<{ firstName?: string; lastName?: string }> | undefined
 	const advisorName = quotationAdvisors2 && quotationAdvisors2.length > 0
-		? quotationAdvisors2.map((a: any) => {
-			const u = a.user ?? a
-			return `${u.firstName || ''} ${u.lastName || ''}`.trim()
-		}).join(', ')
+		? quotationAdvisors2.map((a) => `${a.firstName || ''} ${a.lastName || ''}`.trim()).join(', ')
 		: quotation.createdBy
 			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 			: 'ADMIN'
