@@ -182,7 +182,7 @@ export default function QuotationDetailClient({
 						</p>
 					</div>
 					<div className="flex gap-2">
-						{isCancelled && (isAdmin || quotation.createdBy?.supabase_id === enhancedUser?.id) && (
+						{isCancelled && (isAdmin || quotation.createdBy?.supabase_id === enhancedUser?.id || quotation.advisors?.some((a) => a.id === enhancedUser?.profile?.id)) && (
 							<Button
 								variant="default"
 								onClick={() => setIsReactivateDialogOpen(true)}

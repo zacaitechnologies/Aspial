@@ -5,6 +5,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
+import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { Prisma, type PaymentMethod } from "@prisma/client"
 import { receiptListFiltersSchema, type ReceiptListFilters } from "@/lib/validation"
 
@@ -583,6 +584,7 @@ export async function createReceipt(data: {
 			select: {
 				id: true,
 				amount: true,
+				quotation: { select: { clientId: true } },
 			},
 		}),
 		prisma.receipt.findMany({
@@ -657,6 +659,13 @@ export async function createReceipt(data: {
 		try {
 			const receipt = await prisma.$transaction(async (tx) => {
 				const receiptNumber = await generateReceiptNumber(tx)
+
+				// Ensure receipt advisors are also linked to the client so they can view
+				// the client and track its outstanding balances from their own account.
+				const receiptClientId = invoice.quotation?.clientId
+				if (receiptClientId) {
+					await ensureClientAdvisors(receiptClientId, finalAdvisorIds, tx)
+				}
 
 				return tx.receipt.create({
 					data: {
@@ -911,6 +920,7 @@ export async function updateReceiptAdmin(
 						select: {
 							id: true,
 							workflowStatus: true,
+							clientId: true,
 						},
 					},
 				},
@@ -1018,6 +1028,15 @@ export async function updateReceiptAdmin(
 			},
 		},
 	})
+
+	// Any advisor added to this receipt is also linked to the client so they can
+	// view the client and track outstanding balances from their account.
+	if (data.advisorIds !== undefined && data.advisorIds.length > 0 && existingReceipt.invoice.quotation.clientId) {
+		await ensureClientAdvisors(
+			existingReceipt.invoice.quotation.clientId,
+			data.advisorIds,
+		)
+	}
 
 	revalidateTag("receipts", { expire: 0 })
 	revalidateTag("invoices", { expire: 0 })

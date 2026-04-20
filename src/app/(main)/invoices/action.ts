@@ -5,6 +5,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
+import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { Prisma } from "@prisma/client"
 import {
 	createInvoiceSchema,
@@ -431,6 +432,7 @@ export async function createInvoice(data: unknown) {
 			where: { id: validatedData.quotationId },
 			select: {
 				id: true,
+				clientId: true,
 				createdById: true,
 				discountValue: true,
 				discountType: true,
@@ -533,6 +535,12 @@ export async function createInvoice(data: unknown) {
 		try {
 			const invoice = await prisma.$transaction(async (tx) => {
 				const invoiceNumber = await generateInvoiceNumber(tx, validatedData.type)
+
+				// Ensure invoice advisors are also linked to the client so they can
+				// view it and track outstanding balances from their own account.
+				if (quotation.clientId) {
+					await ensureClientAdvisors(quotation.clientId, finalAdvisorIds, tx)
+				}
 
 				const created = await tx.invoice.create({
 					data: {
@@ -652,26 +660,36 @@ export async function updateInvoiceAdmin(
 		throw new Error("User must be authenticated")
 	}
 
-	// Check if user is admin
-	const isAdmin = await getCachedIsUserAdmin(user.id)
-
-	// Get the invoice to check ownership and quotation status
-	const existingInvoice = await prisma.invoice.findUnique({
-		where: { id: validatedInvoiceId },
-		select: {
-			createdById: true,
-			status: true,
-			quotationId: true,
-			quotation: {
-				select: {
-					workflowStatus: true,
+	// Run admin + ownership lookups in parallel.
+	const [isAdmin, existingInvoice, dbUser] = await Promise.all([
+		getCachedIsUserAdmin(user.id),
+		prisma.invoice.findUnique({
+			where: { id: validatedInvoiceId },
+			select: {
+				createdById: true,
+				status: true,
+				quotationId: true,
+				quotation: {
+					select: {
+						workflowStatus: true,
+						clientId: true,
+					},
 				},
+				advisors: { select: { userId: true } },
 			},
-		},
-	})
+		}),
+		prisma.user.findUnique({
+			where: { supabase_id: user.id },
+			select: { id: true },
+		}),
+	])
 
 	if (!existingInvoice) {
 		throw new Error("Invoice not found")
+	}
+
+	if (!dbUser) {
+		throw new Error("User not found in database")
 	}
 
 	// Block reactivation if quotation is cancelled
@@ -681,12 +699,18 @@ export async function updateInvoiceAdmin(
 		}
 	}
 
-	// Non-admins can only update their own invoices
-	if (!isAdmin && existingInvoice.createdById !== user.id) {
-		throw new Error("You can only update your own invoices")
+	// Authorization: admin, creator, or an assigned advisor can update the invoice.
+	// Advisors get the same edit rights as the creator here (including cancelling /
+	// reactivating). Only admins may re-assign advisors.
+	const isCreator = existingInvoice.createdById === user.id
+	const isAdvisor = existingInvoice.advisors.some((a) => a.userId === dbUser.id)
+	const isOwner = isCreator || isAdvisor
+
+	if (!isAdmin && !isOwner) {
+		throw new Error("You can only update invoices you created or are assigned to as an advisor")
 	}
 
-	// Non-admins cannot change advisors
+	// Non-admins cannot change advisors (even if they are an assigned advisor themselves).
 	if (!isAdmin && validatedData.advisorIds !== undefined) {
 		throw new Error("Only administrators can change invoice advisors")
 	}
@@ -735,6 +759,16 @@ export async function updateInvoiceAdmin(
 					data: validatedData.advisorIds.map((id) => ({ invoiceId: validatedInvoiceId, userId: id })),
 				})
 			}
+
+			// Any advisor added to this invoice is also linked to the client so they can
+			// view the client and track outstanding balances from their account.
+			if (existingInvoice.quotation.clientId && validatedData.advisorIds.length > 0) {
+				await ensureClientAdvisors(
+					existingInvoice.quotation.clientId,
+					validatedData.advisorIds,
+					tx,
+				)
+			}
 		}
 
 		const invoice = await tx.invoice.update({
@@ -780,36 +814,47 @@ export async function reactivateInvoiceWithReceipts(
 		throw new Error("User must be authenticated")
 	}
 
-	// Check if user is admin
-	const isAdmin = await getCachedIsUserAdmin(user.id)
-
-	// Get the invoice to check ownership and quotation status
-	const existingInvoice = await prisma.invoice.findUnique({
-		where: { id: validatedInvoiceId },
-		select: {
-			createdById: true,
-			status: true,
-			quotationId: true,
-			quotation: {
-				select: {
-					id: true,
-					workflowStatus: true,
+	// Run admin + ownership lookups in parallel.
+	const [isAdmin, existingInvoice, dbUser] = await Promise.all([
+		getCachedIsUserAdmin(user.id),
+		prisma.invoice.findUnique({
+			where: { id: validatedInvoiceId },
+			select: {
+				createdById: true,
+				status: true,
+				quotationId: true,
+				quotation: {
+					select: {
+						id: true,
+						workflowStatus: true,
+					},
 				},
+				advisors: { select: { userId: true } },
 			},
-		},
-	})
+		}),
+		prisma.user.findUnique({
+			where: { supabase_id: user.id },
+			select: { id: true },
+		}),
+	])
 
 	if (!existingInvoice) {
 		throw new Error("Invoice not found")
+	}
+
+	if (!dbUser) {
+		throw new Error("User not found in database")
 	}
 
 	if (existingInvoice.status !== "cancelled") {
 		throw new Error("Only cancelled invoices can be reactivated")
 	}
 
-	// Non-admins can only reactivate their own invoices
-	if (!isAdmin && existingInvoice.createdById !== user.id) {
-		throw new Error("You can only reactivate your own invoices")
+	// Admin, creator, or an assigned advisor can reactivate the invoice.
+	const isReactivateCreator = existingInvoice.createdById === user.id
+	const isReactivateAdvisor = existingInvoice.advisors.some((a) => a.userId === dbUser.id)
+	if (!isAdmin && !isReactivateCreator && !isReactivateAdvisor) {
+		throw new Error("You can only reactivate invoices you created or are assigned to as an advisor")
 	}
 
 	// If quotation is cancelled, reactivate it first

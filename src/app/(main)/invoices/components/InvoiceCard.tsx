@@ -51,6 +51,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { formatLocalDate } from "@/lib/date-utils"
 import { getReceiptsForInvoice, invalidateReceiptsCache } from "../../receipts/action"
+import { useSession } from "../../contexts/SessionProvider"
 
 interface InvoiceCardProps {
 	invoice: InvoiceWithQuotation
@@ -65,8 +66,14 @@ export default function InvoiceCard({
 	isAdmin,
 	userId,
 }: InvoiceCardProps) {
-	// Check if current user is the invoice owner
-	const isOwner = invoice.createdBy?.supabase_id === userId
+	const { enhancedUser } = useSession()
+	// Check if the current user is the creator (supabase id) or an assigned advisor (db user id).
+	const isCreator = invoice.createdBy?.supabase_id === userId
+	const currentDbUserId = enhancedUser?.profile?.id
+	const isAdvisor = Boolean(
+		currentDbUserId && invoice.advisors?.some((a) => a.id === currentDbUserId),
+	)
+	const isOwner = isCreator || isAdvisor
 	const router = useRouter()
 	const [isMounted, setIsMounted] = useState(false)
 	const [isExportingPDF, setIsExportingPDF] = useState(false)

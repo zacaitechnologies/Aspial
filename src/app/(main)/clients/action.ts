@@ -590,7 +590,12 @@ export async function getClientById(id: string) {
             lastName: true,
             email: true,
           }
-        }
+        },
+        advisors: {
+          include: {
+            user: { select: { id: true, firstName: true, lastName: true, email: true } },
+          },
+        },
       }
     })
 
@@ -604,9 +609,7 @@ export async function getClientById(id: string) {
       const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
       if (!dbUser) return null
       const isCreator = client.createdById === dbUser.id
-      const isAdvisor = await prisma.clientAdvisor.findUnique({
-        where: { clientId_userId: { clientId: id, userId: dbUser.id } }
-      })
+      const isAdvisor = client.advisors.some((a) => a.userId === dbUser.id)
       if (!isCreator && !isAdvisor) {
         return null
       }
@@ -756,16 +759,27 @@ export async function updateClient(id: string, data: {
 
     // Replace advisors with exactly what the client sent — deselections are persisted.
     // Validation (updateClientSchema) enforces min 1 when provided.
-    // Non-admin cannot remove themselves from the list (enforced in the UI and here as a safeguard).
+    // Authorization for advisor list mutation:
+    //   - Admin: can add or remove anyone.
+    //   - Creator: can add or remove anyone.
+    //   - Assigned advisor (non-creator, non-admin): can add new advisors only;
+    //     cannot remove anyone (including themselves) from the existing list.
     if (validatedData.advisorIds !== undefined) {
-      const advisorIds = new Set(validatedData.advisorIds)
-      if (!isAdmin) {
-        advisorIds.add(dbUser.id)
+      const nextAdvisorIds = new Set(validatedData.advisorIds)
+      const existingAdvisorIds = new Set(client.advisors.map((a) => a.userId))
+
+      if (!isAdmin && !isCreator) {
+        const removed = Array.from(existingAdvisorIds).filter((id) => !nextAdvisorIds.has(id))
+        if (removed.length > 0) {
+          throw new Error("Only the client creator or an admin can remove advisors from this client")
+        }
+        // Safeguard: ensure current user stays in the list.
+        nextAdvisorIds.add(dbUser.id)
       }
 
       updateData.advisors = {
         deleteMany: {},
-        create: Array.from(advisorIds).map((userId) => ({ userId })),
+        create: Array.from(nextAdvisorIds).map((userId) => ({ userId })),
       }
     }
 
@@ -916,27 +930,26 @@ export async function deleteClient(id: string) {
       throw new Error("User not found")
     }
 
-    // Check if user is admin, creator, or advisor
-    const client = await prisma.client.findUnique({
-      where: { id },
-      select: {
-        createdById: true,
-        advisors: { select: { userId: true } },
-      }
-    })
+    // Only admins and the original creator may delete a client.
+    // Assigned advisors (non-creators) cannot delete.
+    const [isAdmin, client] = await Promise.all([
+      getCachedIsUserAdmin(user.id),
+      prisma.client.findUnique({
+        where: { id },
+        select: { createdById: true },
+      }),
+    ])
 
     if (!client) {
       throw new Error("Client not found")
     }
 
-    const isAdmin = await getCachedIsUserAdmin(user.id)
     const isCreator = client.createdById === dbUser.id
-    const isAdvisor = client.advisors.some(a => a.userId === dbUser.id)
 
-    if (!isAdmin && !isCreator && !isAdvisor) {
-      throw new Error("You can only delete clients that you created or are assigned as advisor")
+    if (!isAdmin && !isCreator) {
+      throw new Error("Only the client creator or an admin can delete this client")
     }
-    
+
     await prisma.client.delete({
       where: { id }
     })

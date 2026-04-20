@@ -26,7 +26,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
-import { deleteClient, getCurrentUserId, getClientsPaginated, getClientsPaginatedFresh, invalidateClientsCache, getClientDeletionImpact, type DeletionImpact, type ClientsDashboardTotals } from "../action"
+import { deleteClient, getCurrentUserId, getClientsPaginated, getClientsPaginatedFresh, invalidateClientsCache, getClientDeletionImpact, checkIsAdmin, type DeletionImpact, type ClientsDashboardTotals } from "../action"
 import { checkHasFullAccess } from "../../actions/admin-actions"
 import CreateClientDialog from "./CreateClientDialog"
 import EditClientDialog from "./EditClientDialog"
@@ -63,6 +63,12 @@ interface Client {
     lastName: string | null
     email: string
   }
+  advisors?: Array<{
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string
+  }>
 }
 
 type SortOption = "name" | "yearlyRevenue" | "totalValue" | "created_at"
@@ -85,7 +91,7 @@ interface ClientsClientProps {
   dashboardTotals?: ClientsDashboardTotals | null
 }
 
-export default function ClientsClient({ initialData, userId, hasFullAccess = false, isAdminOnly = false, dashboardTotals: initialDashboardTotals = null }: ClientsClientProps) {
+export default function ClientsClient({ initialData, userId, hasFullAccess: initialHasFullAccess = false, isAdminOnly = false, dashboardTotals: initialDashboardTotals = null }: ClientsClientProps) {
   const { enhancedUser } = useSession()
   const [searchTerm, setSearchTerm] = useState("")
   const [industryFilter, setIndustryFilter] = useState<string>("all")
@@ -98,7 +104,11 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
   const [deletingClient, setDeletingClient] = useState<Client | null>(null)
   const [isWarningDialogOpen, setIsWarningDialogOpen] = useState(false)
   const [deletionImpact, setDeletionImpact] = useState<DeletionImpact | null>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
+  // `hasFullAccess` = admin OR brand-advisor (can see every client). Used for
+  // showing the Edit button to non-creators. `isStrictAdmin` is only true for
+  // real admins and is used for delete permission.
+  const [hasFullAccess, setHasFullAccess] = useState(initialHasFullAccess)
+  const [isStrictAdmin, setIsStrictAdmin] = useState(isAdminOnly)
   const [currentUserId, setCurrentUserId] = useState<string | null>(userId || null)
   const [activeTab, setActiveTab] = useState("clients")
   const [mounted, setMounted] = useState(false)
@@ -246,15 +256,17 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
     })
   }, [buildCacheKey, initialData])
 
-  // Check admin/brand-advisor status and get current user ID
+  // Check admin + brand-advisor status and get current user ID
   useEffect(() => {
     const checkAdminAndUser = async () => {
       if (enhancedUser?.id) {
-        const [hasFullAccess, fetchedUserId] = await Promise.all([
+        const [fullAccess, strictAdmin, fetchedUserId] = await Promise.all([
           checkHasFullAccess(enhancedUser.id),
+          checkIsAdmin(enhancedUser.id),
           getCurrentUserId(),
         ])
-        setIsAdmin(hasFullAccess)
+        setHasFullAccess(fullAccess)
+        setIsStrictAdmin(strictAdmin)
         setCurrentUserId(fetchedUserId)
       }
     }
@@ -266,8 +278,18 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
     [clients]
   )
 
+  // Editing: admins + brand-advisors (full access), the creator, or any assigned advisor.
+  // Deleting: strict admins and the creator only. Brand-advisors that are not
+  // the creator cannot delete.
   const canEditClient = (client: Client) => {
-    if (isAdmin) return true
+    if (hasFullAccess) return true
+    if (!currentUserId) return false
+    if (client.createdById === currentUserId) return true
+    return Boolean(client.advisors?.some((a) => a.id === currentUserId))
+  }
+
+  const canDeleteClient = (client: Client) => {
+    if (isStrictAdmin) return true
     if (!currentUserId || !client.createdById) return false
     return client.createdById === currentUserId
   }
@@ -543,20 +565,20 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
                         </Button>
                       </Link>
                       {canEditClient(client) && (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={() => handleEditClient(client)} title="Edit Client">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDeleteClient(client)}
-                            title="Delete Client"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </>
+                        <Button variant="ghost" size="sm" onClick={() => handleEditClient(client)} title="Edit Client">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {canDeleteClient(client) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteClient(client)}
+                          title="Delete Client"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       )}
                     </div>
                   </div>

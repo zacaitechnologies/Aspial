@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -29,7 +29,8 @@ interface Client {
   quotationsCount: number
   totalValue: number
   created_at: string
-  advisors?: Array<{ id: string; firstName: string; lastName: string; email: string }>
+  createdById?: string
+  advisors?: Array<{ id: string; firstName: string | null; lastName: string | null; email: string }>
 }
 
 interface EditClientDialogProps {
@@ -50,6 +51,22 @@ export default function EditClientDialog({
   const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([])
   const [currentUserId, setCurrentUserId] = useState<string>("")
   const [isAdmin, setIsAdmin] = useState(false)
+
+  // Existing advisor IDs captured when the client loads. When the current user
+  // is neither admin nor creator, these IDs are locked from removal.
+  const initialAdvisorIds = useMemo(
+    () => client?.advisors?.map((a) => a.id) ?? [],
+    [client]
+  )
+
+  const isCreator = Boolean(
+    currentUserId && client?.createdById && client.createdById === currentUserId
+  )
+  const canRemoveAdvisors = isAdmin || isCreator
+  const lockedAdvisorIds = useMemo(
+    () => (canRemoveAdvisors ? [] : initialAdvisorIds),
+    [canRemoveAdvisors, initialAdvisorIds]
+  )
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -271,10 +288,13 @@ export default function EditClientDialog({
                 onChange={setSelectedAdvisorIds}
                 currentUserId={currentUserId}
                 isAdmin={isAdmin}
+                lockedIds={lockedAdvisorIds}
                 placeholder="Select advisors"
               />
               <p className="text-xs text-muted-foreground">
-                {isAdmin ? "Select one or more advisors for this client" : "You are automatically included as an advisor"}
+                {canRemoveAdvisors
+                  ? "Select one or more advisors for this client"
+                  : "You can add more advisors, but only the client creator or an admin can remove advisors."}
               </p>
             </div>
             <div className="col-span-2 space-y-2">

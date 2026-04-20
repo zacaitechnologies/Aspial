@@ -5,6 +5,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
+import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import {
@@ -945,7 +946,11 @@ export async function createQuotation(data: unknown) {
             },
           },
         })
-        
+
+        // Any quotation advisor who isn't already a client advisor is linked to the
+        // client so they can view the client and track its outstanding balances.
+        await ensureClientAdvisors(finalClientId, finalAdvisorIds, tx)
+
         return quotation
       }, {
         // Use SERIALIZABLE isolation level to prevent concurrent transactions
@@ -1366,6 +1371,12 @@ export async function editQuotationById(
       },
     });
 
+    // When advisors change (or a client switch happens), ensure each quotation advisor is
+    // also linked to the client so they can access client data and track balances.
+    if (finalAdvisorIds !== undefined) {
+      await ensureClientAdvisors(finalClientId, finalAdvisorIds, tx)
+    }
+
     // If cancelling the quotation, cascade cancel all related invoices and receipts
     if (validatedData.workflowStatus === "cancelled" && currentQuotation.workflowStatus !== "cancelled") {
       // Get all active invoices for this quotation
@@ -1503,30 +1514,43 @@ export async function reactivateQuotationCascade(
     throw new Error("User must be authenticated")
   }
 
-  // Check if user is admin
-  const isAdmin = await getCachedIsUserAdmin(user.id)
-
-  // Get quotation to check ownership and status
-  const quotation = await prisma.quotation.findUnique({
-    where: { id: validatedQuotationId },
-    select: {
-      id: true,
-      workflowStatus: true,
-      createdById: true,
-    },
-  })
+  // Run admin + ownership lookups in parallel.
+  const [isAdmin, quotation, dbUserForReactivate] = await Promise.all([
+    getCachedIsUserAdmin(user.id),
+    prisma.quotation.findUnique({
+      where: { id: validatedQuotationId },
+      select: {
+        id: true,
+        workflowStatus: true,
+        createdById: true,
+        advisors: { select: { userId: true } },
+      },
+    }),
+    prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true },
+    }),
+  ])
 
   if (!quotation) {
     throw new Error("Quotation not found")
+  }
+
+  if (!dbUserForReactivate) {
+    throw new Error("User not found in database")
   }
 
   if (quotation.workflowStatus !== "cancelled") {
     throw new Error("Only cancelled quotations can be reactivated")
   }
 
-  // Only allow if user is the creator or admin
-  // quotation.createdById is a Supabase ID (string), so compare with user.id (also Supabase ID)
-  if (quotation.createdById !== user.id && !isAdmin) {
+  // Admin, creator, or an assigned advisor can reactivate the quotation.
+  // quotation.createdById is a Supabase ID; advisor userId is a DB User.id.
+  const canReactivate =
+    isAdmin ||
+    quotation.createdById === user.id ||
+    quotation.advisors.some((a) => a.userId === dbUserForReactivate.id)
+  if (!canReactivate) {
     throw new Error("You don't have permission to reactivate this quotation")
   }
 

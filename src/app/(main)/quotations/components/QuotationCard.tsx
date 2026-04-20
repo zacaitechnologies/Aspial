@@ -181,6 +181,13 @@ export default function QuotationCard({
     quotation.workflowStatus === "accepted" || 
     quotation.workflowStatus === "rejected";
   const isCreator = enhancedUser?.id === quotation.createdBy?.supabase_id;
+  const currentDbUserId = enhancedUser?.profile?.id;
+  const isAdvisor = Boolean(
+    currentDbUserId && quotation.advisors?.some((a) => a.id === currentDbUserId)
+  );
+  // Users who own the quotation (creator or assigned advisor) share the same
+  // edit/cancel/link/unlink privileges.
+  const isOwner = isCreator || isAdvisor;
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isUnlinkProjectDialogOpen, setIsUnlinkProjectDialogOpen] = useState(false);
   
@@ -614,7 +621,7 @@ export default function QuotationCard({
                   View Quotation Details
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {(isCreator || isAdmin) && !isFinalQuotation && (
+                {(isOwner || isAdmin) && !isFinalQuotation && (
                   <>
                     <DropdownMenuItem
                       onClick={(e) => {
@@ -643,7 +650,7 @@ export default function QuotationCard({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {(isCreator || isAdmin) && isFinalQuotation && (
+                {(isOwner || isAdmin) && isFinalQuotation && (
                   <>
                     {isAdmin && (
                       <DropdownMenuItem
@@ -674,7 +681,7 @@ export default function QuotationCard({
                     <DropdownMenuSeparator />
                   </>
                 )}
-                {!hasProject && (isCreator || isAdmin) && !isDraftQuotation && (
+                {!hasProject && (isOwner || isAdmin) && !isDraftQuotation && (
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
@@ -688,7 +695,7 @@ export default function QuotationCard({
                     Link Project
                   </DropdownMenuItem>
                 )}
-                {hasProject && (isCreator || isAdmin) && (
+                {hasProject && (isOwner || isAdmin) && (
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();

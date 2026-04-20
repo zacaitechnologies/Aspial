@@ -36,12 +36,15 @@ export default function ClientDetailClient({
 	const [client, setClient] = useState(initialClient)
 	const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
-	// Edit: full-access users can edit any client; others only clients they created
+	// Edit: full-access users can edit any client; creators and assigned advisors
+	// may edit their own clients. Advisor-removal and deletion are further
+	// restricted inside the edit dialog / delete action.
 	const canEditClient = () => {
 		if (!client) return false
 		if (hasFullAccess) return true
 		if (!currentUserId || !client.createdById) return false
-		return client.createdById === currentUserId
+		if (client.createdById === currentUserId) return true
+		return client.advisors?.some((a) => a.userId === currentUserId) ?? false
 	}
 
 	// Balance: admin sees all; non-admin sees only for clients they created
@@ -569,6 +572,14 @@ export default function ClientDetailClient({
 							0
 						),
 						created_at: client.created_at.toISOString(),
+						createdById: client.createdById ?? undefined,
+						advisors:
+							client.advisors?.map((a) => ({
+								id: a.user.id,
+								firstName: a.user.firstName ?? "",
+								lastName: a.user.lastName ?? "",
+								email: a.user.email,
+							})) ?? [],
 					}}
 					isOpen={isEditDialogOpen}
 					onOpenChange={setIsEditDialogOpen}

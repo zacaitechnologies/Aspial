@@ -21,6 +21,12 @@ interface MultiSelectAdvisorsProps {
   onChange: (ids: string[]) => void
   currentUserId?: string
   isAdmin: boolean
+  /**
+   * Advisor IDs that must remain selected (cannot be removed by this user).
+   * Adding new advisors is still allowed. Typical use: existing advisors on a
+   * client when the current user is neither the creator nor an admin.
+   */
+  lockedIds?: readonly string[]
   disabled?: boolean
   placeholder?: string
 }
@@ -31,18 +37,25 @@ export function MultiSelectAdvisors({
   onChange,
   currentUserId,
   isAdmin,
+  lockedIds,
   disabled = false,
   placeholder = "Select advisors",
 }: MultiSelectAdvisorsProps) {
   const [open, setOpen] = React.useState(false)
 
   const selectedUsers = users.filter((u) => selectedIds.includes(u.id))
+  const lockedSet = React.useMemo(() => new Set(lockedIds ?? []), [lockedIds])
+
+  const isRemovalBlocked = (userId: string) => {
+    if (!isAdmin && userId === currentUserId) return true
+    return lockedSet.has(userId)
+  }
 
   const handleToggle = (userId: string) => {
-    // Non-admin cannot remove themselves
-    if (!isAdmin && userId === currentUserId) return
+    const isSelected = selectedIds.includes(userId)
+    if (isSelected && isRemovalBlocked(userId)) return
 
-    if (selectedIds.includes(userId)) {
+    if (isSelected) {
       onChange(selectedIds.filter((id) => id !== userId))
     } else {
       onChange([...selectedIds, userId])
@@ -50,8 +63,7 @@ export function MultiSelectAdvisors({
   }
 
   const handleRemove = (userId: string) => {
-    // Non-admin cannot remove themselves
-    if (!isAdmin && userId === currentUserId) return
+    if (isRemovalBlocked(userId)) return
     onChange(selectedIds.filter((id) => id !== userId))
   }
 
@@ -79,7 +91,7 @@ export function MultiSelectAdvisors({
                   className="text-xs"
                 >
                   {user.firstName} {user.lastName}
-                  {(isAdmin || user.id !== currentUserId) && (
+                  {!isRemovalBlocked(user.id) && (
                     <span
                       className="ml-1 inline-flex rounded-full hover:bg-muted-foreground/20"
                       onMouseDown={(e) => {
@@ -107,7 +119,9 @@ export function MultiSelectAdvisors({
           {users.map((user) => {
             const isSelected = selectedIds.includes(user.id)
             const isCurrentUser = user.id === currentUserId
-            const isLocked = !isAdmin && isCurrentUser
+            // The checkbox is only locked when the user is selected AND cannot be removed.
+            // Unselected users can always be added, even if they would be "locked" once selected.
+            const isLocked = isSelected && isRemovalBlocked(user.id)
 
             return (
               <label
