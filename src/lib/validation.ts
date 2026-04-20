@@ -57,7 +57,7 @@ export const createClientSchema = z.object({
   industry: z.string().trim().optional(),
   yearlyRevenue: z.number().positive().optional(),
   membershipType: z.enum(["MEMBER", "NON_MEMBER"]),
-  advisorIds: z.array(z.string()).optional(),
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required"),
 });
 
 export type CreateClientValues = z.infer<typeof createClientSchema>;
@@ -74,7 +74,7 @@ export const updateClientSchema = z.object({
   industry: z.string().trim().optional(),
   yearlyRevenue: z.number().positive().optional(),
   membershipType: z.enum(["MEMBER", "NON_MEMBER"]).optional(),
-  advisorIds: z.array(z.string()).optional(),
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
 });
 
 export type UpdateClientValues = z.infer<typeof updateClientSchema>;
@@ -197,7 +197,9 @@ export const createQuotationSchema = z.object({
     quantity: z.number().int().positive("Quantity must be at least 1"),
   })).min(1, "At least one service is required"),
   createdById: z.string().min(1, "Creator ID is required"),
-  advisorIds: z.array(z.string()).optional(),
+  // When provided, must contain at least one advisor. Omit the field entirely to fall back
+  // to the default (creator auto-added server-side, e.g. inline client creation from quotations).
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
   workflowStatus: workflowStatusSchema.optional(),
   paymentStatus: paymentStatusSchema.optional(),
   discountValue: z.number().nonnegative().optional(),
@@ -239,7 +241,7 @@ export const editQuotationSchema = z.object({
   clientId: z.string().optional(),
   projectId: z.number().int().positive().optional().nullable(),
   createdById: z.string().optional(),
-  advisorIds: z.array(z.string()).optional(),
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
   newClient: newClientSchema.optional(),
 });
 
@@ -255,7 +257,7 @@ export const createInvoiceSchema = z.object({
 	type: invoiceTypeSchema,
 	amount: z.number().positive("Invoice amount must be greater than 0"),
 	createdById: z.string().optional(),
-	advisorIds: z.array(z.string()).optional(),
+	advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
 	/** Invoice document date (invoiceDate). Only applied when user is admin. */
 	invoiceDate: z.string().optional(),
 });
@@ -263,7 +265,7 @@ export const createInvoiceSchema = z.object({
 export type CreateInvoiceValues = z.infer<typeof createInvoiceSchema>;
 
 export const updateInvoiceAdminSchema = z.object({
-	advisorIds: z.array(z.string()).optional(),
+	advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
 	status: invoiceStatusSchema.optional(),
 	/** Invoice document date (invoiceDate). Admin only. */
 	invoiceDate: z.string().optional(),

@@ -263,6 +263,15 @@ export default function CreateQuotationForm({
       return false;
     }
 
+    if (selectedAdvisorIds.length === 0) {
+      toast({
+        title: "Advisor required",
+        description: "Please select at least one advisor before submitting.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     // Validate client information
     if (clientMode === "existing" && !quotationForm.clientId) {
       toast({
@@ -399,7 +408,7 @@ export default function CreateQuotationForm({
         totalPrice: discountedTotal,
         services: selectedServices.map((s) => ({ serviceId: s.serviceId, price: s.price, quantity: s.quantity })),
         createdById: enhancedUser.id, // Always the logged-in user's supabase_id
-        advisorIds: selectedAdvisorIds.length > 0 ? selectedAdvisorIds : undefined,
+        advisorIds: selectedAdvisorIds,
         workflowStatus: workflowStatus, // Add workflow status parameter
         paymentStatus: "unpaid", // Default to unpaid for new quotations
         // If we already created the client (for final quotations with new clients), use the clientId

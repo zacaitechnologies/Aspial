@@ -51,7 +51,10 @@ interface Client {
   yearlyRevenue?: number
   membershipType: "MEMBER" | "NON_MEMBER"
   quotationsCount: number
+  /** Current logged-in user's split share from invoiced amount. */
   totalValue: number
+  /** Gross invoiced amount before advisor split. */
+  totalInvoiced?: number
   created_at: string
   createdById?: string
   createdBy?: {
@@ -513,7 +516,7 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
                 onClick={() => handleSort(option)}
                 className={`border-2 border-border ${sortBy === option ? "bg-accent text-foreground" : "bg-card"}`}
               >
-                {option === "name" ? "Name" : option === "yearlyRevenue" ? "Revenue" : option === "totalValue" ? "Total Purchased" : "Date Added"}
+                {option === "name" ? "Name" : option === "yearlyRevenue" ? "Revenue" : option === "totalValue" ? "My Revenue (Split)" : "Date Added"}
                 {sortBy === option && (sortDirection === "asc" ? <ArrowUp className="w-4 h-4 ml-1" /> : <ArrowDown className="w-4 h-4 ml-1" />)}
               </Button>
             ))}
@@ -631,9 +634,19 @@ export default function ClientsClient({ initialData, userId, hasFullAccess = fal
                   </div>
 
                   <div className="pt-4 border-t mt-4" style={{ borderColor: "#BDC4A5" }}>
-                    <div className="text-sm">
-                      <p style={{ color: "#898D74" }}>Revenue (from Invoices):</p>
-                      <p className="font-semibold" style={{ color: "#202F21" }}>RM {client.totalValue.toLocaleString()}</p>
+                    <div className="text-sm space-y-1">
+                      <div>
+                        <p style={{ color: "#898D74" }}>Revenue (My Split):</p>
+                        <p className="font-semibold" style={{ color: "#202F21" }}>
+                          RM {client.totalValue.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p style={{ color: "#898D74" }}>Invoice Total (Before Split):</p>
+                        <p className="font-medium" style={{ color: "#202F21" }}>
+                          RM {(client.totalInvoiced ?? 0).toLocaleString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </CardContent>

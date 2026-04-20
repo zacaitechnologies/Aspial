@@ -46,6 +46,60 @@ export async function getCurrentUser() {
   }
 }
 
+/**
+ * Revenue aggregation per client — INVOICE-driven.
+ *
+ * Rules:
+ *  - Gross `totalInvoiced` = sum of non-cancelled invoice amounts for the client.
+ *  - `ownSplitAmount` (current user's revenue) = for each non-cancelled invoice where
+ *    the current user is listed in that invoice's `InvoiceAdvisor` join table,
+ *    add `invoice.amount / invoice.advisors.length`.
+ *  - QuotationAdvisor is IGNORED on purpose — only InvoiceAdvisor attributes revenue.
+ */
+type RevenueInvoiceRow = {
+  amount: number
+  quotation: { clientId: string } | null
+  advisors: { userId: string }[]
+}
+
+async function fetchClientRevenueMaps(
+  clientIds: string[],
+  currentUserId?: string
+): Promise<{ grossByClient: Map<string, number>; ownSplitByClient: Map<string, number> }> {
+  const grossByClient = new Map<string, number>()
+  const ownSplitByClient = new Map<string, number>()
+  if (clientIds.length === 0) return { grossByClient, ownSplitByClient }
+
+  const invoices = (await prisma.invoice.findMany({
+    where: {
+      status: { not: "cancelled" },
+      quotation: { clientId: { in: clientIds } },
+    },
+    select: {
+      amount: true,
+      quotation: { select: { clientId: true } },
+      advisors: { select: { userId: true } },
+    },
+  })) as RevenueInvoiceRow[]
+
+  const idSet = new Set(clientIds)
+  for (const inv of invoices) {
+    const cid = inv.quotation?.clientId
+    if (!cid || !idSet.has(cid)) continue
+
+    grossByClient.set(cid, (grossByClient.get(cid) ?? 0) + inv.amount)
+
+    if (!currentUserId) continue
+    const advisorCount = inv.advisors.length
+    if (advisorCount <= 0) continue
+    if (inv.advisors.some((a) => a.userId === currentUserId)) {
+      ownSplitByClient.set(cid, (ownSplitByClient.get(cid) ?? 0) + inv.amount / advisorCount)
+    }
+  }
+
+  return { grossByClient, ownSplitByClient }
+}
+
 // Client CRUD operations
 export async function getAllClients() {
   try {
@@ -64,16 +118,7 @@ export async function getAllClients() {
     const clients = await prisma.client.findMany({
       where: whereClause,
       include: {
-        quotations: {
-          select: {
-            id: true,
-            totalPrice: true,
-            invoices: {
-              where: { status: { not: "cancelled" } },
-              select: { amount: true },
-            },
-          },
-        },
+        quotations: { select: { id: true } },
         projects: {
           select: {
             id: true,
@@ -110,12 +155,13 @@ export async function getAllClients() {
       return [];
     }
 
-    // Transform data to match the expected interface (totalValue = sum of invoice amounts)
+    const currentUserId = dbUser?.id
+    const { grossByClient, ownSplitByClient } = await fetchClientRevenueMaps(
+      clients.map((c) => c.id),
+      currentUserId
+    )
+
     return clients.map(client => {
-      const totalValue = client.quotations.reduce(
-        (sum, q) => sum + (q.invoices?.reduce((s, inv) => s + inv.amount, 0) ?? 0),
-        0
-      )
       return {
       id: client.id,
       name: client.name,
@@ -130,7 +176,8 @@ export async function getAllClients() {
       yearlyRevenue: client.yearlyRevenue || undefined,
       membershipType: client.membershipType,
       quotationsCount: client.quotations.length,
-      totalValue,
+      totalValue: ownSplitByClient.get(client.id) ?? 0,
+      totalInvoiced: grossByClient.get(client.id) ?? 0,
       created_at: client.created_at.toISOString(),
       createdById: client.createdById,
       createdBy: client.createdBy ? {
@@ -170,7 +217,8 @@ async function _getClientsPaginatedInternal(
     sortBy?: 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at'
     sortDirection?: 'asc' | 'desc'
   } = {},
-  advisorUserId?: string
+  advisorUserId?: string,
+  currentUserId?: string
 ) {
   const skip = (page - 1) * pageSize
   const {
@@ -206,163 +254,70 @@ async function _getClientsPaginatedInternal(
     where.membershipType = membershipType
   }
 
+  const clientInclude = {
+    quotations: { select: { id: true } },
+    projects: { select: { id: true } },
+    createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+    advisors: {
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    },
+  } as const
+
   const isTotalValueSort = sortBy === 'totalValue'
   let total: number
   let clients: any[]
 
   if (isTotalValueSort) {
-    // totalValue sort: sum of invoice amounts per client (not quotations)
+    // Sort by the current user's invoice split share (InvoiceAdvisor-based).
     const [totalCount, filteredIds] = await Promise.all([
       prisma.client.count({ where }),
       prisma.client.findMany({ where, select: { id: true } }),
     ])
     total = totalCount
-    const ids = filteredIds.map((c) => c.id)
-    const idSet = new Set(ids)
-    // Get all invoices for these clients (via quotation.clientId) and sum amount by clientId
-    const invoicesForClients =
-      ids.length === 0
-        ? []
-        : await prisma.invoice.findMany({
-            where: {
-              quotation: { clientId: { in: ids } },
-              status: { not: "cancelled" },
-            },
-            select: { amount: true, quotation: { select: { clientId: true } } },
-          })
-    const sumByClient = new Map<string, number>()
-    invoicesForClients.forEach((inv) => {
-      const cid = inv.quotation?.clientId
-      if (cid && idSet.has(cid)) {
-        sumByClient.set(cid, (sumByClient.get(cid) ?? 0) + inv.amount)
-      }
-    })
-    const sortedIds = filteredIds
-      .map((c) => ({ id: c.id, totalValue: sumByClient.get(c.id) ?? 0 }))
+    const allIds = filteredIds.map((c) => c.id)
+    const { ownSplitByClient: splitAll } = await fetchClientRevenueMaps(allIds, currentUserId)
+
+    const sortedIds = allIds
+      .map((id) => ({ id, totalValue: splitAll.get(id) ?? 0 }))
       .sort((a, b) => (sortDirection === 'asc' ? a.totalValue - b.totalValue : b.totalValue - a.totalValue))
       .slice(skip, skip + pageSize)
       .map((x) => x.id)
+
     if (sortedIds.length === 0) {
       clients = []
     } else {
       const pageClients = await prisma.client.findMany({
         where: { id: { in: sortedIds } },
-        include: {
-          quotations: {
-            select: {
-              id: true,
-              invoices: {
-                where: { status: { not: "cancelled" } },
-                select: { amount: true },
-              },
-            },
-          },
-          projects: { select: { id: true } },
-          createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-          advisors: { include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } },
-        },
+        include: clientInclude,
       })
       const orderMap = new Map(sortedIds.map((id, i) => [id, i]))
       pageClients.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0))
-      clients = pageClients.map((client) => {
-        const totalValue = client.quotations.reduce(
-          (sum, q) => sum + (q.invoices?.reduce((s, inv) => s + inv.amount, 0) ?? 0),
-          0
-        )
-        return {
-        id: client.id,
-        name: client.name,
-        email: client.email,
-        phone: client.phone || undefined,
-        company: client.company || undefined,
-        companyRegistrationNumber: client.companyRegistrationNumber || undefined,
-        ic: client.ic || undefined,
-        address: client.address || undefined,
-        notes: client.notes || undefined,
-        industry: client.industry || undefined,
-        yearlyRevenue: client.yearlyRevenue || undefined,
-        membershipType: client.membershipType,
-        quotationsCount: client.quotations.length,
-        totalValue,
-        created_at: client.created_at.toISOString(),
-        createdById: client.createdById,
-        createdBy: client.createdBy
-          ? {
-              id: client.createdBy.id,
-              firstName: client.createdBy.firstName,
-              lastName: client.createdBy.lastName,
-              email: client.createdBy.email,
-            }
-          : undefined,
-        advisors: (client as any).advisors?.map((a: any) => ({
-          id: a.user.id,
-          firstName: a.user.firstName,
-          lastName: a.user.lastName,
-          email: a.user.email,
-        })) ?? [],
-        }
-      })
+      clients = pageClients
     }
   } else {
-    // For database fields, use Prisma's orderBy
     const [totalCount, fetchedClients] = await Promise.all([
       prisma.client.count({ where }),
       prisma.client.findMany({
         where,
-        include: {
-          quotations: {
-            select: {
-              id: true,
-              invoices: {
-                where: { status: { not: "cancelled" } },
-                select: { amount: true },
-              },
-            },
-          },
-          projects: {
-            select: {
-              id: true,
-            },
-          },
-          createdBy: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            }
-          },
-          advisors: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                }
-              }
-            }
-          }
-        },
+        include: clientInclude,
         skip,
         take: pageSize,
         orderBy: { [sortBy]: sortDirection },
       }),
     ])
-    
+
     total = totalCount
     clients = fetchedClients
   }
 
-  // Transform data (if not already transformed); totalValue = sum of invoice amounts
-  const transformedClients = isTotalValueSort ? clients : clients.map((client: any) => {
-    const totalValue = client.quotations.reduce(
-      (sum: number, q: { invoices?: { amount: number }[] }) =>
-        sum + (q.invoices?.reduce((s: number, inv: { amount: number }) => s + inv.amount, 0) ?? 0),
-      0
-    )
-    return {
+  const { grossByClient, ownSplitByClient } = await fetchClientRevenueMaps(
+    clients.map((c: any) => c.id),
+    currentUserId
+  )
+
+  const transformedClients = clients.map((client: any) => ({
     id: client.id,
     name: client.name,
     email: client.email,
@@ -376,23 +331,26 @@ async function _getClientsPaginatedInternal(
     yearlyRevenue: client.yearlyRevenue || undefined,
     membershipType: client.membershipType,
     quotationsCount: client.quotations.length,
-    totalValue,
+    totalValue: ownSplitByClient.get(client.id) ?? 0,
+    totalInvoiced: grossByClient.get(client.id) ?? 0,
     created_at: client.created_at.toISOString(),
     createdById: client.createdById,
-    createdBy: client.createdBy ? {
-      id: client.createdBy.id,
-      firstName: client.createdBy.firstName,
-      lastName: client.createdBy.lastName,
-      email: client.createdBy.email,
-    } : undefined,
-    advisors: client.advisors?.map((a: any) => ({
-      id: a.user.id,
-      firstName: a.user.firstName,
-      lastName: a.user.lastName,
-      email: a.user.email,
-    })) ?? [],
-  }
-  })
+    createdBy: client.createdBy
+      ? {
+          id: client.createdBy.id,
+          firstName: client.createdBy.firstName,
+          lastName: client.createdBy.lastName,
+          email: client.createdBy.email,
+        }
+      : undefined,
+    advisors:
+      client.advisors?.map((a: any) => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName,
+        email: a.user.email,
+      })) ?? [],
+  }))
 
   return {
     data: transformedClients,
@@ -407,6 +365,7 @@ async function _getClientsPaginatedInternal(
 const getCachedClientsPaginated = unstable_cache(
   async (
     userScope: string,
+    currentUserId: string,
     page: number,
     pageSize: number,
     searchTerm: string,
@@ -422,7 +381,7 @@ const getCachedClientsPaginated = unstable_cache(
       membershipType: (membershipType || 'all') as 'all' | 'MEMBER' | 'NON_MEMBER',
       sortBy: (sortBy || 'created_at') as 'name' | 'yearlyRevenue' | 'totalValue' | 'created_at',
       sortDirection: (sortDirection || 'desc') as 'asc' | 'desc',
-    }, advisorUserId)
+    }, advisorUserId, currentUserId)
   },
   ["clients-paginated"],
   {
@@ -444,14 +403,16 @@ export async function getClientsPaginated(
 ) {
   try {
     const user = await getCachedUser()
-    const [isAdmin, dbUser] = await Promise.all([
+  const [isAdmin, dbUser] = await Promise.all([
       getCachedIsUserAdmin(user.id),
       prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
     ])
-    const userScope = isAdmin ? "admin" : (dbUser?.id ?? "none")
+  const userScope = isAdmin ? "admin" : (dbUser?.id ?? "none")
+  const currentUserId = dbUser?.id ?? "none"
 
     return await getCachedClientsPaginated(
       userScope,
+    currentUserId,
       page,
       pageSize,
       filters.searchTerm || "",
@@ -490,7 +451,7 @@ export async function getClientsPaginatedFresh(
     prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
   ])
   const advisorUserId = isAdmin ? undefined : dbUser?.id
-  return await _getClientsPaginatedInternal(page, pageSize, filters, advisorUserId)
+  return await _getClientsPaginatedInternal(page, pageSize, filters, advisorUserId, dbUser?.id)
 }
 
 // Invalidate clients cache after mutations
@@ -793,15 +754,18 @@ export async function updateClient(id: string, data: {
       updated_at: new Date(),
     }
 
-    // Update advisors if provided
+    // Replace advisors with exactly what the client sent — deselections are persisted.
+    // Validation (updateClientSchema) enforces min 1 when provided.
+    // Non-admin cannot remove themselves from the list (enforced in the UI and here as a safeguard).
     if (validatedData.advisorIds !== undefined) {
-      // Ensure creator is always in the advisor list
       const advisorIds = new Set(validatedData.advisorIds)
-      advisorIds.add(client.createdById)
+      if (!isAdmin) {
+        advisorIds.add(dbUser.id)
+      }
 
       updateData.advisors = {
         deleteMany: {},
-        create: Array.from(advisorIds).map(userId => ({ userId })),
+        create: Array.from(advisorIds).map((userId) => ({ userId })),
       }
     }
 
@@ -1037,16 +1001,15 @@ export async function getCurrentUserId(): Promise<string | null> {
   }
 }
 
-// Get all advisors (users who are advisors on quotations that have invoices)
+// Get all advisors — users who are listed on at least one non-cancelled invoice (InvoiceAdvisor).
+// QuotationAdvisor is intentionally ignored; revenue is attributed via InvoiceAdvisor only.
 export async function getAllAdvisors() {
   try {
     const user = await getCachedUser()
     if (!user) return []
 
-    // Check if user is admin
     const isAdmin = await checkIsAdmin(user.id)
 
-    // If not admin, only return the current user
     if (!isAdmin) {
       const dbUser = await prisma.user.findUnique({
         where: { supabase_id: user.id },
@@ -1055,14 +1018,15 @@ export async function getAllAdvisors() {
 
       if (!dbUser) return []
 
-      const hasAdvisedInvoicedQuotations = await prisma.quotationAdvisor.count({
-        where: {
-          userId: dbUser.id,
-          quotation: { invoices: { some: {} } },
-        }
-      }) > 0
+      const hasActiveInvoiceAdvisorRole =
+        (await prisma.invoiceAdvisor.count({
+          where: {
+            userId: dbUser.id,
+            invoice: { status: { not: "cancelled" } },
+          },
+        })) > 0
 
-      if (!hasAdvisedInvoicedQuotations) return []
+      if (!hasActiveInvoiceAdvisorRole) return []
 
       return [{
         id: dbUser.id,
@@ -1071,11 +1035,8 @@ export async function getAllAdvisors() {
       }]
     }
 
-    // Admin can see all advisors (users who are on quotations with invoices)
-    const advisorEntries = await prisma.quotationAdvisor.findMany({
-      where: {
-        quotation: { invoices: { some: {} } },
-      },
+    const advisorEntries = await prisma.invoiceAdvisor.findMany({
+      where: { invoice: { status: { not: "cancelled" } } },
       select: {
         user: {
           select: {
@@ -1097,7 +1058,10 @@ export async function getAllAdvisors() {
       }))
       .sort((a, b) => a.name.localeCompare(b.name))
   } catch (error) {
-    console.error('Error getting advisors:', error)
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.error('Error getting advisors:', error)
+    }
     return []
   }
 }

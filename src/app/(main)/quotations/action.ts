@@ -1040,29 +1040,45 @@ export async function editQuotationById(
     finalAdvisorIds = validatedData.advisorIds
   }
 
-  // Check authorization: Only admin or quotation creator can edit
+  // Check authorization: admin, quotation creator, or an assigned advisor can edit.
   unstable_noStore()
-  const currentQuotationForAuth = await prisma.quotation.findUnique({
-    where: { id: quotationId },
-    select: { 
-      createdById: true, 
-      workflowStatus: true,
-      description: true,
-      totalPrice: true,
-      paymentStatus: true,
-      clientId: true,
-      projectId: true,
-      discountValue: true,
-      discountType: true,
-      duration: true,
-    }
-  })
+  const [currentQuotationForAuth, dbUser] = await Promise.all([
+    prisma.quotation.findUnique({
+      where: { id: quotationId },
+      select: {
+        createdById: true,
+        workflowStatus: true,
+        description: true,
+        totalPrice: true,
+        paymentStatus: true,
+        clientId: true,
+        projectId: true,
+        discountValue: true,
+        discountType: true,
+        duration: true,
+        advisors: { select: { userId: true } },
+      },
+    }),
+    prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true },
+    }),
+  ])
 
   if (!currentQuotationForAuth) {
     throw new Error("Quotation not found")
   }
 
+  if (!dbUser) {
+    throw new Error("User not found in database")
+  }
+
   const isAdmin = await getCachedIsUserAdmin(user.id)
+  const isCreator = currentQuotationForAuth.createdById === user.id
+  const isAdvisor = currentQuotationForAuth.advisors.some((a) => a.userId === dbUser.id)
+  // Assigned advisors are treated as owners of the quotation for edit purposes
+  // (they can finalize drafts, update fields, etc.) — same as the creator.
+  const isOwner = isCreator || isAdvisor
   
   // Authorization: Only admin or quotation creator can edit quotations
   // Exception: Non-admin users can update payment status for finalized quotations
@@ -1124,23 +1140,21 @@ export async function editQuotationById(
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
     validatedData.advisorIds === undefined // No advisor change
 
-  // Non-admin users who are not the creator can only set draft quotations to "draft" or "cancelled".
-  // Creators may finalize their own draft quotations (change to "final").
-  const isCreator = currentQuotationForAuth.createdById === user.id
-  if (!isAdmin && !isCreator && isDraftQuotation && validatedData.workflowStatus !== undefined &&
+  // Non-admin users who are not an owner (creator or assigned advisor) can only set draft
+  // quotations to "draft" or "cancelled". Owners (creators/advisors) may finalize drafts.
+  if (!isAdmin && !isOwner && isDraftQuotation && validatedData.workflowStatus !== undefined &&
       validatedData.workflowStatus !== "draft" && validatedData.workflowStatus !== "cancelled") {
     throw new Error("You can only change the workflow status to 'draft' or 'cancelled' for draft quotations")
   }
 
-  if (!isAdmin && currentQuotationForAuth.createdById !== user.id) {
-    // Allow non-admin users to:
+  if (!isAdmin && !isOwner) {
+    // Non-admin, non-owner users may still:
     // 1. Update payment status for finalized quotations
     // 2. Cancel finalized quotations that are not linked to projects
     // 3. Update payment status and cancel in the same update (if unlinked)
-    // Note: Non-admin users editing their own draft quotations are allowed (checked above for workflow status restriction)
-    
+
     if (!isPaymentStatusOnlyUpdate && !isCancellationUpdate && !isCombinedUpdate) {
-      throw new Error("You can only edit quotations you created, update payment status for finalized quotations, or cancel finalized quotations that are not linked to projects")
+      throw new Error("You can only edit quotations you created or are assigned to as an advisor, update payment status for finalized quotations, or cancel finalized quotations that are not linked to projects")
     }
     
     // Prevent cancelling quotations that are linked to projects

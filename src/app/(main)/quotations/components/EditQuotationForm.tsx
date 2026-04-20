@@ -50,6 +50,13 @@ interface EditQuotationFormProps {
   editingQuotation: QuotationWithServices | null;
 }
 
+/** Returns true when the advisor selection differs from the initially-loaded set (order-independent). */
+function advisorsChanged(current: string[], initial: string[]): boolean {
+  if (current.length !== initial.length) return true;
+  const initialSet = new Set(initial);
+  return current.some((id) => !initialSet.has(id));
+}
+
 export default function EditQuotationForm({
   isOpen,
   onOpenChange,
@@ -97,6 +104,7 @@ export default function EditQuotationForm({
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; email: string; supabase_id: string }>>([]);
   const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([]);
+  const [initialAdvisorIds, setInitialAdvisorIds] = useState<string[]>([]);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [activeInvoicesCount, setActiveInvoicesCount] = useState<number | null>(null);
   const [activeReceiptsCount, setActiveReceiptsCount] = useState<number | null>(null);
@@ -268,11 +276,13 @@ export default function EditQuotationForm({
     });
     
     // Set the selected advisor IDs from the advisors array
-    if (quotation.advisors && quotation.advisors.length > 0) {
-      setSelectedAdvisorIds(quotation.advisors.map((a) => a.id));
-    } else if (quotation.createdBy?.id) {
-      setSelectedAdvisorIds([quotation.createdBy.id]);
-    }
+    const initialAdvisors = quotation.advisors && quotation.advisors.length > 0
+      ? quotation.advisors.map((a) => a.id)
+      : quotation.createdBy?.id
+        ? [quotation.createdBy.id]
+        : [];
+    setSelectedAdvisorIds(initialAdvisors);
+    setInitialAdvisorIds(initialAdvisors);
     
     setEditSelectedServices(
       quotation.services
@@ -476,6 +486,15 @@ export default function EditQuotationForm({
       return; // Prevent multiple submissions
     }
 
+    if (selectedAdvisorIds.length === 0) {
+      toast({
+        title: "Advisor required",
+        description: "Please select at least one advisor before submitting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       let projectId: number | undefined = editForm.projectId;
@@ -584,7 +603,12 @@ export default function EditQuotationForm({
         startDate: editForm.startDate || undefined,
         quotationDate: editForm.quotationDate || undefined,
         projectId: projectId,
-        advisorIds: selectedAdvisorIds.length > 0 ? selectedAdvisorIds : undefined,
+        // Only send advisorIds when the user actually modified the selection.
+        // This preserves the non-admin payment-status-only / cancellation shortcut paths
+        // on the server, which require advisorIds to be undefined.
+        advisorIds: advisorsChanged(selectedAdvisorIds, initialAdvisorIds)
+          ? selectedAdvisorIds
+          : undefined,
       });
 
       onSuccess();
@@ -635,7 +659,11 @@ export default function EditQuotationForm({
         duration: editForm.duration ? parseInt(editForm.duration, 10) : undefined,
         startDate: editForm.startDate || undefined,
         quotationDate: editForm.quotationDate || undefined,
-        advisorIds: selectedAdvisorIds.length > 0 ? selectedAdvisorIds : undefined,
+        // Cancellation flow: keep server's isCancellationUpdate shortcut intact by only
+        // sending advisorIds if the user actually modified them.
+        advisorIds: advisorsChanged(selectedAdvisorIds, initialAdvisorIds)
+          ? selectedAdvisorIds
+          : undefined,
       });
       
       let description = "Quotation cancelled successfully.";

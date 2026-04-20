@@ -279,13 +279,22 @@ export default function CreateReceiptForm({
 			return
 		}
 
+		if (selectedAdvisorIds.length === 0) {
+			toast({
+				title: "Advisor required",
+				description: "Please select at least one advisor before submitting.",
+				variant: "destructive",
+			})
+			return
+		}
+
 		setIsSaving(true)
 		try {
 			const receipt = await createReceipt({
 				invoiceId: receiptForm.invoiceId,
 				amount: parseFloat(receiptForm.amount),
 				// Pass selected advisor IDs (server-side ensures non-admin includes self)
-				advisorIds: selectedAdvisorIds.length > 0 ? selectedAdvisorIds : undefined,
+				advisorIds: selectedAdvisorIds,
 				// Receipt date: only applied server-side when user is admin
 				receiptDate: receiptForm.receiptDate || undefined,
 				paymentMethod: selectedPaymentMethod,
@@ -550,7 +559,7 @@ export default function CreateReceiptForm({
 					</Button>
 					<Button
 						onClick={handleCreateReceipt}
-						disabled={isSaving || !receiptForm.invoiceId || !receiptForm.amount || parseFloat(receiptForm.amount) <= 0}
+						disabled={isSaving || !receiptForm.invoiceId || !receiptForm.amount || parseFloat(receiptForm.amount) <= 0 || selectedAdvisorIds.length === 0}
 						className="gap-2"
 					>
 						{isSaving ? (

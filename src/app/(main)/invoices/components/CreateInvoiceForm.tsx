@@ -256,6 +256,15 @@ export default function CreateInvoiceForm({
 			return
 		}
 
+		if (selectedAdvisorIds.length === 0) {
+			toast({
+				title: "Advisor required",
+				description: "Please select at least one advisor before submitting.",
+				variant: "destructive",
+			})
+			return
+		}
+
 		setIsSaving(true)
 		try {
 			await createInvoice({
@@ -263,7 +272,7 @@ export default function CreateInvoiceForm({
 				type: invoiceForm.type,
 				amount: parseFloat(invoiceForm.amount),
 				// Pass advisor IDs; server-side will enforce non-admin self-inclusion
-				advisorIds: selectedAdvisorIds.length > 0 ? selectedAdvisorIds : undefined,
+				advisorIds: selectedAdvisorIds,
 				// Invoice date: only applied server-side when user is admin
 				invoiceDate: invoiceForm.invoiceDate || undefined,
 			})
@@ -520,7 +529,7 @@ export default function CreateInvoiceForm({
 					</Button>
 					<Button
 						onClick={handleCreateInvoice}
-						disabled={isSaving || !invoiceForm.quotationId || !invoiceForm.amount || parseFloat(invoiceForm.amount) <= 0}
+						disabled={isSaving || !invoiceForm.quotationId || !invoiceForm.amount || parseFloat(invoiceForm.amount) <= 0 || selectedAdvisorIds.length === 0}
 						className="gap-2"
 					>
 						{isSaving ? (

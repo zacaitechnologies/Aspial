@@ -80,16 +80,20 @@ export function MultiSelectAdvisors({
                 >
                   {user.firstName} {user.lastName}
                   {(isAdmin || user.id !== currentUserId) && (
-                    <button
-                      type="button"
-                      className="ml-1 rounded-full outline-none hover:bg-muted-foreground/20"
+                    <span
+                      className="ml-1 inline-flex rounded-full hover:bg-muted-foreground/20"
+                      onMouseDown={(e) => {
+                        // Prevent trigger button focus/open toggle side effects.
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRemove(user.id)
                       }}
                     >
                       <X className="h-3 w-3" />
-                    </button>
+                    </span>
                   )}
                 </Badge>
               ))

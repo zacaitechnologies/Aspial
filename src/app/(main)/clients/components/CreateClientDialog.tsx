@@ -87,6 +87,14 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
     if (isCreating) return; // Prevent double submission
 
     try {
+      if (selectedAdvisorIds.length === 0) {
+        toast({
+          title: "Advisor required",
+          description: "Please select at least one advisor before submitting.",
+          variant: "destructive",
+        })
+        return
+      }
       setIsCreating(true)
       await createCustomerClient({
         name: formData.name,
@@ -100,7 +108,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
         industry: formData.industry || undefined,
         yearlyRevenue: formData.yearlyRevenue ? parseFloat(formData.yearlyRevenue) : undefined,
         membershipType: formData.membershipType as "MEMBER" | "NON_MEMBER",
-        advisorIds: selectedAdvisorIds.length > 0 ? selectedAdvisorIds : undefined,
+        advisorIds: selectedAdvisorIds,
       })
       
       // Reset form
@@ -290,7 +298,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
           <Button 
             className="bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={handleCreateClient}
-            disabled={!formData.name || !formData.email || !formData.ic || !formData.companyRegistrationNumber || isCreating}
+            disabled={!formData.name || !formData.email || !formData.ic || !formData.companyRegistrationNumber || selectedAdvisorIds.length === 0 || isCreating}
           >
             {isCreating ? (
               <>

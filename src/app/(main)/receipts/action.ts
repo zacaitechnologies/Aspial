@@ -957,10 +957,14 @@ export async function updateReceiptAdmin(
 		if (!isAdmin) {
 			throw new Error("Only administrators can change receipt advisors")
 		}
-		// Replace all advisors: delete existing, create new
+		if (data.advisorIds.length === 0) {
+			throw new Error("At least one advisor is required")
+		}
+		const uniqueAdvisorIds = Array.from(new Set(data.advisorIds))
+		// Replace advisors with exactly what was sent — deselections are persisted.
 		updateData.advisors = {
 			deleteMany: {},
-			create: data.advisorIds.map((userId) => ({ userId })),
+			create: uniqueAdvisorIds.map((userId) => ({ userId })),
 		}
 	}
 

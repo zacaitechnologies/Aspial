@@ -116,6 +116,14 @@ export default function EditClientDialog({
     if (isUpdating) return; // Prevent double submission
     
     try {
+      if (selectedAdvisorIds.length === 0) {
+        toast({
+          title: "Advisor required",
+          description: "Please select at least one advisor before submitting.",
+          variant: "destructive",
+        })
+        return
+      }
       setIsUpdating(true)
       await updateClient(client.id, {
         name: formData.name,
@@ -287,7 +295,7 @@ export default function EditClientDialog({
             <Button 
               className="bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={handleUpdateClient}
-              disabled={!formData.name || !formData.email || !formData.ic || !formData.companyRegistrationNumber || isUpdating}
+              disabled={!formData.name || !formData.email || !formData.ic || !formData.companyRegistrationNumber || selectedAdvisorIds.length === 0 || isUpdating}
             >
               {isUpdating ? (
                 <>
