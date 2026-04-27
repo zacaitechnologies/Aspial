@@ -375,13 +375,11 @@ export function TaskForm({
     }
   };
 
-  // If editing a task, show the form directly without dialog
+  // Edit mode: render form only. The parent (e.g. task card dialog) provides the
+  // dialog title to avoid a duplicate "Edit Task" heading.
   if (task) {
     return (
       <div className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="pb-4">
-          <h2 className="text-lg font-semibold">Edit Task</h2>
-        </div>
         <TaskFormContent
           form={form}
           availableUsers={availableUsers}

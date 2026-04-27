@@ -3,7 +3,16 @@
 import { useEffect, useState, useCallback, useRef, useMemo, memo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, User, Target, ChevronDown, ClipboardList } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Plus,
+  Target,
+  ChevronDown,
+  ClipboardList,
+  ArrowRight,
+  X,
+  Loader2,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,12 +20,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TaskWithAssignee, Milestone, TaskStatus } from "../types";
-import { getProjectTasks, getProjectCollaborators } from "../task-actions";
+import {
+  bulkUpdateTaskStatus,
+  getProjectTasks,
+  getProjectCollaborators,
+} from "../task-actions";
 import { getProjectMilestones } from "../milestone-actions";
 import { TaskForm } from "./TaskForm";
 import { TaskCard } from "./TaskCard";
 import { MilestoneCard } from "./MilestoneCard";
 import { MilestoneForm } from "./MilestoneForm";
+import { toast } from "@/components/ui/use-toast";
 
 type User = {
   id: string;
@@ -25,6 +39,14 @@ type User = {
   email: string;
   supabase_id: string;
 };
+
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  todo: "To Do",
+  in_progress: "In Progress",
+  done: "Done",
+};
+
+const ALL_STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
 
 interface KanbanBoardProps {
   projectId: string;
@@ -53,6 +75,10 @@ const KanbanBoardComponent = memo(function KanbanBoard({
   const [users, setUsers] = useState<User[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(
+    () => new Set()
+  );
+  const [isBulkMoving, setIsBulkMoving] = useState(false);
 
   // Use ref to store onTasksUpdated callback to avoid dependency issues
   const onTasksUpdatedRef = useRef(onTasksUpdated);
@@ -160,10 +186,6 @@ const KanbanBoardComponent = memo(function KanbanBoard({
     return columns;
   }, [tasks, taskFilter, userId, sortBy, sortOrder]);
 
-  const getTasksForColumn = useCallback((columnId: string) => {
-    return tasksByColumn[columnId] || [];
-  }, [tasksByColumn]);
-
   const handleTaskCreated = useCallback(async (newTask: TaskWithAssignee) => {
     setTasks((prev) => [...prev, newTask]);
     // Refresh milestones to update task counts and notify parent
@@ -205,6 +227,95 @@ const KanbanBoardComponent = memo(function KanbanBoard({
     );
   };
 
+  const handleSelectChange = useCallback((taskId: number, selected: boolean) => {
+    setSelectedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(taskId);
+      else next.delete(taskId);
+      return next;
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedTaskIds(new Set());
+  }, []);
+
+  // Toggle "select all" within a single column. When all tasks in the column
+  // are already selected, deselect them; otherwise add every task in the column.
+  const handleToggleColumnSelection = useCallback(
+    (status: TaskStatus) => {
+      const columnTasks = tasksByColumn[status] ?? [];
+      if (columnTasks.length === 0) return;
+      const allSelected = columnTasks.every((t) => selectedTaskIds.has(t.id));
+      setSelectedTaskIds((prev) => {
+        const next = new Set(prev);
+        if (allSelected) {
+          for (const t of columnTasks) next.delete(t.id);
+        } else {
+          for (const t of columnTasks) next.add(t.id);
+        }
+        return next;
+      });
+    },
+    [tasksByColumn, selectedTaskIds]
+  );
+
+  // Drop selection IDs that no longer correspond to existing tasks (e.g. after
+  // deletion or refresh).
+  useEffect(() => {
+    setSelectedTaskIds((prev) => {
+      if (prev.size === 0) return prev;
+      const validIds = new Set(tasks.map((t) => t.id));
+      let changed = false;
+      const next = new Set<number>();
+      for (const id of prev) {
+        if (validIds.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [tasks]);
+
+  const handleBulkMove = useCallback(
+    async (newStatus: TaskStatus) => {
+      const ids = Array.from(selectedTaskIds);
+      if (ids.length === 0 || isBulkMoving) return;
+      setIsBulkMoving(true);
+      try {
+        await bulkUpdateTaskStatus(ids, newStatus);
+
+        setTasks((prev) =>
+          prev.map((task) =>
+            selectedTaskIds.has(task.id) ? { ...task, status: newStatus } : task
+          )
+        );
+        setSelectedTaskIds(new Set());
+
+        await refreshData();
+        onTasksUpdatedRef.current?.();
+
+        toast({
+          title: "Tasks moved",
+          description: `${ids.length} task${ids.length > 1 ? "s" : ""} moved to ${
+            STATUS_LABELS[newStatus]
+          }.`,
+        });
+      } catch (error) {
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error bulk-moving tasks:", error);
+        }
+        toast({
+          title: "Error",
+          description: "Failed to move selected tasks. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsBulkMoving(false);
+      }
+    },
+    [selectedTaskIds, isBulkMoving, refreshData]
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -212,37 +323,6 @@ const KanbanBoardComponent = memo(function KanbanBoard({
       </div>
     );
   }
-
-  const handleDragStart = (e: React.DragEvent, taskId: number) => {
-    e.dataTransfer.setData("text/plain", taskId.toString());
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = async (e: React.DragEvent, newStatus: TaskStatus) => {
-    e.preventDefault();
-    const taskId = parseInt(e.dataTransfer.getData("text/plain"));
-
-    try {
-      const { updateTaskStatus } = await import("../task-actions");
-      await updateTaskStatus(taskId, newStatus);
-
-      // Update local state
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === taskId ? { ...task, status: newStatus } : task
-        )
-      );
-
-      // Refresh milestones to update task progress and notify parent
-      await refreshData();
-      onTasksUpdatedRef.current?.();
-    } catch (error) {
-      console.error("Error updating task status:", error);
-    }
-  };
 
   const getSortLabel = () => {
     switch (sortBy) {
@@ -365,118 +445,115 @@ const KanbanBoardComponent = memo(function KanbanBoard({
         </div>
       </div>
 
+      {/* Bulk-move toolbar — only visible when at least one task is selected */}
+      {!isProjectCancelled && selectedTaskIds.size > 0 && (
+        <div className="sticky top-0 z-10 -mx-1 px-3 py-2 rounded-md border border-border bg-card shadow-sm flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-foreground">
+            {selectedTaskIds.size} task{selectedTaskIds.size > 1 ? "s" : ""} selected
+          </span>
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={isBulkMoving}
+                >
+                  {isBulkMoving ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                  )}
+                  Move selected to…
+                  <ChevronDown className="w-4 h-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {ALL_STATUSES.map((target) => (
+                  <DropdownMenuItem
+                    key={target}
+                    onSelect={() => {
+                      void handleBulkMove(target);
+                    }}
+                  >
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                    {STATUS_LABELS[target]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearSelection}
+              disabled={isBulkMoving}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Clear
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Kanban Board */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* To Do Column */}
-        <div
-          className="space-y-4"
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, "todo")}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-foreground flex items-center gap-2">
-              To Do
-              <Badge
-                variant="secondary"
-                className="bg-blue-100 text-blue-600 border-blue-200"
-              >
-                {tasksByColumn.todo.length}
-              </Badge>
-            </h3>
-          </div>
+        {ALL_STATUSES.map((status) => {
+          const columnTasks = tasksByColumn[status] ?? [];
+          const selectedInColumn = columnTasks.filter((t) =>
+            selectedTaskIds.has(t.id)
+          ).length;
+          const allSelected =
+            columnTasks.length > 0 && selectedInColumn === columnTasks.length;
+          const someSelected =
+            selectedInColumn > 0 && selectedInColumn < columnTasks.length;
+          const badgeClass =
+            status === "todo"
+              ? "bg-blue-100 text-blue-600 border-blue-200"
+              : status === "in_progress"
+              ? "bg-yellow-100 text-yellow-600 border-yellow-200"
+              : "bg-green-100 text-green-600 border-green-200";
 
-          {tasksByColumn.todo.length > 0 ? (
-            tasksByColumn.todo.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                availableUsers={users}
-                availableMilestones={milestones}
-                onTaskUpdated={handleTaskUpdated}
-                onTaskDeleted={handleTaskDeleted}
-                onDragStart={(e) => handleDragStart(e, task.id)}
-              />
-            ))
-          ) : (
-            <div className="h-32 border-2 border-dashed border-border rounded-lg flex items-center justify-center">
-              <p className="text-muted-foreground text-sm">Drop tasks here</p>
+          return (
+            <div key={status} className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-foreground flex items-center gap-2">
+                  {!isProjectCancelled && columnTasks.length > 0 && (
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      onCheckedChange={() => handleToggleColumnSelection(status)}
+                      aria-label={`Select all ${STATUS_LABELS[status]} tasks`}
+                      className="h-4 w-4 border-2 border-foreground/45"
+                    />
+                  )}
+                  {STATUS_LABELS[status]}
+                  <Badge variant="secondary" className={badgeClass}>
+                    {columnTasks.length}
+                  </Badge>
+                </h3>
+              </div>
+
+              {columnTasks.length > 0 ? (
+                columnTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    availableUsers={users}
+                    availableMilestones={milestones}
+                    onTaskUpdated={handleTaskUpdated}
+                    onTaskDeleted={handleTaskDeleted}
+                    isSelected={selectedTaskIds.has(task.id)}
+                    onSelectChange={handleSelectChange}
+                    isProjectCancelled={isProjectCancelled}
+                  />
+                ))
+              ) : (
+                <div className="h-32 border-2 border-dashed border-border rounded-lg flex items-center justify-center">
+                  <p className="text-muted-foreground text-sm">No tasks</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* In Progress Column */}
-        <div
-          className="space-y-4"
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, "in_progress")}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-foreground flex items-center gap-2">
-              In Progress
-              <Badge
-                variant="secondary"
-                className="bg-yellow-100 text-yellow-600 border-yellow-200"
-              >
-                {getTasksForColumn("in_progress").length}
-              </Badge>
-            </h3>
-          </div>
-
-          {getTasksForColumn("in_progress").length > 0 ? (
-            getTasksForColumn("in_progress").map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                availableUsers={users}
-                availableMilestones={milestones}
-                onTaskUpdated={handleTaskUpdated}
-                onTaskDeleted={handleTaskDeleted}
-                onDragStart={(e) => handleDragStart(e, task.id)}
-              />
-            ))
-          ) : (
-            <div className="h-32 border-2 border-dashed border-border rounded-lg flex items-center justify-center">
-              <p className="text-muted-foreground text-sm">Drop tasks here</p>
-            </div>
-          )}
-        </div>
-
-        {/* Done Column */}
-        <div
-          className="space-y-4"
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, "done")}
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-foreground flex items-center gap-2">
-              Done
-              <Badge
-                variant="secondary"
-                className="bg-green-100 text-green-600 border-green-200"
-              >
-                {tasksByColumn.done.length}
-              </Badge>
-            </h3>
-          </div>
-
-          {tasksByColumn.done.length > 0 ? (
-            tasksByColumn.done.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                availableUsers={users}
-                availableMilestones={milestones}
-                onTaskUpdated={handleTaskUpdated}
-                onTaskDeleted={handleTaskDeleted}
-                onDragStart={(e) => handleDragStart(e, task.id)}
-              />
-            ))
-          ) : (
-            <div className="h-32 border-2 border-dashed border-border rounded-lg flex items-center justify-center">
-              <p className="text-muted-foreground text-sm">Drop tasks here</p>
-            </div>
-          )}
-        </div>
+          );
+        })}
       </div>
     </div>
   );
