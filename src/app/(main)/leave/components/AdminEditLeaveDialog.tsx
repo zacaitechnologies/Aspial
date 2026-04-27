@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { adminEditLeaveSchema, type AdminEditLeaveValues } from "@/lib/validation"
@@ -54,14 +54,22 @@ export default function AdminEditLeaveDialog({
   const form = useForm<AdminEditLeaveValues>({
     resolver: zodResolver(adminEditLeaveSchema),
     defaultValues: {
-      leaveId: application?.id,
-      leaveType: application?.leaveType,
-      startDate: application?.startDate ? new Date(application.startDate) : undefined,
-      endDate: application?.endDate ? new Date(application.endDate) : undefined,
-      halfDay: application?.halfDay,
-      reason: application?.reason,
+      leaveId: 0,
     },
   })
+
+  // Preload when the dialog opens — defaultValues only run on first mount, often before `application` exists.
+  useEffect(() => {
+    if (!open || !application) return
+    form.reset({
+      leaveId: application.id,
+      leaveType: application.leaveType,
+      startDate: new Date(application.startDate),
+      endDate: new Date(application.endDate),
+      halfDay: application.halfDay,
+      reason: application.reason,
+    })
+  }, [open, application?.id, form])
 
   async function onSubmit(data: AdminEditLeaveValues) {
     if (!application) return
@@ -102,7 +110,7 @@ export default function AdminEditLeaveDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue />
@@ -180,7 +188,7 @@ export default function AdminEditLeaveDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Duration</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue />

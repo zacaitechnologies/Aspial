@@ -100,6 +100,28 @@ async function fetchClientRevenueMaps(
   return { grossByClient, ownSplitByClient }
 }
 
+/**
+ * Invoices with multiple advisors: sales analytics uses equal split per `InvoiceAdvisor` row
+ * (same as `ownSplit` in `fetchClientRevenueMaps`). Divisor is at least 1 so an edge-case empty
+ * advisor list still attributes the full amount once.
+ */
+function invoiceAdvisorCount(inv: { advisors: { length: number } }): number {
+  return inv.advisors.length > 0 ? inv.advisors.length : 1
+}
+
+/**
+ * - Gross: company view (admin, all advisors) — each invoice counted once at full amount.
+ * - Attributed: one advisor’s share (non-admin, or admin with a specific advisor) — `amount / advisorCount` per invoice.
+ */
+function revenueForSalesContext(
+  inv: { amount: number; advisors: { length: number } },
+  useGrossCompanyTotals: boolean
+): number {
+  return useGrossCompanyTotals
+    ? inv.amount
+    : inv.amount / invoiceAdvisorCount(inv)
+}
+
 // Client CRUD operations
 export async function getAllClients() {
   try {
@@ -1090,10 +1112,23 @@ export async function getSalesData(filters: unknown) {
       throw new Error('User not authenticated')
     }
     
-    // Check if user is admin
-    const isAdmin = await checkIsAdmin(user.id)
-    
+    // Check if user is admin and resolve User.id (cuid) for advisor filter / attribution
+    const [isAdmin, currentDbUser] = await Promise.all([
+      checkIsAdmin(user.id),
+      prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
+    ])
+    if (!currentDbUser) {
+      throw new Error("User not found in database")
+    }
+
     const { year, month, advisorId, viewMode = 'yearly' } = validatedFilters
+    const useGrossCompanyTotals = isAdmin && advisorId == null
+    const targetAdvisorIdForAttribution =
+      useGrossCompanyTotals
+        ? null
+        : isAdmin && advisorId
+          ? advisorId
+          : currentDbUser.id
     
     // Build where clause for invoices
     const where: Prisma.InvoiceWhereInput = {
@@ -1111,11 +1146,9 @@ export async function getSalesData(filters: unknown) {
       ...((!isAdmin || (advisorId && advisorId !== 'all')) && {
         advisors: {
           some: {
-            userId: !isAdmin
-              ? (await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }))?.id ?? user.id
-              : advisorId // advisorId is User.id (cuid)
-          }
-        }
+            userId: !isAdmin ? currentDbUser.id : advisorId,
+          },
+        },
       })
     }
     
@@ -1186,8 +1219,11 @@ export async function getSalesData(filters: unknown) {
       }
     }>
     
-    // Calculate totals
-    const totalSales = invoices.reduce((sum, inv) => sum + inv.amount, 0)
+    // Totals: gross = full invoice (admin + all advisors); attributed = each invoice amount ÷ advisor count
+    const totalSales = invoices.reduce(
+      (sum, inv) => sum + revenueForSalesContext(inv, useGrossCompanyTotals),
+      0
+    )
     const totalClients = new Set(invoices.map(inv => inv.quotation.clientId)).size
     const totalInvoices = invoices.length
     
@@ -1202,16 +1238,16 @@ export async function getSalesData(filters: unknown) {
     }> = {}
 
     invoices.forEach(inv => {
-      const advisorCount = inv.advisors.length || 1
-      const splitAmount = inv.amount / advisorCount
+      const ac = invoiceAdvisorCount(inv)
+      const splitAmount = inv.amount / ac
 
-      inv.advisors.forEach(advisorEntry => {
-        const advisorId = advisorEntry.user.id
+      inv.advisors.forEach((advisorEntry) => {
+        const id = advisorEntry.user.id
         const advisorName = `${advisorEntry.user.firstName} ${advisorEntry.user.lastName}`
 
-        if (!salesByAdvisor[advisorId]) {
-          salesByAdvisor[advisorId] = {
-            advisorId,
+        if (!salesByAdvisor[id]) {
+          salesByAdvisor[id] = {
+            advisorId: id,
             advisorName,
             totalSales: 0,
             invoicesCount: 0,
@@ -1220,9 +1256,9 @@ export async function getSalesData(filters: unknown) {
           }
         }
 
-        salesByAdvisor[advisorId].totalSales += splitAmount
-        salesByAdvisor[advisorId].invoicesCount += 1
-        salesByAdvisor[advisorId]._clientIds.add(inv.quotation.clientId)
+        salesByAdvisor[id].totalSales += splitAmount
+        salesByAdvisor[id].invoicesCount += 1
+        salesByAdvisor[id]._clientIds.add(inv.quotation.clientId)
       })
     })
 
@@ -1244,7 +1280,10 @@ export async function getSalesData(filters: unknown) {
         return {
           month: monthName,
           monthIndex,
-          sales: monthInvoices.reduce((sum, inv) => sum + inv.amount, 0),
+          sales: monthInvoices.reduce(
+            (sum, inv) => sum + revenueForSalesContext(inv, useGrossCompanyTotals),
+            0
+          ),
           invoices: monthInvoices.length,
           clients: new Set(monthInvoices.map(inv => inv.quotation.clientId)).size
         }
@@ -1252,15 +1291,22 @@ export async function getSalesData(filters: unknown) {
     }
     
     return {
+      revenueView: useGrossCompanyTotals ? ("gross" as const) : ("attributed" as const),
       totalSales,
       totalClients,
       totalInvoices,
       monthlyBreakdown,
-      invoices: invoices.map(inv => ({
+      invoices: invoices.map((inv) => {
+        const ac = invoiceAdvisorCount(inv)
+        const grossAmount = inv.amount
+        return {
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
         type: inv.type,
         amount: inv.amount,
+        grossAmount,
+        attributedAmount: grossAmount / ac,
+        advisorCount: ac,
         invoiceDate: inv.invoiceDate.toISOString(),
         created_at: inv.created_at.toISOString(),
         quotation: {
@@ -1273,8 +1319,14 @@ export async function getSalesData(filters: unknown) {
           name: `${a.user.firstName} ${a.user.lastName}`,
           email: a.user.email,
         })),
-      })),
+        }
+      }),
       salesByAdvisor: Object.values(salesByAdvisor)
+        .filter((row) => {
+          if (useGrossCompanyTotals) return true
+          if (targetAdvisorIdForAttribution == null) return true
+          return row.advisorId === targetAdvisorIdForAttribution
+        })
         .map(({ _clientIds, ...rest }) => rest)
         .sort((a, b) => b.totalSales - a.totalSales),
     }

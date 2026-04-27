@@ -258,7 +258,7 @@ export const createInvoiceSchema = z.object({
 	amount: z.number().positive("Invoice amount must be greater than 0"),
 	createdById: z.string().optional(),
 	advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
-	/** Invoice document date (invoiceDate). Only applied when user is admin. */
+	/** Invoice document date (`invoiceDate`), HTML date input `YYYY-MM-DD`. */
 	invoiceDate: z.string().optional(),
 });
 

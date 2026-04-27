@@ -19,6 +19,25 @@ export function parseLocalDateString(dateString: string): Date {
 }
 
 /**
+ * Parse optional `YYYY-MM-DD` from HTML date inputs for persisted document dates (invoice/receipt).
+ * Uses local calendar semantics via {@link parseLocalDateString}. Empty input defaults to now.
+ */
+export function parseDocumentDateInputOrNow(isoDateString: string | undefined): Date {
+	const trimmed = isoDateString?.trim()
+	if (!trimmed) {
+		return new Date()
+	}
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+		throw new Error("Invalid document date")
+	}
+	const d = parseLocalDateString(trimmed)
+	if (Number.isNaN(d.getTime())) {
+		throw new Error("Invalid document date")
+	}
+	return d
+}
+
+/**
  * Calculate day of week (0=Sunday, 6=Saturday) using Zeller's formula.
  * This is completely timezone-independent as it only uses the numeric components.
  */

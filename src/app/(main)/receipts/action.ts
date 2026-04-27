@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
-import { formatLocalDateTime } from "@/lib/date-utils"
+import { formatLocalDateTime, parseDocumentDateInputOrNow } from "@/lib/date-utils"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { Prisma, type PaymentMethod } from "@prisma/client"
 import { receiptListFiltersSchema, type ReceiptListFilters } from "@/lib/validation"
@@ -558,9 +558,9 @@ async function generateReceiptNumber(tx: Prisma.TransactionClient): Promise<stri
 export async function createReceipt(data: {
 	invoiceId: string
 	amount: number
-	/** Advisor User.id list. Admin can override; non-admin always includes self. */
+	/** Advisor User.id list. When non-empty, used for the new receipt. */
 	advisorIds?: string[]
-	/** Receipt date (created_at). Only applied when user is admin. */
+	/** Receipt document date (`receiptDate`), HTML date input `YYYY-MM-DD`. */
 	receiptDate?: string
 	/** Payment method used for this receipt */
 	paymentMethod?: "cash" | "bank_transfer" | "mydebit" | "visa" | "mastercard" | "qr"
@@ -623,9 +623,12 @@ export async function createReceipt(data: {
 		})
 		finalAdvisorIds = invoiceAdvisors.map((a) => a.userId)
 	}
-	// Non-admin: always include self
+	if (finalAdvisorIds.length === 0) {
+		finalAdvisorIds = [dbUser.id]
+	}
+	// Non-admin cannot remove themselves in the UI; enforce on the server too
 	if (!isAdmin && !finalAdvisorIds.includes(dbUser.id)) {
-		finalAdvisorIds.push(dbUser.id)
+		finalAdvisorIds = [...finalAdvisorIds, dbUser.id]
 	}
 	// Deduplicate
 	finalAdvisorIds = [...new Set(finalAdvisorIds)]
@@ -651,6 +654,8 @@ export async function createReceipt(data: {
 		}
 	}
 
+	const receiptDateForDb = parseDocumentDateInputOrNow(data.receiptDate)
+
 	// Retry logic for serialization / unique-constraint conflicts (mirrors quotation flow)
 	const maxRetries = 3
 	let lastError: unknown = null
@@ -675,9 +680,7 @@ export async function createReceipt(data: {
 						paymentMethod: data.paymentMethod || "bank_transfer",
 						createdById: finalCreatedById,
 						status: "active",
-						receiptDate: isAdmin && data.receiptDate
-							? new Date(data.receiptDate)
-							: new Date(),
+						receiptDate: receiptDateForDb,
 						advisors: {
 							create: finalAdvisorIds.map((userId) => ({ userId })),
 						},

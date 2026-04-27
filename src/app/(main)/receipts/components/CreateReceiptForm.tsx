@@ -40,7 +40,7 @@ interface CreateReceiptFormProps {
 	prefilledInvoiceId?: string
 	/** When opening from an invoice card, pass the invoice to avoid refetch and speed up popup */
 	prefetchedInvoice?: { id: string; amount: number; advisors?: Array<{ id: string }> } | null
-	/** Pass isAdmin from parent to skip redundant check (speeds up dialog open) */
+	/** When set, skips an extra server round-trip to resolve admin status */
 	isAdminProp?: boolean
 }
 
@@ -67,34 +67,34 @@ export default function CreateReceiptForm({
 	const [totalReceipted, setTotalReceipted] = useState<number>(0)
 	const [remaining, setRemaining] = useState<number>(0)
 	const [amountWarning, setAmountWarning] = useState<string>("")
-	const [isAdmin, setIsAdmin] = useState(false)
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
+	const [isAdmin, setIsAdmin] = useState(false)
 	const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([])
+	const [currentDbUserId, setCurrentDbUserId] = useState<string>("")
 	const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType>("bank_transfer")
 
-	// Use isAdminProp if provided (from parent) to skip redundant check
-	// All users see the advisor picker, so always fetch user list
+	// Load users, current user id, and admin status (affects whether self can be removed from advisors)
 	useEffect(() => {
 		if (!isOpen || !enhancedUser?.id) return
-		// Always fetch users for the advisor multi-select
-		getAllUsers().then(setUsers).catch(() => {})
-		// If isAdminProp is explicitly passed, use it and skip check
-		if (isAdminProp !== undefined) {
-			setIsAdmin(isAdminProp)
-			return
-		}
-		// Otherwise, check admin status
-		const checkAdminStatus = async () => {
+		const run = async () => {
 			try {
-				const adminStatus = await checkIsAdmin(enhancedUser.id)
-				setIsAdmin(adminStatus)
-			} catch (error) {
-				if (process.env.NODE_ENV === "development") {
-					console.error("Error checking admin status:", error)
+				if (isAdminProp !== undefined) {
+					setIsAdmin(isAdminProp)
+				} else {
+					setIsAdmin(await checkIsAdmin(enhancedUser.id))
 				}
+			} catch {
+				setIsAdmin(false)
 			}
 		}
-		checkAdminStatus()
+		void run()
+		void getAllUsers()
+			.then((all) => {
+				setUsers(all)
+				const me = all.find((u) => u.supabase_id === enhancedUser.id)
+				if (me) setCurrentDbUserId(me.id)
+			})
+			.catch(() => {})
 	}, [isOpen, enhancedUser?.id, isAdminProp])
 
 	// Load prefilled invoice: use prefetched when available to avoid slow fetch
@@ -115,19 +115,17 @@ export default function CreateReceiptForm({
 		handleInvoiceSelect(prefilledInvoiceId)
 	}, [prefilledInvoiceId, isOpen, prefetchedInvoice?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Sync advisors whenever the referenced invoice changes (ensures advisors load even if isAdmin loads late)
+	// Sync advisors when the selected invoice changes. Non-admins must include self.
 	useEffect(() => {
 		let ids: string[] = []
 		if (selectedInvoice?.advisors && selectedInvoice.advisors.length > 0) {
 			ids = selectedInvoice.advisors.map((a: any) => a.id).filter(Boolean) as string[]
 		}
-		// Non-admin: auto-include self
-		const currentDbId = enhancedUser?.profile?.id
-		if (!isAdmin && currentDbId && !ids.includes(currentDbId)) {
-			ids = [...ids, currentDbId]
+		if (!isAdmin && currentDbUserId && !ids.includes(currentDbUserId)) {
+			ids = [...ids, currentDbUserId]
 		}
 		setSelectedAdvisorIds(ids)
-	}, [selectedInvoice?.id, isAdmin, enhancedUser?.profile?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+	}, [selectedInvoice?.id, selectedInvoice?.advisors, isAdmin, currentDbUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Load receipt summary when invoice is selected
 	useEffect(() => {
@@ -293,9 +291,7 @@ export default function CreateReceiptForm({
 			const receipt = await createReceipt({
 				invoiceId: receiptForm.invoiceId,
 				amount: parseFloat(receiptForm.amount),
-				// Pass selected advisor IDs (server-side ensures non-admin includes self)
 				advisorIds: selectedAdvisorIds,
-				// Receipt date: only applied server-side when user is admin
 				receiptDate: receiptForm.receiptDate || undefined,
 				paymentMethod: selectedPaymentMethod,
 			})
@@ -500,7 +496,7 @@ export default function CreateReceiptForm({
 						</Select>
 					</div>
 
-					{/* Receipt Date - editable only by admin */}
+					{/* Receipt document date (stored as receiptDate) */}
 					<div className="space-y-2">
 						<Label htmlFor="receipt-date">Receipt Date</Label>
 						<Input
@@ -510,27 +506,36 @@ export default function CreateReceiptForm({
 							onChange={(e) =>
 								setReceiptForm(prev => ({ ...prev, receiptDate: e.target.value }))
 							}
-							disabled={!isAdmin || isSaving}
+							disabled={!selectedInvoice || isSaving}
 						/>
-						{!isAdmin && (
-							<p className="text-xs text-muted-foreground">Only admins can change the receipt date.</p>
-						)}
+						<p className="text-xs text-muted-foreground">
+							This is the date shown on the receipt document.
+						</p>
 					</div>
 
-					{/* Advisors */}
+					{/* Advisors — non-admins cannot remove themselves; admins can change freely */}
 					<div className="space-y-2">
 						<Label>Advisors</Label>
 						<MultiSelectAdvisors
 							users={users}
 							selectedIds={selectedAdvisorIds}
-							onChange={setSelectedAdvisorIds}
-							currentUserId={enhancedUser?.profile?.id}
+							onChange={(ids) => {
+								if (!isAdmin && currentDbUserId && !ids.includes(currentDbUserId)) {
+									setSelectedAdvisorIds([...ids, currentDbUserId])
+									return
+								}
+								setSelectedAdvisorIds(ids)
+							}}
+							currentUserId={currentDbUserId}
 							isAdmin={isAdmin}
 							disabled={!selectedInvoice || isSaving}
 							placeholder="Select advisors"
 						/>
 						<p className="text-xs text-muted-foreground">
-							Defaults to invoice advisors. {!isAdmin ? "You are automatically included." : "You can add or remove advisors."}
+							Defaults to invoice advisors.
+							{isAdmin
+								? " You can add or remove advisors."
+								: " You can add others, but you cannot remove yourself as an advisor."}
 						</p>
 					</div>
 				</div>

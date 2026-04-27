@@ -30,6 +30,13 @@ import { TaskForm } from "./TaskForm";
 import { TaskCard } from "./TaskCard";
 import { MilestoneCard } from "./MilestoneCard";
 import { MilestoneForm } from "./MilestoneForm";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 
 type User = {
@@ -48,6 +55,8 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 
 const ALL_STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
 
+export type ProjectTaskViewFilter = "all" | "my" | "assigned_to_me";
+
 interface KanbanBoardProps {
   projectId: string;
   sortBy?: "dueDate" | "createDate" | "priority";
@@ -55,7 +64,8 @@ interface KanbanBoardProps {
   onSortByChange?: (sortBy: "dueDate" | "createDate" | "priority") => void;
   onSortOrderChange?: (sortOrder: "asc" | "desc") => void;
   isProjectCancelled?: boolean;
-  taskFilter?: "all" | "my";
+  taskFilter?: ProjectTaskViewFilter;
+  onTaskFilterChange: (value: ProjectTaskViewFilter) => void;
   userId?: string;
   onTasksUpdated?: () => void; // Callback to refresh taskStats in parent
 }
@@ -68,6 +78,7 @@ const KanbanBoardComponent = memo(function KanbanBoard({
   onSortOrderChange,
   isProjectCancelled = false,
   taskFilter = "all",
+  onTaskFilterChange,
   userId,
   onTasksUpdated,
 }: KanbanBoardProps) {
@@ -139,11 +150,15 @@ const KanbanBoardComponent = memo(function KanbanBoard({
 
     let filteredTasks = tasks;
 
-    // Filter by task ownership if "my" filter is selected
-    if (taskFilter === "my" && userId) {
-      filteredTasks = tasks.filter(
-        (task) => task.assigneeId === userId || task.creatorId === userId
-      );
+    // Filter: "my" = I created or I'm assigned; "assigned_to_me" = assignee only
+    if (userId) {
+      if (taskFilter === "my") {
+        filteredTasks = tasks.filter(
+          (task) => task.assigneeId === userId || task.creatorId === userId
+        );
+      } else if (taskFilter === "assigned_to_me") {
+        filteredTasks = tasks.filter((task) => task.assigneeId === userId);
+      }
     }
 
     // Group by status
@@ -404,19 +419,34 @@ const KanbanBoardComponent = memo(function KanbanBoard({
         </div>
       )}
 
-      {/* Sorting Controls */}
-      <div className="flex flex-row items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
-          <ClipboardList className="w-5 h-5 text-yellow-600" />
+      {/* Title + task filter (left of sort controls) */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-row items-center gap-2">
+          <ClipboardList className="h-5 w-5 shrink-0 text-yellow-600" />
           <h2 className="font-semibold text-foreground">Project Tasks</h2>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
+          <Select
+            value={taskFilter}
+            onValueChange={(v) =>
+              onTaskFilterChange(v as ProjectTaskViewFilter)
+            }
+          >
+            <SelectTrigger className="w-[min(100%,14rem)] min-w-[10.5rem] sm:w-52">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All tasks</SelectItem>
+              <SelectItem value="my">My tasks</SelectItem>
+              <SelectItem value="assigned_to_me">Assigned to me</SelectItem>
+            </SelectContent>
+          </Select>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="flex items-center gap-2">
                 {getSortLabel()}
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -438,7 +468,8 @@ const KanbanBoardComponent = memo(function KanbanBoard({
             onClick={() =>
               onSortOrderChange?.(sortOrder === "asc" ? "desc" : "asc")
             }
-            className="flex items-center gap-2"
+            className="flex shrink-0 items-center gap-2"
+            aria-label={sortOrder === "asc" ? "Sort descending" : "Sort ascending"}
           >
             {sortOrder === "asc" ? "↑" : "↓"}
           </Button>

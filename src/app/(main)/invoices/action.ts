@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
-import { formatLocalDateTime } from "@/lib/date-utils"
+import { formatLocalDateTime, parseDocumentDateInputOrNow } from "@/lib/date-utils"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { Prisma } from "@prisma/client"
 import {
@@ -467,26 +467,26 @@ export async function createInvoice(data: unknown) {
 	// createdById is ALWAYS the logged-in user's supabase_id (immutable audit trail)
 	const finalCreatedById = user.id
 
-	// Determine advisor IDs: inherit from quotation's advisors join table, allow admin override
+	// Determine advisor IDs: use submitted list when provided, else quotation advisors
 	let finalAdvisorIds: string[]
-	if (isAdmin && validatedData.advisorIds && validatedData.advisorIds.length > 0) {
-		finalAdvisorIds = validatedData.advisorIds
+	if (validatedData.advisorIds && validatedData.advisorIds.length > 0) {
+		finalAdvisorIds = [...new Set(validatedData.advisorIds)]
 	} else {
-		// Inherit advisors from the quotation's join table
 		const quotationAdvisors = await prisma.quotationAdvisor.findMany({
 			where: { quotationId: validatedData.quotationId },
 			select: { userId: true },
 		})
 		finalAdvisorIds = quotationAdvisors.map((a) => a.userId)
 	}
-	// Non-admin: always include self
-	if (!isAdmin && !finalAdvisorIds.includes(dbUser.id)) {
-		finalAdvisorIds.push(dbUser.id)
-	}
-	// Fallback: if still empty, default to current user
 	if (finalAdvisorIds.length === 0) {
 		finalAdvisorIds = [dbUser.id]
 	}
+	// Non-admin cannot remove themselves in the UI; enforce on the server too
+	if (!isAdmin && !finalAdvisorIds.includes(dbUser.id)) {
+		finalAdvisorIds = [...finalAdvisorIds, dbUser.id]
+	}
+
+	const invoiceDateForDb = parseDocumentDateInputOrNow(validatedData.invoiceDate)
 
 	// Validate that the creator user exists (outside transaction)
 	const selectedUser = await prisma.user.findUnique({
@@ -550,9 +550,7 @@ export async function createInvoice(data: unknown) {
 						amount: validatedData.amount,
 						createdById: finalCreatedById,
 						status: "active",
-						invoiceDate: isAdmin && validatedData.invoiceDate
-							? new Date(validatedData.invoiceDate)
-							: new Date(),
+						invoiceDate: invoiceDateForDb,
 						advisors: {
 							create: finalAdvisorIds.map((id) => ({ userId: id })),
 						},

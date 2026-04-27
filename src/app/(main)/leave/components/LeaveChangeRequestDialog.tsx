@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { leaveChangeRequestSchema, type LeaveChangeRequestValues } from "@/lib/validation"
@@ -56,13 +56,26 @@ export default function LeaveChangeRequestDialog({
   const form = useForm<LeaveChangeRequestValues>({
     resolver: zodResolver(leaveChangeRequestSchema),
     defaultValues: {
-      leaveApplicationId: application?.id,
-      type,
+      leaveApplicationId: 0,
+      type: "EDIT",
       reason: "",
-      newLeaveType: application?.leaveType,
-      newHalfDay: application?.halfDay,
     },
   })
+
+  // defaultValues only apply on first mount; the dialog can mount before `application` is set.
+  // Preload the current application when the dialog opens (including PENDING) so the edit fields are filled.
+  useEffect(() => {
+    if (!open || !application) return
+    form.reset({
+      leaveApplicationId: application.id,
+      type,
+      reason: "",
+      newLeaveType: type === "EDIT" ? application.leaveType : undefined,
+      newHalfDay: type === "EDIT" ? application.halfDay : undefined,
+      newStartDate: type === "EDIT" ? new Date(application.startDate) : undefined,
+      newEndDate: type === "EDIT" ? new Date(application.endDate) : undefined,
+    })
+  }, [open, application?.id, type, form])
 
   async function onSubmit(data: LeaveChangeRequestValues) {
     setIsSubmitting(true)
@@ -147,7 +160,10 @@ export default function LeaveChangeRequestDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>New Leave Type (optional)</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Keep current" />
@@ -227,7 +243,7 @@ export default function LeaveChangeRequestDialog({
                       <FormLabel>New Duration (optional)</FormLabel>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <FormControl>
                           <SelectTrigger>
