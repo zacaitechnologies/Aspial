@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import * as PopoverPrimitive from "@radix-ui/react-popover"
+import { Popover, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -114,8 +115,23 @@ export function MultiSelectAdvisors({
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2" align="start">
-        <div className="max-h-60 overflow-y-auto space-y-1">
+      {/*
+       * Render WITHOUT Portal so the content stays inside the Dialog's DOM tree.
+       * react-remove-scroll (used by Radix Dialog) intercepts wheel events in capture phase
+       * and calls preventDefault() on anything outside the dialog's "shard" DOM node.
+       * By skipping the Portal the content is inside the shard, and mouse-wheel scrolling works.
+       */}
+      <PopoverPrimitive.Content
+        className="z-50 w-[var(--radix-popover-trigger-width)] rounded-md border bg-popover p-2 text-popover-foreground shadow-md outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
+        align="start"
+        sideOffset={4}
+        avoidCollisions
+        collisionPadding={8}
+      >
+        <div
+          className="overflow-y-auto space-y-1"
+          style={{ maxHeight: "min(15rem, var(--radix-popover-content-available-height, 15rem))" }}
+        >
           {users.map((user) => {
             const isSelected = selectedIds.includes(user.id)
             const isCurrentUser = user.id === currentUserId
@@ -147,7 +163,7 @@ export function MultiSelectAdvisors({
             <p className="text-sm text-muted-foreground text-center py-2">No users found</p>
           )}
         </div>
-      </PopoverContent>
+      </PopoverPrimitive.Content>
     </Popover>
   )
 }

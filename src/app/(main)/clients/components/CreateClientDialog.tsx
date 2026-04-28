@@ -167,11 +167,12 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
           Add Client
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
           <DialogTitle className="text-foreground">Add New Client</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4 py-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+          <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="name">Full Name <span className="text-red-500">*</span></Label>
             <Input 
@@ -290,8 +291,9 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
               onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
             />
           </div>
+          </div>
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t">
           <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
             Cancel
           </Button>
