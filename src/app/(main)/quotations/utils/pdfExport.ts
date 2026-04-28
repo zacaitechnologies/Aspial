@@ -585,9 +585,9 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   const grandTotal = subtotal - discountAmount;
   const originalPrice = subtotal;
 
-  // Get advisor name (advisedBy with fallback to createdBy)
-  const advisorName = (quotation as any).advisedBy
-    ? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+  // Get advisor name (advisors array with fallback to createdBy)
+  const advisorName = (quotation as any).advisors && (quotation as any).advisors.length > 0
+    ? (quotation as any).advisors.map((a: any) => `${a.firstName || ''} ${a.lastName || ''}`.trim()).join(', ')
     : quotation.createdBy
       ? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
       : 'ADMIN';
@@ -990,9 +990,9 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   const grandTotal = subtotal - discountAmount;
   const originalPrice = subtotal;
 
-  // Get advisor name (advisedBy with fallback to createdBy)
-  const advisorName = (quotation as any).advisedBy
-    ? `${(quotation as any).advisedBy.firstName || ''} ${(quotation as any).advisedBy.lastName || ''}`.trim()
+  // Get advisor name (advisors array with fallback to createdBy)
+  const advisorName = (quotation as any).advisors && (quotation as any).advisors.length > 0
+    ? (quotation as any).advisors.map((a: any) => `${a.firstName || ''} ${a.lastName || ''}`.trim()).join(', ')
     : quotation.createdBy
       ? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
       : 'ADMIN';

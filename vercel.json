@@ -3,6 +3,10 @@
     {
       "path": "/api/benefits/calculate-awards",
       "schedule": "0 0 1 1 *"
+    },
+    {
+      "path": "/api/cron/leave-year-rollover",
+      "schedule": "0 16 31 12 *"
     }
   ]
 }

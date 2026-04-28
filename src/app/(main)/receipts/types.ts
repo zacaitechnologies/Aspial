@@ -58,12 +58,12 @@ export interface ReceiptWithInvoice {
 		created_at: Date
 		updated_at: Date
 	}
-	advisedBy?: {
+	advisors: Array<{
 		id: string
 		firstName: string
 		lastName: string
 		email: string
-	} | null
+	}>
 }
 
 export interface ReceiptFormData {

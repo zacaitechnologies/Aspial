@@ -182,7 +182,7 @@ export default function QuotationDetailClient({
 						</p>
 					</div>
 					<div className="flex gap-2">
-						{isCancelled && (isAdmin || quotation.createdBy?.supabase_id === enhancedUser?.id) && (
+						{isCancelled && (isAdmin || quotation.createdBy?.supabase_id === enhancedUser?.id || quotation.advisors?.some((a) => a.id === enhancedUser?.profile?.id)) && (
 							<Button
 								variant="default"
 								onClick={() => setIsReactivateDialogOpen(true)}
@@ -562,11 +562,11 @@ export default function QuotationDetailClient({
 									{quotation.createdBy.firstName} {quotation.createdBy.lastName}
 								</p>
 							</div>
-							{quotation.advisedBy && (
+							{quotation.advisors && quotation.advisors.length > 0 && (
 								<div>
-									<p className="text-sm font-medium text-muted-foreground">Advised By</p>
+									<p className="text-sm font-medium text-muted-foreground">Advisors</p>
 									<p className="font-medium">
-										{quotation.advisedBy.firstName} {quotation.advisedBy.lastName}
+										{quotation.advisors.map(a => `${a.firstName} ${a.lastName}`).join(', ')}
 									</p>
 								</div>
 							)}

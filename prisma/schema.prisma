@@ -67,9 +67,16 @@ model User {
   tierSelections           TierSelection[]
   contracts                Contract[]
   createdClients           Client[]                  @relation("ClientCreator")
-  advisedQuotations        Quotation[]               @relation("QuotationAdvisor")
-  advisedInvoices          Invoice[]                 @relation("InvoiceAdvisor")
-  advisedReceipts          Receipt[]                 @relation("ReceiptAdvisor")
+  clientAdvisors           ClientAdvisor[]           @relation("ClientAdvisor")
+  quotationAdvisors        QuotationAdvisor[]        @relation("QuotationAdvisor")
+  invoiceAdvisors          InvoiceAdvisor[]          @relation("InvoiceAdvisor")
+  receiptAdvisors          ReceiptAdvisor[]          @relation("ReceiptAdvisor")
+  leaveApplications        LeaveApplication[]
+  reviewedLeaves           LeaveApplication[]        @relation("LeaveReviewer")
+  leaveBalances            LeaveBalance[]
+  leaveChangeRequests      LeaveChangeRequest[]      @relation("ChangeRequestor")
+  reviewedChangeRequests   LeaveChangeRequest[]      @relation("ChangeRequestReviewer")
+  calendarBlockers         CalendarBlocker[]         @relation("CalendarBlockerCreator")
 
   @@index([supabase_id])
   @@map("user")
@@ -138,8 +145,7 @@ model Quotation {
   createdBy      User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
   project        Project?           @relation(fields: [projectId], references: [id])
 
-  advisedById    String?
-  advisedBy      User?            @relation("QuotationAdvisor", fields: [advisedById], references: [id])
+  advisors       QuotationAdvisor[]
 
   quotationEmails QuotationEmail[]
   invoices        Invoice[]
@@ -192,8 +198,7 @@ model Invoice {
   invoiceDate   DateTime       @default(now()) @map("invoice_date")
   created_at    DateTime       @default(now())
   updated_at    DateTime       @default(now())
-  advisedById   String?
-  advisedBy     User?          @relation("InvoiceAdvisor", fields: [advisedById], references: [id])
+  advisors      InvoiceAdvisor[]
   quotation     Quotation      @relation(fields: [quotationId], references: [id], onDelete: Restrict)
   createdBy     User           @relation("InvoiceCreator", fields: [createdById], references: [supabase_id])
   invoiceEmails InvoiceEmail[]
@@ -230,8 +235,7 @@ model Receipt {
   created_at    DateTime       @default(now())
   updated_at    DateTime       @default(now())
   paymentMethod PaymentMethod  @default(bank_transfer)
-  advisedById   String?
-  advisedBy     User?          @relation("ReceiptAdvisor", fields: [advisedById], references: [id])
+  advisors      ReceiptAdvisor[]
   invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   createdBy     User           @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
   receiptEmails ReceiptEmail[]
@@ -396,10 +400,51 @@ model Client {
   yearlyRevenue             Float?
   createdById               String
   createdBy                 User           @relation("ClientCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  advisors                  ClientAdvisor[]
   projects                  Project[]
   quotations                Quotation[]
 
   @@map("clients")
+}
+
+model ClientAdvisor {
+  clientId String
+  userId   String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user     User   @relation("ClientAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, userId])
+  @@map("client_advisors")
+}
+
+model QuotationAdvisor {
+  quotationId Int
+  userId      String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  user        User      @relation("QuotationAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([quotationId, userId])
+  @@map("quotation_advisors")
+}
+
+model InvoiceAdvisor {
+  invoiceId String
+  userId    String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user      User    @relation("InvoiceAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([invoiceId, userId])
+  @@map("invoice_advisors")
+}
+
+model ReceiptAdvisor {
+  receiptId String
+  userId    String
+  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  user      User    @relation("ReceiptAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([receiptId, userId])
+  @@map("receipt_advisors")
 }
 
 model Appointment {
@@ -668,4 +713,130 @@ model Contract {
   uploader   User     @relation(fields: [uploadedBy], references: [supabase_id], onDelete: Cascade)
 
   @@map("contracts")
+}
+
+// Leave Application Module
+
+enum LeaveType {
+  PAID
+  UNPAID
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LeaveHalfDay {
+  NONE
+  FIRST_HALF
+  SECOND_HALF
+}
+
+enum ChangeRequestType {
+  CANCEL
+  EDIT
+}
+
+enum ChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LeaveApplication {
+  id             Int                  @id @default(autoincrement())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id])
+  leaveType      LeaveType
+  startDate      DateTime
+  endDate        DateTime
+  halfDay        LeaveHalfDay         @default(NONE)
+  reason         String
+  attachmentUrl  String?
+  status         LeaveStatus          @default(PENDING)
+  adminRemarks   String?
+  reviewedById   String?
+  reviewedBy     User?                @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  totalDays      Float
+  unpaidDays     Float                @default(0)
+  created_at     DateTime             @default(now())
+  updated_at     DateTime             @updatedAt
+  changeRequests LeaveChangeRequest[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("leave_application")
+}
+
+model LeaveBalance {
+  id        Int       @id @default(autoincrement())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  leaveType LeaveType
+  year      Int
+  entitled  Float
+  used      Float     @default(0)
+  pending   Float     @default(0)
+  balance   Float
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([userId, leaveType, year])
+  @@index([userId, year])
+  @@map("leave_balance")
+}
+
+model LeaveChangeRequest {
+  id                 Int                 @id @default(autoincrement())
+  leaveApplicationId Int
+  leaveApplication   LeaveApplication    @relation(fields: [leaveApplicationId], references: [id])
+  requestedById      String
+  requestedBy        User                @relation("ChangeRequestor", fields: [requestedById], references: [id])
+  type               ChangeRequestType
+  status             ChangeRequestStatus @default(PENDING)
+  reason             String
+  newStartDate       DateTime?
+  newEndDate         DateTime?
+  newLeaveType       LeaveType?
+  newHalfDay         LeaveHalfDay?
+  newReason          String?
+  adminRemarks       String?
+  reviewedById       String?
+  reviewedBy         User?               @relation("ChangeRequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt         DateTime?
+  created_at         DateTime            @default(now())
+  updated_at         DateTime            @updatedAt
+
+  @@index([leaveApplicationId])
+  @@map("leave_change_request")
+}
+
+model LeaveEntitlementDefault {
+  id           Int       @id @default(autoincrement())
+  leaveType    LeaveType @unique
+  entitledDays Float
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  @@map("leave_entitlement_default")
+}
+
+model CalendarBlocker {
+  id                 Int      @id @default(autoincrement())
+  title              String
+  description        String?
+  startDateTime      DateTime
+  endDateTime        DateTime
+  blocksAppointments Boolean  @default(false)
+  createdById        String
+  createdBy          User     @relation("CalendarBlockerCreator", fields: [createdById], references: [supabase_id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("calendar_blockers")
 }

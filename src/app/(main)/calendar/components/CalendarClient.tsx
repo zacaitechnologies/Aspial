@@ -13,41 +13,60 @@ import { ExportCalendarDialog } from "./ExportCalendarDialog"
 import { ViewSwitcher } from "./ViewSwitcher"
 import { WeekView } from "./WeekView"
 import { DayView } from "./DayView"
-import { fetchAllBookings, type CalendarBooking } from "../actions"
-import { APPOINTMENT_TYPES, type AppointmentType } from "../constants"
+import { BlockerFormDialog } from "./BlockerFormDialog"
+import { AppointmentBookingDialog } from "./AppointmentBookingDialog"
+import { EditBookingDialog } from "./EditBookingDialog"
+import { fetchAllBookings, deleteCalendarBlocker, type CalendarBooking } from "../actions"
+import { cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
+import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { Download, ShieldAlert } from "lucide-react"
 import { parseLocalDateString, formatDateStringDirect } from "@/lib/date-utils"
 import { CalendarView, getWeekDays, formatDate } from "../utils/calendar-utils"
+
+interface AvailableAppointment {
+	id: number
+	name: string
+	location: string | null
+	brand: string | null
+	description: string | null
+	appointmentType: string
+}
 
 interface CalendarClientProps {
 	initialBookings: CalendarBooking[]
 	initialIsAdmin: boolean
 	initialProjects: { id: number; name: string }[]
+	initialAppointments: AvailableAppointment[]
 	userId: string
 	userName: string
 }
 
 // Map appointment type to border color using calendar theme tokens
-const getBorderColorClass = (appointmentType: AppointmentType): string => {
-	const borderColorMap: Record<AppointmentType, string> = {
+const getBorderColorClass = (appointmentType: CalendarEventType): string => {
+	const borderColorMap: Record<CalendarEventType, string> = {
 		PHOTO_SHOOT: "border-l-calendar-photo-shoot",
 		VIDEO_SHOOT: "border-l-calendar-video-shoot",
 		CONSULTATION: "border-l-calendar-consultation",
 		PHOTO_SELECTION: "border-l-calendar-photo-selection",
 		OTHERS: "border-l-calendar-others",
+		LEAVE: "border-l-calendar-leave",
+		BLOCKER: "border-l-calendar-blocker",
 	}
 	return borderColorMap[appointmentType] || "border-l-calendar-others"
 }
 
 // Map appointment type to badge classes using calendar theme tokens
-const getBadgeClasses = (appointmentType: AppointmentType): { variant: "default" | "secondary" | "destructive" | "outline"; className: string } => {
-	const badgeMap: Record<AppointmentType, { variant: "default" | "secondary" | "destructive" | "outline"; className: string }> = {
+const getBadgeClasses = (appointmentType: CalendarEventType): { variant: "default" | "secondary" | "destructive" | "outline"; className: string } => {
+	const badgeMap: Record<CalendarEventType, { variant: "default" | "secondary" | "destructive" | "outline"; className: string }> = {
 		PHOTO_SHOOT: { variant: "secondary", className: "bg-calendar-photo-shoot text-foreground" },
 		VIDEO_SHOOT: { variant: "secondary", className: "bg-calendar-video-shoot text-foreground" },
 		CONSULTATION: { variant: "secondary", className: "bg-calendar-consultation text-foreground" },
 		PHOTO_SELECTION: { variant: "secondary", className: "bg-calendar-photo-selection text-foreground" },
 		OTHERS: { variant: "secondary", className: "bg-calendar-others text-foreground" },
+		LEAVE: { variant: "secondary", className: "bg-calendar-leave text-foreground" },
+		BLOCKER: { variant: "secondary", className: "bg-calendar-blocker text-calendar-blocker-foreground" },
 	}
 	return badgeMap[appointmentType] || { variant: "secondary", className: "bg-calendar-others text-foreground" }
 }
@@ -56,9 +75,11 @@ export default function CalendarClient({
 	initialBookings,
 	initialIsAdmin,
 	initialProjects,
+	initialAppointments,
 	userId,
 	userName,
 }: CalendarClientProps) {
+	const { toast } = useToast()
 	// Fix hydration: initialize with a stable date, then update after mount if needed
 	const [currentDate, setCurrentDate] = useState<Date>(() => {
 		// Use a stable initial date to avoid hydration mismatches
@@ -78,6 +99,25 @@ export default function CalendarClient({
 	const [selectedDate, setSelectedDate] = useState<string>("")
 	const [isDateEventsDialogOpen, setIsDateEventsDialogOpen] = useState(false)
 	const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+	const [isBlockerDialogOpen, setIsBlockerDialogOpen] = useState(false)
+	const [editingBlocker, setEditingBlocker] = useState<{
+		id: number
+		title: string
+		description: string | null
+		startDateTime: string
+		endDateTime: string
+		blocksAppointments: boolean
+		allDay?: boolean
+	} | null>(null)
+
+	// Appointment booking dialog state
+	const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false)
+	const [bookingInitialDate, setBookingInitialDate] = useState("")
+	const [bookingInitialTime, setBookingInitialTime] = useState<string | null>(null)
+
+	// Edit booking dialog state
+	const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false)
+	const [editingBooking, setEditingBooking] = useState<CalendarBooking | null>(null)
 
 	const isAdmin = initialIsAdmin
 	const projects = initialProjects
@@ -186,7 +226,7 @@ export default function CalendarClient({
 			// Filter by project (only if a specific project is selected)
 			if (selectedProject !== "all") {
 				const projectId = parseInt(selectedProject)
-				if (booking.projectId !== projectId) return false
+				if (booking.type !== "leave" && booking.projectId !== projectId) return false
 			}
 			
 			// Filter by task ownership (only for tasks mapped to OTHERS)
@@ -273,18 +313,99 @@ export default function CalendarClient({
 		setIsDetailsDialogOpen(true)
 	}
 
-	// Edit and delete handlers disabled - calendar is read-only
-	const handleBookingEdit = () => {
-		// No-op - editing disabled
+	// Clear cache and refetch current range
+	const refreshBookings = () => {
+		rangeCacheRef.current.clear()
+		fetchAllBookings(userId, userName, { start: dateRange.start, end: dateRange.end }).then((data) => {
+			const key = getRangeKey(dateRange.start, dateRange.end)
+			rangeCacheRef.current.set(key, data)
+			setBookings(data)
+		})
 	}
 
-	const handleBookingDelete = () => {
-		// No-op - deletion disabled
+	const handleBlockerSuccess = () => {
+		setEditingBlocker(null)
+		refreshBookings()
+	}
+
+	const handleBookingEdit = (booking: CalendarBooking) => {
+		if (booking.type === "blocker" && isAdmin) {
+			const data = booking.originalData as {
+				blockerId: number
+				blocksAppointments: boolean
+				startDateTime: string
+				endDateTime: string
+				allDay?: boolean
+			}
+			setEditingBlocker({
+				id: data.blockerId,
+				title: booking.title,
+				description: booking.description === `Blocker: ${booking.title}` ? null : booking.description,
+				startDateTime: data.startDateTime,
+				endDateTime: data.endDateTime,
+				blocksAppointments: data.blocksAppointments,
+				allDay: data.allDay,
+			})
+			setIsBlockerDialogOpen(true)
+			setIsDetailsDialogOpen(false)
+		}
+	}
+
+	const handleBookingDelete = async (booking: CalendarBooking) => {
+		if (booking.type === "blocker" && isAdmin) {
+			const data = booking.originalData as { blockerId: number }
+			const result = await deleteCalendarBlocker(data.blockerId)
+			if (result.success) {
+				setIsDetailsDialogOpen(false)
+				setSelectedBooking(null)
+				refreshBookings()
+			}
+		}
 	}
 
 	const handleDateClick = (dateString: string) => {
 		setSelectedDate(dateString)
 		setIsDateEventsDialogOpen(true)
+	}
+
+	const handleBookAppointment = (date: string, time?: string | null) => {
+		setBookingInitialDate(date)
+		setBookingInitialTime(time || null)
+		setIsDateEventsDialogOpen(false)
+		setIsBookingDialogOpen(true)
+	}
+
+	const handleTimeSlotClick = (date: string, hourOrTime: number | string) => {
+		const time = typeof hourOrTime === "number"
+			? `${String(hourOrTime).padStart(2, "0")}:00`
+			: String(hourOrTime)
+		handleBookAppointment(date, time)
+	}
+
+	const handleEditBooking = (booking: CalendarBooking) => {
+		setEditingBooking(booking)
+		setIsDetailsDialogOpen(false)
+		setIsEditBookingDialogOpen(true)
+	}
+
+	const handleCancelBooking = async (booking: CalendarBooking) => {
+		const idMatch = booking.id.match(/appointment-(\d+)/)
+		if (!idMatch) return
+
+		const numericId = parseInt(idMatch[1])
+		const result = await cancelAppointmentBooking(numericId)
+		if (result.success) {
+			toast({ title: "Booking Cancelled", description: "The appointment booking has been cancelled." })
+			setIsDetailsDialogOpen(false)
+			setSelectedBooking(null)
+			refreshBookings()
+		} else {
+			toast({ title: "Error", description: result.error || "Failed to cancel booking", variant: "destructive" })
+		}
+	}
+
+	const handleBookingSuccess = () => {
+		refreshBookings()
 	}
 
 	const getDaysInMonth = (date: Date) => {
@@ -334,30 +455,39 @@ export default function CalendarClient({
 	// Memoize stats counts
 	const statsCounts = useMemo(() => {
 		const counts: Record<string, number> = {}
-		Object.keys(APPOINTMENT_TYPES).forEach((appointmentKey) => {
+		Object.keys(CALENDAR_EVENT_TYPES).forEach((appointmentKey) => {
 			counts[appointmentKey] = statsBookings.filter((b) => b.appointmentType === appointmentKey).length
 		})
 		return counts
 	}, [statsBookings])
 
 	return (
-		<div className="calendar-page min-h-screen bg-background p-6">
+		<div className="calendar-page min-h-screen bg-background px-4 py-5 sm:px-6 sm:py-6">
 			<div className="max-w-7xl mx-auto">
-				{/* Header */}
-				<div className="mb-8">
-					<div className="flex items-center justify-between mb-4">
-						<div>
-							<p className="text-muted-foreground">Manage your team&apos;s bookings and events</p>
-						</div>
-						<div className="flex items-center gap-4">
+				{/* Page intro + filters */}
+				<div className="mb-5 sm:mb-6 space-y-4">
+					<div>
+						<h1 className="text-lg font-semibold text-foreground tracking-tight sm:text-xl">
+							Calendar
+						</h1>
+						<p className="text-sm text-muted-foreground mt-0.5">
+							Manage your team&apos;s bookings and events
+						</p>
+					</div>
+
+					<div className="rounded-lg border border-border bg-card p-3 sm:p-4">
+						<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2.5">
+							Filters
+						</p>
+						<div className="flex flex-wrap items-center gap-2 sm:gap-3">
 							<Select value={filterType} onValueChange={setFilterType}>
-								<SelectTrigger className="w-48">
-									<Filter className="w-4 h-4 mr-2" />
-									<SelectValue />
+								<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,11rem)] border-border bg-background text-sm">
+									<Filter className="w-3.5 h-3.5 mr-1.5 shrink-0 opacity-70" />
+									<SelectValue placeholder="Type" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="all">All Appointments</SelectItem>
-									{Object.entries(APPOINTMENT_TYPES).map(([key, config]) => (
+									<SelectItem value="all">All types</SelectItem>
+									{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => (
 										<SelectItem key={key} value={key}>
 											{config.label}
 										</SelectItem>
@@ -366,36 +496,36 @@ export default function CalendarClient({
 							</Select>
 
 							<Select value={taskOwnershipFilter} onValueChange={setTaskOwnershipFilter}>
-								<SelectTrigger className="w-40">
+								<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,9.5rem)] border-border bg-background text-sm">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="all">All Tasks</SelectItem>
-									<SelectItem value="my">My Tasks</SelectItem>
-									<SelectItem value="teammate">Teammate Tasks</SelectItem>
+									<SelectItem value="all">All tasks</SelectItem>
+									<SelectItem value="my">My tasks</SelectItem>
+									<SelectItem value="teammate">Teammate tasks</SelectItem>
 								</SelectContent>
 							</Select>
-							
+
 							{!isAdmin && (
 								<>
 									<Select value={bookmarkScope} onValueChange={setBookmarkScope}>
-										<SelectTrigger className="w-40">
+										<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,9.5rem)] border-border bg-background text-sm">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="all">All Bookings</SelectItem>
-											<SelectItem value="own">My Bookings</SelectItem>
-											<SelectItem value="team">Team Bookings</SelectItem>
+											<SelectItem value="all">All bookings</SelectItem>
+											<SelectItem value="own">My bookings</SelectItem>
+											<SelectItem value="team">Team bookings</SelectItem>
 										</SelectContent>
 									</Select>
-									
+
 									{projects.length > 0 && (
 										<Select value={selectedProject} onValueChange={setSelectedProject}>
-											<SelectTrigger className="w-40">
-												<SelectValue placeholder="Filter by project" />
+											<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,12rem)] border-border bg-background text-sm">
+												<SelectValue placeholder="Project" />
 											</SelectTrigger>
 											<SelectContent>
-												<SelectItem value="all">All Projects</SelectItem>
+												<SelectItem value="all">All projects</SelectItem>
 												{projects.map((project) => (
 													<SelectItem key={project.id} value={String(project.id)}>
 														{project.name}
@@ -409,53 +539,73 @@ export default function CalendarClient({
 						</div>
 					</div>
 
-					{/* Stats Cards */}
-					<div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-						{Object.entries(APPOINTMENT_TYPES).map(([appointmentKey, config]) => {
-							const count = statsCounts[appointmentKey] || 0
-							return (
-								<Card
-									key={appointmentKey}
-									className="bg-card border-border"
-								>
-									<CardContent className="p-4">
-										<div className="flex items-center justify-between">
-											<div>
-												<p className="text-sm text-muted-foreground">{config.label}</p>
-												<p className="text-2xl font-bold text-foreground">
-													{count}
-												</p>
-											</div>
-											<div className={`w-3 h-3 rounded-full shrink-0 ${config.color}`} />
+					{/* Compact legend + counts (single row on wide screens) */}
+					<div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3">
+						<p className="text-xs font-medium text-muted-foreground mb-2 sm:mb-2.5">
+							Counts in this period
+						</p>
+						<div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+							{Object.entries(CALENDAR_EVENT_TYPES).map(([appointmentKey, config]) => {
+								const count = statsCounts[appointmentKey] || 0
+								return (
+									<div
+										key={appointmentKey}
+										className="flex items-center gap-2 min-w-0 rounded-md bg-card/80 px-2 py-1.5 border border-border/60"
+									>
+										<span
+											className={`h-2 w-2 shrink-0 rounded-full ring-1 ring-border/50 ${config.color}`}
+											aria-hidden
+										/>
+										<div className="min-w-0 flex-1">
+											<p className="text-[11px] leading-tight text-muted-foreground truncate sm:text-xs">
+												{config.label}
+											</p>
+											<p className="text-sm font-semibold tabular-nums text-foreground leading-none mt-0.5">
+												{count}
+											</p>
 										</div>
-									</CardContent>
-								</Card>
-							)
-						})}
+									</div>
+								)
+							})}
+						</div>
 					</div>
 				</div>
 
 				{/* Calendar */}
-				<Card className="bg-card border-border">
-					<CardHeader>
-						<div className="flex items-center justify-between">
-							<CardTitle className="text-xl font-semibold text-foreground">
-								Calendar
-							</CardTitle>
-							<div className="flex items-center gap-4">
+				<Card className="bg-card border-border overflow-hidden">
+					<CardHeader className="space-y-0 pb-4 pt-4 px-4 sm:px-6 sm:pt-5">
+						<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+							<div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:flex-1 lg:min-w-0 lg:justify-end lg:order-2">
 								<ViewSwitcher
 									currentView={viewMode}
 									onViewChange={handleViewChange}
 								/>
+								{isAdmin && (
+									<Button
+										size="sm"
+										variant="default"
+										onClick={() => {
+											setEditingBlocker(null)
+											setIsBlockerDialogOpen(true)
+										}}
+										className="shrink-0 gap-1.5 h-9"
+									>
+										<ShieldAlert className="w-3.5 h-3.5" />
+										Blocker
+									</Button>
+								)}
 								<Button
+									size="sm"
 									variant="outline"
 									onClick={() => setIsExportDialogOpen(true)}
-									className="flex items-center gap-2"
+									className="shrink-0 gap-1.5 h-9"
 								>
-									<Download className="w-4 h-4" />
+									<Download className="w-3.5 h-3.5" />
 									Export
 								</Button>
-								<DatePicker 
+							</div>
+							<div className="w-full min-w-0 lg:order-1 lg:max-w-md xl:max-w-lg">
+								<DatePicker
 									currentDate={currentDate}
 									onDateChange={handleDateChange}
 									viewMode={viewMode}
@@ -489,16 +639,18 @@ export default function CalendarClient({
 									bookings={bookingsInDateRange}
 									onEventClick={handleBookingClick}
 									onDateClick={handleDateClick}
+									onTimeSlotClick={handleTimeSlotClick}
 								/>
 							</div>
 						)}
-						
+
 						{viewMode === 'day' && (
 							<div className="h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
 								<DayView
 									currentDate={currentDate}
 									bookings={bookingsInDateRange}
 									onEventClick={handleBookingClick}
+									onTimeSlotClick={handleTimeSlotClick}
 								/>
 							</div>
 						)}
@@ -535,25 +687,27 @@ export default function CalendarClient({
 															{formatDateStringDirect(booking.date)}
 														</div>
 														{booking.type !== "task" && (
-															<>
-																<div className="flex items-center gap-1">
-																	<Clock className="w-3 h-3" />
-																	{booking.startTime} - {booking.endTime}
-																</div>
-																<div className="flex items-center gap-1">
-																	<Users className="w-3 h-3" />
-																	{booking.attendees} attendees
-																</div>
-															</>
+															<div className="flex items-center gap-1">
+																<Clock className="w-3 h-3" />
+																{booking.startTime} - {booking.endTime}
+															</div>
 														)}
-														<div className="flex items-center gap-1">
-															<MapPin className="w-3 h-3" />
-															{booking.location}
-														</div>
+														{booking.type === "appointment" && (
+															<div className="flex items-center gap-1">
+																<Users className="w-3 h-3" />
+																{booking.attendees} attendees
+															</div>
+														)}
+														{booking.type !== "task" && (
+															<div className="flex items-center gap-1">
+																<MapPin className="w-3 h-3" />
+																{booking.location}
+															</div>
+														)}
 													</div>
 												</div>
 												<Badge variant={badgeConfig.variant} className={badgeConfig.className}>
-													{APPOINTMENT_TYPES[booking.appointmentType]?.label || 'Others'}
+													{CALENDAR_EVENT_TYPES[booking.appointmentType]?.label || "Others"}
 												</Badge>
 											</div>
 										</div>
@@ -578,6 +732,9 @@ export default function CalendarClient({
 					}}
 					onEdit={handleBookingEdit}
 					onDelete={handleBookingDelete}
+					onEditBooking={handleEditBooking}
+					onCancelBooking={handleCancelBooking}
+					isAdmin={isAdmin}
 				/>
 
 				{/* Date Events Dialog */}
@@ -594,6 +751,7 @@ export default function CalendarClient({
 						setIsDateEventsDialogOpen(false)
 						setIsDetailsDialogOpen(true)
 					}}
+					onBookAppointment={(date) => handleBookAppointment(date)}
 				/>
 
 				{/* Export Calendar Dialog */}
@@ -601,6 +759,48 @@ export default function CalendarClient({
 					isOpen={isExportDialogOpen}
 					onClose={() => setIsExportDialogOpen(false)}
 					bookings={bookings}
+				/>
+
+				{/* Blocker Form Dialog (admin only) */}
+				{isAdmin && (
+					<BlockerFormDialog
+						open={isBlockerDialogOpen}
+						onOpenChange={(open) => {
+							setIsBlockerDialogOpen(open)
+							if (!open) setEditingBlocker(null)
+						}}
+						blocker={editingBlocker}
+						onSuccess={handleBlockerSuccess}
+					/>
+				)}
+
+				{/* Appointment Booking Dialog */}
+				<AppointmentBookingDialog
+					isOpen={isBookingDialogOpen}
+					onClose={() => {
+						setIsBookingDialogOpen(false)
+						setBookingInitialDate("")
+						setBookingInitialTime(null)
+					}}
+					initialDate={bookingInitialDate}
+					initialTime={bookingInitialTime}
+					appointments={initialAppointments}
+					userId={userId}
+					userName={userName}
+					onSuccess={handleBookingSuccess}
+				/>
+
+				{/* Edit Booking Dialog */}
+				<EditBookingDialog
+					isOpen={isEditBookingDialogOpen}
+					onClose={() => {
+						setIsEditBookingDialogOpen(false)
+						setEditingBooking(null)
+					}}
+					booking={editingBooking}
+					userName={userName}
+					isAdmin={isAdmin}
+					onSuccess={handleBookingSuccess}
 				/>
 			</div>
 		</div>

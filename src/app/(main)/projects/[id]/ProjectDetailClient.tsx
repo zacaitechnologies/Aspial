@@ -47,7 +47,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog"
-import { KanbanBoard } from "../components/ProjectKanbanBoard"
+import { KanbanBoard, type ProjectTaskViewFilter } from "../components/ProjectKanbanBoard"
 import CreateComplaintDialog from "../components/CreateComplaintDialog"
 import EditComplaintDialog from "../components/EditComplaintDialog"
 import ProjectContracts from "../components/ProjectContracts"
@@ -79,7 +79,7 @@ export default function ProjectDetailClient({
 	const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "complaints" | "contracts">(initialTab)
 	const [sortBy, setSortBy] = useState<"dueDate" | "createDate" | "priority">("createDate")
 	const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc")
-	const [taskFilter, setTaskFilter] = useState<"all" | "my">("all")
+	const [taskFilter, setTaskFilter] = useState<ProjectTaskViewFilter>("all")
 	const [complaints, setComplaints] = useState<Complaint[]>(initialProjectData.complaints)
 	const [editingComplaint, setEditingComplaint] = useState<Complaint | null>(null)
 	const [isEditOpen, setIsEditOpen] = useState(false)
@@ -696,20 +696,6 @@ export default function ProjectDetailClient({
 
 				{activeTab === "tasks" && (
 					<>
-						{/* Task Filter Controls */}
-						<div className="flex items-center justify-between mb-4">
-							<div className="flex items-center gap-4">
-								<Select value={taskFilter} onValueChange={(value: "all" | "my") => setTaskFilter(value)}>
-									<SelectTrigger className="w-40">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="all">All Tasks</SelectItem>
-										<SelectItem value="my">My Tasks</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
 						<KanbanBoard
 							projectId={params.id as string}
 							sortBy={sortBy}
@@ -718,6 +704,7 @@ export default function ProjectDetailClient({
 							onSortOrderChange={setSortOrder}
 							isProjectCancelled={isProjectCancelled}
 							taskFilter={taskFilter}
+							onTaskFilterChange={setTaskFilter}
 							userId={enhancedUser?.id}
 							onTasksUpdated={handleTasksUpdated}
 						/>

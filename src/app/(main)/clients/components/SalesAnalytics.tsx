@@ -29,6 +29,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
   const [advisorId, setAdvisorId] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [salesData, setSalesData] = useState<{
+    revenueView: "gross" | "attributed"
     totalSales: number
     totalClients: number
     totalInvoices: number
@@ -44,11 +45,14 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       invoiceNumber: string
       type: string
       amount: number
+      grossAmount: number
+      attributedAmount: number
+      advisorCount: number
       invoiceDate: string
       created_at: string
       quotation: { id: number; name: string }
       client: { id: string; name: string; email: string; company: string | null; membershipType: string | null }
-      createdBy: { id: string; name: string; email: string }
+      advisors: Array<{ id: string; name: string; email: string }>
     }>
     salesByAdvisor: Array<{
       advisorId: string
@@ -134,7 +138,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       invoice.invoiceNumber.toLowerCase().includes(searchLower) ||
       invoice.quotation?.name?.toLowerCase().includes(searchLower) ||
       invoice.client?.name?.toLowerCase().includes(searchLower) ||
-      invoice.createdBy?.name?.toLowerCase().includes(searchLower)
+      invoice.advisors?.some(a => a.name?.toLowerCase().includes(searchLower))
     )
   }) || []
 
@@ -237,6 +241,9 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Sales</p>
+                    {salesData.revenueView === "attributed" && (
+                      <p className="text-xs text-muted-foreground mt-0.5">Equal split per advisor on each invoice</p>
+                    )}
                     <p className="text-3xl font-bold text-foreground tabular-nums">
                       RM {formatNumber(salesData.totalSales)}
                     </p>
@@ -306,7 +313,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-foreground">
                   <Calendar className="w-5 h-5" />
-                  Monthly Sales Breakdown
+                  Monthly{salesData.revenueView === "attributed" ? " attributed" : ""} Sales Breakdown
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -401,13 +408,21 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                         <TableHead className="font-bold whitespace-nowrap text-foreground">Quotation</TableHead>
                         <TableHead className="font-bold whitespace-nowrap text-foreground">Client</TableHead>
                         <TableHead className="font-bold whitespace-nowrap text-foreground">Advisor</TableHead>
-                        <TableHead className="text-right font-bold whitespace-nowrap text-foreground">Amount</TableHead>
+                        <TableHead className="text-right font-bold whitespace-nowrap text-foreground">
+                          {salesData.revenueView === "attributed" ? "Attributed" : "Amount"}
+                        </TableHead>
                         <TableHead className="font-bold whitespace-nowrap text-foreground">Invoice date</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredInvoices.map((invoice) => {
                         const badgeColor = invoice.type === 'SO' ? 'bg-green-600' : invoice.type === 'EPO' ? 'bg-yellow-500' : 'bg-blue-500'
+                        const showEqualSplit =
+                          salesData.revenueView === "gross" && invoice.advisorCount > 1
+                        const displayAmount =
+                          salesData.revenueView === "attributed"
+                            ? invoice.attributedAmount
+                            : invoice.grossAmount
                         return (
                           <TableRow key={invoice.id} className="hover:bg-muted">
                             <TableCell className="font-medium text-foreground">
@@ -430,11 +445,16 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                             <TableCell className="text-foreground">
                               <div className="flex items-center gap-2">
                                 <UserIcon className="h-4 w-4 text-muted-foreground" />
-                                {invoice.createdBy?.name || 'N/A'}
+                                {invoice.advisors?.map(a => a.name).join(', ') || 'N/A'}
                               </div>
                             </TableCell>
                             <TableCell className="text-right font-bold text-foreground tabular-nums whitespace-nowrap">
-                              RM {formatNumber(invoice.amount)}
+                              <div>RM {formatNumber(displayAmount)}</div>
+                              {showEqualSplit && (
+                                <div className="text-xs font-normal text-muted-foreground">
+                                  {invoice.advisorCount} advisors: RM {formatNumber(invoice.attributedAmount)} each
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell className="text-foreground">
                               {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', {

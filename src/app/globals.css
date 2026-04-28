@@ -3,7 +3,7 @@
 @import "react-datepicker/dist/react-datepicker.css";
 
 /* Safelist calendar category colors so dynamic booking.color classes are not purged */
-@source inline("bg-calendar-photo-shoot bg-calendar-video-shoot bg-calendar-photo-selection bg-calendar-consultation bg-calendar-others border-l-calendar-photo-shoot border-l-calendar-video-shoot border-l-calendar-photo-selection border-l-calendar-consultation border-l-calendar-others");
+@source inline("bg-calendar-photo-shoot bg-calendar-video-shoot bg-calendar-photo-selection bg-calendar-consultation bg-calendar-others bg-calendar-leave bg-calendar-blocker text-calendar-blocker-foreground border-l-calendar-photo-shoot border-l-calendar-video-shoot border-l-calendar-photo-selection border-l-calendar-consultation border-l-calendar-others border-l-calendar-leave border-l-calendar-blocker");
 
 @custom-variant dark (&:is(.dark *));
 
@@ -56,6 +56,9 @@
   --color-calendar-photo-selection: var(--calendar-photo-selection);
   --color-calendar-consultation: var(--calendar-consultation);
   --color-calendar-others: var(--calendar-others);
+  --color-calendar-leave: var(--calendar-leave);
+  --color-calendar-blocker: var(--calendar-blocker);
+  --color-calendar-blocker-foreground: var(--calendar-blocker-foreground);
 }
 
 :root {
@@ -93,6 +96,10 @@
   --calendar-photo-selection: #86D4FF;
   --calendar-consultation: #35D237;
   --calendar-others: #F7C2DD;
+  --calendar-leave: #5B9AA9;
+  /* Distinct from cream/white UI — was amber-500 (#F59E0B), which read as pale/white in the legend */
+  --calendar-blocker: #c2410c;
+  --calendar-blocker-foreground: #fff7ed;
   --sidebar: #f0e8d8; /* Cream for sidebar background */
   --sidebar-foreground: #202f21; /* Dark Green for sidebar text */
   --sidebar-primary: #bdc4a5; /* Sage for primary sidebar elements */
@@ -146,6 +153,9 @@
   --calendar-photo-selection: #86D4FF;
   --calendar-consultation: #35D237;
   --calendar-others: #F7C2DD;
+  --calendar-leave: #5B9AA9;
+  --calendar-blocker: #c2410c;
+  --calendar-blocker-foreground: #fff7ed;
   --sidebar: oklch(0.216 0.006 56.043);
   --sidebar-foreground: oklch(0.985 0.001 106.423);
   --sidebar-primary: oklch(0.488 0.243 264.376);

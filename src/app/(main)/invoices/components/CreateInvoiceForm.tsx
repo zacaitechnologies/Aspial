@@ -18,6 +18,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select"
+import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors"
 import { Search, Loader2, AlertTriangle, CheckCircle } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import { createInvoice, searchQuotationsForInvoice, invalidateInvoicesCache } from "../action"
@@ -39,7 +40,7 @@ interface CreateInvoiceFormProps {
 	prefilledQuotationId?: number
 	/** When opening from a quotation card, pass the quotation to avoid refetch and speed up popup */
 	prefetchedQuotation?: QuotationWithServices | null
-	/** Pass isAdmin from parent to skip redundant check (speeds up dialog open) */
+	/** When set, skips an extra server round-trip to resolve admin status */
 	isAdminProp?: boolean
 }
 
@@ -67,37 +68,36 @@ export default function CreateInvoiceForm({
 	const [amountWarning, setAmountWarning] = useState<string>("")
 	const [isAdmin, setIsAdmin] = useState(false)
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
-	/** Advised By: User.id (cuid) - only admins can change; defaults to quotation advisor */
-	const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("")
+	/** Advisor IDs: User.id (cuid) — defaults from quotation; editable on create */
+	const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([])
+	/** Current user's DB id (cuid) for MultiSelect “you” label */
+	const [currentDbUserId, setCurrentDbUserId] = useState<string>("")
 
-	// Use isAdminProp if provided (from parent) to skip redundant check
+	// Load users, current user id, and admin status (affects whether self can be removed from advisors)
 	useEffect(() => {
 		if (!isOpen || !enhancedUser?.id) return
-		// If isAdminProp is explicitly passed, use it and skip check
-		if (isAdminProp !== undefined) {
-			setIsAdmin(isAdminProp)
-			if (isAdminProp) {
-				// Still need to fetch users for admin
-				getAllUsers().then(setUsers).catch(() => {})
-			}
-			return
-		}
-		// Otherwise, check admin status
-		const checkAdminAndFetchUsers = async () => {
+		const init = async () => {
 			try {
-				const adminStatus = await checkIsAdmin(enhancedUser.id)
+				let adminStatus: boolean
+				if (isAdminProp !== undefined) {
+					adminStatus = isAdminProp
+				} else {
+					adminStatus = await checkIsAdmin(enhancedUser.id)
+				}
 				setIsAdmin(adminStatus)
-				if (adminStatus) {
-					const allUsers = await getAllUsers()
-					setUsers(allUsers)
+				const allUsers = await getAllUsers()
+				setUsers(allUsers)
+				const me = allUsers.find((u) => u.supabase_id === enhancedUser.id)
+				if (me) {
+					setCurrentDbUserId(me.id)
 				}
 			} catch (error) {
 				if (process.env.NODE_ENV === 'development') {
-					console.error("Error checking admin status:", error)
+					console.error("Error initializing form:", error)
 				}
 			}
 		}
-		checkAdminAndFetchUsers()
+		void init()
 	}, [isOpen, enhancedUser?.id, isAdminProp])
 
 	// Load prefilled quotation: always fetch full quotation (services + customServices with real prices)
@@ -109,14 +109,21 @@ export default function CreateInvoiceForm({
 		handleQuotationSelect(prefilledQuotationId)
 	}, [prefilledQuotationId, isOpen, prefetchedQuotation?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Sync advisedBy whenever the referenced quotation changes (ensures advisor loads even if isAdmin loads late)
+	// Sync advisors when the selected quotation changes (default: quotation’s advisors). Non-admins must include self.
 	useEffect(() => {
-		if (selectedQuotation?.advisedBy?.id) {
-			setSelectedAdvisedById(selectedQuotation.advisedBy.id)
+		if (selectedQuotation) {
+			let ids: string[] = []
+			if (Array.isArray(selectedQuotation.advisors) && selectedQuotation.advisors.length > 0) {
+				ids = selectedQuotation.advisors.map((a: any) => a.id).filter(Boolean)
+			}
+			if (!isAdmin && currentDbUserId && !ids.includes(currentDbUserId)) {
+				ids = [...ids, currentDbUserId]
+			}
+			setSelectedAdvisorIds(ids)
 		} else {
-			setSelectedAdvisedById("")
+			setSelectedAdvisorIds([])
 		}
-	}, [selectedQuotation?.id, selectedQuotation?.advisedBy?.id])
+	}, [selectedQuotation?.id, selectedQuotation?.advisors, isAdmin, currentDbUserId])
 
 	// When quotation is selected: use balance (quotation total minus all non-cancelled invoices)
 	// for display, pre-fill and validation instead of quotation total.
@@ -196,7 +203,7 @@ export default function CreateInvoiceForm({
 			if (fetchedQuotation) {
 				setSelectedQuotation(fetchedQuotation)
 				setInvoiceForm(prev => ({ ...prev, quotationId }))
-				// advisedBy is synced by useEffect when selectedQuotation changes
+				// advisors are synced by useEffect when selectedQuotation changes
 				setSearchQuery("")
 				setSearchResults([])
 			} else {
@@ -244,15 +251,22 @@ export default function CreateInvoiceForm({
 			return
 		}
 
+		if (selectedAdvisorIds.length === 0) {
+			toast({
+				title: "Advisor required",
+				description: "Please select at least one advisor before submitting.",
+				variant: "destructive",
+			})
+			return
+		}
+
 		setIsSaving(true)
 		try {
 			await createInvoice({
 				quotationId: invoiceForm.quotationId,
 				type: invoiceForm.type,
 				amount: parseFloat(invoiceForm.amount),
-				// Only admins can pass advisedById; non-admin defaults to self server-side
-				advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
-				// Invoice date: only applied server-side when user is admin
+				advisorIds: selectedAdvisorIds,
 				invoiceDate: invoiceForm.invoiceDate || undefined,
 			})
 
@@ -272,7 +286,7 @@ export default function CreateInvoiceForm({
 				invoiceDate: formatLocalDate(new Date()),
 			})
 			setSelectedQuotation(null)
-			setSelectedAdvisedById("")
+			setSelectedAdvisorIds([])
 			setSearchQuery("")
 			setSearchResults([])
 			setAmountWarning("")
@@ -446,7 +460,7 @@ export default function CreateInvoiceForm({
 						)}
 					</div>
 
-					{/* Invoice Date - editable only by admin */}
+					{/* Invoice document date (stored as invoiceDate) */}
 					<div className="space-y-2">
 						<Label htmlFor="invoice-date">Invoice Date</Label>
 						<Input
@@ -456,38 +470,38 @@ export default function CreateInvoiceForm({
 							onChange={(e) =>
 								setInvoiceForm(prev => ({ ...prev, invoiceDate: e.target.value }))
 							}
-							disabled={!isAdmin || isSaving}
+							disabled={!selectedQuotation || isSaving}
 						/>
-						{!isAdmin && (
-							<p className="text-xs text-muted-foreground">Only admins can change the invoice date.</p>
-						)}
+						<p className="text-xs text-muted-foreground">
+							This is the date shown on the invoice document.
+						</p>
 					</div>
 
-					{/* Advised By (Admin Only) - Created By is always the logged-in user and cannot be changed */}
-					{isAdmin && (
-						<div className="space-y-2">
-							<Label htmlFor="advised-by">Advised By</Label>
-							<Select
-								value={selectedAdvisedById}
-								onValueChange={setSelectedAdvisedById}
-								disabled={!selectedQuotation || isSaving}
-							>
-								<SelectTrigger id="advised-by">
-									<SelectValue placeholder="Select advisor" />
-								</SelectTrigger>
-								<SelectContent>
-									{users.map((user) => (
-										<SelectItem key={user.id} value={user.id}>
-											{user.firstName} {user.lastName} ({user.email})
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-							<p className="text-xs text-muted-foreground">
-								Defaults to the quotation&apos;s advisor. You can select a different advisor.
-							</p>
-						</div>
-					)}
+					{/* Advisors — non-admins cannot remove themselves; admins can change freely */}
+					<div className="space-y-2">
+						<Label htmlFor="advisors">Advisors</Label>
+						<MultiSelectAdvisors
+							users={users}
+							selectedIds={selectedAdvisorIds}
+							onChange={(ids) => {
+								if (!isAdmin && currentDbUserId && !ids.includes(currentDbUserId)) {
+									setSelectedAdvisorIds([...ids, currentDbUserId])
+									return
+								}
+								setSelectedAdvisorIds(ids)
+							}}
+							currentUserId={currentDbUserId}
+							isAdmin={isAdmin}
+							disabled={!selectedQuotation || isSaving}
+							placeholder="Select advisors"
+						/>
+						<p className="text-xs text-muted-foreground">
+							Defaults to the quotation&apos;s advisors.
+							{isAdmin
+								? " You can add or remove advisors."
+								: " You can add others, but you cannot remove yourself as an advisor."}
+						</p>
+					</div>
 				</div>
 				<DialogFooter className="shrink-0 px-6 pb-6 pt-2 border-t">
 					<Button
@@ -511,7 +525,7 @@ export default function CreateInvoiceForm({
 					</Button>
 					<Button
 						onClick={handleCreateInvoice}
-						disabled={isSaving || !invoiceForm.quotationId || !invoiceForm.amount || parseFloat(invoiceForm.amount) <= 0}
+						disabled={isSaving || !invoiceForm.quotationId || !invoiceForm.amount || parseFloat(invoiceForm.amount) <= 0 || selectedAdvisorIds.length === 0}
 						className="gap-2"
 					>
 						{isSaving ? (

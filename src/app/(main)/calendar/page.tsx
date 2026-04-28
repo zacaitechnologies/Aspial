@@ -1,5 +1,5 @@
 import { getCachedUser } from "@/lib/auth-cache"
-import { fetchAllBookings, getUserProjects, checkIsAdmin } from "./actions"
+import { fetchAllBookings, getUserProjects, checkIsAdmin, getAvailableAppointments } from "./actions"
 import CalendarClient from "./components/CalendarClient"
 
 // Force dynamic rendering since we use cookies for authentication
@@ -22,9 +22,10 @@ export default async function OrganizationCalendar() {
 	const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
 	monthEnd.setHours(23, 59, 59, 999)
 
-	const [isAdmin, bookings] = await Promise.all([
+	const [isAdmin, bookings, availableAppointments] = await Promise.all([
 		checkIsAdmin(user.id),
 		fetchAllBookings(user.id, userName, { start: monthStart, end: monthEnd }),
+		getAvailableAppointments(),
 	])
 
 	const projects = isAdmin ? [] : await getUserProjects(user.id)
@@ -34,6 +35,7 @@ export default async function OrganizationCalendar() {
 			initialBookings={bookings}
 			initialIsAdmin={isAdmin}
 			initialProjects={projects}
+			initialAppointments={availableAppointments}
 			userId={user.id}
 			userName={userName}
 		/>

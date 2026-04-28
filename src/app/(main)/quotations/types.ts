@@ -42,7 +42,7 @@ export type QuotationWithServices = {
     created_at: Date;
     updated_at: Date;
   };
-  advisedBy?: { id: string; firstName: string; lastName: string; email: string } | null;
+  advisors: Array<{ id: string; firstName: string; lastName: string; email: string }>;
   created_at: Date;
   updated_at: Date;
   services: {

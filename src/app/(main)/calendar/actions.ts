@@ -1,27 +1,22 @@
 "use server"
 
-import { unstable_cache } from "next/cache"
+import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { formatLocalDate, formatLocalDateTime } from "@/lib/date-utils"
+import type { LeaveHalfDay } from "@prisma/client"
 import { getAllUserTasks } from "../projects/task-actions"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
-import { APPOINTMENT_TYPES, type AppointmentType } from "./constants"
+import {
+	APPOINTMENT_TYPES,
+	CALENDAR_EVENT_TYPES,
+	type AppointmentType,
+	type CalendarEventType,
+} from "./constants"
 
-interface AppointmentBooking {
-	id: number
-	appointmentId: number | null
-	appointment: {
-		name: string
-		location: string | null
-		brand: string | null
-	} | null
-	bookedBy: string
-	startDate: Date
-	endDate: Date
-	purpose: string | null
-	attendees: number | null
-	status: string
-	appointmentType: string
+/** Server Actions may deserialize `Date` props as ISO strings — normalize before using Date APIs. */
+function coerceToDate(value: Date | string): Date {
+	if (value instanceof Date) return value
+	return new Date(value)
 }
 
 export interface CalendarBooking {
@@ -33,12 +28,12 @@ export interface CalendarBooking {
 	date: string
 	startTime: string
 	endTime: string
-	type: "appointment" | "task"
-	appointmentType: AppointmentType
+	type: "appointment" | "task" | "leave" | "blocker"
+	appointmentType: CalendarEventType
 	location: string
 	attendees: number
 	color: string
-	originalData: any
+	originalData: unknown
 	projectId?: number | null
 	projectName?: string | null
 	clientName?: string | null
@@ -50,11 +45,59 @@ export interface CalendarBooking {
 	isTeamBooking?: boolean
 	assigneeId?: string | null
 	creatorId?: string
+	/** Blockers only: true when the event is stored as full local days (week/day views use the all-day row). */
+	allDay?: boolean
 }
 
-const bookingTypes = {
-	appointment: { color: "bg-blue-500", label: "Appointment" },
-	task: { color: "bg-yellow-500", label: "Task" },
+/** Local calendar dates (YYYY-MM-DD) for each day of a leave span, optionally clipped to a visible range. */
+function expandLeaveDatesInRange(
+	leaveStart: Date,
+	leaveEnd: Date,
+	range?: { start: Date | string; end: Date | string }
+): string[] {
+	const rs = range ? coerceToDate(range.start) : null
+	const re = range ? coerceToDate(range.end) : null
+	const start = new Date(
+		leaveStart.getFullYear(),
+		leaveStart.getMonth(),
+		leaveStart.getDate()
+	)
+	const end = new Date(leaveEnd.getFullYear(), leaveEnd.getMonth(), leaveEnd.getDate())
+	const rangeStart = rs
+		? new Date(rs.getFullYear(), rs.getMonth(), rs.getDate())
+		: null
+	const rangeEnd = re
+		? new Date(re.getFullYear(), re.getMonth(), re.getDate())
+		: null
+	const out: string[] = []
+	const cur = new Date(start)
+	while (cur <= end) {
+		if (rangeStart && rangeEnd) {
+			if (cur < rangeStart || cur > rangeEnd) {
+				cur.setDate(cur.getDate() + 1)
+				continue
+			}
+		}
+		out.push(formatLocalDate(cur))
+		cur.setDate(cur.getDate() + 1)
+	}
+	return out
+}
+
+function leaveTimeRangeForDay(
+	halfDay: LeaveHalfDay,
+	isSingleCalendarDayLeave: boolean
+): { startTime: string; endTime: string } {
+	if (!isSingleCalendarDayLeave || halfDay === "NONE") {
+		return { startTime: "00:00", endTime: "23:59" }
+	}
+	if (halfDay === "FIRST_HALF") {
+		return { startTime: "00:00", endTime: "12:00" }
+	}
+	if (halfDay === "SECOND_HALF") {
+		return { startTime: "12:00", endTime: "23:59" }
+	}
+	return { startTime: "00:00", endTime: "23:59" }
 }
 
 export async function checkIsAdmin(userId: string): Promise<boolean> {
@@ -142,24 +185,127 @@ export async function getUserProjects(userId: string): Promise<{ id: number; nam
 	}
 }
 
-// Internal: fetch bookings for a date range (or all if no range). Used by fetchAllBookings and cached fetch.
-async function _fetchBookingsInRange(
+function formatLeaveApplicantName(user: {
+	firstName: string
+	lastName: string
+	email: string
+}): string {
+	const name = `${user.firstName} ${user.lastName}`.trim()
+	return name || user.email
+}
+
+/** All org members' leave (pending + approved), for shared calendar visibility. */
+async function _fetchLeaveBookings(
+	viewerSupabaseId: string,
+	safeRange?: { start: Date; end: Date }
+): Promise<CalendarBooking[]> {
+	const leaves = await prisma.leaveApplication.findMany({
+		where: {
+			status: { in: ["PENDING", "APPROVED"] },
+			...(safeRange
+				? {
+						startDate: { lte: safeRange.end },
+						endDate: { gte: safeRange.start },
+					}
+				: {}),
+		},
+		select: {
+			id: true,
+			leaveType: true,
+			startDate: true,
+			endDate: true,
+			halfDay: true,
+			reason: true,
+			status: true,
+			totalDays: true,
+			user: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+					supabase_id: true,
+				},
+			},
+		},
+	})
+
+	const leaveStartEndSameDay = (s: Date, e: Date) => formatLocalDate(s) === formatLocalDate(e)
+	const results: CalendarBooking[] = []
+
+	for (const leave of leaves) {
+		const applicantName = formatLeaveApplicantName(leave.user)
+		const applicantSupabaseId = leave.user.supabase_id
+		const isOwnLeave = applicantSupabaseId === viewerSupabaseId
+
+		const startD = new Date(leave.startDate)
+		const endD = new Date(leave.endDate)
+		const dayStrings = expandLeaveDatesInRange(startD, endD, safeRange)
+		const isSingleCalendarDayLeave = leaveStartEndSameDay(startD, endD)
+		const { startTime, endTime } = leaveTimeRangeForDay(leave.halfDay, isSingleCalendarDayLeave)
+
+		const typeLabel = leave.leaveType === "PAID" ? "Paid" : "Unpaid"
+		const halfLabel =
+			isSingleCalendarDayLeave && leave.halfDay === "FIRST_HALF"
+				? " (AM)"
+				: isSingleCalendarDayLeave && leave.halfDay === "SECOND_HALF"
+					? " (PM)"
+					: ""
+		const statusSuffix = leave.status === "PENDING" ? " · Pending" : ""
+		const titleBase = `${typeLabel} leave${halfLabel}${statusSuffix}`
+
+		for (const dateStr of dayStrings) {
+			results.push({
+				id: `leave-${leave.id}-${dateStr}`,
+				title: `${applicantName} · ${titleBase}`,
+				bookingName: `${typeLabel} leave`,
+				description: leave.reason,
+				date: dateStr,
+				startTime,
+				endTime,
+				type: "leave",
+				appointmentType: "LEAVE",
+				location: "Leave",
+				attendees: 1,
+				color: CALENDAR_EVENT_TYPES.LEAVE.color,
+				projectId: null,
+				projectName: null,
+				clientName: null,
+				creatorName: applicantName,
+				assigneeName: null,
+				taskStartDate: null,
+				taskDueDate: null,
+				isUserBooking: isOwnLeave,
+				isTeamBooking: !isOwnLeave,
+				assigneeId: null,
+				creatorId: applicantSupabaseId,
+				originalData: {
+					leaveApplicationId: leave.id,
+					status: leave.status,
+					leaveType: leave.leaveType,
+					halfDay: leave.halfDay,
+					totalDays: leave.totalDays,
+					applicantSupabaseId,
+				},
+			})
+		}
+	}
+	return results
+}
+
+/** Fetch appointment bookings, filtered by range and user permissions. */
+async function _fetchAppointmentBookings(
 	userId: string,
 	userName: string,
-	range?: { start: Date; end: Date }
+	isAdmin: boolean,
+	userProjectIds: number[],
+	safeRange?: { start: Date; end: Date }
 ): Promise<CalendarBooking[]> {
-	if (!userId || !userName) return []
-
-	const isAdmin = await checkIsAdmin(userId)
-	const userProjectIds = await getUserProjectIds(userId)
-	const calendarBookings: CalendarBooking[] = []
-
 	const appointmentWhere: { status: string; startDate?: { lte: Date }; endDate?: { gte: Date } } = {
 		status: "active",
 	}
-	if (range) {
-		appointmentWhere.startDate = { lte: range.end }
-		appointmentWhere.endDate = { gte: range.start }
+	if (safeRange) {
+		appointmentWhere.startDate = { lte: safeRange.end }
+		appointmentWhere.endDate = { gte: safeRange.start }
 	}
 
 	const appointmentBookings = await prisma.appointmentBooking.findMany({
@@ -182,211 +328,568 @@ async function _fetchBookingsInRange(
 		}
 	})
 
-		// Transform unified appointment bookings - Filter for staff users
-		appointmentBookings.forEach((booking) => {
-			const bookingWithProject = booking as any
-			// If user is staff (not admin), only show:
-			// 1. Their own bookings, OR
-			// 2. Bookings for projects they're part of
-			if (!isAdmin) {
-				const isUserBooking = booking.bookedBy === userName
-				const isProjectBooking = bookingWithProject.project && 
-					userProjectIds.includes(bookingWithProject.project.id)
-				
-				if (!isUserBooking && !isProjectBooking) {
-					return
-				}
-			}
+	const results: CalendarBooking[] = []
 
-			const startDate = new Date(booking.startDate)
-			const endDate = new Date(booking.endDate)
+	appointmentBookings.forEach((booking) => {
+		const bookingWithProject = booking as Record<string, unknown> & typeof booking
+		if (!isAdmin) {
 			const isUserBooking = booking.bookedBy === userName
-			const isProjectBooking = bookingWithProject.project && 
-				userProjectIds.includes(bookingWithProject.project.id)
+			const isProjectBooking = bookingWithProject.project &&
+				userProjectIds.includes((bookingWithProject.project as { id: number }).id)
+			if (!isUserBooking && !isProjectBooking) return
+		}
 
-			// Map appointmentType from database to our constant keys
-			const appointmentType = (booking.appointmentType as AppointmentType) || 'OTHERS'
-			const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS
+		const startDate = new Date(booking.startDate)
+		const endDate = new Date(booking.endDate)
+		const isUserBooking = booking.bookedBy === userName
+		const projId = (bookingWithProject.project as { id: number } | null)?.id
+		const isProjectBooking = projId != null && userProjectIds.includes(projId)
 
-			// Determine the title and location based on what's attached
-			let title = `Appointment - ${booking.bookedBy}`
-			let location = 'Unspecified'
-			
-			if (booking.appointment) {
-				title = `${booking.appointment.name} - ${booking.bookedBy}`
-				location = booking.appointment.location || booking.appointment.brand || 'Appointment'
-			}
+		const appointmentType = (booking.appointmentType as AppointmentType) || "OTHERS"
+		const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS
 
-			// Format date preserving local timezone (avoid UTC conversion)
-			const dateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+		let title = `Appointment - ${booking.bookedBy}`
+		let location = "Unspecified"
+		if (booking.appointment) {
+			title = `${booking.appointment.name} - ${booking.bookedBy}`
+			location = booking.appointment.location || booking.appointment.brand || "Appointment"
+		}
 
-			calendarBookings.push({
-				id: `appointment-${booking.id}`,
-				title: title,
-				bookingName: booking.appointment?.name ?? null,
-				description: booking.purpose || `Appointment by ${booking.bookedBy}`,
+		const dateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`
+
+		results.push({
+			id: `appointment-${booking.id}`,
+			title,
+			bookingName: booking.appointment?.name ?? null,
+			description: booking.purpose || `Appointment by ${booking.bookedBy}`,
+			date: dateStr,
+			startTime: startDate.toTimeString().slice(0, 5),
+			endTime: endDate.toTimeString().slice(0, 5),
+			type: "appointment",
+			appointmentType,
+			location,
+			attendees: booking.attendees || 1,
+			color: appointmentConfig.color,
+			projectId: projId ?? null,
+			projectName: (bookingWithProject.project as { name?: string } | null)?.name || null,
+			clientName: (bookingWithProject.project as { clientName?: string | null } | null)?.clientName || null,
+			creatorName: booking.bookedBy || null,
+			assigneeName: null,
+			taskStartDate: null,
+			taskDueDate: null,
+			isUserBooking,
+			isTeamBooking: isProjectBooking && !isUserBooking,
+			originalData: {
+				...booking,
+				startDate: formatLocalDateTime(startDate),
+				endDate: formatLocalDateTime(endDate),
+			},
+		})
+	})
+
+	return results
+}
+
+/** Fetch tasks mapped to calendar bookings. */
+async function _fetchTaskBookings(
+	userId: string,
+	safeRange?: { start: Date; end: Date }
+): Promise<CalendarBooking[]> {
+	const tasks = await getAllUserTasks(userId, safeRange ?? undefined)
+
+	const projectIds = Array.from(new Set(tasks.map(t => t.project?.id).filter((id): id is number => id !== undefined)))
+	const projectsWithClients = await prisma.project.findMany({
+		where: { id: { in: projectIds } },
+		select: { id: true, clientName: true },
+	})
+	const clientNameMap = new Map(projectsWithClients.map(p => [p.id, p.clientName]))
+
+	const results: CalendarBooking[] = []
+	const today = new Date()
+	today.setHours(0, 0, 0, 0)
+
+	tasks.forEach((task) => {
+		if (!task.dueDate) return
+
+		const dueDate = new Date(task.dueDate)
+		dueDate.setHours(23, 59, 59, 999)
+		const startDate = task.startDate ? new Date(task.startDate) : new Date(task.dueDate)
+		startDate.setHours(0, 0, 0, 0)
+		const isOverdue = dueDate < today
+
+		const isUserTask = task.assigneeId === userId
+		const isCreatorTask = task.creatorId === userId
+
+		const creatorName = task.creator
+			? `${task.creator.firstName || ""} ${task.creator.lastName || ""}`.trim() || task.creator.email
+			: null
+		const assigneeName = task.assignee
+			? `${task.assignee.firstName || ""} ${task.assignee.lastName || ""}`.trim() || task.assignee.email
+			: null
+
+		const clientName = task.project?.id ? (clientNameMap.get(task.project.id) || null) : null
+		const startDateString = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`
+		const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, "0")}-${String(dueDate.getDate()).padStart(2, "0")}`
+
+		const shared = {
+			bookingName: task.title,
+			type: "task" as const,
+			appointmentType: "OTHERS" as const,
+			location: task.project?.name || "Unknown Project",
+			attendees: 1,
+			color: isOverdue ? "bg-destructive" : APPOINTMENT_TYPES.OTHERS.color,
+			projectId: task.project?.id,
+			projectName: task.project?.name || null,
+			clientName,
+			creatorName,
+			assigneeName,
+			taskStartDate: startDateString,
+			taskDueDate: dueDateString,
+			isUserBooking: isUserTask || isCreatorTask,
+			isTeamBooking: !isUserTask && !isCreatorTask,
+			assigneeId: task.assigneeId || null,
+			creatorId: task.creatorId,
+			originalData: { ...task, isOverdue, dueDate: formatLocalDate(dueDate) },
+		}
+
+		const startTitle = isOverdue
+			? `OVERDUE: ${task.title} - ${task.project?.name || "Unknown Project"} (START)`
+			: `START: ${task.title} - ${task.project?.name || "Unknown Project"}`
+
+		results.push({
+			...shared,
+			id: `task-${task.id}-start`,
+			title: startTitle,
+			description: task.description || `Task starts on ${startDate.toLocaleDateString()}`,
+			date: startDateString,
+			startTime: "00:00",
+			endTime: "23:59",
+		})
+
+		if (dueDateString !== startDateString) {
+			const dueTitle = isOverdue
+				? `OVERDUE: ${task.title} - ${task.project?.name || "Unknown Project"} (DUE)`
+				: `DUE: ${task.title} - ${task.project?.name || "Unknown Project"}`
+
+			results.push({
+				...shared,
+				id: `task-${task.id}-due`,
+				title: dueTitle,
+				description: task.description || `Task due on ${dueDate.toLocaleDateString()}`,
+				date: dueDateString,
+				startTime: "00:00",
+				endTime: "23:59",
+			})
+		}
+	})
+
+	return results
+}
+
+/** Fetch calendar blockers, normalized to CalendarBooking[]. Visible to all users. */
+async function _fetchCalendarBlockers(
+	safeRange?: { start: Date; end: Date }
+): Promise<CalendarBooking[]> {
+	const blockers = await prisma.calendarBlocker.findMany({
+		where: safeRange
+			? {
+					startDateTime: { lte: safeRange.end },
+					endDateTime: { gte: safeRange.start },
+				}
+			: {},
+		include: {
+			createdBy: {
+				select: { firstName: true, lastName: true, email: true },
+			},
+		},
+		orderBy: { startDateTime: "asc" },
+	})
+
+	const results: CalendarBooking[] = []
+
+	for (const blocker of blockers) {
+		const start = new Date(blocker.startDateTime)
+		const end = new Date(blocker.endDateTime)
+		const creatorName = `${blocker.createdBy.firstName} ${blocker.createdBy.lastName}`.trim() || blocker.createdBy.email
+
+		const blockerAllDay =
+			start.getHours() === 0 &&
+			start.getMinutes() === 0 &&
+			start.getSeconds() === 0 &&
+			end.getHours() === 23 &&
+			end.getMinutes() === 59
+
+		// Expand across days if blocker spans multiple days
+		const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+		const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+
+		while (cur <= endDay) {
+			const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
+
+			// Calculate start/end time for this specific day
+			const isSameStartDay = cur.getFullYear() === start.getFullYear() && cur.getMonth() === start.getMonth() && cur.getDate() === start.getDate()
+			const isSameEndDay = cur.getFullYear() === end.getFullYear() && cur.getMonth() === end.getMonth() && cur.getDate() === end.getDate()
+
+			const dayStartTime = isSameStartDay ? start.toTimeString().slice(0, 5) : "00:00"
+			const dayEndTime = isSameEndDay ? end.toTimeString().slice(0, 5) : "23:59"
+
+			results.push({
+				id: `blocker-${blocker.id}-${dateStr}`,
+				title: blocker.title,
+				bookingName: blocker.title,
+				description: blocker.description || `Blocker: ${blocker.title}`,
 				date: dateStr,
-				startTime: startDate.toTimeString().slice(0, 5),
-				endTime: endDate.toTimeString().slice(0, 5),
-				type: "appointment",
-				appointmentType: appointmentType,
-				location: location,
-				attendees: booking.attendees || 1,
-				color: appointmentConfig.color,
-				projectId: bookingWithProject.project?.id,
-				projectName: bookingWithProject.project?.name || null,
-				clientName: bookingWithProject.project?.clientName || null,
-				creatorName: booking.bookedBy || null,
+				startTime: dayStartTime,
+				endTime: dayEndTime,
+				type: "blocker",
+				appointmentType: "BLOCKER",
+				location: blocker.blocksAppointments ? "Blocks Appointments" : "Informational",
+				attendees: 0,
+				color: CALENDAR_EVENT_TYPES.BLOCKER.color,
+				projectId: null,
+				projectName: null,
+				clientName: null,
+				creatorName,
 				assigneeName: null,
 				taskStartDate: null,
 				taskDueDate: null,
-				isUserBooking: isUserBooking,
-				isTeamBooking: isProjectBooking && !isUserBooking,
+				isUserBooking: false,
+				isTeamBooking: false,
+				assigneeId: null,
+				creatorId: blocker.createdById,
+				allDay: blockerAllDay,
 				originalData: {
-					...booking,
-					startDate: formatLocalDateTime(startDate),
-					endDate: formatLocalDateTime(endDate)
-				}
+					blockerId: blocker.id,
+					blocksAppointments: blocker.blocksAppointments,
+					startDateTime: blocker.startDateTime.toISOString(),
+					endDateTime: blocker.endDateTime.toISOString(),
+					allDay: blockerAllDay,
+				},
 			})
-		})
 
-		// Fetch and transform tasks - filtered by range when provided
-		try {
-			const tasks = await getAllUserTasks(userId, range ?? undefined)
-
-			// Batch fetch client names for all projects
-			const projectIds = Array.from(new Set(tasks.map(t => t.project?.id).filter((id): id is number => id !== undefined)))
-			const projectsWithClients = await prisma.project.findMany({
-				where: { id: { in: projectIds } },
-				select: { id: true, clientName: true }
-			})
-			const clientNameMap = new Map(projectsWithClients.map(p => [p.id, p.clientName]))
-
-			tasks.forEach((task) => {
-				if (task.dueDate) {
-					const dueDate = new Date(task.dueDate)
-					dueDate.setHours(23, 59, 59, 999) // Set to end of day
-					const startDate = task.startDate ? new Date(task.startDate) : new Date(task.dueDate)
-					startDate.setHours(0, 0, 0, 0) // Set to start of day
-					
-					const today = new Date()
-					today.setHours(0, 0, 0, 0)
-					const isOverdue = dueDate < today
-
-					// Determine if this is the user's task
-					const isUserTask = task.assigneeId === userId
-					const isCreatorTask = task.creatorId === userId
-					
-					// Get creator and assignee names
-					const creatorName = task.creator
-						? `${task.creator.firstName || ''} ${task.creator.lastName || ''}`.trim() || task.creator.email
-						: null
-					const assigneeName = task.assignee
-						? `${task.assignee.firstName || ''} ${task.assignee.lastName || ''}`.trim() || task.assignee.email
-						: null
-
-					// Get client name from project
-					const clientName = task.project?.id ? (clientNameMap.get(task.project.id) || null) : null
-					
-					// Format dates preserving local timezone (avoid UTC conversion)
-					const startDateString = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
-					const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`
-					const taskStartDateFormatted = startDateString
-					const taskDueDateFormatted = dueDateString
-					
-					// Create calendar booking for start date
-					const startTaskTitle = isOverdue
-						? `OVERDUE: ${task.title} - ${task.project?.name || 'Unknown Project'} (START)`
-						: `START: ${task.title} - ${task.project?.name || 'Unknown Project'}`
-					
-					calendarBookings.push({
-						id: `task-${task.id}-start`,
-						title: startTaskTitle,
-						bookingName: task.title,
-						description: task.description || `Task starts on ${startDate.toLocaleDateString()}`,
-						date: startDateString,
-						startTime: "00:00",
-						endTime: "23:59",
-						type: "task",
-						appointmentType: 'OTHERS', // Tasks map to OTHERS appointment type
-						location: task.project?.name || 'Unknown Project',
-						attendees: 1,
-						color: isOverdue ? "bg-destructive" : APPOINTMENT_TYPES.OTHERS.color,
-						projectId: task.project?.id,
-						projectName: task.project?.name || null,
-						clientName: clientName,
-						creatorName: creatorName,
-						assigneeName: assigneeName,
-						taskStartDate: taskStartDateFormatted,
-						taskDueDate: taskDueDateFormatted,
-						isUserBooking: isUserTask || isCreatorTask,
-						isTeamBooking: !isUserTask && !isCreatorTask,
-						assigneeId: task.assigneeId || null,
-						creatorId: task.creatorId,
-						originalData: { ...task, isOverdue, dueDate: formatLocalDate(dueDate) }
-					})
-					
-					// Create calendar booking for due date (only if different from start date)
-					if (dueDateString !== startDateString) {
-						const dueTaskTitle = isOverdue
-							? `OVERDUE: ${task.title} - ${task.project?.name || 'Unknown Project'} (DUE)`
-							: `DUE: ${task.title} - ${task.project?.name || 'Unknown Project'}`
-						
-						calendarBookings.push({
-							id: `task-${task.id}-due`,
-							title: dueTaskTitle,
-							bookingName: task.title,
-							description: task.description || `Task due on ${dueDate.toLocaleDateString()}`,
-							date: dueDateString,
-							startTime: "00:00",
-							endTime: "23:59",
-							type: "task",
-							appointmentType: 'OTHERS', // Tasks map to OTHERS appointment type
-							location: task.project?.name || 'Unknown Project',
-							attendees: 1,
-							color: isOverdue ? "bg-destructive" : APPOINTMENT_TYPES.OTHERS.color,
-							projectId: task.project?.id,
-							projectName: task.project?.name || null,
-							clientName: clientName,
-							creatorName: creatorName,
-							assigneeName: assigneeName,
-							taskStartDate: taskStartDateFormatted,
-							taskDueDate: taskDueDateFormatted,
-							isUserBooking: isUserTask || isCreatorTask,
-							isTeamBooking: !isUserTask && !isCreatorTask,
-							assigneeId: task.assigneeId || null,
-							creatorId: task.creatorId,
-							originalData: { ...task, isOverdue, dueDate: formatLocalDate(dueDate) }
-						})
-					}
-				}
-			})
-		} catch (error) {
-			if (process.env.NODE_ENV === "development") {
-				console.error("Error fetching tasks:", error)
-			}
+			cur.setDate(cur.getDate() + 1)
 		}
+	}
 
-	return calendarBookings
+	return results
 }
 
-// Fetch all bookings with permission filtering. Optional range limits to that date range and enables caching.
+// ─── Calendar Blocker CRUD (admin-only) ───────────────────────────────────────
+
+export async function createCalendarBlocker(formData: FormData) {
+	const user = await (await import("@/lib/auth-cache")).getCachedUser()
+	if (!user) return { success: false, error: "Not authenticated" }
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) return { success: false, error: "Admin access required" }
+
+	const title = formData.get("title") as string
+	const description = (formData.get("description") as string) || null
+	const startDateTime = formData.get("startDateTime") as string
+	const endDateTime = formData.get("endDateTime") as string
+	const blocksAppointments = formData.get("blocksAppointments") === "true"
+
+	if (!title || !startDateTime || !endDateTime) {
+		return { success: false, error: "Title, start time, and end time are required" }
+	}
+
+	const start = new Date(startDateTime)
+	const end = new Date(endDateTime)
+	if (end <= start) {
+		return { success: false, error: "End time must be after start time" }
+	}
+
+	try {
+		await prisma.calendarBlocker.create({
+			data: {
+				title,
+				description,
+				startDateTime: start,
+				endDateTime: end,
+				blocksAppointments,
+				createdById: user.id,
+			},
+		})
+		revalidatePath("/calendar")
+		return { success: true }
+	} catch (error) {
+		console.error("Error creating calendar blocker:", error)
+		return { success: false, error: "Failed to create blocker" }
+	}
+}
+
+export async function updateCalendarBlocker(id: number, formData: FormData) {
+	const user = await (await import("@/lib/auth-cache")).getCachedUser()
+	if (!user) return { success: false, error: "Not authenticated" }
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) return { success: false, error: "Admin access required" }
+
+	const title = formData.get("title") as string
+	const description = (formData.get("description") as string) || null
+	const startDateTime = formData.get("startDateTime") as string
+	const endDateTime = formData.get("endDateTime") as string
+	const blocksAppointments = formData.get("blocksAppointments") === "true"
+
+	if (!title || !startDateTime || !endDateTime) {
+		return { success: false, error: "Title, start time, and end time are required" }
+	}
+
+	const start = new Date(startDateTime)
+	const end = new Date(endDateTime)
+	if (end <= start) {
+		return { success: false, error: "End time must be after start time" }
+	}
+
+	try {
+		await prisma.calendarBlocker.update({
+			where: { id },
+			data: {
+				title,
+				description,
+				startDateTime: start,
+				endDateTime: end,
+				blocksAppointments,
+			},
+		})
+		revalidatePath("/calendar")
+		return { success: true }
+	} catch (error) {
+		console.error("Error updating calendar blocker:", error)
+		return { success: false, error: "Failed to update blocker" }
+	}
+}
+
+export async function deleteCalendarBlocker(id: number) {
+	const user = await (await import("@/lib/auth-cache")).getCachedUser()
+	if (!user) return { success: false, error: "Not authenticated" }
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) return { success: false, error: "Admin access required" }
+
+	try {
+		await prisma.calendarBlocker.delete({ where: { id } })
+		revalidatePath("/calendar")
+		return { success: true }
+	} catch (error) {
+		console.error("Error deleting calendar blocker:", error)
+		return { success: false, error: "Failed to delete blocker" }
+	}
+}
+
+/** Fetch blockers that block appointments in a date range (used by appointment booking). */
+export async function getActiveBlockers(startDate: Date | string, endDate: Date | string) {
+	try {
+		const start = coerceToDate(startDate)
+		const end = coerceToDate(endDate)
+
+		return await prisma.calendarBlocker.findMany({
+			where: {
+				blocksAppointments: true,
+				startDateTime: { lte: end },
+				endDateTime: { gte: start },
+			},
+			select: {
+				id: true,
+				title: true,
+				startDateTime: true,
+				endDateTime: true,
+			},
+			orderBy: { startDateTime: "asc" },
+		})
+	} catch (error) {
+		console.error("Error fetching active blockers:", error)
+		return []
+	}
+}
+
+// ─── Appointment Booking from Calendar ───────────────────────────────────────
+
+/** Fetch all bookable appointments (isAvailable = true). */
+export async function getAvailableAppointments() {
+	try {
+		return await prisma.appointment.findMany({
+			where: { isAvailable: true },
+			select: {
+				id: true,
+				name: true,
+				location: true,
+				brand: true,
+				description: true,
+				appointmentType: true,
+			},
+			orderBy: { name: "asc" },
+		})
+	} catch (error) {
+		console.error("Error fetching available appointments:", error)
+		return []
+	}
+}
+
+/** Fetch full appointment booking details for editing. */
+export async function getAppointmentBookingDetails(bookingId: number) {
+	try {
+		const booking = await prisma.appointmentBooking.findUnique({
+			where: { id: bookingId },
+			include: {
+				appointment: {
+					select: {
+						id: true,
+						name: true,
+						location: true,
+						brand: true,
+						appointmentType: true,
+					},
+				},
+				project: {
+					select: {
+						id: true,
+						name: true,
+						clientName: true,
+						Client: {
+							select: {
+								id: true,
+								name: true,
+								email: true,
+								phone: true,
+								company: true,
+							},
+						},
+					},
+				},
+				bookingEmails: {
+					select: {
+						recipientEmail: true,
+					},
+				},
+				reminders: {
+					select: {
+						id: true,
+						offsetMinutes: true,
+						recipientEmail: true,
+					},
+				},
+			},
+		})
+
+		return booking
+	} catch (error) {
+		console.error("Error fetching appointment booking details:", error)
+		return null
+	}
+}
+
+/** Update an existing appointment booking (owner or admin). */
+export async function updateAppointmentBooking(
+	id: number,
+	formData: FormData,
+	currentUserName: string
+) {
+	const user = await (await import("@/lib/auth-cache")).getCachedUser()
+	if (!user) return { success: false, error: "Not authenticated" }
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+
+	// Fetch existing booking to check ownership
+	const existing = await prisma.appointmentBooking.findUnique({
+		where: { id },
+		select: { bookedBy: true, appointmentId: true, status: true },
+	})
+	if (!existing) return { success: false, error: "Booking not found" }
+	if (existing.status !== "active") return { success: false, error: "Booking is not active" }
+	if (existing.bookedBy !== currentUserName && !isAdmin) {
+		return { success: false, error: "You can only edit your own bookings" }
+	}
+
+	const startDateStr = formData.get("startDate") as string
+	const endDateStr = formData.get("endDate") as string
+	const startDate = new Date(startDateStr)
+	const endDate = new Date(endDateStr)
+	const purpose = formData.get("purpose") as string
+	const attendeesStr = formData.get("attendees") as string
+	const attendees = attendeesStr ? Number.parseInt(attendeesStr) : null
+	const remarks = (formData.get("remarks") as string)?.trim() || null
+	const bookingName = (formData.get("bookingName") as string)?.trim() || null
+	const companyName = (formData.get("companyName") as string)?.trim() || null
+	const contactNumber = (formData.get("contactNumber") as string)?.trim() || null
+
+	if (endDate <= startDate) {
+		return { success: false, error: "End time must be after start time" }
+	}
+
+	// Check for overlapping bookings (excluding this one)
+	const appointmentId = existing.appointmentId
+	if (appointmentId) {
+		const overlapping = await prisma.appointmentBooking.findMany({
+			where: {
+				appointmentId,
+				status: "active",
+				id: { not: id },
+				AND: [
+					{ startDate: { lt: endDate } },
+					{ endDate: { gt: startDate } },
+				],
+			},
+		})
+		if (overlapping.length > 0) {
+			return { success: false, error: "This time slot overlaps with another booking for the same appointment" }
+		}
+	}
+
+	try {
+		await prisma.appointmentBooking.update({
+			where: { id },
+			data: {
+				startDate,
+				endDate,
+				purpose: purpose || null,
+				attendees,
+				remarks,
+				bookingName,
+				companyName,
+				contactNumber,
+			},
+		})
+		revalidatePath("/calendar")
+		revalidatePath("/appointment-bookings")
+		return { success: true }
+	} catch (error) {
+		console.error("Error updating appointment booking:", error)
+		return { success: false, error: "Failed to update booking" }
+	}
+}
+
+// Fetch all bookings with permission filtering. Runs appointments, tasks, and leave in parallel.
 export async function fetchAllBookings(
 	userId: string,
 	userName: string,
-	range?: { start: Date; end: Date }
+	range?: { start: Date | string; end: Date | string }
 ): Promise<CalendarBooking[]> {
+	if (!userId || !userName) return []
+
+	const safeRange = range
+		? { start: coerceToDate(range.start), end: coerceToDate(range.end) }
+		: undefined
+
 	try {
-		if (range) {
-			const startISO = range.start.toISOString()
-			const endISO = range.end.toISOString()
-			return await unstable_cache(
-				() => _fetchBookingsInRange(userId, userName, range),
-				["calendar", userId, startISO, endISO],
-				{ revalidate: 60, tags: ["calendar"] }
-			)()
-		}
-		return await _fetchBookingsInRange(userId, userName)
+		const [isAdmin, userProjectIds] = await Promise.all([
+			checkIsAdmin(userId),
+			getUserProjectIds(userId),
+		])
+
+		const [appointments, tasks, leave, blockers] = await Promise.allSettled([
+			_fetchAppointmentBookings(userId, userName, isAdmin, userProjectIds, safeRange),
+			_fetchTaskBookings(userId, safeRange),
+			_fetchLeaveBookings(userId, safeRange),
+			_fetchCalendarBlockers(safeRange),
+		])
+
+		const out: CalendarBooking[] = []
+		if (appointments.status === "fulfilled") out.push(...appointments.value)
+		if (tasks.status === "fulfilled") out.push(...tasks.value)
+		if (leave.status === "fulfilled") out.push(...leave.value)
+		if (blockers.status === "fulfilled") out.push(...blockers.value)
+		return out
 	} catch (error) {
 		if (process.env.NODE_ENV === "development") {
 			console.error("Error fetching bookings:", error)

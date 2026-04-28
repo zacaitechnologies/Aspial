@@ -48,6 +48,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { formatLocalDate } from "@/lib/date-utils"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { useSession } from "../../contexts/SessionProvider"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 
@@ -72,7 +73,13 @@ export default function InvoiceDetailClient({
 	remainingAmount,
 }: InvoiceDetailClientProps) {
 	const router = useRouter()
-	const isOwner = invoice.createdBy?.supabase_id === userId
+	const { enhancedUser } = useSession()
+	const isCreator = invoice.createdBy?.supabase_id === userId
+	const currentDbUserId = enhancedUser?.profile?.id
+	const isAdvisor = Boolean(
+		currentDbUserId && invoice.advisors?.some((a) => a.id === currentDbUserId),
+	)
+	const isOwner = isCreator || isAdvisor
 	const [isSendInvoiceDialogOpen, setIsSendInvoiceDialogOpen] = useState(false)
 	const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false)
 	const [isExportingPDF, setIsExportingPDF] = useState(false)
@@ -620,11 +627,11 @@ export default function InvoiceDetailClient({
 									{invoice.createdBy.firstName} {invoice.createdBy.lastName}
 								</p>
 							</div>
-							{invoice.advisedBy && (
+							{invoice.advisors && invoice.advisors.length > 0 && (
 								<div>
-									<p className="text-sm font-medium text-muted-foreground">Advised By</p>
+									<p className="text-sm font-medium text-muted-foreground">Advisors</p>
 									<p className="font-medium">
-										{invoice.advisedBy.firstName} {invoice.advisedBy.lastName}
+										{invoice.advisors.map((a) => `${a.firstName} ${a.lastName}`).join(', ')}
 									</p>
 								</div>
 							)}

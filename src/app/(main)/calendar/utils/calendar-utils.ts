@@ -3,6 +3,16 @@
  */
 
 import { formatLocalDate } from "@/lib/date-utils"
+import type { CalendarBooking } from "../actions"
+
+/**
+ * Week/day views: tasks and leave always use the all-day row; all-day blockers join them (not time columns).
+ */
+export function isCalendarAllDayRowEvent(booking: CalendarBooking): boolean {
+	if (booking.type === "task" || booking.type === "leave") return true
+	if (booking.type === "blocker" && booking.allDay === true) return true
+	return false
+}
 
 export type CalendarView = 'month' | 'week' | 'day'
 
@@ -216,4 +226,10 @@ export function isFuture(date: Date): boolean {
 	const compareDate = new Date(date)
 	compareDate.setHours(0, 0, 0, 0)
 	return compareDate > today
+}
+
+/** Current local time as { hours, minutes } (0-23, 0-59). */
+export function getLocalTime(): { hours: number; minutes: number } {
+	const now = new Date()
+	return { hours: now.getHours(), minutes: now.getMinutes() }
 }

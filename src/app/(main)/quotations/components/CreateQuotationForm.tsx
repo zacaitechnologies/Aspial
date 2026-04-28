@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors";
 import { Plus, Briefcase } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -101,7 +102,7 @@ export default function CreateQuotationForm({
   const [isSaving, setIsSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; email: string; supabase_id: string }>>([]);
-  const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("");
+  const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([]);
 
   useEffect(() => {
     fetchServices();
@@ -113,11 +114,12 @@ export default function CreateQuotationForm({
       try {
         const adminStatus = await checkIsAdmin(enhancedUser.id);
         setIsAdmin(adminStatus);
-        if (adminStatus) {
-          const users = await getAllUsers();
-          setAllUsers(users);
-          // Default to current user's DB id (cuid)
-          setSelectedAdvisedById(enhancedUser.profile?.id ?? "");
+        const users = await getAllUsers();
+        setAllUsers(users);
+        // Default to current user's DB id (cuid)
+        const currentDbId = enhancedUser.profile?.id ?? "";
+        if (currentDbId) {
+          setSelectedAdvisorIds([currentDbId]);
         }
       } catch (error) {
         console.error("Error checking admin status or fetching users:", error);
@@ -261,6 +263,15 @@ export default function CreateQuotationForm({
       return false;
     }
 
+    if (selectedAdvisorIds.length === 0) {
+      toast({
+        title: "Advisor required",
+        description: "Please select at least one advisor before submitting.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     // Validate client information
     if (clientMode === "existing" && !quotationForm.clientId) {
       toast({
@@ -397,7 +408,7 @@ export default function CreateQuotationForm({
         totalPrice: discountedTotal,
         services: selectedServices.map((s) => ({ serviceId: s.serviceId, price: s.price, quantity: s.quantity })),
         createdById: enhancedUser.id, // Always the logged-in user's supabase_id
-        advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
+        advisorIds: selectedAdvisorIds,
         workflowStatus: workflowStatus, // Add workflow status parameter
         paymentStatus: "unpaid", // Default to unpaid for new quotations
         // If we already created the client (for final quotations with new clients), use the clientId
@@ -502,28 +513,26 @@ export default function CreateQuotationForm({
             <DialogTitle>Create New Quotation</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 w-full">
-            {/* Created By (Admin only) */}
-            {isAdmin && (
-              <div className="grid gap-2">
-                <Label htmlFor="create-advised-by">Advised By</Label>
-                <Select
-                  value={selectedAdvisedById}
-                  onValueChange={setSelectedAdvisedById}
-                >
-                  <SelectTrigger id="create-advised-by">
-                    <SelectValue placeholder="Select advisor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.firstName} {user.lastName} ({user.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Only admins can select a different advisor</p>
-              </div>
-            )}
+            {/* Advisors */}
+            <div className="grid gap-2">
+              <Label htmlFor="create-advisors">Advisors</Label>
+              <MultiSelectAdvisors
+                users={allUsers.map((u) => ({
+                  id: u.id,
+                  firstName: u.firstName ?? "",
+                  lastName: u.lastName ?? "",
+                  email: u.email,
+                }))}
+                selectedIds={selectedAdvisorIds}
+                onChange={setSelectedAdvisorIds}
+                currentUserId={enhancedUser?.profile?.id}
+                isAdmin={isAdmin}
+                placeholder="Select advisors"
+              />
+              {!isAdmin && (
+                <p className="text-xs text-muted-foreground">You are automatically included as an advisor</p>
+              )}
+            </div>
 
             {/* Client Selection */}
             <div className="grid gap-2">

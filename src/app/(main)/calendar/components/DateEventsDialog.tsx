@@ -4,9 +4,9 @@ import { useMemo, useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon } from "lucide-react"
+import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon, Plus } from "lucide-react"
 import { formatDateStringDirect } from "@/lib/date-utils"
-import { CalendarBooking } from "../actions"
+import { type CalendarBooking } from "../actions"
 
 interface DateEventsDialogProps {
   isOpen: boolean
@@ -14,16 +14,35 @@ interface DateEventsDialogProps {
   date: string
   events: CalendarBooking[]
   onEventClick: (event: CalendarBooking) => void
+  onBookAppointment?: (date: string) => void
 }
 
-const eventTypeColors = {
-  appointment: "bg-blue-500",
-  task: "bg-red-500"
+const eventTypeColors: Record<CalendarBooking["type"], string> = {
+  appointment: "bg-blue-500 text-primary-foreground",
+  task: "bg-red-500 text-primary-foreground",
+  leave: "bg-calendar-leave text-foreground",
+  blocker: "bg-calendar-blocker text-calendar-blocker-foreground",
 }
 
-const eventTypeLabels = {
+const eventTypeLabels: Record<CalendarBooking["type"], string> = {
   appointment: "Appointment",
-  task: "Task"
+  task: "Task",
+  leave: "Leave",
+  blocker: "Blocker",
+}
+
+function formatEventTimeRange(event: CalendarBooking): string {
+  if (event.type === "task") {
+    return "All day"
+  }
+  if (
+    event.type === "leave" &&
+    event.startTime === "00:00" &&
+    event.endTime === "23:59"
+  ) {
+    return "All day"
+  }
+  return `${event.startTime} - ${event.endTime}`
 }
 
 export function DateEventsDialog({
@@ -31,7 +50,8 @@ export function DateEventsDialog({
   onClose,
   date,
   events,
-  onEventClick
+  onEventClick,
+  onBookAppointment,
 }: DateEventsDialogProps) {
   // Memoize formatted title so it doesn't recalc on every render during animation
   const formattedTitle = useMemo(
@@ -50,13 +70,6 @@ export function DateEventsDialog({
     }
     setShowContent(false)
   }, [isOpen])
-
-  const formatTime = (timeString: string) => {
-    if (timeString === "00:00" && events.some(e => e.type === "task")) {
-      return "All day"
-    }
-    return timeString
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -88,7 +101,7 @@ export function DateEventsDialog({
                   <div className="flex items-center gap-2">
                     <Badge 
                       variant="secondary" 
-                      className={`${eventTypeColors[event.type]} text-foreground`}
+                      className={eventTypeColors[event.type]}
                     >
                       {eventTypeLabels[event.type]}
                     </Badge>
@@ -103,9 +116,7 @@ export function DateEventsDialog({
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
-                    <span>
-                      {formatTime(event.startTime)} - {formatTime(event.endTime)}
-                    </span>
+                    <span>{formatEventTimeRange(event)}</span>
                   </div>
                   
                   {event.location && (
@@ -127,7 +138,17 @@ export function DateEventsDialog({
           )}
         </div>
         
-        <div className="flex justify-end gap-2 pt-4 border-t">
+        <div className="flex justify-between gap-2 pt-4 border-t">
+          {onBookAppointment && (
+            <Button
+              onClick={() => onBookAppointment(date)}
+              className="gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              Book Appointment
+            </Button>
+          )}
+          <div className="flex-1" />
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>

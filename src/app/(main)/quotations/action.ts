@@ -5,6 +5,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
+import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import {
@@ -75,7 +76,7 @@ export async function getAllQuotations(userId?: string) {
     // For admin and brand-advisor, show all quotations (empty where clause)
   }
 
-  return await prisma.quotation.findMany({
+  const quotations = await prisma.quotation.findMany({
     where: whereClause,
     include: {
       services: {
@@ -85,10 +86,33 @@ export async function getAllQuotations(userId?: string) {
       },
       project: true,
       createdBy: true,
+      advisors: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      },
       Client: true,
     },
     orderBy: { created_at: "desc" },
   })
+
+  // Transform advisors from join table shape to flat array
+  return quotations.map((q) => ({
+    ...q,
+    advisors: (q.advisors ?? []).map((a) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })),
+  }))
 }
 
 // Internal function - not cached, used by cached version
@@ -116,7 +140,7 @@ async function _getQuotationsPaginatedInternal(
     where.workflowStatus = statusFilter
   }
   if (advisorFilter && advisorFilter !== "all") {
-    where.advisedById = advisorFilter
+    where.advisors = { some: { userId: advisorFilter } }
   }
   if (monthYear && /^\d{4}-\d{2}$/.test(monthYear)) {
     const parts = monthYear.split("-")
@@ -213,12 +237,16 @@ async function _getQuotationsPaginatedInternal(
             updated_at: true,
           },
         },
-        advisedBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+        advisors: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
           },
         },
         Client: {
@@ -301,7 +329,12 @@ async function _getQuotationsPaginatedInternal(
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
-    advisedBy: quotation.advisedBy ?? null,
+    advisors: (quotation.advisors ?? []).map((a: any) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })),
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
@@ -398,17 +431,16 @@ export async function getQuotationsPaginatedFresh(
 /** Distinct brand advisors on quotations (for filter dropdown). */
 export async function getQuotationAdvisors() {
   unstable_noStore()
-  const rows = await prisma.quotation.findMany({
-    where: { advisedById: { not: null } },
+  const rows = await prisma.quotationAdvisor.findMany({
+    distinct: ["userId"],
     select: {
-      advisedBy: {
+      user: {
         select: { id: true, firstName: true, lastName: true },
       },
     },
-    distinct: ["advisedById"],
   })
   return rows
-    .flatMap((r) => (r.advisedBy ? [r.advisedBy] : []))
+    .map((r) => r.user)
     .sort((a, b) =>
       `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`)
     )
@@ -477,12 +509,16 @@ export async function getQuotationById(id: string) {
       },
       project: true,
       createdBy: true,
-      advisedBy: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
+      advisors: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       },
       Client: true,
@@ -529,7 +565,12 @@ export async function getQuotationById(id: string) {
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
-    advisedBy: quotation.advisedBy ?? null,
+    advisors: (quotation.advisors ?? []).map((a: any) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })),
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
@@ -582,7 +623,7 @@ export async function getQuotationById(id: string) {
 export async function getQuotationFullById(id: string) {
   // Validate and parse ID
   const quotationId = quotationIdSchema.parse(id)
-  
+
   unstable_noStore()
   const quotation = await prisma.quotation.findUnique({
     where: { id: quotationId },
@@ -594,12 +635,16 @@ export async function getQuotationFullById(id: string) {
       },
       project: true,
       createdBy: true,
-      advisedBy: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
+      advisors: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       },
       Client: true,
@@ -659,7 +704,12 @@ export async function getQuotationFullById(id: string) {
       yearlyRevenue: quotation.Client.yearlyRevenue ?? undefined,
     } : undefined,
     createdBy: quotation.createdBy,
-    advisedBy: quotation.advisedBy ?? null,
+    advisors: (quotation.advisors ?? []).map((a: any) => ({
+      id: a.user.id,
+      firstName: a.user.firstName,
+      lastName: a.user.lastName,
+      email: a.user.email,
+    })),
     services: quotation.services.map(service => ({
       id: service.id,
       quotationId: service.quotationId,
@@ -755,13 +805,21 @@ export async function createQuotation(data: unknown) {
   }
 
   // createdById is ALWAYS the logged-in user's supabase_id (immutable audit trail)
-  // advisedById can be set by admin to point to a different user (User.id / cuid)
+  // advisorIds can be set by admin to point to different users (User.id / cuid)
   const isAdmin = await getCachedIsUserAdmin(user.id)
   const finalCreatedById = user.id // Always the logged-in user's supabase_id
-  // Determine advisedById: admin can specify, otherwise default to dbUser.id (cuid)
-  const finalAdvisedById = isAdmin && validatedData.advisedById
-    ? validatedData.advisedById
-    : dbUser.id
+  // Determine advisorIds: admin can specify freely, non-admin always includes self
+  let finalAdvisorIds: string[] = []
+  if (isAdmin && validatedData.advisorIds && validatedData.advisorIds.length > 0) {
+    finalAdvisorIds = validatedData.advisorIds
+  } else if (validatedData.advisorIds && validatedData.advisorIds.length > 0) {
+    // Non-admin: ensure self is always included
+    finalAdvisorIds = validatedData.advisorIds.includes(dbUser.id)
+      ? validatedData.advisorIds
+      : [dbUser.id, ...validatedData.advisorIds]
+  } else {
+    finalAdvisorIds = [dbUser.id]
+  }
 
   // Retry logic for handling unique constraint violations (race conditions)
   // Use SERIALIZABLE isolation to ensure strict serialization of quotation number generation
@@ -842,7 +900,6 @@ export async function createQuotation(data: unknown) {
             description: validatedData.description,
             totalPrice: validatedData.totalPrice,
             createdById: finalCreatedById, // Always the logged-in user's supabase_id
-            advisedById: finalAdvisedById, // User.id (cuid) - defaults to current user
             workflowStatus: validatedData.workflowStatus || "draft", // Default to draft, user sets to final when ready
             paymentStatus: validatedData.paymentStatus || "unpaid", // Default to unpaid
             clientId: finalClientId,
@@ -863,6 +920,9 @@ export async function createQuotation(data: unknown) {
                 quantity: svc.quantity,
               })),
             },
+            advisors: {
+              create: finalAdvisorIds.map((id) => ({ userId: id })),
+            },
           },
           include: {
             Client: true,
@@ -872,17 +932,25 @@ export async function createQuotation(data: unknown) {
               },
             },
             createdBy: true,
-            advisedBy: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
+            advisors: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
               },
             },
           },
         })
-        
+
+        // Any quotation advisor who isn't already a client advisor is linked to the
+        // client so they can view the client and track its outstanding balances.
+        await ensureClientAdvisors(finalClientId, finalAdvisorIds, tx)
+
         return quotation
       }, {
         // Use SERIALIZABLE isolation level to prevent concurrent transactions
@@ -971,50 +1039,51 @@ export async function editQuotationById(
     throw new Error("User must be authenticated to edit a quotation")
   }
 
-  // Check if admin is trying to change advisedBy
-  let finalAdvisedById: string | undefined = undefined
-  if (validatedData.advisedById) {
-    const isAdmin = await getCachedIsUserAdmin(user.id)
-    if (!isAdmin) {
-      throw new Error("Only admins can change the advisor of a quotation")
-    }
-
-    // Verify the user exists (advisedById references User.id cuid)
-    const dbUser = await prisma.user.findUnique({
-      where: { id: validatedData.advisedById },
-      select: { id: true }
-    })
-
-    if (!dbUser) {
-      throw new Error("Selected advisor user not found in database")
-    }
-
-    finalAdvisedById = validatedData.advisedById
+  // Determine advisor IDs for the join table
+  let finalAdvisorIds: string[] | undefined = undefined
+  if (validatedData.advisorIds && validatedData.advisorIds.length > 0) {
+    finalAdvisorIds = validatedData.advisorIds
   }
 
-  // Check authorization: Only admin or quotation creator can edit
+  // Check authorization: admin, quotation creator, or an assigned advisor can edit.
   unstable_noStore()
-  const currentQuotationForAuth = await prisma.quotation.findUnique({
-    where: { id: quotationId },
-    select: { 
-      createdById: true, 
-      workflowStatus: true,
-      description: true,
-      totalPrice: true,
-      paymentStatus: true,
-      clientId: true,
-      projectId: true,
-      discountValue: true,
-      discountType: true,
-      duration: true,
-    }
-  })
+  const [currentQuotationForAuth, dbUser] = await Promise.all([
+    prisma.quotation.findUnique({
+      where: { id: quotationId },
+      select: {
+        createdById: true,
+        workflowStatus: true,
+        description: true,
+        totalPrice: true,
+        paymentStatus: true,
+        clientId: true,
+        projectId: true,
+        discountValue: true,
+        discountType: true,
+        duration: true,
+        advisors: { select: { userId: true } },
+      },
+    }),
+    prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true },
+    }),
+  ])
 
   if (!currentQuotationForAuth) {
     throw new Error("Quotation not found")
   }
 
+  if (!dbUser) {
+    throw new Error("User not found in database")
+  }
+
   const isAdmin = await getCachedIsUserAdmin(user.id)
+  const isCreator = currentQuotationForAuth.createdById === user.id
+  const isAdvisor = currentQuotationForAuth.advisors.some((a) => a.userId === dbUser.id)
+  // Assigned advisors are treated as owners of the quotation for edit purposes
+  // (they can finalize drafts, update fields, etc.) — same as the creator.
+  const isOwner = isCreator || isAdvisor
   
   // Authorization: Only admin or quotation creator can edit quotations
   // Exception: Non-admin users can update payment status for finalized quotations
@@ -1041,7 +1110,7 @@ export async function editQuotationById(
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.advisedById === undefined // No advisor change
+    validatedData.advisorIds === undefined // No advisor change
 
   // Check if this is a cancellation update (non-admin cancelling finalized quotation without project)
   const isCancellationUpdate = isFinalizedQuotation &&
@@ -1057,7 +1126,7 @@ export async function editQuotationById(
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.advisedById === undefined // No advisor change
+    validatedData.advisorIds === undefined // No advisor change
 
   // Check if this is a combined update (payment status + cancellation)
   const isCombinedUpdate = isFinalizedQuotation &&
@@ -1074,25 +1143,23 @@ export async function editQuotationById(
     (validatedData.discountValue === undefined || validatedData.discountValue === (currentQuotationForAuth.discountValue ?? 0)) &&
     (validatedData.discountType === undefined || validatedData.discountType === currentQuotationForAuth.discountType) &&
     (validatedData.duration === undefined || validatedData.duration === currentQuotationForAuth.duration) &&
-    validatedData.advisedById === undefined // No advisor change
+    validatedData.advisorIds === undefined // No advisor change
 
-  // Non-admin users who are not the creator can only set draft quotations to "draft" or "cancelled".
-  // Creators may finalize their own draft quotations (change to "final").
-  const isCreator = currentQuotationForAuth.createdById === user.id
-  if (!isAdmin && !isCreator && isDraftQuotation && validatedData.workflowStatus !== undefined &&
+  // Non-admin users who are not an owner (creator or assigned advisor) can only set draft
+  // quotations to "draft" or "cancelled". Owners (creators/advisors) may finalize drafts.
+  if (!isAdmin && !isOwner && isDraftQuotation && validatedData.workflowStatus !== undefined &&
       validatedData.workflowStatus !== "draft" && validatedData.workflowStatus !== "cancelled") {
     throw new Error("You can only change the workflow status to 'draft' or 'cancelled' for draft quotations")
   }
 
-  if (!isAdmin && currentQuotationForAuth.createdById !== user.id) {
-    // Allow non-admin users to:
+  if (!isAdmin && !isOwner) {
+    // Non-admin, non-owner users may still:
     // 1. Update payment status for finalized quotations
     // 2. Cancel finalized quotations that are not linked to projects
     // 3. Update payment status and cancel in the same update (if unlinked)
-    // Note: Non-admin users editing their own draft quotations are allowed (checked above for workflow status restriction)
-    
+
     if (!isPaymentStatusOnlyUpdate && !isCancellationUpdate && !isCombinedUpdate) {
-      throw new Error("You can only edit quotations you created, update payment status for finalized quotations, or cancel finalized quotations that are not linked to projects")
+      throw new Error("You can only edit quotations you created or are assigned to as an advisor, update payment status for finalized quotations, or cancel finalized quotations that are not linked to projects")
     }
     
     // Prevent cancelling quotations that are linked to projects
@@ -1275,7 +1342,7 @@ export async function editQuotationById(
       ...(validatedData.quotationDate
         ? { quotationDate: new Date(validatedData.quotationDate) }
         : {}),
-      ...(finalAdvisedById !== undefined ? { advisedById: finalAdvisedById } : {}),
+      ...(finalAdvisorIds !== undefined ? { advisors: { deleteMany: {}, create: finalAdvisorIds.map((id) => ({ userId: id })) } } : {}),
       ...(validatedData.services
         ? {
             services: {
@@ -1303,6 +1370,12 @@ export async function editQuotationById(
         project: true,
       },
     });
+
+    // When advisors change (or a client switch happens), ensure each quotation advisor is
+    // also linked to the client so they can access client data and track balances.
+    if (finalAdvisorIds !== undefined) {
+      await ensureClientAdvisors(finalClientId, finalAdvisorIds, tx)
+    }
 
     // If cancelling the quotation, cascade cancel all related invoices and receipts
     if (validatedData.workflowStatus === "cancelled" && currentQuotation.workflowStatus !== "cancelled") {
@@ -1441,30 +1514,43 @@ export async function reactivateQuotationCascade(
     throw new Error("User must be authenticated")
   }
 
-  // Check if user is admin
-  const isAdmin = await getCachedIsUserAdmin(user.id)
-
-  // Get quotation to check ownership and status
-  const quotation = await prisma.quotation.findUnique({
-    where: { id: validatedQuotationId },
-    select: {
-      id: true,
-      workflowStatus: true,
-      createdById: true,
-    },
-  })
+  // Run admin + ownership lookups in parallel.
+  const [isAdmin, quotation, dbUserForReactivate] = await Promise.all([
+    getCachedIsUserAdmin(user.id),
+    prisma.quotation.findUnique({
+      where: { id: validatedQuotationId },
+      select: {
+        id: true,
+        workflowStatus: true,
+        createdById: true,
+        advisors: { select: { userId: true } },
+      },
+    }),
+    prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true },
+    }),
+  ])
 
   if (!quotation) {
     throw new Error("Quotation not found")
+  }
+
+  if (!dbUserForReactivate) {
+    throw new Error("User not found in database")
   }
 
   if (quotation.workflowStatus !== "cancelled") {
     throw new Error("Only cancelled quotations can be reactivated")
   }
 
-  // Only allow if user is the creator or admin
-  // quotation.createdById is a Supabase ID (string), so compare with user.id (also Supabase ID)
-  if (quotation.createdById !== user.id && !isAdmin) {
+  // Admin, creator, or an assigned advisor can reactivate the quotation.
+  // quotation.createdById is a Supabase ID; advisor userId is a DB User.id.
+  const canReactivate =
+    isAdmin ||
+    quotation.createdById === user.id ||
+    quotation.advisors.some((a) => a.userId === dbUserForReactivate.id)
+  if (!canReactivate) {
     throw new Error("You don't have permission to reactivate this quotation")
   }
 

@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,7 @@ import { TaskForm } from "./TaskForm";
 import { deleteTask } from "../task-actions";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 interface TaskCardProps {
   task: TaskWithAssignee;
@@ -44,7 +46,8 @@ interface TaskCardProps {
   availableMilestones?: Milestone[];
   onTaskUpdated?: (task: TaskWithAssignee) => void;
   onTaskDeleted?: (taskId: number) => void;
-  onDragStart?: (e: React.DragEvent) => void;
+  isSelected?: boolean;
+  onSelectChange?: (taskId: number, selected: boolean) => void;
   isProjectCancelled?: boolean;
 }
 
@@ -54,7 +57,8 @@ export const TaskCard = memo(function TaskCard({
   availableMilestones,
   onTaskUpdated,
   onTaskDeleted,
-  onDragStart,
+  isSelected = false,
+  onSelectChange,
   isProjectCancelled = false,
 }: TaskCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -85,82 +89,93 @@ export const TaskCard = memo(function TaskCard({
 
   return (
     <Card
-      className={`bg-card border-border hover:shadow-md transition-shadow cursor-move mb-3 ${
-        task.milestone
-          ? "border-l-4 border-l-yellow-400 bg-yellow-50/30"
-          : ""
-      }`}
-      draggable
-      onDragStart={onDragStart}
+      className={cn(
+        "mb-3 gap-2 border-2 border-foreground/20 bg-card shadow-sm transition-shadow hover:shadow-md",
+        isSelected && "ring-2 ring-primary",
+        task.milestone && "border-l-4 border-l-yellow-400 bg-yellow-50/30"
+      )}
     >
       <CardHeader className="pb-0">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2 flex-1">
-            <div className="flex items-center gap-2">
-              {task.milestone && (
-                <Target className="h-4 w-4 text-yellow-600" />
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            {!isProjectCancelled && onSelectChange && (
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={(checked) =>
+                  onSelectChange(task.id, checked === true)
+                }
+                aria-label={`Select task ${task.title}`}
+                className="mt-1 h-4 w-4 border-2 border-foreground/45"
+              />
+            )}
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {task.milestone && (
+                  <Target className="h-4 w-4 text-yellow-600 shrink-0" />
+                )}
+                <h4 className="font-medium text-card-foreground break-words">
+                  {task.title}
+                </h4>
+              </div>
+              {task.description && (
+                <p
+                  className="text-sm text-muted-foreground break-words line-clamp-3"
+                  title={task.description}
+                >
+                  {task.description}
+                </p>
               )}
-              <h4 className="font-medium text-card-foreground">{task.title}</h4>
             </div>
-            {task.description && (
-              <p className="text-sm text-muted-foreground">
-                {task.description}
-              </p>
-            )}
-            {task.assignee && (
-              <p className="text-sm text-muted-foreground">
-                Assigned to: {task.assignee.firstName} {task.assignee.lastName}
-              </p>
-            )}
           </div>
           {!isProjectCancelled ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                  <DialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Task
-                    </DropdownMenuItem>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Edit Task</DialogTitle>
-                    </DialogHeader>
-                    <TaskForm
-                      projectId={task.projectId}
-                      task={task}
-                      availableUsers={availableUsers}
-                      availableMilestones={availableMilestones}
-                      onTaskUpdated={(updatedTask) => {
-                        onTaskUpdated?.(updatedTask);
-                        setIsEditDialogOpen(false);
-                        // Refresh page with tasks tab preserved
-                        if (typeof window !== 'undefined') {
-                          window.location.href = `${window.location.pathname}?tab=tasks`;
-                        }
-                      }}
-                    />
-                  </DialogContent>
-                </Dialog>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setIsDeleteDialogOpen(true);
-                  }}
-                  disabled={isDeleting}
-                  className="text-red-600"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-1 shrink-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                    <DialogTrigger asChild>
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Task
+                      </DropdownMenuItem>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Edit Task</DialogTitle>
+                      </DialogHeader>
+                      <TaskForm
+                        projectId={task.projectId}
+                        task={task}
+                        availableUsers={availableUsers}
+                        availableMilestones={availableMilestones}
+                        onTaskUpdated={(updatedTask) => {
+                          onTaskUpdated?.(updatedTask);
+                          setIsEditDialogOpen(false);
+                          if (typeof window !== "undefined") {
+                            window.location.href = `${window.location.pathname}?tab=tasks`;
+                          }
+                        }}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setIsDeleteDialogOpen(true);
+                    }}
+                    disabled={isDeleting}
+                    className="text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ) : (
             <Badge variant="outline" className="text-red-600 border-red-300">
               Read-only
@@ -168,7 +183,7 @@ export const TaskCard = memo(function TaskCard({
           )}
         </div>
       </CardHeader>
-      <CardContent className="pt-0 space-y-3">
+      <CardContent className="space-y-2 pt-0">
         {/* Milestone Badge */}
         {task.milestone && (
           <div>
@@ -182,7 +197,7 @@ export const TaskCard = memo(function TaskCard({
           </div>
         )}
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center">
             <Flag className="w-3 h-3 text-muted-foreground" />
             <Badge
@@ -214,20 +229,40 @@ export const TaskCard = memo(function TaskCard({
           )}
         </div>
 
-        {task.creator && (
-          <div className="flex items-center gap-2 pt-1">
-            <span className="text-xs text-muted-foreground">
-              Created by:
-            </span>
-            <Avatar className="w-6 h-6">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {task.creator.firstName.charAt(0)}
-                {task.creator.lastName.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-xs text-muted-foreground">
-              {task.creator.firstName} {task.creator.lastName}
-            </span>
+        {(task.creator || task.assignee) && (
+          <div className="flex flex-col gap-2 pt-0.5">
+            {task.creator && (
+              <div className="flex min-w-0 max-w-full items-center gap-2">
+                <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                  Created by
+                </span>
+                <Avatar className="h-6 w-6 shrink-0">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {task.creator.firstName.charAt(0)}
+                    {task.creator.lastName.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate text-xs text-foreground">
+                  {task.creator.firstName} {task.creator.lastName}
+                </span>
+              </div>
+            )}
+            {task.assignee && (
+              <div className="flex min-w-0 max-w-full items-center gap-2">
+                <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                  Assigned to
+                </span>
+                <Avatar className="h-6 w-6 shrink-0">
+                  <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                    {task.assignee.firstName?.charAt(0) ?? "?"}
+                    {task.assignee.lastName?.charAt(0) ?? ""}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate text-xs text-foreground">
+                  {task.assignee.firstName} {task.assignee.lastName}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

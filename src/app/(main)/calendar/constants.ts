@@ -1,29 +1,47 @@
 export const APPOINTMENT_TYPES = {
 	PHOTO_SHOOT: {
 		label: "Photo shooting",
-		color: "bg-calendar-photo-shoot",
+		color: "bg-calendar-photo-shoot text-foreground",
 		value: "PHOTO_SHOOT",
 	},
 	VIDEO_SHOOT: {
 		label: "Video shooting",
-		color: "bg-calendar-video-shoot",
+		color: "bg-calendar-video-shoot text-foreground",
 		value: "VIDEO_SHOOT",
 	},
 	CONSULTATION: {
 		label: "Consultation",
-		color: "bg-calendar-consultation",
+		color: "bg-calendar-consultation text-foreground",
 		value: "CONSULTATION",
 	},
 	PHOTO_SELECTION: {
 		label: "Photo selection",
-		color: "bg-calendar-photo-selection",
+		color: "bg-calendar-photo-selection text-foreground",
 		value: "PHOTO_SELECTION",
 	},
 	OTHERS: {
 		label: "Others",
-		color: "bg-calendar-others",
+		color: "bg-calendar-others text-foreground",
 		value: "OTHERS",
 	},
 } as const
 
+/** Matches Prisma `AppointmentType` for real appointment bookings (forms, DB). */
 export type AppointmentType = keyof typeof APPOINTMENT_TYPES
+
+/** Calendar UI only: appointment categories plus leave (not a Prisma appointment type). */
+export const CALENDAR_EVENT_TYPES = {
+	...APPOINTMENT_TYPES,
+	LEAVE: {
+		label: "Leave",
+		color: "bg-calendar-leave text-foreground",
+		value: "LEAVE",
+	},
+	BLOCKER: {
+		label: "Blocker",
+		color: "bg-calendar-blocker text-calendar-blocker-foreground",
+		value: "BLOCKER",
+	},
+} as const
+
+export type CalendarEventType = keyof typeof CALENDAR_EVENT_TYPES

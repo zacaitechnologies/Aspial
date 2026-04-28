@@ -1,7 +1,7 @@
 "use client"
 
 import { CalendarBooking } from "../actions"
-import { isToday, formatDate, parseTime } from "../utils/calendar-utils"
+import { isToday, formatDate, parseTime, isCalendarAllDayRowEvent } from "../utils/calendar-utils"
 import { useMemo } from "react"
 
 interface WeekViewDayProps {
@@ -24,14 +24,13 @@ export function WeekViewDay({
 	const dateString = formatDate(date)
 	const today = isToday(date)
 	
-	// Separate all-day events (tasks) from time-specific events
 	const allDayEvents = useMemo(
-		() => events.filter(e => e.type === 'task'),
+		() => events.filter(isCalendarAllDayRowEvent),
 		[events]
 	)
 	
 	const timedEvents = useMemo(
-		() => events.filter(e => e.type !== 'task'),
+		() => events.filter((e) => !isCalendarAllDayRowEvent(e)),
 		[events]
 	)
 	
@@ -76,7 +75,7 @@ export function WeekViewDay({
 						{allDayEvents.slice(0, 3).map(event => (
 							<div
 								key={event.id}
-								className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} text-foreground hover:opacity-90 transition-opacity truncate`}
+								className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} hover:opacity-90 transition-opacity truncate`}
 								onClick={(e) => {
 									e.stopPropagation()
 									onEventClick(event)
@@ -108,14 +107,14 @@ export function WeekViewDay({
 									{slotEvents.map(event => (
 										<div
 											key={event.id}
-											className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} text-foreground hover:opacity-90 transition-opacity`}
+											className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} hover:opacity-90 transition-opacity`}
 											onClick={(e) => {
 												e.stopPropagation()
 												onEventClick(event)
 											}}
 										>
 											<div className="font-medium truncate">{event.title}</div>
-											<div className="text-[10px] text-foreground/80 truncate">
+											<div className="text-[10px] truncate opacity-80">
 												{event.startTime} - {event.endTime}
 											</div>
 										</div>

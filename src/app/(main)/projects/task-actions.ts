@@ -1,8 +1,15 @@
 "use server"
 
+import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { CreateTaskData, UpdateTaskData, TaskWithAssignee, TaskStatus } from "./types"
 import { updateMilestoneStatus } from "./milestone-actions"
+
+const taskStatusSchema = z.enum(["todo", "in_progress", "done"])
+const bulkUpdateTaskStatusSchema = z.object({
+  taskIds: z.array(z.number().int().positive()).min(1, "Select at least one task"),
+  status: taskStatusSchema,
+})
 
 // Get all tasks for a project
 export async function getProjectTasks(projectId: number): Promise<TaskWithAssignee[]> {
@@ -222,6 +229,78 @@ export async function updateTaskStatus(taskId: number, status: TaskStatus): Prom
   }
   
   return updatedTask
+}
+
+// Bulk update task statuses (for click-to-move multi-select).
+// All tasks must belong to the same project; we de-dupe IDs and refresh
+// affected milestone statuses once per milestone.
+export async function bulkUpdateTaskStatus(
+  taskIds: number[],
+  status: TaskStatus
+): Promise<TaskWithAssignee[]> {
+  const parsed = bulkUpdateTaskStatusSchema.parse({ taskIds, status })
+  const uniqueIds = Array.from(new Set(parsed.taskIds))
+
+  // Look up the affected tasks first to gather milestone IDs (and to verify
+  // they all belong to the same project).
+  const existing = await prisma.task.findMany({
+    where: { id: { in: uniqueIds } },
+    select: { id: true, projectId: true, milestoneId: true },
+  })
+
+  if (existing.length === 0) {
+    return []
+  }
+
+  const projectIds = new Set(existing.map((t) => t.projectId))
+  if (projectIds.size > 1) {
+    throw new Error("All tasks must belong to the same project")
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.task.updateMany({
+      where: { id: { in: existing.map((t) => t.id) } },
+      data: { status: parsed.status },
+    })
+  })
+
+  // Refresh each affected milestone exactly once.
+  const milestoneIds = Array.from(
+    new Set(existing.map((t) => t.milestoneId).filter((id): id is number => id != null))
+  )
+  await Promise.all(milestoneIds.map((id) => updateMilestoneStatus(id)))
+
+  // Return the freshly updated tasks with relations the UI expects.
+  return (await prisma.task.findMany({
+    where: { id: { in: existing.map((t) => t.id) } },
+    include: {
+      creator: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+        },
+      },
+      assignee: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          supabase_id: true,
+        },
+      },
+      milestone: {
+        select: {
+          id: true,
+          title: true,
+          status: true,
+        },
+      },
+    },
+  })) as TaskWithAssignee[]
 }
 
 // Reorder tasks (for drag and drop functionality)

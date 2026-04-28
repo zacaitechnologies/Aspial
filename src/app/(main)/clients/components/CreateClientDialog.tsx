@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -8,7 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Loader2 } from "lucide-react"
-import { createCustomerClient } from "../action"
+import { createCustomerClient, checkIsAdmin, getCurrentUserId } from "../action"
+import { getAllUsers } from "../../quotations/action"
+import { MultiSelectAdvisors, type AdvisorOption } from "@/components/ui/multi-select-advisors"
 import { toast } from "@/components/ui/use-toast"
 
 interface CreateClientDialogProps {
@@ -18,6 +20,10 @@ interface CreateClientDialogProps {
 export default function CreateClientDialog({ onSuccess }: CreateClientDialogProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [allUsers, setAllUsers] = useState<AdvisorOption[]>([])
+  const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string>("")
+  const [isAdmin, setIsAdmin] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -32,10 +38,63 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
     membershipType: "NON_MEMBER"
   })
 
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [users, userId] = await Promise.all([
+          getAllUsers(),
+          getCurrentUserId(),
+        ])
+        setAllUsers(users.map(u => ({ id: u.id, firstName: u.firstName ?? "", lastName: u.lastName ?? "", email: u.email })))
+        if (userId) {
+          setCurrentUserId(userId)
+          setSelectedAdvisorIds([userId])
+        }
+        // Check admin via Supabase ID (checkIsAdmin expects supabase_id)
+        // We'll use the action that handles this internally
+      } catch {}
+    }
+    if (isOpen) loadData()
+  }, [isOpen])
+
+  useEffect(() => {
+    async function checkAdmin() {
+      try {
+        const { createClient: _ } = await import("@/utils/supabase/client")
+        // Use a server action approach
+        const res = await fetch("/api/check-admin").catch(() => null)
+        // Fallback: if no API, just set false
+        setIsAdmin(false)
+      } catch {
+        setIsAdmin(false)
+      }
+    }
+    // Simplified: get admin status from the server action
+    import("../action").then(mod => {
+      const supabase = import("@/utils/supabase/client")
+      supabase.then(({ createClient }) => {
+        const client = createClient()
+        client.auth.getUser().then(({ data }) => {
+          if (data?.user?.id) {
+            mod.checkIsAdmin(data.user.id).then(setIsAdmin)
+          }
+        })
+      })
+    }).catch(() => {})
+  }, [])
+
   const handleCreateClient = async () => {
     if (isCreating) return; // Prevent double submission
 
     try {
+      if (selectedAdvisorIds.length === 0) {
+        toast({
+          title: "Advisor required",
+          description: "Please select at least one advisor before submitting.",
+          variant: "destructive",
+        })
+        return
+      }
       setIsCreating(true)
       await createCustomerClient({
         name: formData.name,
@@ -49,6 +108,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
         industry: formData.industry || undefined,
         yearlyRevenue: formData.yearlyRevenue ? parseFloat(formData.yearlyRevenue) : undefined,
         membershipType: formData.membershipType as "MEMBER" | "NON_MEMBER",
+        advisorIds: selectedAdvisorIds,
       })
       
       // Reset form
@@ -65,7 +125,8 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
         yearlyRevenue: "",
         membershipType: "NON_MEMBER"
       })
-      
+      setSelectedAdvisorIds(currentUserId ? [currentUserId] : [])
+
       setIsOpen(false)
       onSuccess()
     } catch (error) {
@@ -94,6 +155,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
       yearlyRevenue: "",
       membershipType: "NON_MEMBER"
     })
+    setSelectedAdvisorIds(currentUserId ? [currentUserId] : [])
     setIsOpen(false)
   }
 
@@ -206,10 +268,24 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
             </Select>
           </div>
           <div className="col-span-2 space-y-2">
+            <Label>Advisors</Label>
+            <MultiSelectAdvisors
+              users={allUsers}
+              selectedIds={selectedAdvisorIds}
+              onChange={setSelectedAdvisorIds}
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
+              placeholder="Select advisors"
+            />
+            <p className="text-xs text-muted-foreground">
+              {isAdmin ? "Select one or more advisors for this client" : "You are automatically included as an advisor"}
+            </p>
+          </div>
+          <div className="col-span-2 space-y-2">
             <Label htmlFor="notes">Notes</Label>
-            <Textarea 
-              id="notes" 
-              placeholder="Additional notes about the client..." 
+            <Textarea
+              id="notes"
+              placeholder="Additional notes about the client..."
               value={formData.notes}
               onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
             />
@@ -222,7 +298,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
           <Button 
             className="bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={handleCreateClient}
-            disabled={!formData.name || !formData.email || !formData.ic || !formData.companyRegistrationNumber || isCreating}
+            disabled={!formData.name || !formData.email || !formData.ic || !formData.companyRegistrationNumber || selectedAdvisorIds.length === 0 || isCreating}
           >
             {isCreating ? (
               <>

@@ -57,6 +57,7 @@ export const createClientSchema = z.object({
   industry: z.string().trim().optional(),
   yearlyRevenue: z.number().positive().optional(),
   membershipType: z.enum(["MEMBER", "NON_MEMBER"]),
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required"),
 });
 
 export type CreateClientValues = z.infer<typeof createClientSchema>;
@@ -73,6 +74,7 @@ export const updateClientSchema = z.object({
   industry: z.string().trim().optional(),
   yearlyRevenue: z.number().positive().optional(),
   membershipType: z.enum(["MEMBER", "NON_MEMBER"]).optional(),
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
 });
 
 export type UpdateClientValues = z.infer<typeof updateClientSchema>;
@@ -195,7 +197,9 @@ export const createQuotationSchema = z.object({
     quantity: z.number().int().positive("Quantity must be at least 1"),
   })).min(1, "At least one service is required"),
   createdById: z.string().min(1, "Creator ID is required"),
-  advisedById: z.string().optional(),
+  // When provided, must contain at least one advisor. Omit the field entirely to fall back
+  // to the default (creator auto-added server-side, e.g. inline client creation from quotations).
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
   workflowStatus: workflowStatusSchema.optional(),
   paymentStatus: paymentStatusSchema.optional(),
   discountValue: z.number().nonnegative().optional(),
@@ -237,7 +241,7 @@ export const editQuotationSchema = z.object({
   clientId: z.string().optional(),
   projectId: z.number().int().positive().optional().nullable(),
   createdById: z.string().optional(),
-  advisedById: z.string().optional(),
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
   newClient: newClientSchema.optional(),
 });
 
@@ -253,21 +257,21 @@ export const createInvoiceSchema = z.object({
 	type: invoiceTypeSchema,
 	amount: z.number().positive("Invoice amount must be greater than 0"),
 	createdById: z.string().optional(),
-	advisedById: z.string().optional(),
-	/** Invoice document date (invoiceDate). Only applied when user is admin. */
+	advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
+	/** Invoice document date (`invoiceDate`), HTML date input `YYYY-MM-DD`. */
 	invoiceDate: z.string().optional(),
 });
 
 export type CreateInvoiceValues = z.infer<typeof createInvoiceSchema>;
 
 export const updateInvoiceAdminSchema = z.object({
-	advisedById: z.string().optional(),
+	advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
 	status: invoiceStatusSchema.optional(),
 	/** Invoice document date (invoiceDate). Admin only. */
 	invoiceDate: z.string().optional(),
 }).refine((data) => {
 	// At least one field must be provided
-	return data.advisedById !== undefined || data.status !== undefined || data.invoiceDate !== undefined;
+	return data.advisorIds !== undefined || data.status !== undefined || data.invoiceDate !== undefined;
 }, {
 	message: "At least one field must be provided",
 });
@@ -339,3 +343,105 @@ export const updateClientMembershipSchema = z.object({
 });
 
 export type UpdateClientMembershipValues = z.infer<typeof updateClientMembershipSchema>;
+
+// Leave Application validation schemas
+export const applyLeaveSchema = z.object({
+  leaveType: z.enum(["PAID", "UNPAID"]),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).default("NONE"),
+  reason: z.string().trim().min(1, "Reason is required").max(500, "Reason must be 500 characters or less"),
+  attachmentUrl: z.string().optional(),
+}).refine(data => data.endDate >= data.startDate, {
+  message: "End date must be on or after start date",
+  path: ["endDate"],
+}).refine(data => {
+  if (data.halfDay !== "NONE") {
+    return data.startDate.getTime() === data.endDate.getTime();
+  }
+  return true;
+}, {
+  message: "Half day leave must be a single day",
+  path: ["halfDay"],
+});
+
+export type ApplyLeaveValues = z.infer<typeof applyLeaveSchema>;
+
+export const reviewLeaveSchema = z.object({
+  leaveId: z.number().int().positive(),
+  remarks: z.string().max(500).optional(),
+});
+
+export type ReviewLeaveValues = z.infer<typeof reviewLeaveSchema>;
+
+export const adminEditLeaveSchema = z.object({
+  leaveId: z.number().int().positive(),
+  leaveType: z.enum(["PAID", "UNPAID"]).optional(),
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
+  halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).optional(),
+  reason: z.string().trim().min(1).max(500).optional(),
+});
+
+export type AdminEditLeaveValues = z.infer<typeof adminEditLeaveSchema>;
+
+export const leaveChangeRequestSchema = z.object({
+  leaveApplicationId: z.number().int().positive(),
+  type: z.enum(["CANCEL", "EDIT"]),
+  reason: z.string().trim().min(1, "Reason is required").max(500),
+  newStartDate: z.coerce.date().optional(),
+  newEndDate: z.coerce.date().optional(),
+  newLeaveType: z.enum(["PAID", "UNPAID"]).optional(),
+  newHalfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).optional(),
+  newReason: z.string().max(500).optional(),
+});
+
+export type LeaveChangeRequestValues = z.infer<typeof leaveChangeRequestSchema>;
+
+/** Employee cancels their own pending application (no admin / change request). */
+export const cancelOwnPendingLeaveSchema = z.object({
+  leaveApplicationId: z.number().int().positive(),
+  reason: z.string().trim().max(500).optional(),
+});
+
+export type CancelOwnPendingLeaveValues = z.infer<typeof cancelOwnPendingLeaveSchema>;
+
+/** Employee withdraws a pending change request before admin review. */
+export const withdrawChangeRequestSchema = z.object({
+  requestId: z.number().int().positive(),
+});
+
+export type WithdrawChangeRequestValues = z.infer<typeof withdrawChangeRequestSchema>;
+
+export const reviewChangeRequestSchema = z.object({
+  requestId: z.number().int().positive(),
+  remarks: z.string().max(500).optional(),
+});
+
+export type ReviewChangeRequestValues = z.infer<typeof reviewChangeRequestSchema>;
+
+export const leaveFiltersSchema = z.object({
+  status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
+  leaveType: z.enum(["PAID", "UNPAID"]).optional(),
+  userId: z.string().optional(),
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
+});
+
+export type LeaveFilters = z.infer<typeof leaveFiltersSchema>;
+
+export const updateEntitlementDefaultSchema = z.object({
+  leaveType: z.enum(["PAID", "UNPAID"]),
+  entitledDays: z.number().min(0, "Must be 0 or more"),
+});
+
+export type UpdateEntitlementDefaultValues = z.infer<typeof updateEntitlementDefaultSchema>;
+
+export const updateEmployeeBalanceSchema = z.object({
+  userId: z.string().min(1),
+  leaveType: z.enum(["PAID", "UNPAID"]),
+  year: z.number().int().positive(),
+  entitled: z.number().min(0),
+});
+
+export type UpdateEmployeeBalanceValues = z.infer<typeof updateEmployeeBalanceSchema>;

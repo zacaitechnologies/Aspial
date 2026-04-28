@@ -123,10 +123,10 @@ export default function ReceiptCard({
 									<span>{PAYMENT_METHOD_LABELS[receipt.paymentMethod as PaymentMethodType] || receipt.paymentMethod}</span>
 								</>
 							)}
-							{receipt.advisedBy && (
+							{receipt.advisors && receipt.advisors.length > 0 && (
 								<>
 									<span className="text-gray-400">•</span>
-									<span>Advised by {receipt.advisedBy.firstName} {receipt.advisedBy.lastName}</span>
+									<span>Advised by {receipt.advisors.map(a => `${a.firstName} ${a.lastName}`).join(", ")}</span>
 								</>
 							)}
 						</div>

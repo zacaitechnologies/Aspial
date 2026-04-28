@@ -31,6 +31,7 @@ import { QuotationWithServices, EditFormData, workflowStatusOptions, paymentStat
 import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import CustomServiceDialog from "./CustomServiceDialog";
+import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors";
 import { Briefcase, Plus } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
@@ -47,6 +48,13 @@ interface EditQuotationFormProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
   editingQuotation: QuotationWithServices | null;
+}
+
+/** Returns true when the advisor selection differs from the initially-loaded set (order-independent). */
+function advisorsChanged(current: string[], initial: string[]): boolean {
+  if (current.length !== initial.length) return true;
+  const initialSet = new Set(initial);
+  return current.some((id) => !initialSet.has(id));
 }
 
 export default function EditQuotationForm({
@@ -95,7 +103,8 @@ export default function EditQuotationForm({
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingFullData, setIsLoadingFullData] = useState(false);
   const [allUsers, setAllUsers] = useState<Array<{ id: string; firstName: string | null; lastName: string | null; email: string; supabase_id: string }>>([]);
-  const [selectedAdvisedById, setSelectedAdvisedById] = useState<string>("");
+  const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([]);
+  const [initialAdvisorIds, setInitialAdvisorIds] = useState<string[]>([]);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [activeInvoicesCount, setActiveInvoicesCount] = useState<number | null>(null);
   const [activeReceiptsCount, setActiveReceiptsCount] = useState<number | null>(null);
@@ -142,10 +151,8 @@ export default function EditQuotationForm({
       try {
         const adminStatus = await checkIsAdmin(enhancedUser.id);
         setIsAdmin(adminStatus);
-        if (adminStatus) {
-          const users = await getAllUsers();
-          setAllUsers(users);
-        }
+        const users = await getAllUsers();
+        setAllUsers(users);
       } catch (error) {
         console.error("Error checking admin status or fetching users:", error);
       }
@@ -268,12 +275,14 @@ export default function EditQuotationForm({
       },
     });
     
-    // Set the selected advisedBy user if admin (use User.id cuid)
-    if ((quotation as any).advisedBy?.id) {
-      setSelectedAdvisedById((quotation as any).advisedBy.id);
-    } else if (quotation.createdBy?.id) {
-      setSelectedAdvisedById(quotation.createdBy.id);
-    }
+    // Set the selected advisor IDs from the advisors array
+    const initialAdvisors = quotation.advisors && quotation.advisors.length > 0
+      ? quotation.advisors.map((a) => a.id)
+      : quotation.createdBy?.id
+        ? [quotation.createdBy.id]
+        : [];
+    setSelectedAdvisorIds(initialAdvisors);
+    setInitialAdvisorIds(initialAdvisors);
     
     setEditSelectedServices(
       quotation.services
@@ -477,6 +486,15 @@ export default function EditQuotationForm({
       return; // Prevent multiple submissions
     }
 
+    if (selectedAdvisorIds.length === 0) {
+      toast({
+        title: "Advisor required",
+        description: "Please select at least one advisor before submitting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       let projectId: number | undefined = editForm.projectId;
@@ -585,7 +603,12 @@ export default function EditQuotationForm({
         startDate: editForm.startDate || undefined,
         quotationDate: editForm.quotationDate || undefined,
         projectId: projectId,
-        advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined, // Only pass if admin changed it
+        // Only send advisorIds when the user actually modified the selection.
+        // This preserves the non-admin payment-status-only / cancellation shortcut paths
+        // on the server, which require advisorIds to be undefined.
+        advisorIds: advisorsChanged(selectedAdvisorIds, initialAdvisorIds)
+          ? selectedAdvisorIds
+          : undefined,
       });
 
       onSuccess();
@@ -636,7 +659,11 @@ export default function EditQuotationForm({
         duration: editForm.duration ? parseInt(editForm.duration, 10) : undefined,
         startDate: editForm.startDate || undefined,
         quotationDate: editForm.quotationDate || undefined,
-        advisedById: isAdmin && selectedAdvisedById ? selectedAdvisedById : undefined,
+        // Cancellation flow: keep server's isCancellationUpdate shortcut intact by only
+        // sending advisorIds if the user actually modified them.
+        advisorIds: advisorsChanged(selectedAdvisorIds, initialAdvisorIds)
+          ? selectedAdvisorIds
+          : undefined,
       });
       
       let description = "Quotation cancelled successfully.";
@@ -961,26 +988,26 @@ export default function EditQuotationForm({
               </div>
             )}
 
-            {/* Advised By (Admin only) */}
-            {isAdmin && editingQuotation && (
+            {/* Advisors */}
+            {editingQuotation && (
               <div className="grid gap-2">
-                <Label htmlFor="edit-advised-by">Advised By</Label>
-                <Select
-                  value={selectedAdvisedById}
-                  onValueChange={setSelectedAdvisedById}
-                >
-                  <SelectTrigger id="edit-advised-by">
-                    <SelectValue placeholder="Select advisor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.firstName} {user.lastName} ({user.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Only admins can change the advisor of a quotation</p>
+                <Label htmlFor="edit-advisors">Advisors</Label>
+                <MultiSelectAdvisors
+                  users={allUsers.map((u) => ({
+                    id: u.id,
+                    firstName: u.firstName ?? "",
+                    lastName: u.lastName ?? "",
+                    email: u.email,
+                  }))}
+                  selectedIds={selectedAdvisorIds}
+                  onChange={setSelectedAdvisorIds}
+                  currentUserId={enhancedUser?.profile?.id}
+                  isAdmin={isAdmin}
+                  placeholder="Select advisors"
+                />
+                {!isAdmin && (
+                  <p className="text-xs text-muted-foreground">You are automatically included as an advisor</p>
+                )}
               </div>
             )}
 
