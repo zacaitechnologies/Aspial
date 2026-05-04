@@ -71,6 +71,10 @@ model User {
   quotationAdvisors        QuotationAdvisor[]        @relation("QuotationAdvisor")
   invoiceAdvisors          InvoiceAdvisor[]          @relation("InvoiceAdvisor")
   receiptAdvisors          ReceiptAdvisor[]          @relation("ReceiptAdvisor")
+  deliveryOrdersCreated      DeliveryOrder[]              @relation("DeliveryOrderCreator")
+  deliveryOrderAdvisors      DeliveryOrderAdvisor[]       @relation("DeliveryOrderAdvisor")
+  deliveryOrderPhotographers DeliveryOrderPhotographer[]  @relation("DeliveryOrderPhotographer")
+  deliveryOrderEmails        DeliveryOrderEmail[]         @relation("DeliveryOrderEmailSender")
   leaveApplications        LeaveApplication[]
   reviewedLeaves           LeaveApplication[]        @relation("LeaveReviewer")
   leaveBalances            LeaveBalance[]
@@ -108,6 +112,7 @@ model Services {
   ServiceToTag ServiceToTag[]
   milestones   Milestone[]
   quotations   QuotationService[]
+  deliveryOrders DeliveryOrderService[]
 }
 
 model ServiceTag {
@@ -403,6 +408,7 @@ model Client {
   advisors                  ClientAdvisor[]
   projects                  Project[]
   quotations                Quotation[]
+  deliveryOrders            DeliveryOrder[]
 
   @@map("clients")
 }
@@ -445,6 +451,97 @@ model ReceiptAdvisor {
 
   @@id([receiptId, userId])
   @@map("receipt_advisors")
+}
+
+model DeliveryOrder {
+  id                  String                       @id @default(cuid())
+  deliveryOrderNumber String                       @unique
+  clientId            String
+  notes               String?
+  discountType        DiscountType?
+  discountValue       Float?
+  totalAmount         Float                        @default(0)
+  finalAmount         Float                        @default(0)
+  status              DeliveryOrderStatus          @default(active)
+  /// Business / document date (editable). Shown on the PDF as "DATE".
+  deliveryOrderDate   DateTime                     @default(now()) @map("delivery_order_date")
+  created_at          DateTime                     @default(now())
+  updated_at          DateTime                     @default(now()) @updatedAt
+  createdById         String
+
+  client              Client                       @relation(fields: [clientId], references: [id])
+  createdBy           User                         @relation("DeliveryOrderCreator", fields: [createdById], references: [supabase_id])
+  services            DeliveryOrderService[]
+  advisors            DeliveryOrderAdvisor[]
+  photographers       DeliveryOrderPhotographer[]
+  emails              DeliveryOrderEmail[]
+
+  @@index([clientId])
+  @@index([created_at])
+  @@index([status])
+  @@map("delivery_orders")
+}
+
+model DeliveryOrderService {
+  id                  Int            @id @default(autoincrement())
+  deliveryOrderId     String
+  serviceId           Int
+  /// Per-DO description override; snapshotted from Services.description at creation,
+  /// editable on this DO only, never written back to Services.
+  descriptionOverride String
+  price               Float          @default(0)
+  quantity            Int            @default(1)
+  sortOrder           Int            @default(0)
+
+  deliveryOrder       DeliveryOrder  @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  service             Services       @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@index([deliveryOrderId])
+  @@map("delivery_order_services")
+}
+
+model DeliveryOrderAdvisor {
+  deliveryOrderId String
+  userId          String
+  deliveryOrder   DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  user            User          @relation("DeliveryOrderAdvisor", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([deliveryOrderId, userId])
+  @@map("delivery_order_advisors")
+}
+
+model DeliveryOrderPhotographer {
+  deliveryOrderId String
+  userId          String
+  deliveryOrder   DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  user            User          @relation("DeliveryOrderPhotographer", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([deliveryOrderId, userId])
+  @@map("delivery_order_photographers")
+}
+
+model DeliveryOrderEmail {
+  id                Int           @id @default(autoincrement())
+  deliveryOrderId   String
+  deliveryOrder     DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  recipientEmail    String
+  sentAt            DateTime      @default(now())
+  sentById          String
+  sentBy            User          @relation("DeliveryOrderEmailSender", fields: [sentById], references: [supabase_id])
+
+  @@map("delivery_order_emails")
+}
+
+model DeliveryOrderCounter {
+  month_prefix String @id
+  last_value   Int    @default(0)
+
+  @@map("delivery_order_counters")
+}
+
+enum DeliveryOrderStatus {
+  active
+  cancelled
 }
 
 model Appointment {

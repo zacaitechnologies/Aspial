@@ -23,6 +23,7 @@ import {
   FileText,
   Wallet,
   FileCheck,
+  Truck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getAllPendingInvitations, getUserInvitations } from "../projects/permissions";
@@ -94,7 +95,7 @@ export function AppSidebar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isOperationUser, setIsOperationUser] = useState<boolean | null>(null);
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(
-    pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts")
+    pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts") || pathname.includes("/delivery-orders")
   );
 
   useEffect(() => {
@@ -205,7 +206,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => setIsPaymentsOpen(!isPaymentsOpen)}
-                  isActive={pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts")}
+                  isActive={pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts") || pathname.includes("/delivery-orders")}
                   className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
                 >
                   <div className="flex items-center gap-3 w-full justify-between">
@@ -269,8 +270,8 @@ export function AppSidebar() {
                         asChild
                         isActive={pathname.includes("/receipts")}
                       >
-                        <Link 
-                          href="/receipts" 
+                        <Link
+                          href="/receipts"
                           className={`flex items-center gap-2 ${
                             pathname.includes("/receipts")
                               ? ''
@@ -279,6 +280,24 @@ export function AppSidebar() {
                         >
                           <Wallet className="w-4 h-4 transition-colors" />
                           <span>Receipts</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.includes("/delivery-orders")}
+                      >
+                        <Link
+                          href="/delivery-orders"
+                          className={`flex items-center gap-2 ${
+                            pathname.includes("/delivery-orders")
+                              ? ''
+                              : '[&>svg]:!text-[#202F21]'
+                          }`}
+                        >
+                          <Truck className="w-4 h-4 transition-colors" />
+                          <span>Delivery Orders</span>
                         </Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
