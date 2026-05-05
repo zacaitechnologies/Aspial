@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors";
-import { Plus, Briefcase } from "lucide-react";
+import { Plus, Briefcase, ChevronDown, ChevronRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createQuotation, getAllUsers } from "../action";
@@ -36,6 +37,48 @@ import ProjectSelection from "./ProjectSelection";
 import { toast } from "@/components/ui/use-toast";
 import { formatLocalDate } from "@/lib/date-utils";
 import { formatNumber } from "@/lib/format-number";
+
+function QuotationServiceSearchItem({ service, onAdd, defaultExpanded }: { service: Services; onAdd: () => void; defaultExpanded?: boolean }) {
+  const [open, setOpen] = useState(defaultExpanded ?? false);
+
+  useEffect(() => {
+    setOpen(defaultExpanded ?? false);
+  }, [defaultExpanded]);
+
+  return (
+    <div className="border rounded p-2 hover:bg-muted/50">
+      <div className="flex items-center justify-between">
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <p className="font-medium text-sm">{service.name}</p>
+          <p className="text-sm font-medium text-foreground tabular-nums">
+            RM{formatNumber(service.basePrice)}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setOpen((v) => !v)}
+            className="h-7 w-7 p-0"
+            aria-label={open ? "Hide description" : "Show description"}
+          >
+            {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onAdd} className="h-7 w-7 p-0">
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+      {open && service.description && (
+        <p className="text-sm text-foreground mt-1 whitespace-pre-line">{service.description}</p>
+      )}
+    </div>
+  );
+}
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -75,10 +118,11 @@ export default function CreateQuotationForm({
     },
   });
 
-  type SelectedService = { serviceId: string; name: string; description: string; price: number; quantity: number };
+  type SelectedService = { serviceId: string; name: string; description: string; price: number; quantity: number; expanded: boolean };
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [totalPrice, setTotalPrice] = useState(0);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
+  const [expandAllDescriptions, setExpandAllDescriptions] = useState(false);
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
   const [showConfirmationDialog, setShowConfirmationDialog] = useState(false);
   const [showProjectSelectionDialog, setShowProjectSelectionDialog] = useState(false);
@@ -155,7 +199,7 @@ export default function CreateQuotationForm({
     const service = services.find((s) => s.id.toString() === serviceId);
     if (!service) return;
     if (selectedServices.some((s) => s.serviceId === serviceId)) return;
-    const newServices = [...selectedServices, { serviceId, name: service.name, description: service.description, price: service.basePrice, quantity: 1 }];
+    const newServices = [...selectedServices, { serviceId, name: service.name, description: service.description, price: service.basePrice, quantity: 1, expanded: expandAllDescriptions }];
     setSelectedServices(newServices);
     setTotalPrice(newServices.reduce((sum, s) => sum + s.price * s.quantity, 0));
   };
@@ -177,6 +221,12 @@ export default function CreateQuotationForm({
     setSelectedServices(newServices);
     setTotalPrice(newServices.reduce((sum, s) => sum + s.price * s.quantity, 0));
   };
+
+  useEffect(() => {
+    setSelectedServices((prev) =>
+      prev.map((s) => ({ ...s, expanded: expandAllDescriptions })),
+    );
+  }, [expandAllDescriptions]);
 
   // Calculate discounted total price
   const calculateDiscountedTotal = () => {
@@ -482,6 +532,7 @@ export default function CreateQuotationForm({
     setSelectedServices([]);
     setTotalPrice(0);
     setServiceSearchQuery("");
+    setExpandAllDescriptions(false);
     setClientMode("existing");
     setSelectedProjectId(undefined);
     setSelectedProjectName("");
@@ -633,10 +684,22 @@ export default function CreateQuotationForm({
             )}
 
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
-              <div className="flex flex-col justify-between items-start">
-                <Label className="font-semibold">Services <span className="text-red-500">*</span></Label>
-                <div className="text-xs text-muted-foreground">
-                  Note: Custom services can be added after creating the quotation
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <Label className="font-semibold">Services <span className="text-red-500">*</span></Label>
+                  <div className="text-xs text-muted-foreground">
+                    Note: Custom services can be added after creating the quotation
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Checkbox
+                    id="qt-expand-all-desc"
+                    checked={expandAllDescriptions}
+                    onCheckedChange={(checked) => setExpandAllDescriptions(checked === true)}
+                  />
+                  <Label htmlFor="qt-expand-all-desc" className="text-xs font-normal cursor-pointer whitespace-nowrap">
+                    Show all descriptions
+                  </Label>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -656,61 +719,81 @@ export default function CreateQuotationForm({
                         (service.description ?? "").toLowerCase().includes(serviceSearchQuery.toLowerCase()))
                   )
                     .map((service) => (
-                      <div
+                      <QuotationServiceSearchItem
                         key={service.id}
-                        className="flex items-center justify-between p-2 hover:bg-muted rounded cursor-pointer"
-                        onClick={() => { handleAddService(service.id.toString()); setServiceSearchQuery(""); }}
-                      >
-                        <div>
-                          <p className="font-medium text-sm">{service.name}</p>
-                          <p className="text-xs text-muted-foreground">RM{formatNumber(service.basePrice)}</p>
-                        </div>
-                        <Button type="button" size="sm" variant="ghost"><Plus className="w-4 h-4" /></Button>
-                      </div>
+                        service={service}
+                        defaultExpanded={expandAllDescriptions}
+                        onAdd={() => { handleAddService(service.id.toString()); setServiceSearchQuery(""); }}
+                      />
                     ))}
               </div>
               {selectedServices.length > 0 && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
-                    <span className="col-span-4">Service</span>
+                    <span className="col-span-1"></span>
+                    <span className="col-span-3">Service</span>
                     <span className="col-span-3">Price (RM)</span>
                     <span className="col-span-2">Qty</span>
                     <span className="col-span-2 text-right">Total</span>
                     <span className="col-span-1"></span>
                   </div>
                   {selectedServices.map((s) => (
-                    <div key={s.serviceId} className="grid grid-cols-12 gap-2 items-center p-2 border rounded-lg">
-                      <div className="col-span-4">
-                        <p className="font-medium text-sm">{s.name}</p>
+                    <div key={s.serviceId} className="border rounded-lg overflow-hidden">
+                      <div className="grid grid-cols-12 gap-2 items-center p-2">
+                        <div className="col-span-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              const updated = selectedServices.map((svc) =>
+                                svc.serviceId === s.serviceId ? { ...svc, expanded: !svc.expanded } : svc
+                              );
+                              setSelectedServices(updated);
+                            }}
+                            className="h-8 w-8 p-0"
+                            aria-label={s.expanded ? "Hide description" : "Show description"}
+                          >
+                            {s.expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          </Button>
+                        </div>
+                        <div className="col-span-3">
+                          <p className="font-medium text-sm">{s.name}</p>
+                        </div>
+                        <div className="col-span-3">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={s.price}
+                            onChange={(e) => handleServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={s.quantity}
+                            onChange={(e) => handleServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-2 text-right text-sm font-medium">
+                          RM{formatNumber(s.price * s.quantity)}
+                        </div>
+                        <div className="col-span-1 flex justify-end">
+                          <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
+                        </div>
                       </div>
-                      <div className="col-span-3">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={s.price}
-                          onChange={(e) => handleServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={s.quantity}
-                          onChange={(e) => handleServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2 text-right text-sm font-medium">
-                        RM{formatNumber(s.price * s.quantity)}
-                      </div>
-                      <div className="col-span-1 flex justify-end">
-                        <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
-                      </div>
+                      {s.expanded && s.description && (
+                        <div className="border-t bg-muted/40 p-3">
+                          <p className="text-sm text-foreground whitespace-pre-line">{s.description}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

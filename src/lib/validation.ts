@@ -444,4 +444,64 @@ export const updateEmployeeBalanceSchema = z.object({
   entitled: z.number().min(0),
 });
 
+// ===== Delivery Order =====
+export const deliveryOrderStatusSchema = z.enum(["active", "cancelled"]);
+
+export const deliveryOrderServiceItemSchema = z.object({
+  serviceId: z.number().int().positive(),
+  descriptionOverride: z.string().min(1, "Description is required").max(2000),
+  price: z.number().min(0, "Price must be 0 or more"),
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+export type DeliveryOrderServiceItem = z.infer<typeof deliveryOrderServiceItemSchema>;
+
+export const createDeliveryOrderSchema = z.object({
+  clientId: z.string().min(1, "Client is required"),
+  /** DO document date (`deliveryOrderDate`), HTML date input `YYYY-MM-DD`. */
+  deliveryOrderDate: z.string().optional(),
+  discountType: discountTypeSchema.optional(),
+  discountValue: z.number().min(0).optional(),
+  notes: z.string().max(2000).optional(),
+  services: z.array(deliveryOrderServiceItemSchema).min(1, "Add at least one service"),
+  advisorIds: z.array(z.string()).min(1, "At least one advisor is required"),
+  photographerIds: z.array(z.string()).optional().default([]),
+});
+
+export type CreateDeliveryOrderValues = z.infer<typeof createDeliveryOrderSchema>;
+
+export const updateDeliveryOrderSchema = z.object({
+  clientId: z.string().min(1).optional(),
+  deliveryOrderDate: z.string().optional(),
+  discountType: discountTypeSchema.nullable().optional(),
+  discountValue: z.number().min(0).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  services: z.array(deliveryOrderServiceItemSchema).min(1).optional(),
+  advisorIds: z.array(z.string()).min(1).optional(),
+  photographerIds: z.array(z.string()).optional(),
+  status: deliveryOrderStatusSchema.optional(),
+});
+
+export type UpdateDeliveryOrderValues = z.infer<typeof updateDeliveryOrderSchema>;
+
+export const sendDeliveryOrderEmailSchema = z.object({
+  deliveryOrderId: z.string().min(1),
+  recipientEmail: z.string().trim().email("Invalid email address"),
+});
+
+export type SendDeliveryOrderEmailValues = z.infer<typeof sendDeliveryOrderEmailSchema>;
+
+export const deliveryOrderListFiltersSchema = z.object({
+  searchQuery: z.string().optional(),
+  clientId: z.string().optional(),
+  advisorFilter: z.string().optional(),
+  monthYear: z.string().optional(),
+  status: deliveryOrderStatusSchema.optional(),
+});
+
+export type DeliveryOrderListFilters = z.infer<typeof deliveryOrderListFiltersSchema>;
+
+export const deliveryOrderIdSchema = z.string().min(1, "Delivery Order ID is required");
+
 export type UpdateEmployeeBalanceValues = z.infer<typeof updateEmployeeBalanceSchema>;
