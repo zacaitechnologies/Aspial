@@ -265,21 +265,42 @@ function addInfoBox(
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 20
-  const rightCol = pageWidth - margin
   const { deliveryOrderNumber, deliveryOrderDate, advisorName, photographerName, clientInfo } = info
 
   doc.setFillColor(255, 255, 255)
   doc.rect(margin, INFO_BOX_START_Y, pageWidth - 2 * margin, INFO_BOX_HEIGHT, "F")
 
   let leftY = INFO_BOX_START_Y + 6
-  let rightY = INFO_BOX_START_Y + 6
 
   doc.setFont("helvetica", "bold")
   doc.setFontSize(16)
   doc.setTextColor(...BLACK)
   doc.text("DELIVERY ORDER", margin + 3, leftY)
-  leftY += 6
 
+  // Right-side header — left-aligned block in the right half
+  const rightLineHeight = 5
+  let rightY = leftY
+  const labelX = pageWidth / 2 + 25
+  const colonX = labelX + 32
+  const valueX = colonX + 5
+
+  doc.setFontSize(9)
+  const rightRows: [string, string][] = [
+    ["NO", deliveryOrderNumber],
+    ["DATE", deliveryOrderDate],
+    ["ADVISOR", advisorName],
+    ["PHOTOGRAPHER", photographerName || "-"],
+    ["PAGE NO", `${pageNumber} of ${totalPages}`],
+  ]
+  for (const [label, value] of rightRows) {
+    doc.setFont("helvetica", "normal")
+    doc.text(label, labelX, rightY)
+    doc.text(":", colonX, rightY)
+    doc.text(value, valueX, rightY)
+    rightY += rightLineHeight
+  }
+
+  leftY += 6
   doc.setFontSize(9)
   doc.setFont("helvetica", "bold")
   doc.text("Bill To :", margin + 3, leftY)
@@ -314,18 +335,6 @@ function addInfoBox(
   if (clientInfo.email) {
     doc.text(`EMAIL : ${clientInfo.email}`, margin + 3, leftY)
   }
-
-  doc.setFontSize(9)
-  doc.setFont("helvetica", "normal")
-  doc.text(`NO              : ${deliveryOrderNumber}`, rightCol - 3, rightY, { align: "right" })
-  rightY += 5
-  doc.text(`DATE            : ${deliveryOrderDate}`, rightCol - 3, rightY, { align: "right" })
-  rightY += 5
-  doc.text(`ADVISOR         : ${advisorName}`, rightCol - 3, rightY, { align: "right" })
-  rightY += 5
-  doc.text(`PHOTOGRAPHER    : ${photographerName || "-"}`, rightCol - 3, rightY, { align: "right" })
-  rightY += 5
-  doc.text(`PAGE NO         : ${pageNumber} of ${totalPages}`, rightCol - 3, rightY, { align: "right" })
 
   doc.setDrawColor(...BLACK)
   doc.setLineWidth(0.5)
@@ -627,20 +636,27 @@ async function buildDeliveryOrderPdf(order: FullDeliveryOrder): Promise<jsPDF> {
   doc.setDrawColor(...BLACK)
   doc.setLineWidth(0.4)
   doc.line(margin, currentY, pageWidth - margin, currentY)
-  currentY += 6
+  currentY += 5
 
+  // Total label + amount on the right
   doc.setFont("helvetica", "normal")
-  doc.setFontSize(10)
-  const wordsText = `RINGGIT MALAYSIA : ${numberToWords(final)} ONLY`
-  doc.text(wordsText, margin, currentY)
-
-  // Right-aligned Total label + amount
-  doc.setFont("helvetica", "normal")
-  doc.text("Total", pageWidth - margin, currentY - 3, { align: "right" })
+  doc.setFontSize(9)
+  doc.text("Total", pageWidth - margin - 25, currentY, { align: "right" })
   doc.setFont("helvetica", "bold")
-  doc.setFontSize(11)
-  doc.text(formatNumber(final), pageWidth - margin, currentY + 3, { align: "right" })
-  currentY += 8
+  doc.setFontSize(12)
+  doc.text(formatNumber(final), pageWidth - margin, currentY, { align: "right" })
+  currentY += 5
+
+  // Amount in words on the left
+  doc.setFont("helvetica", "normal")
+  doc.setFontSize(9)
+  const wordsText = `RINGGIT MALAYSIA : ${numberToWords(final)} ONLY`
+  const wordsLines = doc.splitTextToSize(wordsText, pageWidth - 2 * margin - 60)
+  for (const wLine of wordsLines) {
+    doc.text(wLine, margin, currentY)
+    currentY += 4
+  }
+  currentY += 1
 
   if (discountAmount > 0) {
     doc.setFont("helvetica", "normal")

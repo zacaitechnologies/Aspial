@@ -2,9 +2,16 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 import {
   Dialog,
   DialogContent,
@@ -21,9 +28,19 @@ import {
   Trash2,
   Ban,
   RotateCcw,
+  User,
+  Building2,
+  Package,
+  DollarSign,
+  Calendar,
+  Loader2,
+  Send,
+  History,
+  Phone,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { formatNumber } from "@/lib/format-number"
+import { FormattedDescription } from "@/components/FormattedDescription"
 import {
   deleteDeliveryOrder,
   updateDeliveryOrder,
@@ -32,7 +49,6 @@ import {
 import DeliveryOrderForm from "../components/DeliveryOrderForm"
 import SendDeliveryOrderDialog from "../components/SendDeliveryOrderDialog"
 import type {
-  ClientOption,
   DeliveryOrderFull,
   ServiceOption,
   StaffOption,
@@ -40,7 +56,6 @@ import type {
 
 interface Props {
   order: DeliveryOrderFull
-  clients: ClientOption[]
   services: ServiceOption[]
   staff: StaffOption[]
   currentUserId: string
@@ -49,7 +64,6 @@ interface Props {
 
 export default function DeliveryOrderDetailClient({
   order,
-  clients,
   services,
   staff,
   currentUserId,
@@ -64,14 +78,24 @@ export default function DeliveryOrderDetailClient({
   >(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [isExportingPDF, setIsExportingPDF] = useState(false)
 
   const isCancelled = order.status === "cancelled"
 
+  const subtotal = order.totalAmount
+  const finalAmount = order.finalAmount
+  const hasDiscount =
+    order.discountValue != null && order.discountValue > 0 && order.discountType != null
+
   const handleDownload = async () => {
-    setBusy(true)
+    setIsExportingPDF(true)
     try {
       const { generateDeliveryOrderPDFWithFetch } = await import("../utils/pdfExport")
       await generateDeliveryOrderPDFWithFetch(order.id)
+      toast({
+        title: "Success",
+        description: "PDF exported successfully.",
+      })
     } catch (e) {
       toast({
         variant: "destructive",
@@ -79,7 +103,7 @@ export default function DeliveryOrderDetailClient({
         description: e instanceof Error ? e.message : "Could not generate PDF",
       })
     } finally {
-      setBusy(false)
+      setIsExportingPDF(false)
     }
   }
 
@@ -125,143 +149,295 @@ export default function DeliveryOrderDetailClient({
     setHistoryOpen(true)
   }
 
-  const subtotal = order.totalAmount
-  const finalAmount = order.finalAmount
-  const discount = Math.max(0, subtotal - finalAmount)
-
   return (
-    <div className="flex flex-col gap-4 p-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/delivery-orders">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back
-          </Link>
+    <div className="container mx-auto p-6 max-w-6xl">
+      <div className="mb-6">
+        <Button variant="ghost" onClick={() => router.push("/delivery-orders")} className="mb-4">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Delivery Orders
         </Button>
-        <h1 className="text-2xl font-semibold">{order.deliveryOrderNumber}</h1>
-        <Badge variant={isCancelled ? "secondary" : "default"}>{order.status}</Badge>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button variant="outline" onClick={handleDownload} disabled={busy} className="gap-2">
-            <Download className="w-4 h-4" /> Download PDF
-          </Button>
-          <Button variant="outline" onClick={() => setSendOpen(true)} className="gap-2">
-            <Mail className="w-4 h-4" /> Send email
-          </Button>
-          <Button variant="outline" onClick={openEmailHistory}>
-            History
-          </Button>
-          <Button onClick={() => setEditOpen(true)} className="gap-2">
-            <Pencil className="w-4 h-4" /> Edit
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleToggleStatus}
-            disabled={busy}
-            className="gap-2"
-          >
-            {isCancelled ? <RotateCcw className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
-            {isCancelled ? "Reactivate" : "Cancel"}
-          </Button>
-          {isAdmin && (
+        <div className="flex justify-between items-start flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-3xl font-bold">{order.deliveryOrderNumber}</h1>
+              <Badge variant={isCancelled ? "secondary" : "default"}>
+                {order.status === "active" ? "Active" : "Cancelled"}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground mt-2">
+              Delivery order for{" "}
+              {order.client?.company || order.client?.name || "client"}
+            </p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
             <Button
-              variant="destructive"
-              onClick={() => setConfirmDelete(true)}
-              className="gap-2"
+              variant="outline"
+              onClick={() => setSendOpen(true)}
+              className="flex items-center gap-2"
             >
-              <Trash2 className="w-4 h-4" /> Delete
+              <Send className="w-4 h-4" />
+              Send Email
             </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="rounded-lg border p-4 space-y-1">
-          <h3 className="text-sm font-medium text-muted-foreground">Client</h3>
-          <p className="font-semibold">
-            {order.client?.company || order.client?.name}
-          </p>
-          {order.client?.companyRegistrationNumber && (
-            <p className="text-sm">{order.client.companyRegistrationNumber}</p>
-          )}
-          {order.client?.address && (
-            <p className="text-sm whitespace-pre-line">{order.client.address}</p>
-          )}
-          {order.client?.name && (
-            <p className="text-sm">ATTN TO: {order.client.name}</p>
-          )}
-          {order.client?.phone && <p className="text-sm">TEL: {order.client.phone}</p>}
-          {order.client?.email && <p className="text-sm">EMAIL: {order.client.email}</p>}
-        </div>
-
-        <div className="rounded-lg border p-4 space-y-1">
-          <h3 className="text-sm font-medium text-muted-foreground">Details</h3>
-          <p>
-            <span className="text-sm text-muted-foreground">DO Date:</span>{" "}
-            {new Date(order.deliveryOrderDate).toLocaleDateString("en-GB")}
-          </p>
-          <p>
-            <span className="text-sm text-muted-foreground">Created:</span>{" "}
-            {new Date(order.created_at).toLocaleString("en-GB")}
-          </p>
-          <p>
-            <span className="text-sm text-muted-foreground">Advisor:</span>{" "}
-            {order.advisors.map((a) => `${a.firstName} ${a.lastName}`).join(", ") || "—"}
-          </p>
-          <p>
-            <span className="text-sm text-muted-foreground">Photographer:</span>{" "}
-            {order.photographers.map((p) => `${p.firstName} ${p.lastName}`).join(", ") || "—"}
-          </p>
-          <p>
-            <span className="text-sm text-muted-foreground">Total:</span>{" "}
-            <span className="font-semibold">RM{formatNumber(finalAmount)}</span>
-            {discount > 0 && (
-              <span className="text-sm text-muted-foreground">
-                {" "}
-                (subtotal RM{formatNumber(subtotal)}, discount RM{formatNumber(discount)})
-              </span>
+            <Button
+              variant="outline"
+              onClick={() => void openEmailHistory()}
+              className="flex items-center gap-2"
+            >
+              <History className="w-4 h-4" />
+              Email History
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleDownload()}
+              className="flex items-center gap-2"
+              disabled={isExportingPDF}
+            >
+              {isExportingPDF ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Export PDF
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setEditOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Pencil className="w-4 h-4" />
+              Edit
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleToggleStatus()}
+              disabled={busy}
+              className="flex items-center gap-2"
+            >
+              {isCancelled ? <RotateCcw className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+              {isCancelled ? "Reactivate" : "Cancel"}
+            </Button>
+            {isAdmin && (
+              <Button
+                variant="destructive"
+                onClick={() => setConfirmDelete(true)}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </Button>
             )}
-          </p>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted">
-            <tr>
-              <th className="text-left p-3 w-12">No</th>
-              <th className="text-left p-3">Description</th>
-              <th className="text-right p-3 w-24">Package</th>
-              <th className="text-right p-3 w-32">Price/Package</th>
-              <th className="text-right p-3 w-32">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {order.services.map((s, idx) => (
-              <tr key={s.id} className="border-t align-top">
-                <td className="p-3">{idx + 1}</td>
-                <td className="p-3">
-                  <p className="font-semibold">{s.service.name}</p>
-                  <pre className="font-sans text-sm text-muted-foreground whitespace-pre-wrap mt-1">
-                    {s.descriptionOverride}
-                  </pre>
-                </td>
-                <td className="p-3 text-right">{formatNumber(s.quantity)}</td>
-                <td className="p-3 text-right">{formatNumber(s.price)}</td>
-                <td className="p-3 text-right">{formatNumber(s.price * s.quantity)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {order.client && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  Client Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Name</p>
+                    <p className="font-medium">{order.client.name}</p>
+                  </div>
+                  {order.client.company && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Company</p>
+                      <p className="font-medium flex items-center gap-1">
+                        <Building2 className="w-4 h-4" />
+                        {order.client.company}
+                      </p>
+                    </div>
+                  )}
+                  {order.client.companyRegistrationNumber && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Registration No.</p>
+                      <p className="font-medium">{order.client.companyRegistrationNumber}</p>
+                    </div>
+                  )}
+                  {order.client.email && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Email</p>
+                      <p className="font-medium flex items-center gap-1">
+                        <Mail className="w-4 h-4" />
+                        {order.client.email}
+                      </p>
+                    </div>
+                  )}
+                  {order.client.phone && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Phone</p>
+                      <p className="font-medium flex items-center gap-1">
+                        <Phone className="w-4 h-4" />
+                        {order.client.phone}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {order.client.address && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Address</p>
+                    <p className="font-medium whitespace-pre-line">{order.client.address}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-      {order.notes && (
-        <div className="rounded-lg border p-4">
-          <h3 className="text-sm font-medium text-muted-foreground mb-1">Internal notes</h3>
-          <p className="text-sm whitespace-pre-line">{order.notes}</p>
+          {order.services && order.services.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5" />
+                  Services
+                </CardTitle>
+                <CardDescription>Line items on this delivery order</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {order.services.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex justify-between items-start p-3 border rounded-lg"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium">{s.service.name}</p>
+                        <FormattedDescription
+                          text={s.descriptionOverride}
+                          className="text-sm text-muted-foreground"
+                        />
+                      </div>
+                      <div className="ml-4 text-right shrink-0">
+                        <div className="text-xs text-muted-foreground">
+                          RM{formatNumber(s.price)} × {s.quantity}
+                        </div>
+                        <Badge variant="outline" className="mt-1">
+                          RM{formatNumber(s.price * s.quantity)}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {order.notes && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Internal notes</CardTitle>
+                <CardDescription>Not shown on the PDF</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-line">{order.notes}</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
-      )}
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5" />
+                Delivery Order Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal:</span>
+                <span className="font-medium">RM{formatNumber(subtotal)}</span>
+              </div>
+              {hasDiscount && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Discount:</span>
+                  <span className="font-semibold">
+                    {order.discountType === "percentage"
+                      ? `${order.discountValue}%`
+                      : `RM${formatNumber(order.discountValue ?? 0)}`}
+                  </span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-semibold text-blue-800">Total:</p>
+                </div>
+                <span className="text-2xl font-bold text-blue-800">
+                  RM{formatNumber(finalAmount)}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Timeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">DO date</p>
+                <p className="font-medium">
+                  {new Date(order.deliveryOrderDate).toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Record created</p>
+                <p className="font-medium">
+                  {new Date(order.created_at).toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Created by</p>
+                <p className="font-medium">
+                  {order.createdBy.firstName} {order.createdBy.lastName}
+                </p>
+              </div>
+              {order.advisors.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Advisors</p>
+                  <p className="font-medium">
+                    {order.advisors.map((a) => `${a.firstName} ${a.lastName}`).join(", ")}
+                  </p>
+                </div>
+              )}
+              {order.photographers.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Photographers</p>
+                  <p className="font-medium">
+                    {order.photographers.map((p) => `${p.firstName} ${p.lastName}`).join(", ")}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[85vw]! max-w-[85vw]! sm:max-w-[85vw]! max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Delivery Order</DialogTitle>
             <DialogDescription>
@@ -271,7 +447,6 @@ export default function DeliveryOrderDetailClient({
           <DeliveryOrderForm
             mode="edit"
             initial={order}
-            clients={clients}
             services={services}
             staff={staff}
             currentUserId={currentUserId}
@@ -297,13 +472,14 @@ export default function DeliveryOrderDetailClient({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Email history</DialogTitle>
+            <DialogDescription>Emails sent for this delivery order</DialogDescription>
           </DialogHeader>
           {!emailHistory || emailHistory.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No emails sent yet.</p>
+            <p className="text-sm text-muted-foreground text-center py-4">No emails sent yet.</p>
           ) : (
             <ul className="space-y-2 text-sm max-h-80 overflow-y-auto">
               {emailHistory.map((e) => (
-                <li key={e.id} className="rounded-md border p-3">
+                <li key={e.id} className="rounded-lg border p-3">
                   <p className="font-medium">{e.recipientEmail}</p>
                   <p className="text-xs text-muted-foreground">
                     Sent {new Date(e.sentAt).toLocaleString("en-GB")} by {e.sentBy.firstName}{" "}
@@ -328,7 +504,7 @@ export default function DeliveryOrderDetailClient({
             <Button variant="ghost" onClick={() => setConfirmDelete(false)} disabled={busy}>
               Keep it
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={busy}>
+            <Button variant="destructive" onClick={() => void handleDelete()} disabled={busy}>
               {busy ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>

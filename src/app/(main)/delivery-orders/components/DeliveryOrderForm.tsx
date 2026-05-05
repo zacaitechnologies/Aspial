@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -23,20 +24,61 @@ import {
   updateDeliveryOrder,
 } from "../action"
 import type {
-  ClientOption,
   ServiceOption,
   StaffOption,
   ServiceFormItem,
   DeliveryOrderFull,
 } from "../types"
 import { computeFinalAmount, computeSubtotal } from "../utils/totals"
+import ClientSelection from "../../quotations/components/ClientSelection"
+
+function ServiceSearchItem({ service, onAdd, defaultExpanded }: { service: ServiceOption; onAdd: () => void; defaultExpanded?: boolean }) {
+  const [open, setOpen] = useState(defaultExpanded ?? false)
+
+  useEffect(() => {
+    setOpen(defaultExpanded ?? false)
+  }, [defaultExpanded])
+
+  return (
+    <div className="border rounded p-2 hover:bg-muted/50">
+      <div className="flex items-center justify-between">
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <p className="font-medium text-sm truncate">{service.name}</p>
+          <p className="text-sm font-medium text-foreground tabular-nums">
+            RM{formatNumber(service.basePrice)}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setOpen((v) => !v)}
+            className="h-7 w-7 p-0"
+            aria-label={open ? "Hide description" : "Show description"}
+          >
+            {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onAdd} className="h-7 w-7 p-0">
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+      {open && service.description && (
+        <p className="text-sm text-foreground mt-1 whitespace-pre-line">{service.description}</p>
+      )}
+    </div>
+  )
+}
 
 type Mode = "create" | "edit"
 
 interface DeliveryOrderFormProps {
   mode: Mode
   initial?: DeliveryOrderFull
-  clients: ClientOption[]
   services: ServiceOption[]
   staff: StaffOption[]
   currentUserId: string
@@ -48,7 +90,6 @@ interface DeliveryOrderFormProps {
 export default function DeliveryOrderForm({
   mode,
   initial,
-  clients,
   services,
   staff,
   currentUserId,
@@ -57,6 +98,12 @@ export default function DeliveryOrderForm({
   onCancel,
 }: DeliveryOrderFormProps) {
   const [clientId, setClientId] = useState<string>(initial?.clientId ?? "")
+  const [clientMode, setClientMode] = useState<"existing" | "new">("existing")
+  const [newClientData, setNewClientData] = useState<{
+    name: string; email: string; ic?: string; phone?: string; company?: string;
+    companyRegistrationNumber?: string; address?: string; notes?: string;
+    industry?: string; yearlyRevenue?: string; membershipType?: string;
+  }>({ name: "", email: "" })
   const [deliveryOrderDate, setDeliveryOrderDate] = useState<string>(() => {
     if (initial?.deliveryOrderDate) {
       return new Date(initial.deliveryOrderDate).toISOString().slice(0, 10)
@@ -84,6 +131,7 @@ export default function DeliveryOrderForm({
 
   const [items, setItems] = useState<ServiceFormItem[]>(initialItems)
   const [serviceSearch, setServiceSearch] = useState("")
+  const [expandAllDescriptions, setExpandAllDescriptions] = useState(false)
 
   const [advisorIds, setAdvisorIds] = useState<string[]>(
     initial?.advisors.map((a) => a.id) ??
@@ -94,6 +142,18 @@ export default function DeliveryOrderForm({
   )
 
   const [submitting, setSubmitting] = useState(false)
+
+  // Non-admin creators must always remain in the advisor list.
+  useEffect(() => {
+    if (isAdmin || !currentUserId) return
+    setAdvisorIds((prev) => (prev.includes(currentUserId) ? prev : [...prev, currentUserId]))
+  }, [isAdmin, currentUserId])
+
+  useEffect(() => {
+    setItems((prev) =>
+      prev.map((it) => ({ ...it, expanded: expandAllDescriptions })),
+    )
+  }, [expandAllDescriptions])
 
   const subtotal = computeSubtotal(items)
   const finalAmount = computeFinalAmount(
@@ -127,8 +187,12 @@ export default function DeliveryOrderForm({
     setItems(items.map((i) => (i.serviceId === serviceId ? { ...i, ...patch } : i)))
 
   const handleSubmit = async () => {
-    if (!clientId) {
+    if (clientMode === "existing" && !clientId) {
       toast({ variant: "destructive", title: "Client required", description: "Please select a client." })
+      return
+    }
+    if (clientMode === "new" && (!newClientData.name || !newClientData.email || !newClientData.ic)) {
+      toast({ variant: "destructive", title: "Client required", description: "Please fill in the required client fields (name, email, and IC)." })
       return
     }
     if (items.length === 0) {
@@ -142,8 +206,28 @@ export default function DeliveryOrderForm({
 
     setSubmitting(true)
     try {
+      let finalClientId = clientId
+
+      if (clientMode === "new") {
+        const { createCustomerClient } = await import("../../clients/action")
+        const created = await createCustomerClient({
+          name: newClientData.name,
+          email: newClientData.email,
+          ic: newClientData.ic ?? "",
+          phone: newClientData.phone,
+          company: newClientData.company,
+          companyRegistrationNumber: newClientData.companyRegistrationNumber,
+          address: newClientData.address,
+          notes: newClientData.notes,
+          industry: newClientData.industry,
+          yearlyRevenue: newClientData.yearlyRevenue ? parseFloat(newClientData.yearlyRevenue) : undefined,
+          membershipType: (newClientData.membershipType as "MEMBER" | "NON_MEMBER") || "NON_MEMBER",
+        })
+        finalClientId = created.id
+      }
+
       const payload = {
-        clientId,
+        clientId: finalClientId,
         deliveryOrderDate,
         discountType: discountType === "none" ? undefined : discountType,
         discountValue: discountType === "none" || !discountValue ? undefined : discountValue,
@@ -178,22 +262,16 @@ export default function DeliveryOrderForm({
 
   return (
     <div className="space-y-6">
+      <ClientSelection
+        selectedClientId={clientId}
+        newClientData={newClientData}
+        onClientSelect={(id) => setClientId(id)}
+        onNewClientDataChange={setNewClientData}
+        onModeChange={setClientMode}
+        mode={clientMode}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="do-client">Client *</Label>
-          <Select value={clientId} onValueChange={setClientId}>
-            <SelectTrigger id="do-client">
-              <SelectValue placeholder="Select a client" />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.company ? `${c.company} — ${c.name}` : c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         <div className="space-y-2">
           <Label htmlFor="do-date">DO Date *</Label>
           <Input
@@ -211,11 +289,22 @@ export default function DeliveryOrderForm({
         <MultiSelectAdvisors
           users={staff}
           selectedIds={advisorIds}
-          onChange={setAdvisorIds}
+          onChange={(ids) => {
+            if (!isAdmin && currentUserId && !ids.includes(currentUserId)) {
+              setAdvisorIds([...ids, currentUserId])
+              return
+            }
+            setAdvisorIds(ids)
+          }}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           placeholder="Select advisors"
         />
+        {!isAdmin && (
+          <p className="text-xs text-muted-foreground">
+            You are automatically included as an advisor and cannot remove yourself.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -231,7 +320,19 @@ export default function DeliveryOrderForm({
       </div>
 
       <div className="space-y-3">
-        <Label>Services *</Label>
+        <div className="flex items-center justify-between">
+          <Label>Services *</Label>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="expand-all-desc"
+              checked={expandAllDescriptions}
+              onCheckedChange={(checked) => setExpandAllDescriptions(checked === true)}
+            />
+            <Label htmlFor="expand-all-desc" className="text-xs font-normal cursor-pointer">
+              Show all descriptions
+            </Label>
+          </div>
+        </div>
         <div className="space-y-1">
           <Input
             placeholder="Search service..."
@@ -248,24 +349,15 @@ export default function DeliveryOrderForm({
                     s.description.toLowerCase().includes(serviceSearch.toLowerCase())),
               )
               .map((s) => (
-                <div
+                <ServiceSearchItem
                   key={s.id}
-                  className="flex items-center justify-between p-2 hover:bg-muted rounded cursor-pointer"
-                  onClick={() => {
+                  service={s}
+                  defaultExpanded={expandAllDescriptions}
+                  onAdd={() => {
                     addService(s.id)
                     setServiceSearch("")
                   }}
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">{s.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      RM{formatNumber(s.basePrice)}
-                    </p>
-                  </div>
-                  <Button type="button" size="sm" variant="ghost">
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
+                />
               ))}
             {services.length === 0 && (
               <p className="text-xs text-muted-foreground text-center py-2">
