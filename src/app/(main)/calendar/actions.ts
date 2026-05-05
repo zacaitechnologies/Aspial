@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { formatLocalDate, formatLocalDateTime } from "@/lib/date-utils"
+import { formatLocalDate, formatLocalDateTime, toBusinessTZParts, parseDateInBusinessTZ } from "@/lib/date-utils"
 import type { LeaveHalfDay } from "@prisma/client"
 import { getAllUserTasks } from "../projects/task-actions"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
@@ -355,16 +355,17 @@ async function _fetchAppointmentBookings(
 			location = booking.appointment.location || booking.appointment.brand || "Appointment"
 		}
 
-		const dateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`
+		const startParts = toBusinessTZParts(startDate)
+		const endParts = toBusinessTZParts(endDate)
 
 		results.push({
 			id: `appointment-${booking.id}`,
 			title,
 			bookingName: booking.appointment?.name ?? null,
 			description: booking.purpose || `Appointment by ${booking.bookedBy}`,
-			date: dateStr,
-			startTime: startDate.toTimeString().slice(0, 5),
-			endTime: endDate.toTimeString().slice(0, 5),
+			date: startParts.dateStr,
+			startTime: startParts.timeStr,
+			endTime: endParts.timeStr,
 			type: "appointment",
 			appointmentType,
 			location,
@@ -512,26 +513,26 @@ async function _fetchCalendarBlockers(
 		const end = new Date(blocker.endDateTime)
 		const creatorName = `${blocker.createdBy.firstName} ${blocker.createdBy.lastName}`.trim() || blocker.createdBy.email
 
+		const startBiz = toBusinessTZParts(start)
+		const endBiz = toBusinessTZParts(end)
 		const blockerAllDay =
-			start.getHours() === 0 &&
-			start.getMinutes() === 0 &&
-			start.getSeconds() === 0 &&
-			end.getHours() === 23 &&
-			end.getMinutes() === 59
+			startBiz.timeStr === "00:00" &&
+			endBiz.timeStr === "23:59"
 
-		// Expand across days if blocker spans multiple days
-		const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate())
-		const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate())
+		// Expand across days using business-TZ date strings
+		const startDateParts = startBiz.dateStr.split("-").map(Number)
+		const endDateParts = endBiz.dateStr.split("-").map(Number)
+		const cur = new Date(startDateParts[0], startDateParts[1] - 1, startDateParts[2])
+		const endDay = new Date(endDateParts[0], endDateParts[1] - 1, endDateParts[2])
 
 		while (cur <= endDay) {
 			const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
 
-			// Calculate start/end time for this specific day
-			const isSameStartDay = cur.getFullYear() === start.getFullYear() && cur.getMonth() === start.getMonth() && cur.getDate() === start.getDate()
-			const isSameEndDay = cur.getFullYear() === end.getFullYear() && cur.getMonth() === end.getMonth() && cur.getDate() === end.getDate()
+			const isSameStartDay = dateStr === startBiz.dateStr
+			const isSameEndDay = dateStr === endBiz.dateStr
 
-			const dayStartTime = isSameStartDay ? start.toTimeString().slice(0, 5) : "00:00"
-			const dayEndTime = isSameEndDay ? end.toTimeString().slice(0, 5) : "23:59"
+			const dayStartTime = isSameStartDay ? startBiz.timeStr : "00:00"
+			const dayEndTime = isSameEndDay ? endBiz.timeStr : "23:59"
 
 			results.push({
 				id: `blocker-${blocker.id}-${dateStr}`,
@@ -593,8 +594,8 @@ export async function createCalendarBlocker(formData: FormData) {
 		return { success: false, error: "Title, start time, and end time are required" }
 	}
 
-	const start = new Date(startDateTime)
-	const end = new Date(endDateTime)
+	const start = parseDateInBusinessTZ(startDateTime)
+	const end = parseDateInBusinessTZ(endDateTime)
 	if (end <= start) {
 		return { success: false, error: "End time must be after start time" }
 	}
@@ -635,8 +636,8 @@ export async function updateCalendarBlocker(id: number, formData: FormData) {
 		return { success: false, error: "Title, start time, and end time are required" }
 	}
 
-	const start = new Date(startDateTime)
-	const end = new Date(endDateTime)
+	const start = parseDateInBusinessTZ(startDateTime)
+	const end = parseDateInBusinessTZ(endDateTime)
 	if (end <= start) {
 		return { success: false, error: "End time must be after start time" }
 	}
@@ -803,8 +804,8 @@ export async function updateAppointmentBooking(
 
 	const startDateStr = formData.get("startDate") as string
 	const endDateStr = formData.get("endDate") as string
-	const startDate = new Date(startDateStr)
-	const endDate = new Date(endDateStr)
+	const startDate = parseDateInBusinessTZ(startDateStr)
+	const endDate = parseDateInBusinessTZ(endDateStr)
 	const purpose = formData.get("purpose") as string
 	const attendeesStr = formData.get("attendees") as string
 	const attendees = attendeesStr ? Number.parseInt(attendeesStr) : null

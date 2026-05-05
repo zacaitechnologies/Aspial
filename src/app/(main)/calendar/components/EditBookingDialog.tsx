@@ -24,6 +24,7 @@ import {
 	getActiveBlockers,
 } from "@/app/(main)/calendar/actions"
 import { getAppointmentBookings } from "@/app/(main)/appointment-bookings/actions"
+import { parseDateInBusinessTZ, toBusinessTZParts } from "@/lib/date-utils"
 import type { CalendarBooking } from "../actions"
 
 interface EditBookingDialogProps {
@@ -40,13 +41,14 @@ const TIME_SLOTS = Array.from({ length: 15 }, (_, i) => {
 	return `${String(hour).padStart(2, "0")}:00`
 })
 
-/** Expand a booking's [start, end) into hourly slot keys "HH:00". */
+/** Expand a booking's [start, end) into hourly slot keys "HH:00" in business TZ. */
 function expandBookingToHourSlots(start: Date, end: Date): string[] {
 	const slots: string[] = []
 	const cur = new Date(start.getTime())
 	while (cur < end) {
-		slots.push(`${String(cur.getHours()).padStart(2, "0")}:00`)
-		cur.setHours(cur.getHours() + 1)
+		const { timeStr } = toBusinessTZParts(cur)
+		slots.push(timeStr)
+		cur.setTime(cur.getTime() + 60 * 60 * 1000)
 	}
 	return slots
 }
@@ -129,7 +131,10 @@ export function EditBookingDialog({
 			const start = new Date(details.startDate)
 			const end = new Date(details.endDate)
 
-			setSelectedDate(start)
+			// Derive the calendar date in business TZ so the date picker shows the correct day
+			const startBiz = toBusinessTZParts(start)
+			const [sy, sm, sd] = startBiz.dateStr.split("-").map(Number)
+			setSelectedDate(new Date(sy, sm - 1, sd))
 			setSelectedSlots(expandBookingToHourSlots(start, end))
 			setPurpose(details.purpose || "")
 			setAttendees(details.attendees ? String(details.attendees) : "")
@@ -150,10 +155,9 @@ export function EditBookingDialog({
 		if (!selectedDate || !appointmentId) return
 
 		const fetchAvailability = async () => {
-			const dayStart = new Date(selectedDate)
-			dayStart.setHours(0, 0, 0, 0)
-			const dayEnd = new Date(selectedDate)
-			dayEnd.setHours(23, 59, 59, 999)
+			const dateStr = format(selectedDate, "yyyy-MM-dd")
+			const dayStart = parseDateInBusinessTZ(`${dateStr}T00:00:00`)
+			const dayEnd = parseDateInBusinessTZ(`${dateStr}T23:59:59`)
 
 			const [bookingsResult, blockersResult] = await Promise.all([
 				getAppointmentBookings(appointmentId, dayStart, dayEnd),
@@ -190,10 +194,10 @@ export function EditBookingDialog({
 	}, [error])
 
 	const getSlotStatus = (hour: number) => {
-		if (!selectedDate) return { status: "available" as const, label: "Available" }
+		if (!selectedDate || isNaN(selectedDate.getTime())) return { status: "available" as const, label: "Available" }
 		const dateStr = format(selectedDate, "yyyy-MM-dd")
-		const slotStart = new Date(`${dateStr}T${String(hour).padStart(2, "0")}:00:00`)
-		const slotEnd = new Date(`${dateStr}T${String(hour + 1).padStart(2, "0")}:00:00`)
+		const slotStart = parseDateInBusinessTZ(`${dateStr}T${String(hour).padStart(2, "0")}:00:00`)
+		const slotEnd = parseDateInBusinessTZ(`${dateStr}T${String(hour + 1).padStart(2, "0")}:00:00`)
 
 		for (const blocker of blockers) {
 			if (slotStart < blocker.endDateTime && slotEnd > blocker.startDateTime) {

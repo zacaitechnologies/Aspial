@@ -27,6 +27,7 @@ import {
 } from "@/lib/validation"
 import { eachDayOfInterval } from "date-fns"
 import { DEFAULT_ENTITLEMENTS, isMalaysiaNonWorkingDay } from "./types"
+import { getMalaysiaYear, getMalaysiaDayBoundaries } from "@/lib/malaysia-time"
 import type {
   LeaveApplicationDTO,
   LeaveBalanceDTO,
@@ -230,7 +231,8 @@ export async function fetchAllEmployeeLeaveOverview(
 ): Promise<EmployeeLeaveOverview[]> {
   await ensureLeaveBalancesForYearForAllUsers(year)
 
-  const today = new Date()
+  // Use Malaysia midnight so "past" and "future" leaves are relative to the Malaysian calendar day
+  const { start: todayMYT } = getMalaysiaDayBoundaries(0)
 
   const users = await prisma.user.findMany({
     select: {
@@ -259,12 +261,12 @@ export async function fetchAllEmployeeLeaveOverview(
 
   return users.map((u) => {
     const pastLeaves = u.leaveApplications.filter(
-      (l) => l.status === "APPROVED" && new Date(l.endDate) < today
+      (l) => l.status === "APPROVED" && new Date(l.endDate) < todayMYT
     )
     const futureLeaves = u.leaveApplications.filter(
       (l) =>
         (l.status === "APPROVED" || l.status === "PENDING") &&
-        new Date(l.startDate) >= today
+        new Date(l.startDate) >= todayMYT
     )
 
     return {
@@ -294,10 +296,8 @@ export async function fetchAllEmployeeLeaveOverview(
 }
 
 export async function fetchLeaveStats(): Promise<LeaveStats> {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
+  const { start: todayMYT } = getMalaysiaDayBoundaries(0)
+  const { start: tomorrowMYT } = getMalaysiaDayBoundaries(1)
 
   const [pending, approved, rejected, onLeaveToday] = await Promise.all([
     prisma.leaveApplication.count({ where: { status: "PENDING" } }),
@@ -306,8 +306,8 @@ export async function fetchLeaveStats(): Promise<LeaveStats> {
     prisma.leaveApplication.count({
       where: {
         status: "APPROVED",
-        startDate: { lte: tomorrow },
-        endDate: { gte: today },
+        startDate: { lte: tomorrowMYT },
+        endDate: { gte: todayMYT },
       },
     }),
   ])
@@ -397,7 +397,7 @@ export async function applyForLeave(data: ApplyLeaveValues) {
 
   if (totalDays <= 0) throw new Error("Invalid leave duration")
 
-  const year = validated.startDate.getFullYear()
+  const year = getMalaysiaYear(validated.startDate)
   await initializeLeaveBalances(dbUser.id, year)
 
   // Calculate unpaid days
@@ -487,7 +487,7 @@ export async function approveLeave(leaveId: number, remarks?: string) {
   })
 
   // Move pending to used
-  const year = leave.startDate.getFullYear()
+  const year = getMalaysiaYear(leave.startDate)
   if (leave.leaveType !== "UNPAID") {
     const paidDays = leave.totalDays - leave.unpaidDays
     if (paidDays > 0) {
@@ -538,7 +538,7 @@ export async function rejectLeave(leaveId: number, remarks?: string) {
   })
 
   // Restore pending balance
-  const year = leave.startDate.getFullYear()
+  const year = getMalaysiaYear(leave.startDate)
   if (leave.leaveType !== "UNPAID") {
     const paidDays = leave.totalDays - leave.unpaidDays
     if (paidDays > 0) {
@@ -593,7 +593,7 @@ export async function cancelLeave(leaveId: number, remarks?: string) {
   })
 
   // Restore balance
-  const year = leave.startDate.getFullYear()
+  const year = getMalaysiaYear(leave.startDate)
   if (leave.leaveType !== "UNPAID") {
     const paidDays = leave.totalDays - leave.unpaidDays
     if (paidDays > 0) {
@@ -662,7 +662,7 @@ export async function cancelOwnPendingLeave(data: CancelOwnPendingLeaveValues) {
     },
   })
 
-  const year = leave.startDate.getFullYear()
+  const year = getMalaysiaYear(leave.startDate)
   if (leave.leaveType !== "UNPAID") {
     const paidDays = leave.totalDays - leave.unpaidDays
     if (paidDays > 0) {
@@ -729,7 +729,7 @@ export async function adminEditLeave(data: AdminEditLeaveValues) {
   const newLeaveType = validated.leaveType ?? leave.leaveType
   const newTotalDays = calculateLeaveDays(newStartDate, newEndDate, newHalfDay)
 
-  const year = leave.startDate.getFullYear()
+  const year = getMalaysiaYear(leave.startDate)
   const oldPaidDays = leave.totalDays - leave.unpaidDays
 
   // Calculate new unpaid days
@@ -777,13 +777,13 @@ export async function adminEditLeave(data: AdminEditLeaveValues) {
   const newPaidDays = newTotalDays - newUnpaidDays
   if (newLeaveType !== "UNPAID" && newPaidDays > 0) {
     const field = leave.status === "PENDING" ? "pending" : "used"
-    await initializeLeaveBalances(leave.userId, newStartDate.getFullYear())
+    await initializeLeaveBalances(leave.userId, getMalaysiaYear(newStartDate))
     await prisma.leaveBalance.update({
       where: {
         userId_leaveType_year: {
           userId: leave.userId,
           leaveType: newLeaveType,
-          year: newStartDate.getFullYear(),
+          year: getMalaysiaYear(newStartDate),
         },
       },
       data: {
@@ -893,7 +893,7 @@ export async function approveChangeRequest(requestId: number, remarks?: string) 
 
   if (changeRequest.type === "CANCEL") {
     // Cancel the leave and restore balance
-    const year = leave.startDate.getFullYear()
+    const year = getMalaysiaYear(leave.startDate)
     const paidDays = leave.totalDays - leave.unpaidDays
 
     await prisma.leaveApplication.update({
@@ -924,7 +924,7 @@ export async function approveChangeRequest(requestId: number, remarks?: string) 
     const newHalfDay = changeRequest.newHalfDay ?? leave.halfDay
     const newLeaveType = changeRequest.newLeaveType ?? leave.leaveType
     const newTotalDays = calculateLeaveDays(newStartDate, newEndDate, newHalfDay)
-    const year = leave.startDate.getFullYear()
+    const year = getMalaysiaYear(leave.startDate)
     const oldPaidDays = leave.totalDays - leave.unpaidDays
 
     // Restore old

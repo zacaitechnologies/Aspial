@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import type { AppointmentType } from "@/app/(main)/calendar/constants"
-import { formatLocalDateTime, formatLocalDateTimeDisplay } from "@/lib/date-utils"
+import { formatLocalDateTime, formatLocalDateTimeDisplay, parseDateInBusinessTZ } from "@/lib/date-utils"
 
 // Project Actions
 export async function getUserProjects(userId: string) {
@@ -205,12 +205,10 @@ export async function deleteAppointment(id: number) {
 // Unified Appointment Booking Actions
 export async function createAppointmentBooking(formData: FormData) {
 	const bookedBy = formData.get("bookedBy") as string
-	// Parse dates as local time (no timezone conversion)
-	// Input format: YYYY-MM-DDTHH:mm:ss (without Z, so interpreted as local)
 	const startDateStr = formData.get("startDate") as string
 	const endDateStr = formData.get("endDate") as string
-	const startDate = new Date(startDateStr)
-	const endDate = new Date(endDateStr)
+	const startDate = parseDateInBusinessTZ(startDateStr)
+	const endDate = parseDateInBusinessTZ(endDateStr)
 	const purpose = formData.get("purpose") as string
 	const appointmentType = ((formData.get("appointmentType") as string) || 'OTHERS') as AppointmentType
 	const projectIdStr = formData.get("projectId") as string

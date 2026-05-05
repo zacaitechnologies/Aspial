@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { format } from "date-fns"
+import { parseLocalDateString, formatLocalDate } from "@/lib/date-utils"
 
 interface LeaveChangeRequestDialogProps {
   application: LeaveApplicationDTO | null
@@ -72,8 +72,8 @@ export default function LeaveChangeRequestDialog({
       reason: "",
       newLeaveType: type === "EDIT" ? application.leaveType : undefined,
       newHalfDay: type === "EDIT" ? application.halfDay : undefined,
-      newStartDate: type === "EDIT" ? new Date(application.startDate) : undefined,
-      newEndDate: type === "EDIT" ? new Date(application.endDate) : undefined,
+      newStartDate: type === "EDIT" ? parseLocalDateString(formatLocalDate(new Date(application.startDate))) : undefined,
+      newEndDate: type === "EDIT" ? parseLocalDateString(formatLocalDate(new Date(application.endDate))) : undefined,
     })
   }, [open, application?.id, type, form])
 
@@ -121,8 +121,8 @@ export default function LeaveChangeRequestDialog({
           </p>
           <p>
             <span className="font-medium">Dates:</span>{" "}
-            {format(new Date(application.startDate), "MMM d, yyyy")} -{" "}
-            {format(new Date(application.endDate), "MMM d, yyyy")}
+            {new Date(application.startDate).toLocaleDateString("en-MY", { month: "short", day: "numeric", year: "numeric" })} -{" "}
+            {new Date(application.endDate).toLocaleDateString("en-MY", { month: "short", day: "numeric", year: "numeric" })}
           </p>
           <p>
             <span className="font-medium">Duration:</span> {application.totalDays} day(s)
@@ -192,15 +192,9 @@ export default function LeaveChangeRequestDialog({
                         <FormControl>
                           <Input
                             type="date"
-                            value={
-                              field.value
-                                ? format(new Date(field.value), "yyyy-MM-dd")
-                                : ""
-                            }
+                            value={field.value ? formatLocalDate(field.value instanceof Date ? field.value : parseLocalDateString(String(field.value))) : ""}
                             onChange={(e) =>
-                              field.onChange(
-                                e.target.value ? new Date(e.target.value) : undefined
-                              )
+                              field.onChange(e.target.value ? parseLocalDateString(e.target.value) : undefined)
                             }
                           />
                         </FormControl>
@@ -217,15 +211,9 @@ export default function LeaveChangeRequestDialog({
                         <FormControl>
                           <Input
                             type="date"
-                            value={
-                              field.value
-                                ? format(new Date(field.value), "yyyy-MM-dd")
-                                : ""
-                            }
+                            value={field.value ? formatLocalDate(field.value instanceof Date ? field.value : parseLocalDateString(String(field.value))) : ""}
                             onChange={(e) =>
-                              field.onChange(
-                                e.target.value ? new Date(e.target.value) : undefined
-                              )
+                              field.onChange(e.target.value ? parseLocalDateString(e.target.value) : undefined)
                             }
                           />
                         </FormControl>

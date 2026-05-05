@@ -2,7 +2,7 @@
  * Calendar utility functions for date calculations and time management
  */
 
-import { formatLocalDate } from "@/lib/date-utils"
+import { formatLocalDate, toBusinessTZParts } from "@/lib/date-utils"
 import type { CalendarBooking } from "../actions"
 
 /**
@@ -60,10 +60,10 @@ export function formatDate(date: Date): string {
 }
 
 /**
- * Format time as HH:MM
+ * Format time as HH:MM in the business timezone.
  */
 export function formatTime(date: Date): string {
-	return date.toTimeString().slice(0, 5)
+	return toBusinessTZParts(date).timeStr
 }
 
 /**

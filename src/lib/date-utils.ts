@@ -5,6 +5,63 @@
  */
 
 /**
+ * Canonical IANA timezone for the business. All appointment bookings are
+ * interpreted and displayed in this timezone regardless of server or browser locale.
+ */
+export const BUSINESS_TIMEZONE = "Asia/Kuala_Lumpur"
+
+/**
+ * Build a Date from a naive datetime string (YYYY-MM-DDTHH:mm:ss) interpreted
+ * in the business timezone. Returns the correct UTC instant so Prisma/Postgres
+ * stores it unambiguously.
+ *
+ * Works on both server (any TZ) and browser (any TZ).
+ */
+export function parseDateInBusinessTZ(naiveDatetime: string): Date {
+  if (!naiveDatetime || !naiveDatetime.includes("T")) {
+    throw new RangeError(`parseDateInBusinessTZ: expected "YYYY-MM-DDTHH:mm:ss", got "${naiveDatetime}"`)
+  }
+
+  // Strip any trailing Z or timezone offset — we always interpret as business TZ
+  const cleaned = naiveDatetime.replace(/[Zz]$/, "").replace(/[+-]\d{2}:\d{2}$/, "")
+  const formatted = cleaned.length <= 16 ? `${cleaned}:00` : cleaned
+
+  const [datePart, timePart] = formatted.split("T")
+  const [yearStr, monthStr, dayStr] = datePart.split("-")
+  const timeTokens = timePart.split(":")
+  const year = parseInt(yearStr, 10)
+  const month = parseInt(monthStr, 10)
+  const day = parseInt(dayStr, 10)
+  const hour = parseInt(timeTokens[0], 10)
+  const min = parseInt(timeTokens[1], 10)
+  const sec = parseInt(timeTokens[2], 10) || 0
+
+  if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hour) || isNaN(min)) {
+    throw new RangeError(`parseDateInBusinessTZ: could not parse "${naiveDatetime}"`)
+  }
+
+  // Asia/Kuala_Lumpur is a fixed UTC+8 offset (no DST), so direct calculation is safe
+  const utcMs = Date.UTC(year, month - 1, day, hour - 8, min, sec)
+  return new Date(utcMs)
+}
+
+/**
+ * Extract wall-clock date and time parts from a UTC Date in the business timezone.
+ * Returns { dateStr: "YYYY-MM-DD", timeStr: "HH:MM" }.
+ */
+export function toBusinessTZParts(date: Date): { dateStr: string; timeStr: string } {
+  // Asia/Kuala_Lumpur is fixed UTC+8
+  const bizMs = date.getTime() + 8 * 60 * 60 * 1000
+  const biz = new Date(bizMs)
+  const year = biz.getUTCFullYear()
+  const month = String(biz.getUTCMonth() + 1).padStart(2, "0")
+  const day = String(biz.getUTCDate()).padStart(2, "0")
+  const hour = String(biz.getUTCHours()).padStart(2, "0")
+  const minute = String(biz.getUTCMinutes()).padStart(2, "0")
+  return { dateStr: `${year}-${month}-${day}`, timeStr: `${hour}:${minute}` }
+}
+
+/**
  * Parse a YYYY-MM-DD string as local date (midnight in local timezone).
  * Use when displaying or comparing date strings; avoids new Date("YYYY-MM-DD") which is UTC midnight.
  */

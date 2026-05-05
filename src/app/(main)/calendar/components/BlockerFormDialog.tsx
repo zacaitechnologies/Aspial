@@ -16,6 +16,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog"
 import { createCalendarBlocker, updateCalendarBlocker } from "../actions"
+import { toBusinessTZParts } from "@/lib/date-utils"
 
 interface BlockerData {
 	id: number
@@ -36,33 +37,20 @@ interface BlockerFormDialogProps {
 
 function toLocalDateTimeString(isoOrDate: string): string {
 	const d = new Date(isoOrDate)
-	const year = d.getFullYear()
-	const month = String(d.getMonth() + 1).padStart(2, "0")
-	const day = String(d.getDate()).padStart(2, "0")
-	const hours = String(d.getHours()).padStart(2, "0")
-	const minutes = String(d.getMinutes()).padStart(2, "0")
-	return `${year}-${month}-${day}T${hours}:${minutes}`
+	const { dateStr, timeStr } = toBusinessTZParts(d)
+	return `${dateStr}T${timeStr}`
 }
 
 function toDateInputValue(iso: string): string {
 	const d = new Date(iso)
-	const year = d.getFullYear()
-	const month = String(d.getMonth() + 1).padStart(2, "0")
-	const day = String(d.getDate()).padStart(2, "0")
-	return `${year}-${month}-${day}`
+	return toBusinessTZParts(d).dateStr
 }
 
-/** Matches server logic for full calendar days (local midnight → 23:59). */
+/** Matches server logic for full calendar days (business-TZ midnight → 23:59). */
 function detectAllDayFromIso(startIso: string, endIso: string): boolean {
-	const s = new Date(startIso)
-	const e = new Date(endIso)
-	return (
-		s.getHours() === 0 &&
-		s.getMinutes() === 0 &&
-		s.getSeconds() === 0 &&
-		e.getHours() === 23 &&
-		e.getMinutes() === 59
-	)
+	const s = toBusinessTZParts(new Date(startIso))
+	const e = toBusinessTZParts(new Date(endIso))
+	return s.timeStr === "00:00" && e.timeStr === "23:59"
 }
 
 function localDateTimeToDatetimeLocalValue(d: Date): string {

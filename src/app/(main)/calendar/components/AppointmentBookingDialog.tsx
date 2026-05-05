@@ -29,6 +29,7 @@ import {
 	getAppointmentBookings,
 	getProjectUsersEmails,
 } from "@/app/(main)/appointment-bookings/actions"
+import { parseDateInBusinessTZ } from "@/lib/date-utils"
 import { EmailListInput } from "@/app/(main)/appointment-bookings/components/EmailListInput"
 import { FieldOverwriteDialog } from "@/app/(main)/appointment-bookings/components/FieldOverwriteDialog"
 import { APPOINTMENT_TYPES, type AppointmentType } from "../constants"
@@ -91,8 +92,9 @@ function getSlotStatus(
 	blockers: BlockerSlot[],
 	selectedDate: string
 ) {
-	const dayStart = new Date(`${selectedDate}T${String(hour).padStart(2, "0")}:00:00`)
-	const dayEnd = new Date(`${selectedDate}T${String(hour + 1).padStart(2, "0")}:00:00`)
+	if (!selectedDate) return { status: "past" as const, label: "Unavailable" }
+	const dayStart = parseDateInBusinessTZ(`${selectedDate}T${String(hour).padStart(2, "0")}:00:00`)
+	const dayEnd = parseDateInBusinessTZ(`${selectedDate}T${String(hour + 1).padStart(2, "0")}:00:00`)
 
 	for (const blocker of blockers) {
 		if (dayStart < blocker.endDateTime && dayEnd > blocker.startDateTime) {
@@ -198,12 +200,12 @@ export function AppointmentBookingDialog({
 
 	// Fetch availability when appointment is selected
 	useEffect(() => {
-		if (step !== "select-time" || !selectedAppointment || !initialDate) return
+		if (step !== "select-time" || !selectedAppointment || !initialDate || !initialDate.includes("-")) return
 
 		const fetchAvailability = async () => {
 			setIsLoadingSlots(true)
-			const dayStart = new Date(`${initialDate}T00:00:00`)
-			const dayEnd = new Date(`${initialDate}T23:59:59`)
+			const dayStart = parseDateInBusinessTZ(`${initialDate}T00:00:00`)
+			const dayEnd = parseDateInBusinessTZ(`${initialDate}T23:59:59`)
 
 			const [bookingsResult, blockersResult] = await Promise.all([
 				getAppointmentBookings(selectedAppointment.id, dayStart, dayEnd),

@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { format } from "date-fns"
+import { parseLocalDateString, formatLocalDate } from "@/lib/date-utils"
 
 interface AdminEditLeaveDialogProps {
   application: LeaveApplicationDTO | null
@@ -64,8 +64,8 @@ export default function AdminEditLeaveDialog({
     form.reset({
       leaveId: application.id,
       leaveType: application.leaveType,
-      startDate: new Date(application.startDate),
-      endDate: new Date(application.endDate),
+      startDate: parseLocalDateString(formatLocalDate(new Date(application.startDate))),
+      endDate: parseLocalDateString(formatLocalDate(new Date(application.endDate))),
       halfDay: application.halfDay,
       reason: application.reason,
     })
@@ -139,15 +139,9 @@ export default function AdminEditLeaveDialog({
                     <FormControl>
                       <Input
                         type="date"
-                        value={
-                          field.value
-                            ? format(new Date(field.value), "yyyy-MM-dd")
-                            : ""
-                        }
+                        value={field.value ? formatLocalDate(field.value instanceof Date ? field.value : parseLocalDateString(String(field.value))) : ""}
                         onChange={(e) =>
-                          field.onChange(
-                            e.target.value ? new Date(e.target.value) : undefined
-                          )
+                          field.onChange(e.target.value ? parseLocalDateString(e.target.value) : undefined)
                         }
                       />
                     </FormControl>
@@ -164,15 +158,9 @@ export default function AdminEditLeaveDialog({
                     <FormControl>
                       <Input
                         type="date"
-                        value={
-                          field.value
-                            ? format(new Date(field.value), "yyyy-MM-dd")
-                            : ""
-                        }
+                        value={field.value ? formatLocalDate(field.value instanceof Date ? field.value : parseLocalDateString(String(field.value))) : ""}
                         onChange={(e) =>
-                          field.onChange(
-                            e.target.value ? new Date(e.target.value) : undefined
-                          )
+                          field.onChange(e.target.value ? parseLocalDateString(e.target.value) : undefined)
                         }
                       />
                     </FormControl>
