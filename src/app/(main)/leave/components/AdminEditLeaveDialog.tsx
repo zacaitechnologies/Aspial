@@ -5,8 +5,8 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { adminEditLeaveSchema, type AdminEditLeaveValues } from "@/lib/validation"
 import { adminEditLeave } from "../action"
-import { leaveTypeOptions, halfDayOptions } from "../types"
-import type { LeaveApplicationDTO } from "../types"
+import { halfDayOptions } from "../types"
+import type { LeaveApplicationDTO, LeaveTypeDTO } from "../types"
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ interface AdminEditLeaveDialogProps {
   application: LeaveApplicationDTO | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  leaveTypes?: LeaveTypeDTO[]
   onSuccess?: () => void
 }
 
@@ -46,6 +47,7 @@ export default function AdminEditLeaveDialog({
   application,
   open,
   onOpenChange,
+  leaveTypes = [],
   onSuccess,
 }: AdminEditLeaveDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -117,9 +119,9 @@ export default function AdminEditLeaveDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {leaveTypeOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                      {leaveTypes.filter((t) => t.isActive).map((opt) => (
+                        <SelectItem key={opt.code} value={opt.code}>
+                          {opt.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

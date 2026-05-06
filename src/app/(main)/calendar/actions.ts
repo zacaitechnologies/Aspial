@@ -199,35 +199,40 @@ async function _fetchLeaveBookings(
 	viewerSupabaseId: string,
 	safeRange?: { start: Date; end: Date }
 ): Promise<CalendarBooking[]> {
-	const leaves = await prisma.leaveApplication.findMany({
-		where: {
-			status: { in: ["PENDING", "APPROVED"] },
-			...(safeRange
-				? {
-						startDate: { lte: safeRange.end },
-						endDate: { gte: safeRange.start },
-					}
-				: {}),
-		},
-		select: {
-			id: true,
-			leaveType: true,
-			startDate: true,
-			endDate: true,
-			halfDay: true,
-			reason: true,
-			status: true,
-			totalDays: true,
-			user: {
-				select: {
-					firstName: true,
-					lastName: true,
-					email: true,
-					supabase_id: true,
+	const [leaves, leaveTypes] = await Promise.all([
+		prisma.leaveApplication.findMany({
+			where: {
+				status: { in: ["PENDING", "APPROVED"] },
+				...(safeRange
+					? {
+							startDate: { lte: safeRange.end },
+							endDate: { gte: safeRange.start },
+						}
+					: {}),
+			},
+			select: {
+				id: true,
+				leaveType: true,
+				startDate: true,
+				endDate: true,
+				halfDay: true,
+				reason: true,
+				status: true,
+				totalDays: true,
+				user: {
+					select: {
+						firstName: true,
+						lastName: true,
+						email: true,
+						supabase_id: true,
+					},
 				},
 			},
-		},
-	})
+		}),
+		prisma.leaveType.findMany({ select: { code: true, name: true } }),
+	])
+
+	const leaveTypeNameByCode = new Map(leaveTypes.map((t) => [t.code, t.name]))
 
 	const leaveStartEndSameDay = (s: Date, e: Date) => formatLocalDate(s) === formatLocalDate(e)
 	const results: CalendarBooking[] = []
@@ -243,7 +248,7 @@ async function _fetchLeaveBookings(
 		const isSingleCalendarDayLeave = leaveStartEndSameDay(startD, endD)
 		const { startTime, endTime } = leaveTimeRangeForDay(leave.halfDay, isSingleCalendarDayLeave)
 
-		const typeLabel = leave.leaveType === "PAID" ? "Paid" : "Unpaid"
+		const typeLabel = leaveTypeNameByCode.get(leave.leaveType) ?? leave.leaveType
 		const halfLabel =
 			isSingleCalendarDayLeave && leave.halfDay === "FIRST_HALF"
 				? " (AM)"
@@ -251,13 +256,13 @@ async function _fetchLeaveBookings(
 					? " (PM)"
 					: ""
 		const statusSuffix = leave.status === "PENDING" ? " · Pending" : ""
-		const titleBase = `${typeLabel} leave${halfLabel}${statusSuffix}`
+		const titleBase = `${typeLabel}${halfLabel}${statusSuffix}`
 
 		for (const dateStr of dayStrings) {
 			results.push({
 				id: `leave-${leave.id}-${dateStr}`,
 				title: `${applicantName} · ${titleBase}`,
-				bookingName: `${typeLabel} leave`,
+				bookingName: typeLabel,
 				description: leave.reason,
 				date: dateStr,
 				startTime,

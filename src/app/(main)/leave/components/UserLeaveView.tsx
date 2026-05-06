@@ -26,8 +26,9 @@ import type {
   LeaveApplicationDTO,
   LeaveBalanceDTO,
   LeaveChangeRequestDTO,
+  LeaveTypeDTO,
 } from "../types"
-import { leaveTypeOptions, leaveStatusOptions } from "../types"
+import { formatLeaveTypeName, leaveStatusOptions } from "../types"
 import { format } from "date-fns"
 import { formatMYTDateForDisplay, toBusinessTZParts } from "@/lib/date-utils"
 import { getMalaysiaDateStr } from "@/lib/malaysia-time"
@@ -37,6 +38,7 @@ interface UserLeaveViewProps {
   initialApplications: LeaveApplicationDTO[]
   initialBalances: LeaveBalanceDTO[]
   initialChangeRequests: LeaveChangeRequestDTO[]
+  initialLeaveTypes: LeaveTypeDTO[]
   userId: string
   currentYear: number
 }
@@ -45,6 +47,7 @@ export default function UserLeaveView({
   initialApplications,
   initialBalances,
   initialChangeRequests,
+  initialLeaveTypes,
   userId,
   currentYear,
 }: UserLeaveViewProps) {
@@ -183,7 +186,7 @@ export default function UserLeaveView({
         </div>
 
         <TabsContent value="overview" className="space-y-6 mt-4">
-          <LeaveBalanceCards balances={initialBalances} />
+          <LeaveBalanceCards balances={initialBalances} leaveTypes={initialLeaveTypes} />
 
           {/* Last & Next Leave */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -195,7 +198,7 @@ export default function UserLeaveView({
                 {lastLeave ? (
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <LeaveTypeBadge type={lastLeave.leaveType} />
+                      <LeaveTypeBadge type={lastLeave.leaveType} types={initialLeaveTypes} />
                     </div>
                     <p className="text-sm">
                       {formatMYTDateForDisplay(new Date(lastLeave.startDate))}
@@ -221,7 +224,7 @@ export default function UserLeaveView({
                 {nextLeave ? (
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <LeaveTypeBadge type={nextLeave.leaveType} />
+                      <LeaveTypeBadge type={nextLeave.leaveType} types={initialLeaveTypes} />
                       <LeaveStatusBadge status={nextLeave.status} />
                     </div>
                     <p className="text-sm">
@@ -268,9 +271,9 @@ export default function UserLeaveView({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                {leaveTypeOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                {initialLeaveTypes.filter((t) => t.isActive).map((opt) => (
+                  <SelectItem key={opt.code} value={opt.code}>
+                    {opt.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -280,6 +283,7 @@ export default function UserLeaveView({
           <LeaveApplicationTable
             applications={filteredApplications}
             isAdmin={false}
+            leaveTypes={initialLeaveTypes}
             onView={(app) => {
               setSelectedApp(app)
               setShowDetailDialog(true)
@@ -321,7 +325,7 @@ export default function UserLeaveView({
                           {cr.type === "CANCEL" ? "Cancel" : "Edit"} request
                         </span>
                         <span className="text-sm text-muted-foreground">
-                          for {cr.leaveApplication.leaveType.toLowerCase()} leave (
+                          for {formatLeaveTypeName(cr.leaveApplication.leaveType, initialLeaveTypes).toLowerCase()} (
                           {formatMYTDateForDisplay(new Date(cr.leaveApplication.startDate), { includeYear: false })} -{" "}
                           {formatMYTDateForDisplay(new Date(cr.leaveApplication.endDate), { includeYear: false })})
                         </span>
@@ -355,6 +359,7 @@ export default function UserLeaveView({
         open={showApplyForm}
         onOpenChange={setShowApplyForm}
         balances={initialBalances}
+        leaveTypes={initialLeaveTypes}
         onSuccess={refresh}
       />
 
@@ -362,6 +367,7 @@ export default function UserLeaveView({
         application={selectedApp}
         open={showDetailDialog}
         onOpenChange={setShowDetailDialog}
+        leaveTypes={initialLeaveTypes}
         isAdmin={false}
       />
 
@@ -370,6 +376,7 @@ export default function UserLeaveView({
         type={changeRequestType}
         open={showChangeRequest}
         onOpenChange={setShowChangeRequest}
+        leaveTypes={initialLeaveTypes}
         onSuccess={refresh}
       />
     </div>

@@ -605,6 +605,21 @@ export async function getClientById(id: string) {
             created_at: true,
           }
         },
+        // Standalone receipts (no invoice) attached directly to this client.
+        // Invoice-linked receipts already arrive via quotations.invoices.receipts.
+        receipts: {
+          where: { status: { not: "cancelled" } },
+          select: {
+            id: true,
+            receiptNumber: true,
+            amount: true,
+            paymentMethod: true,
+            receiptDate: true,
+            created_at: true,
+            status: true,
+          },
+          orderBy: { receiptDate: "desc" },
+        },
         createdBy: {
           select: {
             id: true,

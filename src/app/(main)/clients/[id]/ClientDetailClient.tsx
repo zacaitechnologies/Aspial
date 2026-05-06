@@ -89,7 +89,7 @@ export default function ClientDetailClient({
 		}, 0)
 	}, [finalQuotations])
 
-	// Total receipt amount (sum of all receipt amounts)
+	// Total receipt amount (sum of invoice-linked receipt amounts)
 	const totalReceiptAmount = useMemo(() => {
 		return client.quotations.reduce((sum, q) => {
 			const invoices = (q as { invoices?: { receipts?: { amount: number }[] }[] }).invoices ?? []
@@ -98,6 +98,23 @@ export default function ClientDetailClient({
 			}, 0)
 		}, 0)
 	}, [client.quotations])
+
+	// Sales = gross invoice total (sum of all non-cancelled invoice amounts).
+	// Independent of quotation workflowStatus filter — shows true business volume.
+	const totalSales = useMemo(() => {
+		return client.quotations.reduce((sum, q) => {
+			const invoices = (q as { invoices?: { amount: number }[] }).invoices ?? []
+			return sum + invoices.reduce((s, inv) => s + inv.amount, 0)
+		}, 0)
+	}, [client.quotations])
+
+	// Cash Sales = total receipt amount for this client = invoice-linked receipts +
+	// standalone receipts (those where Receipt.clientId = this client).
+	const totalCashSales = useMemo(() => {
+		const standalone = (client as { receipts?: { amount: number }[] }).receipts ?? []
+		const standaloneTotal = standalone.reduce((sum, r) => sum + r.amount, 0)
+		return totalReceiptAmount + standaloneTotal
+	}, [client, totalReceiptAmount])
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -227,13 +244,35 @@ export default function ClientDetailClient({
 											</span>
 										</span>
 									</div>
+									{canSeeBalance && (
+										<>
+											<div className="flex items-center gap-3 text-muted-foreground">
+												<FileText className="h-4 w-4" />
+												<span>
+													Sales (invoice total):{" "}
+													<span className="inline-block px-2 py-0.5 rounded font-semibold bg-indigo-100 text-indigo-800">
+														RM {formatNumber(totalSales)}
+													</span>
+												</span>
+											</div>
+											<div className="flex items-center gap-3 text-muted-foreground">
+												<Wallet className="h-4 w-4" />
+												<span>
+													Cash sales (receipt total):{" "}
+													<span className="inline-block px-2 py-0.5 rounded font-semibold bg-emerald-100 text-emerald-800">
+														RM {formatNumber(totalCashSales)}
+													</span>
+												</span>
+											</div>
+										</>
+									)}
 									<div className="flex items-center gap-3 text-muted-foreground">
 										<Receipt className="h-4 w-4" />
 										<span>
 											{client.quotations.reduce(
 												(sum, q) => sum + ((q as { invoices?: { receipts?: unknown[] }[] }).invoices?.reduce((s, inv) => s + (inv.receipts?.length ?? 0), 0) ?? 0),
 												0
-											)}{" "}
+											) + ((client as { receipts?: unknown[] }).receipts?.length ?? 0)}{" "}
 											Receipts
 										</span>
 									</div>
@@ -427,78 +466,103 @@ export default function ClientDetailClient({
 						})()}
 					</TabsContent>
 					<TabsContent value="receipts">
-						{/* Receipts Content */}
+						{/* Receipts Content — invoice-linked receipts (via quotations.invoices.receipts)
+						    plus standalone receipts attached directly to the client. */}
 						{(() => {
 							type ReceiptItem = { id: string; receiptNumber: string; amount: number; created_at: Date; receiptDate?: Date; status: string }
 							type InvoiceWithReceiptsList = { id: string; invoiceNumber: string; receipts?: ReceiptItem[] }
 							type QuotationWithInvoicesReceipts = { id: number; name: string; workflowStatus?: string; invoices?: InvoiceWithReceiptsList[] }
-							const receiptWithContext = client.quotations.flatMap((q) => {
+							const linkedReceipts = client.quotations.flatMap((q) => {
 								const quotation = q as QuotationWithInvoicesReceipts
 								return (quotation.invoices ?? []).flatMap((invoice) =>
-									(invoice.receipts ?? []).map((receipt) => ({ receipt, invoice, quotation }))
+									(invoice.receipts ?? []).map((receipt) => ({
+										kind: "linked" as const,
+										receipt,
+										invoice,
+										quotation,
+									}))
 								)
 							})
-							return receiptWithContext.length === 0 ? (
+							const standaloneReceipts = (
+								(client as { receipts?: ReceiptItem[] }).receipts ?? []
+							).map((receipt) => ({
+								kind: "standalone" as const,
+								receipt,
+							}))
+							const allReceipts = [...linkedReceipts, ...standaloneReceipts]
+							return allReceipts.length === 0 ? (
 								<div className="col-span-full text-center py-8">
 									<Receipt className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
 									<p className="text-muted-foreground">No receipts found for this client.</p>
 								</div>
 							) : (
 								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-									{receiptWithContext.map(({ receipt, invoice, quotation }) => (
-										<Card key={receipt.id} className="card bg-card border-2 border-border gap-0">
-											<CardHeader className="pb-3">
-												<CardTitle className="text-lg text-foreground">
-													{receipt.receiptNumber}
-												</CardTitle>
-											</CardHeader>
-											<CardContent className="space-y-3">
-												<div className="flex items-center justify-between">
-													<span className="text-sm font-medium text-muted-foreground">Amount:</span>
-													<span className="text-lg font-bold text-foreground">
-														RM {formatNumber(receipt.amount)}
-													</span>
-												</div>
-												<div className="flex items-center justify-between">
-													<span className="text-sm font-medium text-muted-foreground">Invoice:</span>
-													<span className="text-sm font-medium text-foreground truncate max-w-[180px]" title={invoice.invoiceNumber}>
-														{invoice.invoiceNumber}
-													</span>
-												</div>
-												<div className="flex items-center justify-between">
-													<span className="text-sm font-medium text-muted-foreground">Quotation:</span>
-													<span className="text-sm font-medium text-foreground truncate max-w-[180px]" title={quotation.name}>
-														{quotation.name}
-													</span>
-												</div>
-												<div className="flex items-center justify-between">
-													<span className="text-sm font-medium text-muted-foreground">Status:</span>
-													<Badge variant="outline" className="capitalize border-border text-foreground">
-														{receipt.status}
-													</Badge>
-												</div>
-												<div className="flex items-center justify-between">
-													<span className="text-sm font-medium text-muted-foreground">Receipt date:</span>
-													<span className="text-sm text-muted-foreground">
-														{formatDate(receipt.receiptDate ?? receipt.created_at)}
-													</span>
-												</div>
-												<div className="flex gap-2 mt-2">
-													<Link href={`/receipts/${receipt.id}`} className="flex-1">
-														<Button variant="outline" size="sm" className="w-full">
-															<Receipt className="w-4 h-4 mr-1" />
-															View Receipt
-														</Button>
-													</Link>
-													<Link href={`/invoices/${invoice.id}`} className="flex-1">
-														<Button variant="outline" size="sm" className="w-full">
-															View Invoice
-														</Button>
-													</Link>
-												</div>
-											</CardContent>
-										</Card>
-									))}
+									{allReceipts.map((entry) => {
+										const { receipt } = entry
+										return (
+											<Card key={receipt.id} className="card bg-card border-2 border-border gap-0">
+												<CardHeader className="pb-3">
+													<CardTitle className="text-lg text-foreground flex items-center gap-2">
+														{receipt.receiptNumber}
+														{entry.kind === "standalone" && (
+															<Badge variant="outline">Standalone</Badge>
+														)}
+													</CardTitle>
+												</CardHeader>
+												<CardContent className="space-y-3">
+													<div className="flex items-center justify-between">
+														<span className="text-sm font-medium text-muted-foreground">Amount:</span>
+														<span className="text-lg font-bold text-foreground">
+															RM {formatNumber(receipt.amount)}
+														</span>
+													</div>
+													{entry.kind === "linked" && (
+														<>
+															<div className="flex items-center justify-between">
+																<span className="text-sm font-medium text-muted-foreground">Invoice:</span>
+																<span className="text-sm font-medium text-foreground truncate max-w-[180px]" title={entry.invoice.invoiceNumber}>
+																	{entry.invoice.invoiceNumber}
+																</span>
+															</div>
+															<div className="flex items-center justify-between">
+																<span className="text-sm font-medium text-muted-foreground">Quotation:</span>
+																<span className="text-sm font-medium text-foreground truncate max-w-[180px]" title={entry.quotation.name}>
+																	{entry.quotation.name}
+																</span>
+															</div>
+														</>
+													)}
+													<div className="flex items-center justify-between">
+														<span className="text-sm font-medium text-muted-foreground">Status:</span>
+														<Badge variant="outline" className="capitalize border-border text-foreground">
+															{receipt.status}
+														</Badge>
+													</div>
+													<div className="flex items-center justify-between">
+														<span className="text-sm font-medium text-muted-foreground">Receipt date:</span>
+														<span className="text-sm text-muted-foreground">
+															{formatDate(receipt.receiptDate ?? receipt.created_at)}
+														</span>
+													</div>
+													<div className="flex gap-2 mt-2">
+														<Link href={`/receipts/${receipt.id}`} className="flex-1">
+															<Button variant="outline" size="sm" className="w-full">
+																<Receipt className="w-4 h-4 mr-1" />
+																View Receipt
+															</Button>
+														</Link>
+														{entry.kind === "linked" && (
+															<Link href={`/invoices/${entry.invoice.id}`} className="flex-1">
+																<Button variant="outline" size="sm" className="w-full">
+																	View Invoice
+																</Button>
+															</Link>
+														)}
+													</div>
+												</CardContent>
+											</Card>
+										)
+									})}
 								</div>
 							)
 						})()}

@@ -13,7 +13,10 @@ export interface ReceiptWithInvoice {
 	id: string
 	receiptNumber: string
 	amount: number
-	invoiceId: string
+	/** Null for standalone (cash sale) receipts that aren't linked to an invoice. */
+	invoiceId: string | null
+	/** Set on standalone receipts to record which client paid. */
+	clientId?: string | null
 	status: "active" | "cancelled"
 	paymentMethod: PaymentMethodType
 	created_at: Date
@@ -43,12 +46,15 @@ export interface ReceiptWithInvoice {
 		name: string
 		description: string
 	} | null
+	/** For invoice-linked receipts this is the invoice's client; for standalone it's the receipt's own client. */
 	Client?: {
 		id: string
 		name: string
 		email: string
 		company?: string | null
 	} | null
+	/** True when invoiceId is null (i.e. a standalone cash sale). */
+	isStandalone?: boolean
 	createdBy: {
 		id: string
 		firstName: string
@@ -68,6 +74,7 @@ export interface ReceiptWithInvoice {
 
 export interface ReceiptFormData {
 	invoiceId?: string
+	clientId?: string
 	amount: string
 	/** Receipt document date (receiptDate). Editable only by admin. */
 	receiptDate: string

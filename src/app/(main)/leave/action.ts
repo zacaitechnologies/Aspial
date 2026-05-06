@@ -14,18 +14,22 @@ import {
   cancelOwnPendingLeaveSchema,
   withdrawChangeRequestSchema,
   reviewChangeRequestSchema,
-  updateEntitlementDefaultSchema,
   updateEmployeeBalanceSchema,
+  createLeaveTypeSchema,
+  updateLeaveTypeSchema,
+  bulkUpsertLeaveBalancesSchema,
   type ApplyLeaveValues,
   type AdminEditLeaveValues,
   type LeaveChangeRequestValues,
   type CancelOwnPendingLeaveValues,
   type WithdrawChangeRequestValues,
   type LeaveFilters,
-  type UpdateEntitlementDefaultValues,
   type UpdateEmployeeBalanceValues,
+  type CreateLeaveTypeValues,
+  type UpdateLeaveTypeValues,
+  type BulkUpsertLeaveBalancesValues,
 } from "@/lib/validation"
-import { DEFAULT_ENTITLEMENTS, enumerateLeaveDays, isMalaysiaNonWorkingDay } from "./types"
+import { enumerateLeaveDays, isMalaysiaNonWorkingDay } from "./types"
 import { getMalaysiaYear, getMalaysiaDayBoundaries } from "@/lib/malaysia-time"
 import { parseDateInBusinessTZ, toBusinessTZParts } from "@/lib/date-utils"
 import type {
@@ -34,7 +38,7 @@ import type {
   LeaveChangeRequestDTO,
   EmployeeLeaveOverview,
   LeaveStats,
-  EntitlementDefaultDTO,
+  LeaveTypeDTO,
 } from "./types"
 
 function revalidateLeaveAndCalendar() {
@@ -98,47 +102,48 @@ function toMYTDateStr(date: Date): string {
   return toBusinessTZParts(date).dateStr
 }
 
-async function getOrCreateEntitlementDefaults(): Promise<Record<string, number>> {
-  const defaults = await prisma.leaveEntitlementDefault.findMany()
-  if (defaults.length > 0) {
-    const map: Record<string, number> = {}
-    for (const d of defaults) map[d.leaveType] = d.entitledDays
-    // Fill missing types with hardcoded defaults
-    for (const [type, days] of Object.entries(DEFAULT_ENTITLEMENTS)) {
-      if (!(type in map)) map[type] = days
-    }
-    return map
-  }
-  // Seed defaults
-  await prisma.leaveEntitlementDefault.createMany({
-    data: Object.entries(DEFAULT_ENTITLEMENTS).map(([leaveType, entitledDays]) => ({
-      leaveType: leaveType as "PAID" | "UNPAID",
-      entitledDays,
-    })),
+/** Returns active leave types ordered by sortOrder asc, code asc. */
+async function fetchActiveLeaveTypes() {
+  return prisma.leaveType.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
   })
-  return { ...DEFAULT_ENTITLEMENTS }
 }
 
+/** Look up a single leave type's metadata by code. Throws if missing. */
+async function getLeaveTypeOrThrow(code: string) {
+  const t = await prisma.leaveType.findUnique({ where: { code } })
+  if (!t) throw new Error(`Unknown leave type: ${code}`)
+  return t
+}
+
+/**
+ * Idempotently create a LeaveBalance row for every active leave type for a user/year.
+ * Existing rows are preserved; new types added later will be auto-created on next call.
+ */
 export async function initializeLeaveBalances(userId: string, year: number) {
-  const existing = await prisma.leaveBalance.findMany({
-    where: { userId, year },
-  })
-  if (existing.length > 0) return existing
+  const [existing, types] = await Promise.all([
+    prisma.leaveBalance.findMany({ where: { userId, year } }),
+    fetchActiveLeaveTypes(),
+  ])
 
-  const defaults = await getOrCreateEntitlementDefaults()
-  const leaveTypes = Object.keys(defaults) as ("PAID" | "UNPAID")[]
+  const existingCodes = new Set(existing.map((b) => b.leaveType))
+  const missing = types.filter((t) => !existingCodes.has(t.code))
 
-  const data = leaveTypes.map((leaveType) => ({
-    userId,
-    leaveType,
-    year,
-    entitled: defaults[leaveType],
-    used: 0,
-    pending: 0,
-    balance: defaults[leaveType],
-  }))
+  if (missing.length > 0) {
+    await prisma.leaveBalance.createMany({
+      data: missing.map((t) => ({
+        userId,
+        leaveType: t.code,
+        year,
+        entitled: t.defaultEntitlement,
+        used: 0,
+        pending: 0,
+        balance: t.defaultEntitlement,
+      })),
+    })
+  }
 
-  await prisma.leaveBalance.createMany({ data })
   return prisma.leaveBalance.findMany({ where: { userId, year } })
 }
 
@@ -228,7 +233,7 @@ export async function fetchAllLeaveBalances(
   }) as unknown as (LeaveBalanceDTO & { user: { firstName: string; lastName: string } })[]
 }
 
-/** Ensures every user has PAID/UNPAID balance rows for the calendar year (idempotent). */
+/** Ensures every user has a balance row for every active leave type (idempotent). */
 export async function ensureLeaveBalancesForYearForAllUsers(year: number) {
   const users = await prisma.user.findMany({ select: { id: true } })
   await Promise.all(users.map((u) => initializeLeaveBalances(u.id, year)))
@@ -367,11 +372,22 @@ export async function fetchUserChangeRequests(
   }) as unknown as LeaveChangeRequestDTO[]
 }
 
-export async function fetchEntitlementDefaults(): Promise<EntitlementDefaultDTO[]> {
-  await getOrCreateEntitlementDefaults()
-  return prisma.leaveEntitlementDefault.findMany({
-    orderBy: { leaveType: "asc" },
+/** Read-only list for clients (forms, badges, settings). Includes inactive types only when includeInactive=true. */
+export async function fetchLeaveTypes(includeInactive = false): Promise<LeaveTypeDTO[]> {
+  return prisma.leaveType.findMany({
+    where: includeInactive ? undefined : { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
   })
+}
+
+/** Settings-page list with usage counts (for delete enable/disable). */
+export async function fetchLeaveTypesWithUsage(): Promise<
+  (LeaveTypeDTO & { _count: { applications: number; balances: number } })[]
+> {
+  return prisma.leaveType.findMany({
+    orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
+    include: { _count: { select: { applications: true, balances: true } } },
+  }) as unknown as (LeaveTypeDTO & { _count: { applications: number; balances: number } })[]
 }
 
 export async function fetchAllUsers() {
@@ -397,6 +413,7 @@ export async function applyForLeave(data: ApplyLeaveValues) {
   if (!dbUser) throw new Error("User not found")
 
   const validated = applyLeaveSchema.parse(data)
+  const leaveTypeMeta = await getLeaveTypeOrThrow(validated.leaveType)
   const totalDays = calculateLeaveDays(
     validated.startDate,
     validated.endDate,
@@ -410,9 +427,10 @@ export async function applyForLeave(data: ApplyLeaveValues) {
   const year = getMalaysiaYear(startDate)
   await initializeLeaveBalances(dbUser.id, year)
 
-  // Calculate unpaid days
+  // Calculate unpaid days. For unpaid types every day is unpaid; for paid types
+  // we deduct from the entitled balance and overflow into unpaidDays.
   let unpaidDays = 0
-  if (validated.leaveType !== "UNPAID") {
+  if (!leaveTypeMeta.isUnpaid) {
     const balance = await prisma.leaveBalance.findUnique({
       where: {
         userId_leaveType_year: {
@@ -447,7 +465,7 @@ export async function applyForLeave(data: ApplyLeaveValues) {
   })
 
   // Update pending balance (only for the paid portion)
-  if (validated.leaveType !== "UNPAID") {
+  if (!leaveTypeMeta.isUnpaid) {
     const paidDays = totalDays - unpaidDays
     if (paidDays > 0) {
       await prisma.leaveBalance.update({
@@ -498,7 +516,8 @@ export async function approveLeave(leaveId: number, remarks?: string) {
 
   // Move pending to used
   const year = getMalaysiaYear(leave.startDate)
-  if (leave.leaveType !== "UNPAID") {
+  const leaveTypeMeta = await getLeaveTypeOrThrow(leave.leaveType)
+  if (!leaveTypeMeta.isUnpaid) {
     const paidDays = leave.totalDays - leave.unpaidDays
     if (paidDays > 0) {
       await prisma.leaveBalance.update({
@@ -549,7 +568,8 @@ export async function rejectLeave(leaveId: number, remarks?: string) {
 
   // Restore pending balance
   const year = getMalaysiaYear(leave.startDate)
-  if (leave.leaveType !== "UNPAID") {
+  const leaveTypeMeta = await getLeaveTypeOrThrow(leave.leaveType)
+  if (!leaveTypeMeta.isUnpaid) {
     const paidDays = leave.totalDays - leave.unpaidDays
     if (paidDays > 0) {
       await prisma.leaveBalance.update({
@@ -604,7 +624,8 @@ export async function cancelLeave(leaveId: number, remarks?: string) {
 
   // Restore balance
   const year = getMalaysiaYear(leave.startDate)
-  if (leave.leaveType !== "UNPAID") {
+  const leaveTypeMeta = await getLeaveTypeOrThrow(leave.leaveType)
+  if (!leaveTypeMeta.isUnpaid) {
     const paidDays = leave.totalDays - leave.unpaidDays
     if (paidDays > 0) {
       if (wasPending) {
@@ -673,7 +694,8 @@ export async function cancelOwnPendingLeave(data: CancelOwnPendingLeaveValues) {
   })
 
   const year = getMalaysiaYear(leave.startDate)
-  if (leave.leaveType !== "UNPAID") {
+  const leaveTypeMeta = await getLeaveTypeOrThrow(leave.leaveType)
+  if (!leaveTypeMeta.isUnpaid) {
     const paidDays = leave.totalDays - leave.unpaidDays
     if (paidDays > 0) {
       await prisma.leaveBalance.update({
@@ -744,9 +766,12 @@ export async function adminEditLeave(data: AdminEditLeaveValues) {
   const year = getMalaysiaYear(leave.startDate)
   const oldPaidDays = leave.totalDays - leave.unpaidDays
 
+  const oldTypeMeta = await getLeaveTypeOrThrow(leave.leaveType)
+  const newTypeMeta = newLeaveType === leave.leaveType ? oldTypeMeta : await getLeaveTypeOrThrow(newLeaveType)
+
   // Calculate new unpaid days
   let newUnpaidDays = 0
-  if (newLeaveType !== "UNPAID") {
+  if (!newTypeMeta.isUnpaid) {
     const balance = await prisma.leaveBalance.findUnique({
       where: {
         userId_leaveType_year: {
@@ -768,7 +793,7 @@ export async function adminEditLeave(data: AdminEditLeaveValues) {
   }
 
   // Restore old balance
-  if (leave.leaveType !== "UNPAID" && oldPaidDays > 0) {
+  if (!oldTypeMeta.isUnpaid && oldPaidDays > 0) {
     const field = leave.status === "PENDING" ? "pending" : "used"
     await prisma.leaveBalance.update({
       where: {
@@ -787,7 +812,7 @@ export async function adminEditLeave(data: AdminEditLeaveValues) {
 
   // Apply new balance
   const newPaidDays = newTotalDays - newUnpaidDays
-  if (newLeaveType !== "UNPAID" && newPaidDays > 0) {
+  if (!newTypeMeta.isUnpaid && newPaidDays > 0) {
     const field = leave.status === "PENDING" ? "pending" : "used"
     await initializeLeaveBalances(leave.userId, getMalaysiaYear(newStartDate))
     await prisma.leaveBalance.update({
@@ -907,13 +932,14 @@ export async function approveChangeRequest(requestId: number, remarks?: string) 
     // Cancel the leave and restore balance
     const year = getMalaysiaYear(leave.startDate)
     const paidDays = leave.totalDays - leave.unpaidDays
+    const oldTypeMeta = await getLeaveTypeOrThrow(leave.leaveType)
 
     await prisma.leaveApplication.update({
       where: { id: leave.id },
       data: { status: "CANCELLED" },
     })
 
-    if (leave.leaveType !== "UNPAID" && paidDays > 0) {
+    if (!oldTypeMeta.isUnpaid && paidDays > 0) {
       const field = leave.status === "PENDING" ? "pending" : "used"
       await prisma.leaveBalance.update({
         where: {
@@ -939,8 +965,12 @@ export async function approveChangeRequest(requestId: number, remarks?: string) 
     const year = getMalaysiaYear(leave.startDate)
     const oldPaidDays = leave.totalDays - leave.unpaidDays
 
+    const oldTypeMeta = await getLeaveTypeOrThrow(leave.leaveType)
+    const newTypeMeta =
+      newLeaveType === leave.leaveType ? oldTypeMeta : await getLeaveTypeOrThrow(newLeaveType)
+
     // Restore old
-    if (leave.leaveType !== "UNPAID" && oldPaidDays > 0) {
+    if (!oldTypeMeta.isUnpaid && oldPaidDays > 0) {
       const field = leave.status === "PENDING" ? "pending" : "used"
       await prisma.leaveBalance.update({
         where: {
@@ -959,7 +989,7 @@ export async function approveChangeRequest(requestId: number, remarks?: string) 
 
     // Calculate new unpaid
     let newUnpaidDays = 0
-    if (newLeaveType !== "UNPAID") {
+    if (!newTypeMeta.isUnpaid) {
       const balance = await prisma.leaveBalance.findUnique({
         where: {
           userId_leaveType_year: {
@@ -980,7 +1010,7 @@ export async function approveChangeRequest(requestId: number, remarks?: string) 
 
     // Apply new
     const newPaidDays = newTotalDays - newUnpaidDays
-    if (newLeaveType !== "UNPAID" && newPaidDays > 0) {
+    if (!newTypeMeta.isUnpaid && newPaidDays > 0) {
       const field = leave.status === "PENDING" ? "pending" : "used"
       await prisma.leaveBalance.update({
         where: {
@@ -1044,32 +1074,14 @@ export async function rejectChangeRequest(requestId: number, remarks?: string) {
   revalidateLeaveAndCalendar()
 }
 
-export async function updateEntitlementDefault(data: UpdateEntitlementDefaultValues) {
-  const user = await getCurrentUser()
-  const isAdmin = await getCachedIsUserAdmin(user.id)
-  if (!isAdmin) throw new Error("Unauthorized")
-
-  const validated = updateEntitlementDefaultSchema.parse(data)
-
-  await prisma.leaveEntitlementDefault.upsert({
-    where: { leaveType: validated.leaveType },
-    update: { entitledDays: validated.entitledDays },
-    create: {
-      leaveType: validated.leaveType,
-      entitledDays: validated.entitledDays,
-    },
-  })
-
-  revalidateLeaveAndCalendar()
-}
-
 export async function updateEmployeeBalance(data: UpdateEmployeeBalanceValues) {
   const user = await getCurrentUser()
   const isAdmin = await getCachedIsUserAdmin(user.id)
   if (!isAdmin) throw new Error("Unauthorized")
 
   const validated = updateEmployeeBalanceSchema.parse(data)
-
+  // Validate the leave type exists.
+  await getLeaveTypeOrThrow(validated.leaveType)
   await initializeLeaveBalances(validated.userId, validated.year)
 
   const existing = await prisma.leaveBalance.findUnique({
@@ -1082,23 +1094,171 @@ export async function updateEmployeeBalance(data: UpdateEmployeeBalanceValues) {
     },
   })
 
-  if (!existing) throw new Error("Balance not found")
-
-  const newBalance = validated.entitled - existing.used - existing.pending
-
-  await prisma.leaveBalance.update({
-    where: {
-      userId_leaveType_year: {
+  if (existing) {
+    const newBalance = validated.entitled - existing.used - existing.pending
+    await prisma.leaveBalance.update({
+      where: {
+        userId_leaveType_year: {
+          userId: validated.userId,
+          leaveType: validated.leaveType,
+          year: validated.year,
+        },
+      },
+      data: {
+        entitled: validated.entitled,
+        balance: newBalance,
+      },
+    })
+  } else {
+    await prisma.leaveBalance.create({
+      data: {
         userId: validated.userId,
         leaveType: validated.leaveType,
         year: validated.year,
+        entitled: validated.entitled,
+        used: 0,
+        pending: 0,
+        balance: validated.entitled,
       },
+    })
+  }
+
+  revalidateLeaveAndCalendar()
+}
+
+/**
+ * Update many leave-type entitlements for one employee/year in a single transaction.
+ * Each entry recomputes balance = entitled - used - pending. Missing rows are created.
+ */
+export async function bulkUpsertLeaveBalances(data: BulkUpsertLeaveBalancesValues) {
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const validated = bulkUpsertLeaveBalancesSchema.parse(data)
+  await initializeLeaveBalances(validated.userId, validated.year)
+
+  await prisma.$transaction(
+    validated.entries.map((entry) =>
+      prisma.leaveBalance.upsert({
+        where: {
+          userId_leaveType_year: {
+            userId: validated.userId,
+            leaveType: entry.leaveType,
+            year: validated.year,
+          },
+        },
+        update: {
+          entitled: entry.entitled,
+          // balance gets recomputed below in a second pass after used/pending are read.
+        },
+        create: {
+          userId: validated.userId,
+          leaveType: entry.leaveType,
+          year: validated.year,
+          entitled: entry.entitled,
+          used: 0,
+          pending: 0,
+          balance: entry.entitled,
+        },
+      })
+    )
+  )
+
+  // Recompute balances now that entitled is set; preserves used/pending.
+  const updated = await prisma.leaveBalance.findMany({
+    where: {
+      userId: validated.userId,
+      year: validated.year,
+      leaveType: { in: validated.entries.map((e) => e.leaveType) },
     },
+  })
+  await prisma.$transaction(
+    updated.map((b) =>
+      prisma.leaveBalance.update({
+        where: { id: b.id },
+        data: { balance: b.entitled - b.used - b.pending },
+      })
+    )
+  )
+
+  revalidateLeaveAndCalendar()
+}
+
+// ─── Leave Types CRUD (admin) ─────────────────────────────────────
+
+export async function createLeaveType(data: CreateLeaveTypeValues) {
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const validated = createLeaveTypeSchema.parse(data)
+  const code = validated.code.toUpperCase().trim()
+
+  const existing = await prisma.leaveType.findUnique({ where: { code } })
+  if (existing) throw new Error(`Leave type "${code}" already exists`)
+
+  const created = await prisma.leaveType.create({
     data: {
-      entitled: validated.entitled,
-      balance: newBalance,
+      code,
+      name: validated.name.trim(),
+      defaultEntitlement: validated.defaultEntitlement,
+      isUnpaid: validated.isUnpaid,
+      requiresReplacementDate: validated.requiresReplacementDate,
+      sortOrder: validated.sortOrder ?? 100,
+      // User-created types are always deletable.
+      isDeletable: true,
     },
   })
 
+  revalidateLeaveAndCalendar()
+  return created
+}
+
+export async function updateLeaveType(data: UpdateLeaveTypeValues) {
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const validated = updateLeaveTypeSchema.parse(data)
+  const existing = await prisma.leaveType.findUnique({ where: { id: validated.id } })
+  if (!existing) throw new Error("Leave type not found")
+
+  await prisma.leaveType.update({
+    where: { id: validated.id },
+    data: {
+      name: validated.name?.trim() ?? existing.name,
+      defaultEntitlement: validated.defaultEntitlement ?? existing.defaultEntitlement,
+      isUnpaid: validated.isUnpaid ?? existing.isUnpaid,
+      requiresReplacementDate:
+        validated.requiresReplacementDate ?? existing.requiresReplacementDate,
+      isActive: validated.isActive ?? existing.isActive,
+      sortOrder: validated.sortOrder ?? existing.sortOrder,
+    },
+  })
+
+  revalidateLeaveAndCalendar()
+}
+
+export async function deleteLeaveType(id: number) {
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const existing = await prisma.leaveType.findUnique({
+    where: { id },
+    include: { _count: { select: { applications: true, balances: true } } },
+  })
+  if (!existing) throw new Error("Leave type not found")
+  if (!existing.isDeletable) {
+    throw new Error(`"${existing.name}" cannot be deleted`)
+  }
+  if (existing._count.applications > 0 || existing._count.balances > 0) {
+    throw new Error(
+      `"${existing.name}" is in use by ${existing._count.applications} applications and ${existing._count.balances} balance rows; deactivate instead.`
+    )
+  }
+
+  await prisma.leaveType.delete({ where: { id } })
   revalidateLeaveAndCalendar()
 }

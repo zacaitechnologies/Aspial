@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { LeaveStatusBadge, LeaveTypeBadge } from "./LeaveStatusBadge"
-import type { LeaveApplicationDTO } from "../types"
+import type { LeaveApplicationDTO, LeaveTypeDTO } from "../types"
 import { format } from "date-fns"
 import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { approveLeave, rejectLeave, cancelLeave } from "../action"
@@ -23,6 +23,7 @@ interface LeaveDetailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   isAdmin: boolean
+  leaveTypes?: LeaveTypeDTO[]
   onSuccess?: () => void
 }
 
@@ -31,6 +32,7 @@ export default function LeaveDetailDialog({
   open,
   onOpenChange,
   isAdmin,
+  leaveTypes,
   onSuccess,
 }: LeaveDetailDialogProps) {
   const [remarks, setRemarks] = useState("")
@@ -88,7 +90,7 @@ export default function LeaveDetailDialog({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Leave Type</p>
-              <LeaveTypeBadge type={application.leaveType} />
+              <LeaveTypeBadge type={application.leaveType} types={leaveTypes} />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Duration</p>

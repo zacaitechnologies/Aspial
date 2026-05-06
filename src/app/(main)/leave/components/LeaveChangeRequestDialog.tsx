@@ -5,8 +5,8 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { leaveChangeRequestSchema, type LeaveChangeRequestValues } from "@/lib/validation"
 import { requestLeaveChange } from "../action"
-import { leaveTypeOptions, halfDayOptions } from "../types"
-import type { LeaveApplicationDTO } from "../types"
+import { halfDayOptions, formatLeaveTypeName } from "../types"
+import type { LeaveApplicationDTO, LeaveTypeDTO } from "../types"
 import {
   Dialog,
   DialogContent,
@@ -40,6 +40,7 @@ interface LeaveChangeRequestDialogProps {
   type: "CANCEL" | "EDIT"
   open: boolean
   onOpenChange: (open: boolean) => void
+  leaveTypes?: LeaveTypeDTO[]
   onSuccess?: () => void
 }
 
@@ -48,6 +49,7 @@ export default function LeaveChangeRequestDialog({
   type,
   open,
   onOpenChange,
+  leaveTypes = [],
   onSuccess,
 }: LeaveChangeRequestDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -117,7 +119,7 @@ export default function LeaveChangeRequestDialog({
         <div className="rounded-md border p-3 mb-4 text-sm">
           <p>
             <span className="font-medium">Current Leave:</span>{" "}
-            {application.leaveType.toLowerCase()} leave
+            {formatLeaveTypeName(application.leaveType, leaveTypes)}
           </p>
           <p>
             <span className="font-medium">Dates:</span>{" "}
@@ -170,9 +172,9 @@ export default function LeaveChangeRequestDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {leaveTypeOptions.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
+                          {leaveTypes.filter((t) => t.isActive).map((opt) => (
+                            <SelectItem key={opt.code} value={opt.code}>
+                              {opt.name}
                             </SelectItem>
                           ))}
                         </SelectContent>

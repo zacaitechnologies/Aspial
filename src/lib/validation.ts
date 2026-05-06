@@ -349,9 +349,13 @@ export type UpdateClientMembershipValues = z.infer<typeof updateClientMembership
 // fixed YYYY-MM-DD format, so refinements like "endDate >= startDate" work directly.
 const leaveDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date (expected YYYY-MM-DD)");
 
+// Leave-type codes are now stored as strings (FK to leave_type.code) so the schemas
+// accept any non-empty string. Server actions verify the code exists in the DB.
+const leaveTypeCode = z.string().trim().min(1, "Leave type is required").max(64);
+
 // Leave Application validation schemas
 export const applyLeaveSchema = z.object({
-  leaveType: z.enum(["PAID", "UNPAID"]),
+  leaveType: leaveTypeCode,
   startDate: leaveDateString,
   endDate: leaveDateString,
   halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).default("NONE"),
@@ -381,7 +385,7 @@ export type ReviewLeaveValues = z.infer<typeof reviewLeaveSchema>;
 
 export const adminEditLeaveSchema = z.object({
   leaveId: z.number().int().positive(),
-  leaveType: z.enum(["PAID", "UNPAID"]).optional(),
+  leaveType: leaveTypeCode.optional(),
   startDate: leaveDateString.optional(),
   endDate: leaveDateString.optional(),
   halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).optional(),
@@ -396,7 +400,7 @@ export const leaveChangeRequestSchema = z.object({
   reason: z.string().trim().min(1, "Reason is required").max(500),
   newStartDate: leaveDateString.optional(),
   newEndDate: leaveDateString.optional(),
-  newLeaveType: z.enum(["PAID", "UNPAID"]).optional(),
+  newLeaveType: leaveTypeCode.optional(),
   newHalfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).optional(),
   newReason: z.string().max(500).optional(),
 });
@@ -427,7 +431,7 @@ export type ReviewChangeRequestValues = z.infer<typeof reviewChangeRequestSchema
 
 export const leaveFiltersSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
-  leaveType: z.enum(["PAID", "UNPAID"]).optional(),
+  leaveType: leaveTypeCode.optional(),
   userId: z.string().optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
@@ -435,19 +439,70 @@ export const leaveFiltersSchema = z.object({
 
 export type LeaveFilters = z.infer<typeof leaveFiltersSchema>;
 
-export const updateEntitlementDefaultSchema = z.object({
-  leaveType: z.enum(["PAID", "UNPAID"]),
-  entitledDays: z.number().min(0, "Must be 0 or more"),
-});
-
-export type UpdateEntitlementDefaultValues = z.infer<typeof updateEntitlementDefaultSchema>;
-
 export const updateEmployeeBalanceSchema = z.object({
   userId: z.string().min(1),
-  leaveType: z.enum(["PAID", "UNPAID"]),
+  leaveType: leaveTypeCode,
   year: z.number().int().positive(),
   entitled: z.number().min(0),
 });
+
+const leaveTypeCodeFormat = z
+  .string()
+  .trim()
+  .min(1, "Code is required")
+  .max(64, "Code must be 64 characters or less")
+  .regex(/^[A-Z][A-Z0-9_]*$/, "Code must be UPPERCASE letters, digits or underscores");
+
+export const createLeaveTypeSchema = z.object({
+  code: leaveTypeCodeFormat,
+  name: z.string().trim().min(1, "Name is required").max(64),
+  defaultEntitlement: z.number().min(0).default(0),
+  isUnpaid: z.boolean().default(false),
+  requiresReplacementDate: z.boolean().default(false),
+  sortOrder: z.number().int().optional(),
+});
+
+export type CreateLeaveTypeValues = z.infer<typeof createLeaveTypeSchema>;
+
+export const updateLeaveTypeSchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string().trim().min(1).max(64).optional(),
+  defaultEntitlement: z.number().min(0).optional(),
+  isUnpaid: z.boolean().optional(),
+  requiresReplacementDate: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+export type UpdateLeaveTypeValues = z.infer<typeof updateLeaveTypeSchema>;
+
+export const bulkUpsertLeaveBalancesSchema = z.object({
+  userId: z.string().min(1),
+  year: z.number().int().positive(),
+  entries: z.array(z.object({
+    leaveType: leaveTypeCode,
+    entitled: z.number().min(0),
+  })).min(1),
+});
+
+export type BulkUpsertLeaveBalancesValues = z.infer<typeof bulkUpsertLeaveBalancesSchema>;
+
+// Receipt validation schema — invoiceId XOR clientId.
+export const createReceiptSchema = z
+  .object({
+    invoiceId: z.string().min(1).optional(),
+    clientId: z.string().min(1).optional(),
+    amount: z.number().positive("Amount must be greater than 0"),
+    paymentMethod: z.enum(["cash", "bank_transfer", "mydebit", "visa", "mastercard", "qr"]),
+    receiptDate: z.string().optional(),
+    advisorIds: z.array(z.string()).min(1, "At least one advisor is required"),
+  })
+  .refine((d) => Boolean(d.invoiceId) !== Boolean(d.clientId), {
+    message: "Provide exactly one of invoiceId or clientId",
+    path: ["invoiceId"],
+  });
+
+export type CreateReceiptValues = z.infer<typeof createReceiptSchema>;
 
 // ===== Delivery Order =====
 export const deliveryOrderStatusSchema = z.enum(["active", "cancelled"]);

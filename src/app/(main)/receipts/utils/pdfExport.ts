@@ -464,7 +464,10 @@ async function generateReceiptPDFInternal(receipt: ReceiptFull) {
 	const logoBase64 = await getLogoBase64()
 	const invoice = receipt.invoice
 	const quotationRaw = invoice?.quotation
-	
+
+	if (!invoice) {
+		throw new Error("PDF export is only supported for invoice-linked receipts")
+	}
 	if (!quotationRaw || !(quotationRaw as unknown as QuotationWithServices).services) {
 		throw new Error("Quotation data not available")
 	}

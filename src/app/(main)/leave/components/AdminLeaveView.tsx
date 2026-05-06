@@ -21,8 +21,8 @@ import AdminEditLeaveDialog from "./AdminEditLeaveDialog"
 import ChangeRequestsTable from "./ChangeRequestsTable"
 import EmployeeLeaveOverviewTable from "./EmployeeLeaveOverview"
 import LeaveCalendar from "./LeaveCalendar"
-import LeaveEntitlementSettings from "./LeaveEntitlementSettings"
-import EmployeeBalanceEditDialog from "./EmployeeBalanceEditDialog"
+import LeaveTypesSettings from "./LeaveTypesSettings"
+import BalanceGridEditor from "./BalanceGridEditor"
 import {
   approveLeave,
   rejectLeave,
@@ -35,10 +35,10 @@ import type {
   LeaveStats,
   LeaveChangeRequestDTO,
   EmployeeLeaveOverview,
-  EntitlementDefaultDTO,
   LeaveBalanceDTO,
+  LeaveTypeDTO,
 } from "../types"
-import { leaveTypeOptions, leaveStatusOptions } from "../types"
+import { leaveStatusOptions } from "../types"
 import {
   Dialog,
   DialogContent,
@@ -54,7 +54,8 @@ interface AdminLeaveViewProps {
   initialEmployeeOverview: EmployeeLeaveOverview[]
   initialStats: LeaveStats
   initialChangeRequests: LeaveChangeRequestDTO[]
-  initialEntitlementDefaults: EntitlementDefaultDTO[]
+  initialLeaveTypes: LeaveTypeDTO[]
+  initialLeaveTypesWithUsage: (LeaveTypeDTO & { _count: { applications: number; balances: number } })[]
   allUsers: { id: string; firstName: string; lastName: string; email: string; profilePicture: string | null }[]
   currentUserId: string
   /** Malaysia calendar year (used for balance year when applying leave). */
@@ -68,7 +69,8 @@ export default function AdminLeaveView({
   initialEmployeeOverview,
   initialStats,
   initialChangeRequests,
-  initialEntitlementDefaults,
+  initialLeaveTypes,
+  initialLeaveTypesWithUsage,
   allUsers,
   currentUserId,
   currentYear,
@@ -82,7 +84,6 @@ export default function AdminLeaveView({
   const [showDetailDialog, setShowDetailDialog] = useState(false)
   const [editingApp, setEditingApp] = useState<LeaveApplicationDTO | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [showBalanceEdit, setShowBalanceEdit] = useState(false)
   const [adminBalances, setAdminBalances] = useState<LeaveBalanceDTO[]>([])
 
   // Filters
@@ -224,6 +225,7 @@ export default function AdminLeaveView({
           <LeaveOverviewCards stats={initialStats} />
           <EmployeeLeaveOverviewTable
             employees={initialEmployeeOverview}
+            leaveTypes={initialLeaveTypes}
             selectedYear={overviewYear}
             yearMin={currentYear - 10}
             yearMax={currentYear + 1}
@@ -254,9 +256,9 @@ export default function AdminLeaveView({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                {leaveTypeOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                {initialLeaveTypes.map((opt) => (
+                  <SelectItem key={opt.code} value={opt.code}>
+                    {opt.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -280,6 +282,7 @@ export default function AdminLeaveView({
           <LeaveApplicationTable
             applications={filteredApplications}
             isAdmin
+            leaveTypes={initialLeaveTypes}
             onApprove={(id) => setConfirmAction({ type: "approve", leaveId: id })}
             onReject={(id) => setConfirmAction({ type: "reject", leaveId: id })}
             onCancel={(id) => setConfirmAction({ type: "cancel", leaveId: id })}
@@ -303,22 +306,17 @@ export default function AdminLeaveView({
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-6 mt-4">
-          <LeaveEntitlementSettings
-            defaults={initialEntitlementDefaults}
+          <LeaveTypesSettings
+            types={initialLeaveTypesWithUsage}
             onSuccess={refresh}
           />
           <div className="pt-4 border-t">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold">Employee Balance Overrides</h3>
-                <p className="text-sm text-muted-foreground">
-                  Adjust an individual employee&apos;s entitled days for the current year.
-                </p>
-              </div>
-              <Button variant="outline" onClick={() => setShowBalanceEdit(true)}>
-                Override Balance
-              </Button>
-            </div>
+            <BalanceGridEditor
+              users={allUsers}
+              leaveTypes={initialLeaveTypes}
+              currentYear={currentYear}
+              onSuccess={refresh}
+            />
           </div>
         </TabsContent>
       </Tabs>
@@ -328,6 +326,7 @@ export default function AdminLeaveView({
         open={showApplyForm}
         onOpenChange={setShowApplyForm}
         balances={adminBalances}
+        leaveTypes={initialLeaveTypes}
         onSuccess={refresh}
       />
 
@@ -335,6 +334,7 @@ export default function AdminLeaveView({
         application={selectedApp}
         open={showDetailDialog}
         onOpenChange={setShowDetailDialog}
+        leaveTypes={initialLeaveTypes}
         isAdmin
         onSuccess={refresh}
       />
@@ -343,14 +343,7 @@ export default function AdminLeaveView({
         application={editingApp}
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
-        onSuccess={refresh}
-      />
-
-      <EmployeeBalanceEditDialog
-        open={showBalanceEdit}
-        onOpenChange={setShowBalanceEdit}
-        users={allUsers}
-        currentYear={currentYear}
+        leaveTypes={initialLeaveTypes}
         onSuccess={refresh}
       />
 

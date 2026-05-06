@@ -231,7 +231,8 @@ model InvoiceEmail {
 model Receipt {
   id            String         @id @default(cuid())
   receiptNumber String         @unique
-  invoiceId     String
+  invoiceId     String?
+  clientId      String?
   amount        Float
   createdById   String
   status        ReceiptStatus  @default(active)
@@ -241,11 +242,13 @@ model Receipt {
   updated_at    DateTime       @default(now())
   paymentMethod PaymentMethod  @default(bank_transfer)
   advisors      ReceiptAdvisor[]
-  invoice       Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  invoice       Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  client        Client?        @relation("ClientReceipts", fields: [clientId], references: [id], onDelete: Restrict)
   createdBy     User           @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
   receiptEmails ReceiptEmail[]
 
   @@index([invoiceId])
+  @@index([clientId])
   @@index([created_at])
   @@index([status])
   @@map("receipts")
@@ -409,6 +412,7 @@ model Client {
   projects                  Project[]
   quotations                Quotation[]
   deliveryOrders            DeliveryOrder[]
+  receipts                  Receipt[]      @relation("ClientReceipts")
 
   @@map("clients")
 }
@@ -814,9 +818,23 @@ model Contract {
 
 // Leave Application Module
 
-enum LeaveType {
-  PAID
-  UNPAID
+model LeaveType {
+  id                       Int      @id @default(autoincrement())
+  code                     String   @unique
+  name                     String
+  defaultEntitlement       Float    @default(0)
+  isDeletable              Boolean  @default(true)
+  isUnpaid                 Boolean  @default(false)
+  requiresReplacementDate  Boolean  @default(false)
+  sortOrder                Int      @default(0)
+  isActive                 Boolean  @default(true)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  applications LeaveApplication[]
+  balances     LeaveBalance[]
+
+  @@map("leave_type")
 }
 
 enum LeaveStatus {
@@ -847,7 +865,8 @@ model LeaveApplication {
   id             Int                  @id @default(autoincrement())
   userId         String
   user           User                 @relation(fields: [userId], references: [id])
-  leaveType      LeaveType
+  leaveType      String
+  leaveTypeRel   LeaveType            @relation(fields: [leaveType], references: [code])
   startDate      DateTime
   endDate        DateTime
   halfDay        LeaveHalfDay         @default(NONE)
@@ -866,25 +885,28 @@ model LeaveApplication {
 
   @@index([userId])
   @@index([status])
+  @@index([leaveType])
   @@map("leave_application")
 }
 
 model LeaveBalance {
-  id        Int       @id @default(autoincrement())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id])
-  leaveType LeaveType
-  year      Int
-  entitled  Float
-  used      Float     @default(0)
-  pending   Float     @default(0)
-  balance   Float
+  id           Int       @id @default(autoincrement())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  leaveType    String
+  leaveTypeRel LeaveType @relation(fields: [leaveType], references: [code])
+  year         Int
+  entitled     Float
+  used         Float     @default(0)
+  pending      Float     @default(0)
+  balance      Float
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@unique([userId, leaveType, year])
   @@index([userId, year])
+  @@index([leaveType])
   @@map("leave_balance")
 }
 
@@ -899,7 +921,7 @@ model LeaveChangeRequest {
   reason             String
   newStartDate       DateTime?
   newEndDate         DateTime?
-  newLeaveType       LeaveType?
+  newLeaveType       String?
   newHalfDay         LeaveHalfDay?
   newReason          String?
   adminRemarks       String?
@@ -911,16 +933,6 @@ model LeaveChangeRequest {
 
   @@index([leaveApplicationId])
   @@map("leave_change_request")
-}
-
-model LeaveEntitlementDefault {
-  id           Int       @id @default(autoincrement())
-  leaveType    LeaveType @unique
-  entitledDays Float
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
-
-  @@map("leave_entitlement_default")
 }
 
 model CalendarBlocker {

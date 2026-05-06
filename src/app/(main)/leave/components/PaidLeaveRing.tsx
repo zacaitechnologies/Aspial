@@ -6,13 +6,15 @@ import type { LeaveBalanceDTO } from "../types"
 
 interface PaidLeaveRingProps {
   paidBalance: LeaveBalanceDTO | undefined
+  /** Display label for the leave-type bucket (defaults to "Annual leave"). */
+  label?: string
   className?: string
 }
 
 /**
  * Circular progress for remaining paid leave (balance vs entitled).
  */
-export default function PaidLeaveRing({ paidBalance, className }: PaidLeaveRingProps) {
+export default function PaidLeaveRing({ paidBalance, label = "Annual leave", className }: PaidLeaveRingProps) {
   const entitled = paidBalance?.entitled ?? 14
   const balance = Math.max(0, paidBalance?.balance ?? 0)
   const used = paidBalance?.used ?? 0
@@ -28,7 +30,7 @@ export default function PaidLeaveRing({ paidBalance, className }: PaidLeaveRingP
     <Card className={cn("overflow-hidden border bg-card shadow-sm", className)}>
       <CardContent className="flex flex-col items-center justify-center p-6 sm:p-8">
         <p className="text-sm font-medium text-muted-foreground mb-4 text-center">
-          Paid leave remaining
+          {label} remaining
         </p>
         <div className="relative h-[140px] w-[140px] shrink-0">
           <svg

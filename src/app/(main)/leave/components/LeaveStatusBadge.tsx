@@ -1,7 +1,7 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { leaveStatusColorMap, leaveTypeColorMap, leaveTypeOptions } from "../types"
+import { leaveStatusColorMap, leaveTypeChipClasses, formatLeaveTypeName, type LeaveTypeDTO } from "../types"
 
 export function LeaveStatusBadge({ status }: { status: string }) {
   const colorClass = leaveStatusColorMap[status] ?? "bg-muted text-foreground"
@@ -13,14 +13,16 @@ export function LeaveStatusBadge({ status }: { status: string }) {
   )
 }
 
-export function LeaveTypeBadge({ type }: { type: string }) {
-  const colorClass = leaveTypeColorMap[type] ?? "bg-muted text-foreground border border-border"
-  const label =
-    leaveTypeOptions.find((o) => o.value === type)?.label ??
-    type
-      .split("_")
-      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-      .join(" ")
+interface LeaveTypeBadgeProps {
+  /** Leave-type code (FK to leave_type.code), e.g. "ANNUAL". */
+  type: string
+  /** Optional list of all known leave types so we can show the human-readable name. */
+  types?: Pick<LeaveTypeDTO, "code" | "name">[]
+}
+
+export function LeaveTypeBadge({ type, types }: LeaveTypeBadgeProps) {
+  const colorClass = leaveTypeChipClasses(type)
+  const label = formatLeaveTypeName(type, types)
   return (
     <Badge variant="outline" className={`${colorClass} border font-medium`}>
       {label}

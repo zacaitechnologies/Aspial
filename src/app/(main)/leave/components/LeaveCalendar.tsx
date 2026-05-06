@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import type { LeaveApplicationDTO } from "../types"
-import { isMalaysiaNonWorkingDay, leaveTypeColorMap, leaveTypeOptions } from "../types"
+import { isMalaysiaNonWorkingDay, leaveTypeChipClasses, formatLeaveTypeName } from "../types"
 import { formatLocalDate, toBusinessTZParts } from "@/lib/date-utils"
 import {
   format,
@@ -72,8 +72,7 @@ export default function LeaveCalendar({
 
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-  const getLabel = (type: string) =>
-    leaveTypeOptions.find((o) => o.value === type)?.label ?? type
+  const getLabel = (type: string) => formatLeaveTypeName(type)
 
   return (
     <Card className="shadow-sm border bg-card">
@@ -174,9 +173,7 @@ export default function LeaveCalendar({
                 </div>
                 <div className="space-y-0.5">
                   {dayLeaves.slice(0, 3).map((leave) => {
-                    const chipClass =
-                      leaveTypeColorMap[leave.leaveType] ??
-                      "bg-muted text-foreground border border-border"
+                    const chipClass = leaveTypeChipClasses(leave.leaveType)
                     return (
                       <TooltipProvider key={leave.id}>
                         <Tooltip>

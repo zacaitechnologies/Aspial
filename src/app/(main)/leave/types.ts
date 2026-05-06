@@ -1,4 +1,4 @@
-import type { LeaveType, LeaveStatus, LeaveHalfDay, ChangeRequestType, ChangeRequestStatus } from "@prisma/client"
+import type { LeaveStatus, LeaveHalfDay, ChangeRequestType, ChangeRequestStatus } from "@prisma/client"
 
 /** Mon–Sat are working days; only Sunday is off (common Malaysia office pattern). */
 export function isMalaysiaNonWorkingDay(dateStr: string): boolean {
@@ -49,10 +49,23 @@ export function calculateLeaveDaysClient(
   return enumerateLeaveDays(startDate, endDate).filter((d) => !isMalaysiaNonWorkingDay(d)).length
 }
 
+/** Leave-type metadata — the runtime shape persisted in the leave_type table. */
+export interface LeaveTypeDTO {
+  id: number
+  code: string
+  name: string
+  defaultEntitlement: number
+  isDeletable: boolean
+  isUnpaid: boolean
+  requiresReplacementDate: boolean
+  sortOrder: number
+  isActive: boolean
+}
+
 export interface LeaveApplicationDTO {
   id: number
   userId: string
-  leaveType: LeaveType
+  leaveType: string
   startDate: Date
   endDate: Date
   halfDay: LeaveHalfDay
@@ -83,7 +96,7 @@ export interface LeaveApplicationDTO {
 export interface LeaveBalanceDTO {
   id: number
   userId: string
-  leaveType: LeaveType
+  leaveType: string
   year: number
   entitled: number
   used: number
@@ -99,7 +112,7 @@ export interface LeaveChangeRequestDTO {
   reason: string
   newStartDate: Date | null
   newEndDate: Date | null
-  newLeaveType: LeaveType | null
+  newLeaveType: string | null
   newHalfDay: LeaveHalfDay | null
   newReason: string | null
   adminRemarks: string | null
@@ -116,7 +129,7 @@ export interface LeaveChangeRequestDTO {
   } | null
   leaveApplication: {
     id: number
-    leaveType: LeaveType
+    leaveType: string
     startDate: Date
     endDate: Date
     totalDays: number
@@ -135,12 +148,12 @@ export interface EmployeeLeaveOverview {
   profilePicture: string | null
   staffRole: string | null
   lastLeave: {
-    leaveType: LeaveType
+    leaveType: string
     startDate: Date
     endDate: Date
   } | null
   nextLeave: {
-    leaveType: LeaveType
+    leaveType: string
     startDate: Date
     endDate: Date
     status: LeaveStatus
@@ -155,17 +168,6 @@ export interface LeaveStats {
   onLeaveToday: number
 }
 
-export interface EntitlementDefaultDTO {
-  id: number
-  leaveType: LeaveType
-  entitledDays: number
-}
-
-export const leaveTypeOptions = [
-  { value: "PAID", label: "Paid leave" },
-  { value: "UNPAID", label: "Unpaid leave" },
-] as const
-
 export const leaveStatusOptions = [
   { value: "PENDING", label: "Pending" },
   { value: "APPROVED", label: "Approved" },
@@ -179,12 +181,6 @@ export const halfDayOptions = [
   { value: "SECOND_HALF", label: "Second Half (PM)" },
 ] as const
 
-/** Calendar / chip styles — theme tokens for contrast */
-export const leaveTypeColorMap: Record<string, string> = {
-  PAID: "bg-primary/20 text-primary border border-primary/40",
-  UNPAID: "bg-muted text-foreground border border-border",
-}
-
 export const leaveStatusColorMap: Record<string, string> = {
   PENDING: "bg-yellow-100 text-yellow-800",
   APPROVED: "bg-green-100 text-green-800",
@@ -192,7 +188,34 @@ export const leaveStatusColorMap: Record<string, string> = {
   CANCELLED: "bg-gray-100 text-gray-800",
 }
 
-export const DEFAULT_ENTITLEMENTS: Record<string, number> = {
-  PAID: 14,
-  UNPAID: 0,
+/**
+ * Stable colour palette for leave-type chips. Custom codes fall back to the default token.
+ */
+const LEAVE_TYPE_COLOR_PALETTE: Record<string, string> = {
+  ANNUAL: "bg-primary/20 text-primary border border-primary/40",
+  MEDICAL: "bg-rose-100 text-rose-800 border border-rose-200",
+  MATERNITY: "bg-pink-100 text-pink-800 border border-pink-200",
+  PATERNITY: "bg-sky-100 text-sky-800 border border-sky-200",
+  REPLACEMENT: "bg-amber-100 text-amber-800 border border-amber-200",
+  UNPAID: "bg-muted text-foreground border border-border",
+}
+
+export function leaveTypeChipClasses(code: string): string {
+  return (
+    LEAVE_TYPE_COLOR_PALETTE[code] ??
+    "bg-emerald-100 text-emerald-800 border border-emerald-200"
+  )
+}
+
+/**
+ * Display label for a leave-type code. Prefers the DB `name`; falls back to a
+ * Title-Case version of the code so badges still render before metadata loads.
+ */
+export function formatLeaveTypeName(code: string, types?: Pick<LeaveTypeDTO, "code" | "name">[]): string {
+  const match = types?.find((t) => t.code === code)
+  if (match) return match.name
+  return code
+    .split("_")
+    .map((s) => s.charAt(0) + s.slice(1).toLowerCase())
+    .join(" ")
 }

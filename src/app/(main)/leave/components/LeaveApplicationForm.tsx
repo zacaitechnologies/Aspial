@@ -1,12 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { applyLeaveSchema } from "@/lib/validation"
 import { applyForLeave } from "../action"
-import { leaveTypeOptions, halfDayOptions, calculateLeaveDaysClient } from "../types"
-import type { LeaveBalanceDTO } from "../types"
+import { halfDayOptions, calculateLeaveDaysClient } from "../types"
+import type { LeaveBalanceDTO, LeaveTypeDTO } from "../types"
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -33,12 +34,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Info } from "lucide-react"
 
 interface LeaveApplicationFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   balances: LeaveBalanceDTO[]
+  leaveTypes: LeaveTypeDTO[]
   onSuccess?: () => void
 }
 
@@ -46,15 +48,19 @@ export default function LeaveApplicationForm({
   open,
   onOpenChange,
   balances,
+  leaveTypes,
   onSuccess,
 }: LeaveApplicationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
 
+  const activeTypes = useMemo(() => leaveTypes.filter((t) => t.isActive), [leaveTypes])
+  const defaultLeaveType = activeTypes[0]?.code ?? ""
+
   const form = useForm({
     resolver: zodResolver(applyLeaveSchema),
     defaultValues: {
-      leaveType: "PAID",
+      leaveType: defaultLeaveType,
       halfDay: "NONE",
       reason: "",
     },
@@ -64,6 +70,10 @@ export default function LeaveApplicationForm({
   const watchStartDate = form.watch("startDate")
   const watchEndDate = form.watch("endDate")
   const watchHalfDay = form.watch("halfDay")
+
+  const selectedTypeMeta = activeTypes.find((t) => t.code === watchLeaveType)
+  const isUnpaidType = !!selectedTypeMeta?.isUnpaid
+  const requiresReplacementDate = !!selectedTypeMeta?.requiresReplacementDate
 
   const selectedBalance = balances.find((b) => b.leaveType === watchLeaveType)
   const estimatedDays =
@@ -79,19 +89,18 @@ export default function LeaveApplicationForm({
   const remaining = selectedBalance
     ? selectedBalance.balance - selectedBalance.pending
     : 0
-  const exceedsBalance =
-    watchLeaveType !== "UNPAID" && estimatedDays > remaining && remaining >= 0
+  const exceedsBalance = !isUnpaidType && estimatedDays > remaining && remaining >= 0
   const unpaidDays = exceedsBalance ? Math.max(0, estimatedDays - Math.max(0, remaining)) : 0
 
-  /** Paid days this request will consume (capped by what’s left). */
+  /** Paid days this request will consume (capped by what's left). */
   const paidDaysFromThisRequest =
-    watchLeaveType === "UNPAID" || estimatedDays <= 0
+    isUnpaidType || estimatedDays <= 0
       ? 0
       : Math.min(estimatedDays, Math.max(0, remaining))
 
   /** Balance remaining if this application is submitted (paid pool only). */
   const balanceAfterThisRequest =
-    watchLeaveType === "UNPAID" || !selectedBalance
+    isUnpaidType || !selectedBalance
       ? null
       : Math.max(0, remaining - paidDaysFromThisRequest)
 
@@ -128,16 +137,16 @@ export default function LeaveApplicationForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Leave Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select leave type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {leaveTypeOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
+                      {activeTypes.map((opt) => (
+                        <SelectItem key={opt.code} value={opt.code}>
+                          {opt.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -190,7 +199,7 @@ export default function LeaveApplicationForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Duration</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue />
@@ -217,12 +226,22 @@ export default function LeaveApplicationForm({
                   <FormLabel>Reason</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Describe the reason for your leave..."
+                      placeholder={
+                        requiresReplacementDate
+                          ? "State which date you are replacing, plus any other context."
+                          : "Describe the reason for your leave..."
+                      }
                       className="resize-none"
                       rows={3}
                       {...field}
                     />
                   </FormControl>
+                  {requiresReplacementDate && (
+                    <FormDescription className="flex items-start gap-1.5 text-amber-700">
+                      <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      Please state which date you are replacing in your reason.
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -234,7 +253,7 @@ export default function LeaveApplicationForm({
                 <p className="text-sm">
                   <span className="font-medium">Duration:</span> {estimatedDays} day(s)
                 </p>
-                {selectedBalance && watchLeaveType !== "UNPAID" && (
+                {selectedBalance && !isUnpaidType && (
                   <div className="text-sm space-y-0.5">
                     <p>
                       <span className="font-medium">
@@ -264,7 +283,7 @@ export default function LeaveApplicationForm({
                     </span>
                   </div>
                 )}
-                {watchLeaveType === "UNPAID" && (
+                {isUnpaidType && (
                   <p className="text-sm text-muted-foreground">
                     All {estimatedDays} day(s) will be unpaid.
                   </p>

@@ -114,7 +114,11 @@ export default function ReceiptCard({
 									<span className="text-gray-400">•</span>
 								</>
 							)}
-							<span>Invoice: {receipt.invoice?.invoiceNumber || 'N/A'}</span>
+							{receipt.invoice ? (
+								<span>Invoice: {receipt.invoice.invoiceNumber}</span>
+							) : (
+								<Badge variant="outline" className="text-[10px] py-0 px-1.5">Standalone</Badge>
+							)}
 							<span className="text-gray-400">•</span>
 							<span>{new Date(receipt.receiptDate ?? receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
 							{receipt.paymentMethod && (

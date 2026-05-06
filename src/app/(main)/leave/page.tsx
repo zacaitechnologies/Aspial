@@ -11,7 +11,8 @@ import {
   fetchLeaveStats,
   fetchPendingChangeRequests,
   fetchUserChangeRequests,
-  fetchEntitlementDefaults,
+  fetchLeaveTypes,
+  fetchLeaveTypesWithUsage,
   fetchAllUsers,
 } from "./action"
 import AdminLeaveView from "./components/AdminLeaveView"
@@ -47,14 +48,16 @@ export default async function LeavePage({
         employeeOverview,
         stats,
         changeRequests,
-        entitlementDefaults,
+        leaveTypes,
+        leaveTypesWithUsage,
         allUsers,
       ] = await Promise.all([
         fetchAllLeaveApplications(),
         fetchAllEmployeeLeaveOverview(overviewYear),
         fetchLeaveStats(),
         fetchPendingChangeRequests(),
-        fetchEntitlementDefaults(),
+        fetchLeaveTypes(true),
+        fetchLeaveTypesWithUsage(),
         fetchAllUsers(),
       ])
 
@@ -64,7 +67,8 @@ export default async function LeavePage({
           initialEmployeeOverview={employeeOverview}
           initialStats={stats}
           initialChangeRequests={changeRequests}
-          initialEntitlementDefaults={entitlementDefaults}
+          initialLeaveTypes={leaveTypes}
+          initialLeaveTypesWithUsage={leaveTypesWithUsage}
           allUsers={allUsers}
           currentUserId={user.id}
           currentYear={malaysiaYear}
@@ -72,10 +76,11 @@ export default async function LeavePage({
         />
       )
     } else {
-      const [applications, balances, changeRequests] = await Promise.all([
+      const [applications, balances, changeRequests, leaveTypes] = await Promise.all([
         fetchUserLeaveApplications(user.id),
         fetchLeaveBalances(user.id, malaysiaYear),
         fetchUserChangeRequests(user.id),
+        fetchLeaveTypes(),
       ])
 
       return (
@@ -83,6 +88,7 @@ export default async function LeavePage({
           initialApplications={applications}
           initialBalances={balances}
           initialChangeRequests={changeRequests}
+          initialLeaveTypes={leaveTypes}
           userId={user.id}
           currentYear={malaysiaYear}
         />

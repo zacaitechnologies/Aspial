@@ -59,6 +59,9 @@ async function _getReceiptsPaginatedInternal(
 			{ invoice: { quotation: { name: { contains: searchTerm, mode: "insensitive" } } } },
 			{ invoice: { quotation: { Client: { name: { contains: searchTerm, mode: "insensitive" } } } } },
 			{ invoice: { quotation: { Client: { company: { contains: searchTerm, mode: "insensitive" } } } } },
+			// Standalone receipts: search by attached client name/company.
+			{ client: { name: { contains: searchTerm, mode: "insensitive" } } },
+			{ client: { company: { contains: searchTerm, mode: "insensitive" } } },
 		]
 	}
 
@@ -72,11 +75,20 @@ async function _getReceiptsPaginatedInternal(
 				receiptNumber: true,
 				amount: true,
 				invoiceId: true,
+				clientId: true,
 				status: true,
 				paymentMethod: true,
 				created_at: true,
 				updated_at: true,
 				receiptDate: true,
+				client: {
+					select: {
+						id: true,
+						name: true,
+						email: true,
+						company: true,
+					},
+				},
 				invoice: {
 					select: {
 						id: true,
@@ -131,12 +143,14 @@ async function _getReceiptsPaginatedInternal(
 		})
 	])
 
-	// Transform data
+	// Transform data. Standalone receipts (invoice-less) surface their attached
+	// client via `Client` so the list UI can render a single field consistently.
 	const transformedReceipts = receipts.map(receipt => ({
 		id: receipt.id,
 		receiptNumber: receipt.receiptNumber,
 		amount: receipt.amount,
 		invoiceId: receipt.invoiceId,
+		clientId: receipt.clientId,
 		status: receipt.status,
 		paymentMethod: receipt.paymentMethod,
 		created_at: receipt.created_at,
@@ -154,7 +168,8 @@ async function _getReceiptsPaginatedInternal(
 			name: receipt.invoice.quotation.name,
 			description: receipt.invoice.quotation.description,
 		} : null,
-		Client: receipt.invoice?.quotation?.Client || null,
+		Client: receipt.invoice?.quotation?.Client ?? receipt.client ?? null,
+		isStandalone: receipt.invoiceId === null,
 		createdBy: receipt.createdBy,
 		advisors: receipt.advisors.map(a => a.user),
 	}))
@@ -351,6 +366,7 @@ export async function getReceiptById(id: string) {
 	const receipt = await prisma.receipt.findUnique({
 		where: { id },
 		include: {
+			client: true,
 			invoice: {
 				include: {
 					quotation: {
@@ -443,6 +459,7 @@ export async function getReceiptFullById(id: string) {
 	const receipt = await prisma.receipt.findUnique({
 		where: { id },
 		include: {
+			client: true,
 			invoice: {
 				include: {
 					quotation: {
@@ -556,7 +573,9 @@ async function generateReceiptNumber(tx: Prisma.TransactionClient): Promise<stri
 }
 
 export async function createReceipt(data: {
-	invoiceId: string
+	/** Either invoiceId (invoice-linked) or clientId (standalone cash sale) — exactly one. */
+	invoiceId?: string
+	clientId?: string
 	amount: number
 	/** Advisor User.id list. When non-empty, used for the new receipt. */
 	advisorIds?: string[]
@@ -570,40 +589,55 @@ export async function createReceipt(data: {
 		throw new Error("Receipt amount must be greater than 0")
 	}
 
+	const isInvoiceLinked = Boolean(data.invoiceId)
+	const isStandalone = Boolean(data.clientId)
+	if (isInvoiceLinked === isStandalone) {
+		throw new Error("Provide exactly one of invoiceId or clientId")
+	}
+
 	// Get current user
 	const user = await getCachedUser()
 	if (!user) {
 		throw new Error("User must be authenticated to create a receipt")
 	}
 
-	// Run all read operations in parallel OUTSIDE the transaction for speed
-	const [isAdmin, invoice, existingReceipts, dbUser] = await Promise.all([
+	// Branch the read step depending on whether this is invoice-linked or standalone.
+	const [isAdmin, dbUser, invoice, existingReceipts, standaloneClient] = await Promise.all([
 		getCachedIsUserAdmin(user.id),
-		prisma.invoice.findUnique({
-			where: { id: data.invoiceId },
-			select: {
-				id: true,
-				amount: true,
-				quotation: { select: { clientId: true } },
-			},
-		}),
-		prisma.receipt.findMany({
-			where: {
-				invoiceId: data.invoiceId,
-				status: "active", // Only count active receipts
-			},
-			select: { amount: true },
-		}),
 		prisma.user.findUnique({
 			where: { supabase_id: user.id },
 			select: { id: true, supabase_id: true },
 		}),
+		isInvoiceLinked
+			? prisma.invoice.findUnique({
+					where: { id: data.invoiceId! },
+					select: {
+						id: true,
+						amount: true,
+						quotation: { select: { clientId: true } },
+					},
+				})
+			: Promise.resolve(null),
+		isInvoiceLinked
+			? prisma.receipt.findMany({
+					where: { invoiceId: data.invoiceId!, status: "active" },
+					select: { amount: true },
+				})
+			: Promise.resolve([] as { amount: number }[]),
+		isStandalone
+			? prisma.client.findUnique({
+					where: { id: data.clientId! },
+					select: { id: true },
+				})
+			: Promise.resolve(null),
 	])
 
-	if (!invoice) {
+	if (isInvoiceLinked && !invoice) {
 		throw new Error("Invoice not found")
 	}
-
+	if (isStandalone && !standaloneClient) {
+		throw new Error("Client not found")
+	}
 	if (!dbUser) {
 		throw new Error("User not found in database")
 	}
@@ -615,13 +649,20 @@ export async function createReceipt(data: {
 	let finalAdvisorIds: string[]
 	if (data.advisorIds && data.advisorIds.length > 0) {
 		finalAdvisorIds = [...data.advisorIds]
-	} else {
+	} else if (isInvoiceLinked) {
 		// Default: inherit advisors from invoice's join table
 		const invoiceAdvisors = await prisma.invoiceAdvisor.findMany({
-			where: { invoiceId: data.invoiceId },
+			where: { invoiceId: data.invoiceId! },
 			select: { userId: true },
 		})
 		finalAdvisorIds = invoiceAdvisors.map((a) => a.userId)
+	} else {
+		// Standalone: inherit from the client's existing advisors
+		const clientAdvisors = await prisma.clientAdvisor.findMany({
+			where: { clientId: data.clientId! },
+			select: { userId: true },
+		})
+		finalAdvisorIds = clientAdvisors.map((a) => a.userId)
 	}
 	if (finalAdvisorIds.length === 0) {
 		finalAdvisorIds = [dbUser.id]
@@ -643,13 +684,11 @@ export async function createReceipt(data: {
 		throw new Error("Selected creator user not found")
 	}
 
-	// Calculate remaining amount
-	const totalReceipted = existingReceipts.reduce((sum, r) => sum + r.amount, 0)
-	const remaining = invoice.amount - totalReceipted
-
-	// Warn if amount exceeds remaining (but allow it)
-	if (data.amount > remaining) {
-		if (process.env.NODE_ENV === 'development') {
+	// For invoice-linked: warn if amount exceeds remaining (but allow it). Standalone has no balance check.
+	if (isInvoiceLinked && invoice) {
+		const totalReceipted = existingReceipts.reduce((sum, r) => sum + r.amount, 0)
+		const remaining = invoice.amount - totalReceipted
+		if (data.amount > remaining && process.env.NODE_ENV === "development") {
 			console.warn(`Receipt amount (${data.amount}) exceeds remaining invoice amount (${remaining})`)
 		}
 	}
@@ -667,7 +706,9 @@ export async function createReceipt(data: {
 
 				// Ensure receipt advisors are also linked to the client so they can view
 				// the client and track its outstanding balances from their own account.
-				const receiptClientId = invoice.quotation?.clientId
+				const receiptClientId = isInvoiceLinked
+					? invoice?.quotation?.clientId
+					: data.clientId
 				if (receiptClientId) {
 					await ensureClientAdvisors(receiptClientId, finalAdvisorIds, tx)
 				}
@@ -675,7 +716,8 @@ export async function createReceipt(data: {
 				return tx.receipt.create({
 					data: {
 						receiptNumber,
-						invoiceId: data.invoiceId,
+						invoiceId: isInvoiceLinked ? data.invoiceId! : null,
+						clientId: isStandalone ? data.clientId! : null,
 						amount: data.amount,
 						paymentMethod: data.paymentMethod || "bank_transfer",
 						createdById: finalCreatedById,
@@ -693,7 +735,16 @@ export async function createReceipt(data: {
 						paymentMethod: true,
 						created_at: true,
 						invoiceId: true,
+						clientId: true,
 						createdById: true,
+						client: {
+							select: {
+								id: true,
+								name: true,
+								email: true,
+								company: true,
+							},
+						},
 						invoice: {
 							select: {
 								id: true,
@@ -882,6 +933,58 @@ export async function searchInvoicesForReceipt(searchTerm: string) {
 }
 
 /**
+ * Search clients for standalone-receipt creation. Mirrors searchInvoicesForReceipt
+ * but operates against the Client table. Returns the client's existing advisors
+ * so the form can default the advisor list.
+ */
+export async function searchClientsForReceipt(searchTerm: string) {
+	unstable_noStore()
+
+	if (!searchTerm || searchTerm.trim().length === 0) {
+		return []
+	}
+
+	const clients = await prisma.client.findMany({
+		where: {
+			OR: [
+				{ name: { contains: searchTerm, mode: "insensitive" } },
+				{ company: { contains: searchTerm, mode: "insensitive" } },
+				{ email: { contains: searchTerm, mode: "insensitive" } },
+				{ ic: { contains: searchTerm, mode: "insensitive" } },
+			],
+		},
+		select: {
+			id: true,
+			name: true,
+			email: true,
+			company: true,
+			advisors: {
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+						},
+					},
+				},
+			},
+		},
+		orderBy: { created_at: "desc" },
+		take: 20,
+	})
+
+	return clients.map((c) => ({
+		id: c.id,
+		name: c.name,
+		email: c.email,
+		company: c.company,
+		advisors: c.advisors.map((a) => a.user),
+	}))
+}
+
+/**
  * Update receipt (change advisors or status)
  * - Admins can update any receipt and change advisors
  * - Non-admins can only update their own receipts and only change status
@@ -914,6 +1017,7 @@ export async function updateReceiptAdmin(
 			createdById: true,
 			status: true,
 			invoiceId: true,
+			clientId: true,
 			invoice: {
 				select: {
 					id: true,
@@ -935,8 +1039,13 @@ export async function updateReceiptAdmin(
 		throw new Error("Receipt not found")
 	}
 
-	// If reactivating a cancelled receipt, automatically reactivate parent invoice and quotation if needed
-	if (data.status === "active" && existingReceipt.status === "cancelled") {
+	// If reactivating a cancelled receipt, automatically reactivate parent invoice and quotation if needed.
+	// Standalone receipts (no invoice) skip this cascade entirely.
+	if (
+		data.status === "active" &&
+		existingReceipt.status === "cancelled" &&
+		existingReceipt.invoice
+	) {
 		if (existingReceipt.invoice.status === "cancelled") {
 			// Invoice is cancelled, reactivate it (which will also reactivate quotation if needed)
 			const { reactivateInvoiceWithReceipts } = await import("../invoices/action")
@@ -1033,12 +1142,15 @@ export async function updateReceiptAdmin(
 	})
 
 	// Any advisor added to this receipt is also linked to the client so they can
-	// view the client and track outstanding balances from their account.
-	if (data.advisorIds !== undefined && data.advisorIds.length > 0 && existingReceipt.invoice.quotation.clientId) {
-		await ensureClientAdvisors(
-			existingReceipt.invoice.quotation.clientId,
-			data.advisorIds,
-		)
+	// view the client and track outstanding balances from their account. Look up the
+	// client either via the parent invoice's quotation (linked) or via Receipt.clientId
+	// (standalone).
+	if (data.advisorIds !== undefined && data.advisorIds.length > 0) {
+		const clientIdForAdvisors =
+			existingReceipt.invoice?.quotation.clientId ?? existingReceipt.clientId ?? null
+		if (clientIdForAdvisors) {
+			await ensureClientAdvisors(clientIdForAdvisors, data.advisorIds)
+		}
 	}
 
 	revalidateTag("receipts", { expire: 0 })
@@ -1098,10 +1210,16 @@ export async function sendReceiptEmail(
 			body: JSON.stringify({
 				receiptId: receipt.id,
 				receiptNumber: receipt.receiptNumber,
-				invoiceNumber: receipt.invoice.invoiceNumber,
-				customerName: receipt.invoice.quotation.Client?.name || "Valued Customer",
+				invoiceNumber: receipt.invoice?.invoiceNumber ?? "",
+				customerName:
+					receipt.invoice?.quotation.Client?.name ||
+					(receipt as { client?: { name?: string } | null }).client?.name ||
+					"Valued Customer",
 				customerEmail: recipientEmail,
-				clientCompany: receipt.invoice.quotation.Client?.company || "",
+				clientCompany:
+					receipt.invoice?.quotation.Client?.company ||
+					(receipt as { client?: { company?: string | null } | null }).client?.company ||
+					"",
 				amount: receipt.amount,
 				pdfBase64: pdfBase64,
 				receiptDate: formatLocalDateTime(new Date(receipt.receiptDate)),

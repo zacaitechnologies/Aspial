@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { LeaveStatusBadge, LeaveTypeBadge } from "./LeaveStatusBadge"
-import type { LeaveApplicationDTO } from "../types"
+import type { LeaveApplicationDTO, LeaveTypeDTO } from "../types"
 import { format } from "date-fns"
 import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { Check, X, Pencil, Ban, Eye } from "lucide-react"
@@ -18,6 +18,7 @@ import { Check, X, Pencil, Ban, Eye } from "lucide-react"
 interface LeaveApplicationTableProps {
   applications: LeaveApplicationDTO[]
   isAdmin: boolean
+  leaveTypes?: LeaveTypeDTO[]
   onApprove?: (id: number) => void
   onReject?: (id: number) => void
   onCancel?: (id: number) => void
@@ -30,6 +31,7 @@ interface LeaveApplicationTableProps {
 export default function LeaveApplicationTable({
   applications,
   isAdmin,
+  leaveTypes,
   onApprove,
   onReject,
   onCancel,
@@ -74,7 +76,7 @@ export default function LeaveApplicationTable({
                   </TableCell>
                 )}
                 <TableCell>
-                  <LeaveTypeBadge type={app.leaveType} />
+                  <LeaveTypeBadge type={app.leaveType} types={leaveTypes} />
                 </TableCell>
                 <TableCell className="text-sm">
                   {formatMYTDateForDisplay(new Date(app.startDate))}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import {
   Table,
   TableBody,
@@ -19,9 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { LeaveTypeBadge, LeaveStatusBadge } from "./LeaveStatusBadge"
-import type { EmployeeLeaveOverview as EmployeeLeaveOverviewType } from "../types"
-import { leaveTypeOptions } from "../types"
-import { format } from "date-fns"
+import type { EmployeeLeaveOverview as EmployeeLeaveOverviewType, LeaveTypeDTO } from "../types"
+import { formatLeaveTypeName } from "../types"
 import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { Search } from "lucide-react"
 
@@ -31,16 +30,17 @@ interface EmployeeLeaveOverviewProps {
   selectedYear: number
   yearMin: number
   yearMax: number
+  /** Optional list of all leave types (dynamic). When omitted, columns are derived from existing balances. */
+  leaveTypes?: LeaveTypeDTO[]
   onYearChange: (year: number) => void
 }
-
-const summaryLeaveTypes = ["PAID", "UNPAID"] as const
 
 export default function EmployeeLeaveOverviewTable({
   employees,
   selectedYear,
   yearMin,
   yearMax,
+  leaveTypes,
   onYearChange,
 }: EmployeeLeaveOverviewProps) {
   const [search, setSearch] = useState("")
@@ -50,8 +50,24 @@ export default function EmployeeLeaveOverviewTable({
     return name.includes(search.toLowerCase())
   })
 
-  const getLabel = (type: string) =>
-    leaveTypeOptions.find((o) => o.value === type)?.label ?? type
+  // Determine which leave-type columns to show: prefer the explicit list (sorted)
+  // and fall back to the union of codes that actually appear in employees' balances.
+  const summaryColumns = useMemo(() => {
+    if (leaveTypes && leaveTypes.length > 0) {
+      return leaveTypes
+        .filter((t) => t.isActive)
+        .slice()
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code))
+        .map((t) => ({ code: t.code, name: t.name, isUnpaid: t.isUnpaid }))
+    }
+    const codes = new Set<string>()
+    for (const emp of employees) {
+      for (const b of emp.balances) codes.add(b.leaveType)
+    }
+    return Array.from(codes)
+      .sort()
+      .map((c) => ({ code: c, name: formatLeaveTypeName(c), isUnpaid: c === "UNPAID" }))
+  }, [leaveTypes, employees])
 
   const yearOptions = Array.from(
     { length: yearMax - yearMin + 1 },
@@ -67,8 +83,8 @@ export default function EmployeeLeaveOverviewTable({
               Employee overview
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Paid / unpaid balances for calendar year {selectedYear} (Malaysia time). Last
-              and next leave are based on today&apos;s date.
+              Leave balances for calendar year {selectedYear} (Malaysia time). Last and next
+              leave are based on today&apos;s date.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -110,9 +126,9 @@ export default function EmployeeLeaveOverviewTable({
                 <TableHead className="text-foreground font-semibold">Role</TableHead>
                 <TableHead className="text-foreground font-semibold">Last leave</TableHead>
                 <TableHead className="text-foreground font-semibold">Next leave</TableHead>
-                {summaryLeaveTypes.map((type) => (
-                  <TableHead key={type} className="text-foreground font-semibold whitespace-nowrap">
-                    {getLabel(type)}
+                {summaryColumns.map((t) => (
+                  <TableHead key={t.code} className="text-foreground font-semibold whitespace-nowrap">
+                    {t.name}
                   </TableHead>
                 ))}
               </TableRow>
@@ -121,7 +137,7 @@ export default function EmployeeLeaveOverviewTable({
               {filtered.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={4 + summaryLeaveTypes.length}
+                    colSpan={4 + summaryColumns.length}
                     className="text-center text-muted-foreground py-10"
                   >
                     No employees found.
@@ -145,7 +161,7 @@ export default function EmployeeLeaveOverviewTable({
                               <> - {formatMYTDateForDisplay(new Date(emp.lastLeave.endDate), { includeYear: false })}</>
                             )}
                           </p>
-                          <LeaveTypeBadge type={emp.lastLeave.leaveType} />
+                          <LeaveTypeBadge type={emp.lastLeave.leaveType} types={leaveTypes} />
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-sm">None</span>
@@ -161,7 +177,7 @@ export default function EmployeeLeaveOverviewTable({
                             )}
                           </p>
                           <div className="flex flex-wrap gap-1">
-                            <LeaveTypeBadge type={emp.nextLeave.leaveType} />
+                            <LeaveTypeBadge type={emp.nextLeave.leaveType} types={leaveTypes} />
                             <LeaveStatusBadge status={emp.nextLeave.status} />
                           </div>
                         </div>
@@ -169,12 +185,12 @@ export default function EmployeeLeaveOverviewTable({
                         <span className="text-muted-foreground text-sm">None</span>
                       )}
                     </TableCell>
-                    {summaryLeaveTypes.map((type) => {
-                      const bal = emp.balances.find((b) => b.leaveType === type)
+                    {summaryColumns.map((t) => {
+                      const bal = emp.balances.find((b) => b.leaveType === t.code)
                       return (
-                        <TableCell key={type} className="text-sm whitespace-nowrap">
+                        <TableCell key={t.code} className="text-sm whitespace-nowrap">
                           {bal ? (
-                            type === "UNPAID" ? (
+                            t.isUnpaid ? (
                               <span>
                                 <span className="font-medium tabular-nums text-foreground">
                                   {bal.used}
