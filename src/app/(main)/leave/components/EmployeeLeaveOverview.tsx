@@ -22,6 +22,7 @@ import { LeaveTypeBadge, LeaveStatusBadge } from "./LeaveStatusBadge"
 import type { EmployeeLeaveOverview as EmployeeLeaveOverviewType } from "../types"
 import { leaveTypeOptions } from "../types"
 import { format } from "date-fns"
+import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { Search } from "lucide-react"
 
 interface EmployeeLeaveOverviewProps {
@@ -139,9 +140,9 @@ export default function EmployeeLeaveOverviewTable({
                       {emp.lastLeave ? (
                         <div className="space-y-0.5">
                           <p className="text-sm text-foreground">
-                            {format(new Date(emp.lastLeave.startDate), "MMM d")}
-                            {emp.lastLeave.startDate !== emp.lastLeave.endDate && (
-                              <> - {format(new Date(emp.lastLeave.endDate), "MMM d")}</>
+                            {formatMYTDateForDisplay(new Date(emp.lastLeave.startDate), { includeYear: false })}
+                            {String(emp.lastLeave.startDate) !== String(emp.lastLeave.endDate) && (
+                              <> - {formatMYTDateForDisplay(new Date(emp.lastLeave.endDate), { includeYear: false })}</>
                             )}
                           </p>
                           <LeaveTypeBadge type={emp.lastLeave.leaveType} />
@@ -154,9 +155,9 @@ export default function EmployeeLeaveOverviewTable({
                       {emp.nextLeave ? (
                         <div className="space-y-0.5">
                           <p className="text-sm text-foreground">
-                            {format(new Date(emp.nextLeave.startDate), "MMM d")}
-                            {emp.nextLeave.startDate !== emp.nextLeave.endDate && (
-                              <> - {format(new Date(emp.nextLeave.endDate), "MMM d")}</>
+                            {formatMYTDateForDisplay(new Date(emp.nextLeave.startDate), { includeYear: false })}
+                            {String(emp.nextLeave.startDate) !== String(emp.nextLeave.endDate) && (
+                              <> - {formatMYTDateForDisplay(new Date(emp.nextLeave.endDate), { includeYear: false })}</>
                             )}
                           </p>
                           <div className="flex flex-wrap gap-1">

@@ -29,6 +29,8 @@ import type {
 } from "../types"
 import { leaveTypeOptions, leaveStatusOptions } from "../types"
 import { format } from "date-fns"
+import { formatMYTDateForDisplay, toBusinessTZParts } from "@/lib/date-utils"
+import { getMalaysiaDateStr } from "@/lib/malaysia-time"
 import { LeaveTypeBadge, LeaveStatusBadge } from "./LeaveStatusBadge"
 
 interface UserLeaveViewProps {
@@ -69,19 +71,19 @@ export default function UserLeaveView({
 
   const refresh = useCallback(() => router.refresh(), [router])
 
-  // Compute last and next leave
-  const today = new Date()
+  // Compute last and next leave by MYT calendar date (avoids "today" flipping mid-day in non-MYT browsers).
+  const todayMYT = getMalaysiaDateStr()
   const approvedLeaves = initialApplications.filter(
     (a) => a.status === "APPROVED"
   )
   const pastLeaves = approvedLeaves
-    .filter((a) => new Date(a.endDate) < today)
+    .filter((a) => toBusinessTZParts(new Date(a.endDate)).dateStr < todayMYT)
     .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())
   const futureLeaves = initialApplications
     .filter(
       (a) =>
         (a.status === "APPROVED" || a.status === "PENDING") &&
-        new Date(a.startDate) >= today
+        toBusinessTZParts(new Date(a.startDate)).dateStr > todayMYT
     )
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
 
@@ -196,9 +198,9 @@ export default function UserLeaveView({
                       <LeaveTypeBadge type={lastLeave.leaveType} />
                     </div>
                     <p className="text-sm">
-                      {format(new Date(lastLeave.startDate), "MMM d, yyyy")}
-                      {lastLeave.startDate !== lastLeave.endDate && (
-                        <> - {format(new Date(lastLeave.endDate), "MMM d, yyyy")}</>
+                      {formatMYTDateForDisplay(new Date(lastLeave.startDate))}
+                      {String(lastLeave.startDate) !== String(lastLeave.endDate) && (
+                        <> - {formatMYTDateForDisplay(new Date(lastLeave.endDate))}</>
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -223,9 +225,9 @@ export default function UserLeaveView({
                       <LeaveStatusBadge status={nextLeave.status} />
                     </div>
                     <p className="text-sm">
-                      {format(new Date(nextLeave.startDate), "MMM d, yyyy")}
-                      {nextLeave.startDate !== nextLeave.endDate && (
-                        <> - {format(new Date(nextLeave.endDate), "MMM d, yyyy")}</>
+                      {formatMYTDateForDisplay(new Date(nextLeave.startDate))}
+                      {String(nextLeave.startDate) !== String(nextLeave.endDate) && (
+                        <> - {formatMYTDateForDisplay(new Date(nextLeave.endDate))}</>
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -320,8 +322,8 @@ export default function UserLeaveView({
                         </span>
                         <span className="text-sm text-muted-foreground">
                           for {cr.leaveApplication.leaveType.toLowerCase()} leave (
-                          {format(new Date(cr.leaveApplication.startDate), "MMM d")} -{" "}
-                          {format(new Date(cr.leaveApplication.endDate), "MMM d")})
+                          {formatMYTDateForDisplay(new Date(cr.leaveApplication.startDate), { includeYear: false })} -{" "}
+                          {formatMYTDateForDisplay(new Date(cr.leaveApplication.endDate), { includeYear: false })})
                         </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">

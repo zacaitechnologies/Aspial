@@ -25,9 +25,9 @@ import {
   type UpdateEntitlementDefaultValues,
   type UpdateEmployeeBalanceValues,
 } from "@/lib/validation"
-import { eachDayOfInterval } from "date-fns"
-import { DEFAULT_ENTITLEMENTS, isMalaysiaNonWorkingDay } from "./types"
+import { DEFAULT_ENTITLEMENTS, enumerateLeaveDays, isMalaysiaNonWorkingDay } from "./types"
 import { getMalaysiaYear, getMalaysiaDayBoundaries } from "@/lib/malaysia-time"
+import { parseDateInBusinessTZ, toBusinessTZParts } from "@/lib/date-utils"
 import type {
   LeaveApplicationDTO,
   LeaveBalanceDTO,
@@ -80,14 +80,22 @@ export async function getUserWithRole() {
 // ─── Helpers ─────────────────────────────────────────────────────
 
 function calculateLeaveDays(
-  startDate: Date,
-  endDate: Date,
+  startDate: string,
+  endDate: string,
   halfDay: string
 ): number {
   if (halfDay !== "NONE") return 0.5
+  return enumerateLeaveDays(startDate, endDate).filter((d) => !isMalaysiaNonWorkingDay(d)).length
+}
 
-  const days = eachDayOfInterval({ start: startDate, end: endDate })
-  return days.filter((d) => !isMalaysiaNonWorkingDay(d)).length
+/** YYYY-MM-DD → MYT-midnight UTC instant for Prisma storage. */
+function toMYTDate(dateStr: string): Date {
+  return parseDateInBusinessTZ(`${dateStr}T00:00:00`)
+}
+
+/** UTC instant from Prisma → YYYY-MM-DD interpreted in MYT. */
+function toMYTDateStr(date: Date): string {
+  return toBusinessTZParts(date).dateStr
 }
 
 async function getOrCreateEntitlementDefaults(): Promise<Record<string, number>> {
@@ -397,7 +405,9 @@ export async function applyForLeave(data: ApplyLeaveValues) {
 
   if (totalDays <= 0) throw new Error("Invalid leave duration")
 
-  const year = getMalaysiaYear(validated.startDate)
+  const startDate = toMYTDate(validated.startDate)
+  const endDate = toMYTDate(validated.endDate)
+  const year = getMalaysiaYear(startDate)
   await initializeLeaveBalances(dbUser.id, year)
 
   // Calculate unpaid days
@@ -426,8 +436,8 @@ export async function applyForLeave(data: ApplyLeaveValues) {
     data: {
       userId: dbUser.id,
       leaveType: validated.leaveType,
-      startDate: validated.startDate,
-      endDate: validated.endDate,
+      startDate,
+      endDate,
       halfDay: validated.halfDay,
       reason: validated.reason,
       attachmentUrl: validated.attachmentUrl,
@@ -723,11 +733,13 @@ export async function adminEditLeave(data: AdminEditLeaveValues) {
   })
   if (!leave) throw new Error("Leave application not found")
 
-  const newStartDate = validated.startDate ?? leave.startDate
-  const newEndDate = validated.endDate ?? leave.endDate
+  const newStartDateStr = validated.startDate ?? toMYTDateStr(leave.startDate)
+  const newEndDateStr = validated.endDate ?? toMYTDateStr(leave.endDate)
+  const newStartDate = toMYTDate(newStartDateStr)
+  const newEndDate = toMYTDate(newEndDateStr)
   const newHalfDay = validated.halfDay ?? leave.halfDay
   const newLeaveType = validated.leaveType ?? leave.leaveType
-  const newTotalDays = calculateLeaveDays(newStartDate, newEndDate, newHalfDay)
+  const newTotalDays = calculateLeaveDays(newStartDateStr, newEndDateStr, newHalfDay)
 
   const year = getMalaysiaYear(leave.startDate)
   const oldPaidDays = leave.totalDays - leave.unpaidDays
@@ -850,8 +862,8 @@ export async function requestLeaveChange(data: LeaveChangeRequestValues) {
       requestedById: dbUser.id,
       type: validated.type,
       reason: validated.reason,
-      newStartDate: validated.newStartDate,
-      newEndDate: validated.newEndDate,
+      newStartDate: validated.newStartDate ? toMYTDate(validated.newStartDate) : null,
+      newEndDate: validated.newEndDate ? toMYTDate(validated.newEndDate) : null,
       newLeaveType: validated.newLeaveType,
       newHalfDay: validated.newHalfDay,
       newReason: validated.newReason,
@@ -923,7 +935,7 @@ export async function approveChangeRequest(requestId: number, remarks?: string) 
     const newEndDate = changeRequest.newEndDate ?? leave.endDate
     const newHalfDay = changeRequest.newHalfDay ?? leave.halfDay
     const newLeaveType = changeRequest.newLeaveType ?? leave.leaveType
-    const newTotalDays = calculateLeaveDays(newStartDate, newEndDate, newHalfDay)
+    const newTotalDays = calculateLeaveDays(toMYTDateStr(newStartDate), toMYTDateStr(newEndDate), newHalfDay)
     const year = getMalaysiaYear(leave.startDate)
     const oldPaidDays = leave.totalDays - leave.unpaidDays
 

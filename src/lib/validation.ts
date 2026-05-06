@@ -344,11 +344,16 @@ export const updateClientMembershipSchema = z.object({
 
 export type UpdateClientMembershipValues = z.infer<typeof updateClientMembershipSchema>;
 
+// Leave dates are exchanged as YYYY-MM-DD strings; the server converts to MYT-anchored
+// UTC instants via parseDateInBusinessTZ. Strings compare lexicographically thanks to the
+// fixed YYYY-MM-DD format, so refinements like "endDate >= startDate" work directly.
+const leaveDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date (expected YYYY-MM-DD)");
+
 // Leave Application validation schemas
 export const applyLeaveSchema = z.object({
   leaveType: z.enum(["PAID", "UNPAID"]),
-  startDate: z.coerce.date(),
-  endDate: z.coerce.date(),
+  startDate: leaveDateString,
+  endDate: leaveDateString,
   halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).default("NONE"),
   reason: z.string().trim().min(1, "Reason is required").max(500, "Reason must be 500 characters or less"),
   attachmentUrl: z.string().optional(),
@@ -357,7 +362,7 @@ export const applyLeaveSchema = z.object({
   path: ["endDate"],
 }).refine(data => {
   if (data.halfDay !== "NONE") {
-    return data.startDate.getTime() === data.endDate.getTime();
+    return data.startDate === data.endDate;
   }
   return true;
 }, {
@@ -377,8 +382,8 @@ export type ReviewLeaveValues = z.infer<typeof reviewLeaveSchema>;
 export const adminEditLeaveSchema = z.object({
   leaveId: z.number().int().positive(),
   leaveType: z.enum(["PAID", "UNPAID"]).optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
+  startDate: leaveDateString.optional(),
+  endDate: leaveDateString.optional(),
   halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).optional(),
   reason: z.string().trim().min(1).max(500).optional(),
 });
@@ -389,8 +394,8 @@ export const leaveChangeRequestSchema = z.object({
   leaveApplicationId: z.number().int().positive(),
   type: z.enum(["CANCEL", "EDIT"]),
   reason: z.string().trim().min(1, "Reason is required").max(500),
-  newStartDate: z.coerce.date().optional(),
-  newEndDate: z.coerce.date().optional(),
+  newStartDate: leaveDateString.optional(),
+  newEndDate: leaveDateString.optional(),
   newLeaveType: z.enum(["PAID", "UNPAID"]).optional(),
   newHalfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).optional(),
   newReason: z.string().max(500).optional(),

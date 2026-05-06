@@ -23,6 +23,7 @@ import { LeaveStatusBadge, LeaveTypeBadge } from "./LeaveStatusBadge"
 import type { LeaveChangeRequestDTO } from "../types"
 import { approveChangeRequest, rejectChangeRequest } from "../action"
 import { format } from "date-fns"
+import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { Check, X } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -104,8 +105,8 @@ export default function ChangeRequestsTable({
                   <div className="space-y-1">
                     <LeaveTypeBadge type={req.leaveApplication.leaveType} />
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(req.leaveApplication.startDate), "MMM d")} -{" "}
-                      {format(new Date(req.leaveApplication.endDate), "MMM d, yyyy")}
+                      {formatMYTDateForDisplay(new Date(req.leaveApplication.startDate), { includeYear: false })} -{" "}
+                      {formatMYTDateForDisplay(new Date(req.leaveApplication.endDate))}
                     </p>
                   </div>
                 </TableCell>

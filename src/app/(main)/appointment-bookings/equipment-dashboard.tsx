@@ -14,6 +14,7 @@ import EditAppointmentRemindersDialog from "@/app/(main)/appointment-bookings/co
 import BookingDetailsDialog from "@/app/(main)/appointment-bookings/components/BookingDetailsDialog"
 import { deleteAppointment, cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
 import { cn } from "@/lib/utils"
+import { toBusinessTZParts } from "@/lib/date-utils"
 import { APPOINTMENT_TYPES } from "@/app/(main)/calendar/constants"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import { Edit, Trash2, Plus, Calendar, Clock, User, Search, List, Users as UsersIcon, Mail, Send, Bell, Info } from "lucide-react"
@@ -523,12 +524,12 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                       <div className="flex items-center text-sm">
                         <Clock className="w-4 h-4 mr-2" />
                         <span className="font-medium">Start:</span>
-                        <span className="ml-2">{new Date(booking.startDate).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+                        <span className="ml-2">{(() => { const p = toBusinessTZParts(new Date(booking.startDate)); return `${p.dateStr} ${p.timeStr}` })()}</span>
                       </div>
                       <div className="flex items-center text-sm">
                         <Clock className="w-4 h-4 mr-2" />
                         <span className="font-medium">End:</span>
-                        <span className="ml-2">{new Date(booking.endDate).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</span>
+                        <span className="ml-2">{(() => { const p = toBusinessTZParts(new Date(booking.endDate)); return `${p.dateStr} ${p.timeStr}` })()}</span>
                       </div>
                       {booking.attendees && (
                         <div className="flex items-center text-sm">

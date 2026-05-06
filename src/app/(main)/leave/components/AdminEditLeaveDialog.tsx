@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { parseLocalDateString, formatLocalDate } from "@/lib/date-utils"
+import { toBusinessTZParts } from "@/lib/date-utils"
 
 interface AdminEditLeaveDialogProps {
   application: LeaveApplicationDTO | null
@@ -64,8 +64,8 @@ export default function AdminEditLeaveDialog({
     form.reset({
       leaveId: application.id,
       leaveType: application.leaveType,
-      startDate: parseLocalDateString(formatLocalDate(new Date(application.startDate))),
-      endDate: parseLocalDateString(formatLocalDate(new Date(application.endDate))),
+      startDate: toBusinessTZParts(new Date(application.startDate)).dateStr,
+      endDate: toBusinessTZParts(new Date(application.endDate)).dateStr,
       halfDay: application.halfDay,
       reason: application.reason,
     })
@@ -139,10 +139,8 @@ export default function AdminEditLeaveDialog({
                     <FormControl>
                       <Input
                         type="date"
-                        value={field.value ? formatLocalDate(field.value instanceof Date ? field.value : parseLocalDateString(String(field.value))) : ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value ? parseLocalDateString(e.target.value) : undefined)
-                        }
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || undefined)}
                       />
                     </FormControl>
                     <FormMessage />
@@ -158,10 +156,8 @@ export default function AdminEditLeaveDialog({
                     <FormControl>
                       <Input
                         type="date"
-                        value={field.value ? formatLocalDate(field.value instanceof Date ? field.value : parseLocalDateString(String(field.value))) : ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value ? parseLocalDateString(e.target.value) : undefined)
-                        }
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || undefined)}
                       />
                     </FormControl>
                     <FormMessage />

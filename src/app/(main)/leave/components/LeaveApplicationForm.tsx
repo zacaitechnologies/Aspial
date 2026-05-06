@@ -34,7 +34,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { AlertTriangle } from "lucide-react"
-import { parseLocalDateString, formatLocalDate } from "@/lib/date-utils"
 
 interface LeaveApplicationFormProps {
   open: boolean
@@ -70,8 +69,8 @@ export default function LeaveApplicationForm({
   const estimatedDays =
     watchStartDate && watchEndDate
       ? calculateLeaveDaysClient(
-          watchStartDate instanceof Date ? watchStartDate : parseLocalDateString(String(watchStartDate)),
-          watchEndDate instanceof Date ? watchEndDate : parseLocalDateString(String(watchEndDate)),
+          String(watchStartDate),
+          String(watchEndDate),
           watchHalfDay ?? "NONE"
         )
       : 0
@@ -158,10 +157,8 @@ export default function LeaveApplicationForm({
                     <FormControl>
                       <Input
                         type="date"
-                        value={field.value ? formatLocalDate(field.value instanceof Date ? field.value : parseLocalDateString(String(field.value))) : ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value ? parseLocalDateString(e.target.value) : undefined)
-                        }
+                        value={field.value ? String(field.value) : ""}
+                        onChange={(e) => field.onChange(e.target.value || undefined)}
                       />
                     </FormControl>
                     <FormMessage />
@@ -177,10 +174,8 @@ export default function LeaveApplicationForm({
                     <FormControl>
                       <Input
                         type="date"
-                        value={field.value ? formatLocalDate(field.value instanceof Date ? field.value : parseLocalDateString(String(field.value))) : ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value ? parseLocalDateString(e.target.value) : undefined)
-                        }
+                        value={field.value ? String(field.value) : ""}
+                        onChange={(e) => field.onChange(e.target.value || undefined)}
                       />
                     </FormControl>
                     <FormMessage />

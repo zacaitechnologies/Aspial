@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover"
 import type { LeaveApplicationDTO } from "../types"
 import { isMalaysiaNonWorkingDay, leaveTypeColorMap, leaveTypeOptions } from "../types"
+import { formatLocalDate, toBusinessTZParts } from "@/lib/date-utils"
 import {
   format,
   startOfMonth,
@@ -59,12 +60,13 @@ export default function LeaveCalendar({
   )
 
   function getLeavesForDay(day: Date) {
+    // Compare in MYT calendar-day terms so a leave spanning Jan 29 in MYT shows on Jan 29
+    // regardless of viewer timezone.
+    const dayStr = formatLocalDate(day)
     return approvedLeaves.filter((leave) => {
-      const start = new Date(leave.startDate)
-      const end = new Date(leave.endDate)
-      start.setHours(0, 0, 0, 0)
-      end.setHours(23, 59, 59, 999)
-      return day >= start && day <= end
+      const startStr = toBusinessTZParts(new Date(leave.startDate)).dateStr
+      const endStr = toBusinessTZParts(new Date(leave.endDate)).dateStr
+      return dayStr >= startStr && dayStr <= endStr
     })
   }
 
@@ -148,7 +150,7 @@ export default function LeaveCalendar({
             const dayLeaves = getLeavesForDay(day)
             const isCurrentMonth = isSameMonth(day, currentMonth)
             const isToday = isSameDay(day, new Date())
-            const isSundayOff = isMalaysiaNonWorkingDay(day)
+            const isSundayOff = isMalaysiaNonWorkingDay(formatLocalDate(day))
 
             return (
               <div

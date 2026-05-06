@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { LeaveStatusBadge, LeaveTypeBadge } from "./LeaveStatusBadge"
 import type { LeaveApplicationDTO } from "../types"
 import { format } from "date-fns"
+import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { Check, X, Pencil, Ban, Eye } from "lucide-react"
 
 interface LeaveApplicationTableProps {
@@ -76,9 +77,9 @@ export default function LeaveApplicationTable({
                   <LeaveTypeBadge type={app.leaveType} />
                 </TableCell>
                 <TableCell className="text-sm">
-                  {format(new Date(app.startDate), "MMM d, yyyy")}
-                  {app.startDate !== app.endDate && (
-                    <> - {format(new Date(app.endDate), "MMM d, yyyy")}</>
+                  {formatMYTDateForDisplay(new Date(app.startDate))}
+                  {String(app.startDate) !== String(app.endDate) && (
+                    <> - {formatMYTDateForDisplay(new Date(app.endDate))}</>
                   )}
                   {app.halfDay !== "NONE" && (
                     <span className="text-xs text-muted-foreground ml-1">

@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { LeaveStatusBadge, LeaveTypeBadge } from "./LeaveStatusBadge"
 import type { LeaveApplicationDTO } from "../types"
 import { format } from "date-fns"
+import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { approveLeave, rejectLeave, cancelLeave } from "../action"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -106,13 +107,13 @@ export default function LeaveDetailDialog({
             <div>
               <p className="text-sm text-muted-foreground">Start Date</p>
               <p className="font-medium">
-                {format(new Date(application.startDate), "MMM d, yyyy")}
+                {formatMYTDateForDisplay(new Date(application.startDate))}
               </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">End Date</p>
               <p className="font-medium">
-                {format(new Date(application.endDate), "MMM d, yyyy")}
+                {formatMYTDateForDisplay(new Date(application.endDate))}
               </p>
             </div>
           </div>

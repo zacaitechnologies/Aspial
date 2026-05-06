@@ -122,9 +122,9 @@ function getDayOfWeekFromYMD(year: number, month: number, day: number): number {
  */
 export function formatDateStringDirect(
 	dateString: string,
-	options: { includeWeekday?: boolean; format?: "short" | "long" } = {}
+	options: { includeWeekday?: boolean; format?: "short" | "long"; includeYear?: boolean } = {}
 ): string {
-	const { includeWeekday = false, format = "short" } = options
+	const { includeWeekday = false, format = "short", includeYear = true } = options
 	
 	const parts = dateString.split("-")
 	const year = parseInt(parts[0] || "1970", 10)
@@ -150,10 +150,12 @@ export function formatDateStringDirect(
 	if (includeWeekday) {
 		const dayOfWeek = getDayOfWeekFromYMD(year, month, day)
 		const weekdayName = weekdayNames[dayOfWeek]
-		return `${weekdayName}, ${monthName} ${day}, ${year}`
+		return includeYear
+			? `${weekdayName}, ${monthName} ${day}, ${year}`
+			: `${weekdayName}, ${monthName} ${day}`
 	}
-	
-	return `${monthName} ${day}, ${year}`
+
+	return includeYear ? `${monthName} ${day}, ${year}` : `${monthName} ${day}`
 }
 
 /**
@@ -256,6 +258,19 @@ export function formatDateStringNumeric(dateString: string): string {
 	const month = (parts[1] ?? "1").padStart(2, "0")
 	const day = (parts[2] ?? "1").padStart(2, "0")
 	return `${day}/${month}/${year}`
+}
+
+/**
+ * Format a Date as a Malaysia-anchored calendar date for display.
+ * Use for any date stored as a UTC instant that should always render as the MYT calendar day,
+ * regardless of viewer timezone (e.g. leave start/end dates).
+ */
+export function formatMYTDateForDisplay(
+	date: Date,
+	options: { includeWeekday?: boolean; format?: "short" | "long"; includeYear?: boolean } = {}
+): string {
+	const dateStr = toBusinessTZParts(date).dateStr
+	return formatDateStringDirect(dateStr, options)
 }
 
 /**

@@ -1,23 +1,52 @@
 import type { LeaveType, LeaveStatus, LeaveHalfDay, ChangeRequestType, ChangeRequestStatus } from "@prisma/client"
-import { eachDayOfInterval, isSunday } from "date-fns"
 
 /** Mon–Sat are working days; only Sunday is off (common Malaysia office pattern). */
-export function isMalaysiaNonWorkingDay(date: Date): boolean {
-  return isSunday(date)
+export function isMalaysiaNonWorkingDay(dateStr: string): boolean {
+  // Zeller's congruence — fully timezone-independent.
+  const [yStr, mStr, dStr] = dateStr.split("-")
+  const year = parseInt(yStr, 10)
+  let m = parseInt(mStr, 10)
+  let y = year
+  if (m < 3) {
+    m += 12
+    y -= 1
+  }
+  const q = parseInt(dStr, 10)
+  const k = y % 100
+  const j = Math.floor(y / 100)
+  const h = (q + Math.floor((13 * (m + 1)) / 5) + k + Math.floor(k / 4) + Math.floor(j / 4) - 2 * j) % 7
+  // h: 0=Saturday, 1=Sunday, ... — Sunday is non-working.
+  return h === 1
+}
+
+/** Inclusive enumeration of YYYY-MM-DD strings between two dates. */
+export function enumerateLeaveDays(startStr: string, endStr: string): string[] {
+  if (endStr < startStr) return []
+  const out: string[] = []
+  const [sy, sm, sd] = startStr.split("-").map(Number)
+  // Use UTC math so we never depend on the runtime timezone.
+  let cursor = Date.UTC(sy, sm - 1, sd)
+  const [ey, em, ed] = endStr.split("-").map(Number)
+  const endMs = Date.UTC(ey, em - 1, ed)
+  while (cursor <= endMs) {
+    const d = new Date(cursor)
+    const y = d.getUTCFullYear()
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0")
+    const day = String(d.getUTCDate()).padStart(2, "0")
+    out.push(`${y}-${m}-${day}`)
+    cursor += 24 * 60 * 60 * 1000
+  }
+  return out
 }
 
 export function calculateLeaveDaysClient(
-  startDate: Date,
-  endDate: Date,
+  startDate: string,
+  endDate: string,
   halfDay: string
 ): number {
   if (halfDay !== "NONE") return 0.5
-  try {
-    const days = eachDayOfInterval({ start: startDate, end: endDate })
-    return days.filter((d) => !isMalaysiaNonWorkingDay(d)).length
-  } catch {
-    return 0
-  }
+  if (!startDate || !endDate) return 0
+  return enumerateLeaveDays(startDate, endDate).filter((d) => !isMalaysiaNonWorkingDay(d)).length
 }
 
 export interface LeaveApplicationDTO {

@@ -29,7 +29,7 @@ import {
 	getAppointmentBookings,
 	getProjectUsersEmails,
 } from "@/app/(main)/appointment-bookings/actions"
-import { parseDateInBusinessTZ } from "@/lib/date-utils"
+import { parseDateInBusinessTZ, toBusinessTZParts } from "@/lib/date-utils"
 import { EmailListInput } from "@/app/(main)/appointment-bookings/components/EmailListInput"
 import { FieldOverwriteDialog } from "@/app/(main)/appointment-bookings/components/FieldOverwriteDialog"
 import { APPOINTMENT_TYPES, type AppointmentType } from "../constants"
@@ -545,7 +545,7 @@ export function AppointmentBookingDialog({
 													</p>
 													{blockers.map((b) => (
 														<p key={b.id} className="text-amber-700 dark:text-amber-300 mt-1">
-															{b.title}: {b.startDateTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - {b.endDateTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+															{b.title}: {toBusinessTZParts(b.startDateTime).timeStr} - {toBusinessTZParts(b.endDateTime).timeStr}
 														</p>
 													))}
 												</div>
