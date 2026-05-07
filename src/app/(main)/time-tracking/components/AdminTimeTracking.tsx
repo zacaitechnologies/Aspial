@@ -39,6 +39,7 @@ export default function AdminTimeTracking({
   initialProjects,
   initialUsers,
 }: AdminTimeTrackingProps) {
+  const [activeTab, setActiveTab] = useState("dashboard")
   const [timeEntries] = useState(initialTimeEntries)
   const [projects] = useState(initialProjects)
   const [users] = useState(initialUsers)
@@ -55,27 +56,30 @@ export default function AdminTimeTracking({
     <div className="min-h-screen bg-background p-4 relative">
       <FloatingElements />
       <div className="mx-auto max-w-7xl space-y-8">
-        {/* Header */}
-        <div className="relative">
-          <div className="relative z-10 bg-card rounded-2xl p-8 border border-border shadow-xl">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div>
-                <h1 className="text-4xl font-bold text-foreground">
-                  Admin Dashboard
-                </h1>
-                <p className="text-muted-foreground mt-2 text-lg">
-                  Monitor team productivity and time tracking insights
-                </p>
-              </div>
-            </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="relative">
+            <TabsList className="grid w-full grid-cols-2 bg-transparent border-primary border">
+              <TabsTrigger
+                value="dashboard"
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
+              >
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger
+                value="entries"
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
+              >
+                All Entries
+              </TabsTrigger>
+            </TabsList>
+            <div
+              className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
+                activeTab === "dashboard"
+                  ? "left-1 w-[calc(50%-4px)]"
+                  : "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+              }`}
+            />
           </div>
-        </div>
-
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="entries">All Entries</TabsTrigger>
-          </TabsList>
 
           <TabsContent value="dashboard" className="space-y-8">
             {/* Period controls */}

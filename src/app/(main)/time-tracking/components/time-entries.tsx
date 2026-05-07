@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { History, Clock, Calendar, Filter } from "lucide-react"
+import { History, Clock, Calendar, Filter, ChevronDown, CheckSquare, FileText } from "lucide-react"
 import { formatTime, formatDate } from "../utils"
 import { Project } from "@prisma/client"
 import type { TimeEntryDTO } from "../action"
@@ -20,6 +20,7 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [showFilters, setShowFilters] = useState(false)
+  const [expandedEntryIds, setExpandedEntryIds] = useState<number[]>([])
 
   // Filter entries based on date range
   const filteredEntries = entries.filter((entry) => {
@@ -49,6 +50,12 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
   }
 
   const hasFilters = startDate || endDate
+
+  const toggleEntryDetails = (entryId: number) => {
+    setExpandedEntryIds((prev) =>
+      prev.includes(entryId) ? prev.filter((id) => id !== entryId) : [...prev, entryId],
+    )
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -134,22 +141,60 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
             filteredEntries.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-center justify-between p-4 bg-card/60 rounded-xl border border-border hover:bg-card/80"
+                className="p-4 bg-card/60 rounded-xl border border-border hover:bg-card/80 space-y-3"
               >
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0 bg-primary" />
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{entry.project.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatDate(entry.startTime)} - {entry.endTime ? formatDate(entry.endTime) : "Running"}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-3 h-3 rounded-full flex-shrink-0 bg-primary" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{entry.project.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDate(entry.startTime)} - {entry.endTime ? formatDate(entry.endTime) : "Running"}
+                      </div>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {formatTime(entry.duration)}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleEntryDetails(entry.id)}
+                      className="h-8 px-2 text-xs"
+                    >
+                      Details
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 ml-1 transition-transform ${
+                          expandedEntryIds.includes(entry.id) ? "rotate-180" : ""
+                        }`}
+                      />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="font-mono text-xs">
-                    {formatTime(entry.duration)}
-                  </Badge>
-                </div>
+                {expandedEntryIds.includes(entry.id) && (
+                  <div className="space-y-3 border-t border-border pt-3">
+                    <div className="flex items-start gap-2 text-sm">
+                      <CheckSquare className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">Selected Task</p>
+                        <p className="font-medium break-words">
+                          {entry.task?.title ?? "No task selected"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 text-sm">
+                      <FileText className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground">Description</p>
+                        <p className="font-medium whitespace-pre-wrap break-words">
+                          {entry.description?.trim() ? entry.description : "No description"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))
           )}

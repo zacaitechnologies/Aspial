@@ -6,6 +6,8 @@ import { TaskSelector } from "./task-selector"
 import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { Project } from "@prisma/client"
 import {
   createTimeEntry,
@@ -51,6 +53,7 @@ export default function UserTimeTracking({
   const [isPausing, setIsPausing] = useState(false)
   const [isResuming, setIsResuming] = useState(false)
   const [isStopping, setIsStopping] = useState(false)
+  const [pendingAction, setPendingAction] = useState<"pause" | "stop" | null>(null)
 
   // Load active time entry on mount
   useEffect(() => {
@@ -144,6 +147,8 @@ export default function UserTimeTracking({
     return () => clearInterval(interval)
   }, [isTracking, isPaused, startTime, pausedTime, activeEntryId])
 
+  const hasUnsavedDescription = isTracking && description.trim() !== savedDescription.trim()
+
   const pauseTimer = async () => {
     if (!isTracking || !startTime || !activeEntryId) return
 
@@ -162,6 +167,14 @@ export default function UserTimeTracking({
     } finally {
       setIsPausing(false)
     }
+  }
+
+  const handlePauseRequest = () => {
+    if (hasUnsavedDescription) {
+      setPendingAction("pause")
+      return
+    }
+    void pauseTimer()
   }
 
   const resumeTimer = async () => {
@@ -305,6 +318,39 @@ export default function UserTimeTracking({
     }
   }
 
+  const handleStopRequest = () => {
+    if (hasUnsavedDescription) {
+      setPendingAction("stop")
+      return
+    }
+    void stopTimer()
+  }
+
+  const handleConfirmWithoutSaving = () => {
+    const action = pendingAction
+    setPendingAction(null)
+    if (action === "pause") {
+      void pauseTimer()
+      return
+    }
+    if (action === "stop") {
+      void stopTimer()
+    }
+  }
+
+  const handleSaveAndContinue = async () => {
+    await saveDescription()
+    const action = pendingAction
+    setPendingAction(null)
+    if (action === "pause") {
+      void pauseTimer()
+      return
+    }
+    if (action === "stop") {
+      void stopTimer()
+    }
+  }
+
 
 
   if (isLoading) {
@@ -356,8 +402,8 @@ export default function UserTimeTracking({
                   isDescriptionDirty={description !== savedDescription}
                   isSavingDescription={isSavingDescription}
                   onStart={startTimer}
-                  onPause={pauseTimer}
-                  onStop={stopTimer}
+                  onPause={handlePauseRequest}
+                  onStop={handleStopRequest}
                   isStarting={isStarting}
                   isPausing={isPausing}
                   isResuming={isResuming}
@@ -378,6 +424,41 @@ export default function UserTimeTracking({
           </div>
         </div>
       </div>
+      <Dialog open={pendingAction !== null} onOpenChange={(open) => (!open ? setPendingAction(null) : undefined)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save description first?</DialogTitle>
+            <DialogDescription>
+              You have unsaved description changes. Save them before you {pendingAction === "pause" ? "pause" : "stop"} the timer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingAction(null)}
+              disabled={isSavingDescription || isPausing || isStopping}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleConfirmWithoutSaving}
+              disabled={isSavingDescription || isPausing || isStopping}
+            >
+              Continue without saving
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveAndContinue}
+              disabled={isSavingDescription || isPausing || isStopping}
+            >
+              Save and continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
