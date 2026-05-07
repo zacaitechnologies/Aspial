@@ -118,7 +118,17 @@ export default function CreateQuotationForm({
     },
   });
 
-  type SelectedService = { serviceId: string; name: string; description: string; price: number; quantity: number; expanded: boolean };
+  type SelectedService = {
+    serviceId: string;
+    name: string;
+    /** Original catalog description, used as the "Reset to default" baseline. */
+    baseDescription: string;
+    /** Editable per-quotation description; sent to server as descriptionOverride. */
+    description: string;
+    price: number;
+    quantity: number;
+    expanded: boolean;
+  };
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [totalPrice, setTotalPrice] = useState(0);
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
@@ -199,9 +209,34 @@ export default function CreateQuotationForm({
     const service = services.find((s) => s.id.toString() === serviceId);
     if (!service) return;
     if (selectedServices.some((s) => s.serviceId === serviceId)) return;
-    const newServices = [...selectedServices, { serviceId, name: service.name, description: service.description, price: service.basePrice, quantity: 1, expanded: expandAllDescriptions }];
+    const newServices = [
+      ...selectedServices,
+      {
+        serviceId,
+        name: service.name,
+        baseDescription: service.description,
+        description: service.description,
+        price: service.basePrice,
+        quantity: 1,
+        expanded: expandAllDescriptions,
+      },
+    ];
     setSelectedServices(newServices);
     setTotalPrice(newServices.reduce((sum, s) => sum + s.price * s.quantity, 0));
+  };
+
+  const handleServiceDescriptionChange = (serviceId: string, description: string) => {
+    setSelectedServices((prev) =>
+      prev.map((s) => (s.serviceId === serviceId ? { ...s, description } : s)),
+    );
+  };
+
+  const handleResetServiceDescription = (serviceId: string) => {
+    setSelectedServices((prev) =>
+      prev.map((s) =>
+        s.serviceId === serviceId ? { ...s, description: s.baseDescription } : s,
+      ),
+    );
   };
 
   const handleRemoveService = (serviceId: string) => {
@@ -456,7 +491,12 @@ export default function CreateQuotationForm({
       await createQuotation({
         description: quotationForm.description,
         totalPrice: discountedTotal,
-        services: selectedServices.map((s) => ({ serviceId: s.serviceId, price: s.price, quantity: s.quantity })),
+        services: selectedServices.map((s) => ({
+          serviceId: s.serviceId,
+          price: s.price,
+          quantity: s.quantity,
+          descriptionOverride: s.description,
+        })),
         createdById: enhancedUser.id, // Always the logged-in user's supabase_id
         advisorIds: selectedAdvisorIds,
         workflowStatus: workflowStatus, // Add workflow status parameter
@@ -789,9 +829,30 @@ export default function CreateQuotationForm({
                           <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
                         </div>
                       </div>
-                      {s.expanded && s.description && (
-                        <div className="border-t bg-muted/40 p-3">
-                          <p className="text-sm text-foreground whitespace-pre-line">{s.description}</p>
+                      {s.expanded && (
+                        <div className="border-t bg-muted/40 p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-xs">
+                              Description (this quotation only — won&apos;t change the catalog)
+                            </Label>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="link"
+                              className="h-auto p-0 text-xs"
+                              onClick={() => handleResetServiceDescription(s.serviceId)}
+                            >
+                              Reset to default
+                            </Button>
+                          </div>
+                          <Textarea
+                            value={s.description}
+                            onChange={(e) =>
+                              handleServiceDescriptionChange(s.serviceId, e.target.value)
+                            }
+                            rows={4}
+                            className="text-sm"
+                          />
                         </div>
                       )}
                     </div>

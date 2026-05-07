@@ -50,6 +50,8 @@ export type QuotationWithServices = {
     quotationId: number;
     serviceId: number | null; // null when row links a custom service (customServiceId set)
     customServiceId?: string;
+    /** Per-quotation editable description; falls back to service.description on the PDF/email if absent. */
+    descriptionOverride?: string;
     price: number;
     quantity: number;
     service: Services | null; // null when customServiceId is set

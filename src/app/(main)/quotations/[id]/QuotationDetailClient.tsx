@@ -326,7 +326,7 @@ export default function QuotationDetailClient({
 												<div className="flex-1">
 													<p className="font-medium">{qs.service?.name ?? ""}</p>
 													<FormattedDescription
-														text={qs.service?.description ?? ""}
+														text={qs.descriptionOverride ?? qs.service?.description ?? ""}
 														className="text-sm text-muted-foreground"
 													/>
 												</div>

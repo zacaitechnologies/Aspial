@@ -32,7 +32,8 @@ import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import CustomServiceDialog from "./CustomServiceDialog";
 import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors";
-import { Briefcase, Plus } from "lucide-react";
+import { Briefcase, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
@@ -75,9 +76,20 @@ export default function EditQuotationForm({
   const [services, setServices] = useState<Services[]>([]);
   const [customServices, setCustomServices] = useState<any[]>([]);
   const [isLoadingCustomServices, setIsLoadingCustomServices] = useState(false);
-  type SelectedService = { serviceId: string; name: string; description: string; price: number; quantity: number };
+  type SelectedService = {
+    serviceId: string;
+    name: string;
+    /** Original catalog description, used as the "Reset to default" baseline. */
+    baseDescription: string;
+    /** Editable per-quotation description; sent to server as descriptionOverride. */
+    description: string;
+    price: number;
+    quantity: number;
+    expanded: boolean;
+  };
   const [editSelectedServices, setEditSelectedServices] = useState<SelectedService[]>([]);
   const [editServiceSearchQuery, setEditServiceSearchQuery] = useState("");
+  const [editExpandAllDescriptions, setEditExpandAllDescriptions] = useState(false);
   const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] = useState(false);
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
   const [projectMode, setProjectMode] = useState<"existing" | "new">(
@@ -290,12 +302,15 @@ export default function EditQuotationForm({
         .map((qs) => {
           const serviceId = qs.serviceId ? qs.serviceId.toString() : (qs.service?.id?.toString() ?? null);
           if (!serviceId) return null;
+          const baseDescription = qs.service?.description ?? "";
           return {
             serviceId,
             name: qs.service?.name ?? "",
-            description: qs.service?.description ?? "",
+            baseDescription,
+            description: qs.descriptionOverride ?? baseDescription,
             price: qs.price ?? qs.service?.basePrice ?? 0,
             quantity: qs.quantity ?? 1,
+            expanded: false,
           };
         })
         .filter((s): s is SelectedService => s !== null)
@@ -382,7 +397,18 @@ export default function EditQuotationForm({
     const service = services.find((s) => s.id.toString() === serviceId);
     if (!service) return;
     if (editSelectedServices.some((s) => s.serviceId === serviceId)) return;
-    setEditSelectedServices((prev) => [...prev, { serviceId, name: service.name, description: service.description, price: service.basePrice, quantity: 1 }]);
+    setEditSelectedServices((prev) => [
+      ...prev,
+      {
+        serviceId,
+        name: service.name,
+        baseDescription: service.description,
+        description: service.description,
+        price: service.basePrice,
+        quantity: 1,
+        expanded: editExpandAllDescriptions,
+      },
+    ]);
   };
 
   const handleRemoveEditService = (serviceId: string) => {
@@ -396,6 +422,32 @@ export default function EditQuotationForm({
   const handleEditServiceQuantityChange = (serviceId: string, quantity: number) => {
     setEditSelectedServices((prev) => prev.map((s) => s.serviceId === serviceId ? { ...s, quantity } : s));
   };
+
+  const handleEditServiceDescriptionChange = (serviceId: string, description: string) => {
+    setEditSelectedServices((prev) =>
+      prev.map((s) => (s.serviceId === serviceId ? { ...s, description } : s)),
+    );
+  };
+
+  const handleEditServiceToggleExpanded = (serviceId: string) => {
+    setEditSelectedServices((prev) =>
+      prev.map((s) => (s.serviceId === serviceId ? { ...s, expanded: !s.expanded } : s)),
+    );
+  };
+
+  const handleResetEditServiceDescription = (serviceId: string) => {
+    setEditSelectedServices((prev) =>
+      prev.map((s) =>
+        s.serviceId === serviceId ? { ...s, description: s.baseDescription } : s,
+      ),
+    );
+  };
+
+  useEffect(() => {
+    setEditSelectedServices((prev) =>
+      prev.map((s) => ({ ...s, expanded: editExpandAllDescriptions })),
+    );
+  }, [editExpandAllDescriptions]);
 
   const handleCustomServiceCreated = (newCustomService: any) => {
     // Refresh custom services list
@@ -598,7 +650,12 @@ export default function EditQuotationForm({
         discountType: editForm.discountValue
           ? editForm.discountType
           : undefined,
-        services: editSelectedServices.map((s) => ({ serviceId: s.serviceId, price: s.price, quantity: s.quantity })),
+        services: editSelectedServices.map((s) => ({
+          serviceId: s.serviceId,
+          price: s.price,
+          quantity: s.quantity,
+          descriptionOverride: s.description,
+        })),
         duration: editForm.duration ? parseInt(editForm.duration) : undefined,
         startDate: editForm.startDate || undefined,
         quotationDate: editForm.quotationDate || undefined,
@@ -655,6 +712,7 @@ export default function EditQuotationForm({
           serviceId: s.serviceId,
           price: s.price,
           quantity: s.quantity,
+          descriptionOverride: s.description,
         })),
         duration: editForm.duration ? parseInt(editForm.duration, 10) : undefined,
         startDate: editForm.startDate || undefined,
@@ -1107,9 +1165,21 @@ export default function EditQuotationForm({
 
             {/* Fixed Services Section */}
             <div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
-              <div>
-                <Label className="text-lg font-semibold">Services <span className="text-red-500">*</span></Label>
-                <p className="text-xs text-muted-foreground mt-1">Add services with custom price and quantity (at least one required)</p>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <Label className="text-lg font-semibold">Services <span className="text-red-500">*</span></Label>
+                  <p className="text-xs text-muted-foreground mt-1">Add services with custom price and quantity (at least one required)</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 pt-1">
+                  <Checkbox
+                    id="edit-qt-expand-all-desc"
+                    checked={editExpandAllDescriptions}
+                    onCheckedChange={(checked) => setEditExpandAllDescriptions(checked === true)}
+                  />
+                  <Label htmlFor="edit-qt-expand-all-desc" className="text-xs font-normal cursor-pointer whitespace-nowrap">
+                    Show all descriptions
+                  </Label>
+                </div>
               </div>
               <div className="flex gap-2">
                 <Input
@@ -1145,45 +1215,86 @@ export default function EditQuotationForm({
               {editSelectedServices.length > 0 && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
-                    <span className="col-span-4">Service</span>
+                    <span className="col-span-1"></span>
+                    <span className="col-span-3">Service</span>
                     <span className="col-span-3">Price (RM)</span>
                     <span className="col-span-2">Qty</span>
                     <span className="col-span-2 text-right">Total</span>
                     <span className="col-span-1"></span>
                   </div>
                   {editSelectedServices.map((s) => (
-                    <div key={s.serviceId} className="grid grid-cols-12 gap-2 items-center p-2 border rounded-lg">
-                      <div className="col-span-4">
-                        <p className="font-medium text-sm">{s.name}</p>
+                    <div key={s.serviceId} className="border rounded-lg overflow-hidden">
+                      <div className="grid grid-cols-12 gap-2 items-center p-2">
+                        <div className="col-span-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditServiceToggleExpanded(s.serviceId)}
+                            className="h-8 w-8 p-0"
+                            aria-label={s.expanded ? "Hide description" : "Show description"}
+                          >
+                            {s.expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          </Button>
+                        </div>
+                        <div className="col-span-3">
+                          <p className="font-medium text-sm">{s.name}</p>
+                        </div>
+                        <div className="col-span-3">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={s.price}
+                            onChange={(e) => handleEditServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={s.quantity}
+                            onChange={(e) => handleEditServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-2 text-right text-sm font-medium">
+                          RM{formatNumber(s.price * s.quantity)}
+                        </div>
+                        <div className="col-span-1 flex justify-end">
+                          <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveEditService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
+                        </div>
                       </div>
-                      <div className="col-span-3">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={s.price}
-                          onChange={(e) => handleEditServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={s.quantity}
-                          onChange={(e) => handleEditServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div className="col-span-2 text-right text-sm font-medium">
-                        RM{formatNumber(s.price * s.quantity)}
-                      </div>
-                      <div className="col-span-1 flex justify-end">
-                        <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveEditService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
-                      </div>
+                      {s.expanded && (
+                        <div className="border-t bg-muted/40 p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-xs">
+                              Description (this quotation only — won&apos;t change the catalog)
+                            </Label>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="link"
+                              className="h-auto p-0 text-xs"
+                              onClick={() => handleResetEditServiceDescription(s.serviceId)}
+                            >
+                              Reset to default
+                            </Button>
+                          </div>
+                          <Textarea
+                            value={s.description}
+                            onChange={(e) =>
+                              handleEditServiceDescriptionChange(s.serviceId, e.target.value)
+                            }
+                            rows={4}
+                            className="text-sm"
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -576,6 +576,7 @@ export async function getQuotationById(id: string) {
       quotationId: service.quotationId,
       serviceId: service.serviceId,
       customServiceId: service.customServiceId ?? undefined,
+      descriptionOverride: service.descriptionOverride ?? undefined,
       price: service.price,
       quantity: service.quantity,
       service: service.service,
@@ -715,6 +716,7 @@ export async function getQuotationFullById(id: string) {
       quotationId: service.quotationId,
       serviceId: service.serviceId,
       customServiceId: service.customServiceId ?? undefined,
+      descriptionOverride: service.descriptionOverride ?? undefined,
       price: service.price,
       quantity: service.quantity,
       service: service.service,
@@ -894,6 +896,18 @@ export async function createQuotation(data: unknown) {
           throw new Error("Creator user not found in database")
         }
 
+        // Snapshot each service's catalog description so the override defaults to the
+        // current value when the client doesn't supply one. Editing the quotation later
+        // never writes back to the catalog.
+        const serviceIds = validatedData.services.map((svc) => Number.parseInt(svc.serviceId, 10))
+        const catalogServices = await tx.services.findMany({
+          where: { id: { in: serviceIds } },
+          select: { id: true, description: true },
+        })
+        const catalogDescriptionById = new Map(
+          catalogServices.map((s) => [s.id, s.description ?? ""]),
+        )
+
         const quotation = await tx.quotation.create({
           data: {
             name: quotationNumber,
@@ -914,11 +928,19 @@ export async function createQuotation(data: unknown) {
               : new Date(),
 
             services: {
-              create: validatedData.services.map((svc) => ({
-                serviceId: Number.parseInt(svc.serviceId),
-                price: svc.price,
-                quantity: svc.quantity,
-              })),
+              create: validatedData.services.map((svc) => {
+                const serviceIdInt = Number.parseInt(svc.serviceId, 10)
+                const trimmedOverride = svc.descriptionOverride?.trim()
+                return {
+                  serviceId: serviceIdInt,
+                  price: svc.price,
+                  quantity: svc.quantity,
+                  descriptionOverride:
+                    trimmedOverride && trimmedOverride.length > 0
+                      ? svc.descriptionOverride
+                      : (catalogDescriptionById.get(serviceIdInt) ?? ""),
+                }
+              }),
             },
             advisors: {
               create: finalAdvisorIds.map((id) => ({ userId: id })),
@@ -1276,9 +1298,41 @@ export async function editQuotationById(
     }
 
     // Full edit: replace catalogue line items (custom services live in CustomService)
+    // Snapshot existing per-line descriptionOverride values so we can preserve them
+    // across the delete-and-recreate when the client doesn't send a fresh override
+    // (e.g. legacy clients that haven't been redeployed).
+    const previousServiceRows = validatedData.services
+      ? await tx.quotationService.findMany({
+          where: { quotationId, serviceId: { not: null } },
+          select: { serviceId: true, descriptionOverride: true },
+        })
+      : []
+    const previousOverrideByServiceId = new Map<number, string>()
+    for (const row of previousServiceRows) {
+      if (row.serviceId != null && row.descriptionOverride != null) {
+        previousOverrideByServiceId.set(row.serviceId, row.descriptionOverride)
+      }
+    }
+
     await tx.quotationService.deleteMany({
       where: { quotationId },
     });
+
+    // Catalog descriptions used as fallback when neither the client payload nor the
+    // previous row supplied a description override.
+    let catalogDescriptionById: Map<number, string> = new Map()
+    if (validatedData.services) {
+      const serviceIds = validatedData.services.map((svc) =>
+        Number.parseInt(svc.serviceId, 10),
+      )
+      const catalogServices = await tx.services.findMany({
+        where: { id: { in: serviceIds } },
+        select: { id: true, description: true },
+      })
+      catalogDescriptionById = new Map(
+        catalogServices.map((s) => [s.id, s.description ?? ""]),
+      )
+    }
 
     // Calculate end date if start date and duration are provided
     let endDate: Date | undefined = undefined;
@@ -1346,11 +1400,23 @@ export async function editQuotationById(
       ...(validatedData.services
         ? {
             services: {
-              create: validatedData.services.map((svc) => ({
-                serviceId: Number.parseInt(svc.serviceId, 10),
-                price: svc.price,
-                quantity: svc.quantity,
-              })),
+              create: validatedData.services.map((svc) => {
+                const serviceIdInt = Number.parseInt(svc.serviceId, 10)
+                const trimmedOverride = svc.descriptionOverride?.trim()
+                const fallback =
+                  previousOverrideByServiceId.get(serviceIdInt) ??
+                  catalogDescriptionById.get(serviceIdInt) ??
+                  ""
+                return {
+                  serviceId: serviceIdInt,
+                  price: svc.price,
+                  quantity: svc.quantity,
+                  descriptionOverride:
+                    trimmedOverride && trimmedOverride.length > 0
+                      ? svc.descriptionOverride
+                      : fallback,
+                }
+              }),
             },
           }
         : {}),
