@@ -1241,24 +1241,6 @@ export async function updateLeaveType(data: UpdateLeaveTypeValues) {
 }
 
 export async function deleteLeaveType(id: number) {
-  const user = await getCurrentUser()
-  const isAdmin = await getCachedIsUserAdmin(user.id)
-  if (!isAdmin) throw new Error("Unauthorized")
-
-  const existing = await prisma.leaveType.findUnique({
-    where: { id },
-    include: { _count: { select: { applications: true, balances: true } } },
-  })
-  if (!existing) throw new Error("Leave type not found")
-  if (!existing.isDeletable) {
-    throw new Error(`"${existing.name}" cannot be deleted`)
-  }
-  if (existing._count.applications > 0 || existing._count.balances > 0) {
-    throw new Error(
-      `"${existing.name}" is in use by ${existing._count.applications} applications and ${existing._count.balances} balance rows; deactivate instead.`
-    )
-  }
-
-  await prisma.leaveType.delete({ where: { id } })
-  revalidateLeaveAndCalendar()
+  void id
+  throw new Error("Deletion is disabled. Please set the leave type to inactive instead.")
 }

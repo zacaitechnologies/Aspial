@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { formatLocalDate } from "@/lib/date-utils"
+import { formatLocalDate, formatMYTDateForDisplay } from "@/lib/date-utils"
 import SendReceiptDialog from "./SendReceiptDialog"
 import ReceiptEmailHistoryDialog from "./ReceiptEmailHistoryDialog"
 
@@ -120,7 +120,7 @@ export default function ReceiptCard({
 								<Badge variant="outline" className="text-[10px] py-0 px-1.5">Standalone</Badge>
 							)}
 							<span className="text-gray-400">•</span>
-							<span>{new Date(receipt.receiptDate ?? receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+							<span>{formatMYTDateForDisplay(new Date(receipt.receiptDate ?? receipt.created_at), { includeYear: true })}</span>
 							{receipt.paymentMethod && (
 								<>
 									<span className="text-gray-400">•</span>

@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatLocalDate } from "@/lib/date-utils"
+import { formatLocalDate, formatMYTDateForDisplay } from "@/lib/date-utils"
 import { formatNumber } from "@/lib/format-number"
 import { FormattedDescription } from "@/components/FormattedDescription"
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../types"
@@ -487,13 +487,13 @@ export default function ReceiptDetailClient({
 							<div>
 								<p className="text-sm font-medium text-muted-foreground">Receipt date</p>
 								<p className="font-medium">
-									{new Date(receipt.receiptDate ?? receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+									{formatMYTDateForDisplay(new Date(receipt.receiptDate ?? receipt.created_at), { includeYear: true })}
 								</p>
 							</div>
 							<div>
 								<p className="text-sm font-medium text-muted-foreground">Record created</p>
 								<p className="font-medium">
-									{new Date(receipt.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+									{formatMYTDateForDisplay(new Date(receipt.created_at), { includeYear: true })}
 								</p>
 							</div>
 							<div>

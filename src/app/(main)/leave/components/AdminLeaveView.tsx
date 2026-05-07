@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -28,6 +28,7 @@ import {
   rejectLeave,
   cancelLeave,
   fetchLeaveBalances,
+  fetchLeaveTypes,
 } from "../action"
 import { useToast } from "@/components/ui/use-toast"
 import type {
@@ -85,6 +86,7 @@ export default function AdminLeaveView({
   const [editingApp, setEditingApp] = useState<LeaveApplicationDTO | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [adminBalances, setAdminBalances] = useState<LeaveBalanceDTO[]>([])
+  const [adminLeaveTypes, setAdminLeaveTypes] = useState<LeaveTypeDTO[]>(initialLeaveTypes)
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -99,6 +101,10 @@ export default function AdminLeaveView({
   const [confirmRemarks, setConfirmRemarks] = useState("")
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
+
+  useEffect(() => {
+    setAdminLeaveTypes(initialLeaveTypes)
+  }, [initialLeaveTypes])
 
   const filteredApplications = initialApplications.filter((app) => {
     if (statusFilter !== "all" && app.status !== statusFilter) return false
@@ -139,18 +145,22 @@ export default function AdminLeaveView({
     }
   }
 
-  async function loadAdminBalances() {
-    const balances = await fetchLeaveBalances(currentUserId, currentYear)
+  async function loadApplyDialogData() {
+    const [balances, leaveTypes] = await Promise.all([
+      fetchLeaveBalances(currentUserId, currentYear),
+      fetchLeaveTypes(true),
+    ])
     setAdminBalances(balances)
+    setAdminLeaveTypes(leaveTypes)
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 min-w-0">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">Leave Management</h1>
         <Button
           onClick={async () => {
-            await loadAdminBalances()
+            await loadApplyDialogData()
             setShowApplyForm(true)
           }}
         >
@@ -237,7 +247,7 @@ export default function AdminLeaveView({
         <TabsContent value="applications" className="space-y-4 mt-4">
           <div className="flex flex-wrap gap-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[150px] min-w-[120px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -251,7 +261,7 @@ export default function AdminLeaveView({
             </Select>
 
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[150px] min-w-[120px]">
                 <SelectValue placeholder="Leave Type" />
               </SelectTrigger>
               <SelectContent>
@@ -326,7 +336,7 @@ export default function AdminLeaveView({
         open={showApplyForm}
         onOpenChange={setShowApplyForm}
         balances={adminBalances}
-        leaveTypes={initialLeaveTypes}
+        leaveTypes={adminLeaveTypes}
         onSuccess={refresh}
       />
 

@@ -940,19 +940,18 @@ export async function searchInvoicesForReceipt(searchTerm: string) {
 export async function searchClientsForReceipt(searchTerm: string) {
 	unstable_noStore()
 
-	if (!searchTerm || searchTerm.trim().length === 0) {
-		return []
-	}
-
 	const clients = await prisma.client.findMany({
-		where: {
-			OR: [
-				{ name: { contains: searchTerm, mode: "insensitive" } },
-				{ company: { contains: searchTerm, mode: "insensitive" } },
-				{ email: { contains: searchTerm, mode: "insensitive" } },
-				{ ic: { contains: searchTerm, mode: "insensitive" } },
-			],
-		},
+		where:
+			searchTerm && searchTerm.trim().length > 0
+				? {
+						OR: [
+							{ name: { contains: searchTerm, mode: "insensitive" } },
+							{ company: { contains: searchTerm, mode: "insensitive" } },
+							{ email: { contains: searchTerm, mode: "insensitive" } },
+							{ ic: { contains: searchTerm, mode: "insensitive" } },
+						],
+				  }
+				: undefined,
 		select: {
 			id: true,
 			name: true,
@@ -972,7 +971,7 @@ export async function searchClientsForReceipt(searchTerm: string) {
 			},
 		},
 		orderBy: { created_at: "desc" },
-		take: 20,
+		take: 50,
 	})
 
 	return clients.map((c) => ({

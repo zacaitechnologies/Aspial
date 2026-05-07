@@ -95,6 +95,10 @@ export const salesDataFiltersSchema = z.object({
   month: z.number().int().min(0).max(11).optional(),
   advisorId: z.string().optional(),
   viewMode: z.enum(["monthly", "yearly"]).optional(),
+  invoicePage: z.number().int().min(1).optional(),
+  invoicePageSize: z.number().int().min(1).max(100).optional(),
+  receiptPage: z.number().int().min(1).optional(),
+  receiptPageSize: z.number().int().min(1).max(100).optional(),
 });
 
 export type SalesDataFilters = z.infer<typeof salesDataFiltersSchema>;

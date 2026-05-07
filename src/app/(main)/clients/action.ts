@@ -19,7 +19,7 @@ import {
   type SalesDataFilters
 } from "@/lib/validation"
 import { z } from "zod"
-import type { InvoiceStatus, Prisma } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -1136,7 +1136,16 @@ export async function getSalesData(filters: unknown) {
       throw new Error("User not found in database")
     }
 
-    const { year, month, advisorId, viewMode = 'yearly' } = validatedFilters
+    const {
+      year,
+      month,
+      advisorId,
+      viewMode = 'yearly',
+      invoicePage = 1,
+      invoicePageSize = 10,
+      receiptPage = 1,
+      receiptPageSize = 10,
+    } = validatedFilters
     const useGrossCompanyTotals = isAdmin && advisorId == null
     const targetAdvisorIdForAttribution =
       useGrossCompanyTotals
@@ -1145,9 +1154,9 @@ export async function getSalesData(filters: unknown) {
           ? advisorId
           : currentDbUser.id
     
-    // Build where clause for invoices
-    const where: Prisma.InvoiceWhereInput = {
-      status: "active" as InvoiceStatus, // Exclude cancelled invoices
+    // Build where clause for invoices (exclude cancelled only)
+    const invoiceWhere: Prisma.InvoiceWhereInput = {
+      status: { not: "cancelled" },
       ...(year && {
         invoiceDate: {
           gte: new Date(year, month !== undefined ? month : 0, 1),
@@ -1166,81 +1175,78 @@ export async function getSalesData(filters: unknown) {
         },
       })
     }
-    
-    // Get invoices with quotation, client, and advisor info
-    const invoices = await prisma.invoice.findMany({
-      where,
-      include: {
+
+    // Analytics dataset (full filtered set, minimal projection)
+    const invoiceAnalyticsRows = await prisma.invoice.findMany({
+      where: invoiceWhere,
+      select: {
+        amount: true,
+        invoiceDate: true,
+        quotation: {
+          select: {
+            clientId: true,
+          },
+        },
         advisors: {
-          include: {
+          select: {
             user: {
               select: {
                 id: true,
                 firstName: true,
                 lastName: true,
-                email: true,
-              }
-            }
-          }
-        },
-        quotation: {
-          include: {
-            Client: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                company: true,
-                membershipType: true,
-              }
+              },
             },
-          }
-        }
+          },
+        },
       },
-      orderBy: {
-        created_at: 'desc'
-      }
-    }) as Array<{
-      id: string
-      invoiceNumber: string
-      type: string
-      quotationId: number
-      amount: number
-      createdById: string
-      status: InvoiceStatus
-      invoiceDate: Date
-      created_at: Date
-      updated_at: Date
-      advisors: Array<{
-        userId: string
-        user: {
-          id: string
-          firstName: string
-          lastName: string
-          email: string
-        }
-      }>
-      quotation: {
-        id: number
-        name: string
-        clientId: string
-        Client: {
-          id: string
-          name: string
-          email: string
-          company: string | null
-          membershipType: string | null
-        }
-      }
-    }>
+    })
     
     // Totals: gross = full invoice (admin + all advisors); attributed = each invoice amount ÷ advisor count
-    const totalSales = invoices.reduce(
+    const totalSales = invoiceAnalyticsRows.reduce(
       (sum, inv) => sum + revenueForSalesContext(inv, useGrossCompanyTotals),
       0
     )
-    const totalClients = new Set(invoices.map(inv => inv.quotation.clientId)).size
-    const totalInvoices = invoices.length
+    const totalClients = new Set(invoiceAnalyticsRows.map(inv => inv.quotation.clientId)).size
+    const totalInvoices = invoiceAnalyticsRows.length
+
+    const [invoiceTotal, pagedInvoices] = await Promise.all([
+      prisma.invoice.count({ where: invoiceWhere }),
+      prisma.invoice.findMany({
+        where: invoiceWhere,
+        include: {
+          advisors: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          quotation: {
+            include: {
+              Client: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  company: true,
+                  membershipType: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          created_at: "desc",
+        },
+        skip: (invoicePage - 1) * invoicePageSize,
+        take: invoicePageSize,
+      }),
+    ])
     
     // Group by advisor — split amount by number of advisors on each invoice
     const salesByAdvisor: Record<string, {
@@ -1252,7 +1258,7 @@ export async function getSalesData(filters: unknown) {
       _clientIds: Set<string>
     }> = {}
 
-    invoices.forEach(inv => {
+    invoiceAnalyticsRows.forEach(inv => {
       const ac = invoiceAdvisorCount(inv)
       const splitAmount = inv.amount / ac
 
@@ -1287,7 +1293,7 @@ export async function getSalesData(filters: unknown) {
     if (viewMode === 'yearly' && year) {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
       monthlyBreakdown = months.map((monthName, monthIndex) => {
-        const monthInvoices = invoices.filter(inv => {
+        const monthInvoices = invoiceAnalyticsRows.filter(inv => {
           const invDate = new Date(inv.invoiceDate)
           return invDate.getMonth() === monthIndex
         })
@@ -1304,14 +1310,127 @@ export async function getSalesData(filters: unknown) {
         }
       })
     }
+
+    const receiptWhere: Prisma.ReceiptWhereInput = {
+      status: { not: "cancelled" },
+      ...(year && {
+        receiptDate: {
+          gte: new Date(year, month !== undefined ? month : 0, 1),
+          lte: month !== undefined
+            ? new Date(year, month + 1, 0, 23, 59, 59, 999)
+            : new Date(year, 11, 31, 23, 59, 59, 999),
+        },
+      }),
+      ...((!isAdmin || (advisorId && advisorId !== "all")) && {
+        OR: [
+          // Preferred attribution source: explicit receipt advisors
+          {
+            advisors: {
+              some: {
+                userId: !isAdmin ? currentDbUser.id : advisorId,
+              },
+            },
+          },
+          // Backward-compatible fallback for older standalone receipts without advisor rows
+          { invoiceId: null, createdById: !isAdmin ? currentDbUser.id : advisorId },
+        ],
+      }),
+    }
+
+    const [cashSalesRows, receiptTotal, pagedReceipts] = await Promise.all([
+      prisma.receipt.findMany({
+        where: receiptWhere,
+        select: {
+          amount: true,
+          advisors: {
+            select: { userId: true },
+          },
+        },
+      }),
+      prisma.receipt.count({ where: receiptWhere }),
+      prisma.receipt.findMany({
+        where: receiptWhere,
+        select: {
+          id: true,
+          receiptNumber: true,
+          amount: true,
+          status: true,
+          paymentMethod: true,
+          receiptDate: true,
+          created_at: true,
+          invoiceId: true,
+          invoice: {
+            select: {
+              invoiceNumber: true,
+              quotation: {
+                select: {
+                  Client: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                      company: true,
+                      membershipType: true,
+                    },
+                  },
+                },
+              },
+              advisors: {
+                select: {
+                  user: {
+                    select: {
+                      id: true,
+                      firstName: true,
+                      lastName: true,
+                      email: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          client: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              company: true,
+              membershipType: true,
+            },
+          },
+          advisors: {
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { created_at: "desc" },
+        skip: (receiptPage - 1) * receiptPageSize,
+        take: receiptPageSize,
+      }),
+    ])
+
+    const cashSales = cashSalesRows.reduce((sum, receipt) => {
+      if (useGrossCompanyTotals) return sum + receipt.amount
+      const advisorCount = receipt.advisors.length > 0 ? receipt.advisors.length : 1
+      return sum + receipt.amount / advisorCount
+    }, 0)
     
     return {
       revenueView: useGrossCompanyTotals ? ("gross" as const) : ("attributed" as const),
       totalSales,
+      cashSales,
       totalClients,
       totalInvoices,
       monthlyBreakdown,
-      invoices: invoices.map((inv) => {
+      invoices: pagedInvoices.map((inv) => {
         const ac = invoiceAdvisorCount(inv)
         const grossAmount = inv.amount
         return {
@@ -1336,6 +1455,53 @@ export async function getSalesData(filters: unknown) {
         })),
         }
       }),
+      invoicePagination: {
+        page: invoicePage,
+        pageSize: invoicePageSize,
+        total: invoiceTotal,
+        totalPages: Math.max(1, Math.ceil(invoiceTotal / invoicePageSize)),
+      },
+      receipts: pagedReceipts.map((receipt) => {
+        const linkedClient = receipt.invoice?.quotation.Client
+        const standaloneClient = receipt.client
+        const resolvedClient = linkedClient ?? standaloneClient
+        const receiptAdvisors = receipt.advisors.map((a) => ({
+          id: a.user.id,
+          name: `${a.user.firstName} ${a.user.lastName}`,
+          email: a.user.email,
+        }))
+        const invoiceAdvisors = (receipt.invoice?.advisors ?? []).map((a) => ({
+          id: a.user.id,
+          name: `${a.user.firstName} ${a.user.lastName}`,
+          email: a.user.email,
+        }))
+        return {
+          id: receipt.id,
+          receiptNumber: receipt.receiptNumber,
+          amount: receipt.amount,
+          paymentMethod: receipt.paymentMethod,
+          receiptDate: receipt.receiptDate.toISOString(),
+          created_at: receipt.created_at.toISOString(),
+          source: receipt.invoiceId ? ("invoice-linked" as const) : ("standalone" as const),
+          linkedInvoiceNumber: receipt.invoice?.invoiceNumber ?? null,
+          client: resolvedClient
+            ? {
+                id: resolvedClient.id,
+                name: resolvedClient.name,
+                email: resolvedClient.email,
+                company: resolvedClient.company,
+                membershipType: resolvedClient.membershipType,
+              }
+            : null,
+          advisors: receiptAdvisors.length > 0 ? receiptAdvisors : invoiceAdvisors,
+        }
+      }),
+      receiptPagination: {
+        page: receiptPage,
+        pageSize: receiptPageSize,
+        total: receiptTotal,
+        totalPages: Math.max(1, Math.ceil(receiptTotal / receiptPageSize)),
+      },
       salesByAdvisor: Object.values(salesByAdvisor)
         .filter((row) => {
           if (useGrossCompanyTotals) return true

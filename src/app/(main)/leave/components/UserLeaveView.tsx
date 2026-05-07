@@ -145,8 +145,8 @@ export default function UserLeaveView({
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 min-w-0">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">My Leaves</h1>
         <Button onClick={() => setShowApplyForm(true)}>
           <Plus className="h-4 w-4 mr-2" />

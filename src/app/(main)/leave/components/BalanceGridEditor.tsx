@@ -198,7 +198,7 @@ export default function BalanceGridEditor({
   }, [users, grid])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h3 className="text-lg font-semibold">Override Employee Balances</h3>
@@ -218,7 +218,7 @@ export default function BalanceGridEditor({
         </div>
       </div>
 
-      <div className="rounded-md border overflow-x-auto">
+      <div className="rounded-md border">
         {loading ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="h-5 w-5 mr-2 animate-spin" /> Loading balances...
@@ -227,18 +227,18 @@ export default function BalanceGridEditor({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="sticky left-0 bg-background z-10 min-w-[200px]">
+                <TableHead className="sticky left-0 z-20 bg-background min-w-[160px]">
                   Employee
                 </TableHead>
                 {paidLeaveTypes.map((t) => (
-                  <TableHead key={t.code} className="min-w-[180px]">
+                  <TableHead key={t.code} className="min-w-[140px]">
                     {t.name}
                     <span className="block text-[10px] font-normal text-muted-foreground">
                       default {t.defaultEntitlement}
                     </span>
                   </TableHead>
                 ))}
-                <TableHead className="text-right min-w-[120px]">Save</TableHead>
+                <TableHead className="text-right min-w-[90px]">Save</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -257,7 +257,7 @@ export default function BalanceGridEditor({
                 const isDirty = dirtyByUser[u.id]
                 return (
                   <TableRow key={u.id}>
-                    <TableCell className="sticky left-0 bg-background z-10 font-medium">
+                    <TableCell className="sticky left-0 z-10 bg-background font-medium">
                       <div>{u.firstName} {u.lastName}</div>
                       {isDirty && (
                         <Badge variant="outline" className="mt-1 bg-amber-50 text-amber-800 border-amber-200">

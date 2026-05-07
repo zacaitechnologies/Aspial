@@ -229,12 +229,18 @@ export default function CreateReceiptForm({
 				handleSearch()
 			} else {
 				setSearchResults([])
-				setClientSearchResults([])
+				if (mode === "standalone" && !selectedClient) {
+					void searchClientsForReceipt("")
+						.then((results) => setClientSearchResults(results))
+						.catch(() => setClientSearchResults([]))
+				} else {
+					setClientSearchResults([])
+				}
 			}
 		}, 300)
 
 		return () => clearTimeout(timer)
-	}, [searchQuery, handleSearch])
+	}, [searchQuery, handleSearch, mode, selectedClient])
 
 	const handleInvoiceSelect = async (invoiceId: string) => {
 		// Find invoice in search results first
@@ -518,21 +524,17 @@ export default function CreateReceiptForm({
 							{clientSearchResults.length > 0 && !selectedClient && (
 								<div className="border rounded-lg max-h-60 overflow-y-auto">
 									{clientSearchResults.map((client) => (
-										<Card
+										<div
 											key={client.id}
-											className="cursor-pointer hover:bg-gray-50 border-0 border-b last:border-b-0 rounded-none"
+											className="cursor-pointer border-b last:border-b-0 px-3 py-1.5 hover:bg-muted/40"
 											onClick={() => handleClientSelect(client)}
 										>
-											<CardContent className="p-3">
-												<div>
-													<p className="font-semibold">{client.name}</p>
-													{client.company && (
-														<p className="text-sm text-muted-foreground">{client.company}</p>
-													)}
-													<p className="text-xs text-muted-foreground mt-1">{client.email}</p>
-												</div>
-											</CardContent>
-										</Card>
+											<p className="text-sm font-semibold leading-tight">{client.name}</p>
+											{client.company && (
+												<p className="text-xs text-muted-foreground leading-tight">{client.company}</p>
+											)}
+											<p className="text-xs text-muted-foreground leading-tight">{client.email}</p>
+										</div>
 									))}
 								</div>
 							)}

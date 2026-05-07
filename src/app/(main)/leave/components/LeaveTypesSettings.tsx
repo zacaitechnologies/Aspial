@@ -22,9 +22,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Pencil, Plus, Trash2, Lock } from "lucide-react"
+import { Pencil, Plus, Lock, Power, RotateCcw } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { createLeaveType, updateLeaveType, deleteLeaveType } from "../action"
+import { createLeaveType, updateLeaveType } from "../action"
 import type { LeaveTypeDTO } from "../types"
 
 type LeaveTypeRow = LeaveTypeDTO & { _count: { applications: number; balances: number } }
@@ -58,7 +58,6 @@ const emptyDraft: DraftType = {
 export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSettingsProps) {
   const [draft, setDraft] = useState<DraftType | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const { toast } = useToast()
 
   const isEdit = draft?.id !== undefined
@@ -127,17 +126,23 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
     }
   }
 
-  async function handleDelete(id: number) {
+  async function handleToggleActive(t: LeaveTypeRow) {
     setIsLoading(true)
     try {
-      await deleteLeaveType(id)
-      toast({ title: "Leave type deleted" })
-      setConfirmDeleteId(null)
+      await updateLeaveType({
+        id: t.id,
+        name: t.name,
+        defaultEntitlement: t.defaultEntitlement,
+        isUnpaid: t.isUnpaid,
+        requiresReplacementDate: t.requiresReplacementDate,
+        isActive: !t.isActive,
+      })
+      toast({ title: t.isActive ? "Leave type deactivated" : "Leave type reactivated" })
       onSuccess?.()
     } catch (error) {
       toast({
-        title: "Cannot delete",
-        description: error instanceof Error ? error.message : "Failed to delete",
+        title: "Update failed",
+        description: error instanceof Error ? error.message : "Failed to update leave type",
         variant: "destructive",
       })
     } finally {
@@ -214,15 +219,26 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => setConfirmDeleteId(t.id)}
-                      disabled={
-                        !t.isDeletable || t._count.applications > 0 || t._count.balances > 0
+                      size="sm"
+                      className={
+                        t.isActive
+                          ? "h-8 border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800"
+                          : "h-8 border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-800"
                       }
-                      aria-label="Delete"
+                      onClick={() => handleToggleActive(t)}
+                      disabled={isLoading}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      {t.isActive ? (
+                        <>
+                          <Power className="mr-1 h-3.5 w-3.5" />
+                          Deactivate
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                          Reactivate
+                        </>
+                      )}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -359,35 +375,6 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation */}
-      <Dialog
-        open={confirmDeleteId !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirmDeleteId(null)
-        }}
-      >
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Delete leave type?</DialogTitle>
-            <DialogDescription>
-              This permanently removes the leave type. Types with existing applications or balances
-              cannot be deleted; deactivate them instead.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDeleteId(null)} disabled={isLoading}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => confirmDeleteId !== null && handleDelete(confirmDeleteId)}
-              disabled={isLoading}
-            >
-              {isLoading ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

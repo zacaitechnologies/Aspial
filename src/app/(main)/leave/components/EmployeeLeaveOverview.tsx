@@ -122,7 +122,9 @@ export default function EmployeeLeaveOverviewTable({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className="text-foreground font-semibold">Employee</TableHead>
+                <TableHead className="sticky left-0 z-20 bg-background text-foreground font-semibold">
+                  Employee
+                </TableHead>
                 <TableHead className="text-foreground font-semibold">Role</TableHead>
                 <TableHead className="text-foreground font-semibold">Last leave</TableHead>
                 <TableHead className="text-foreground font-semibold">Next leave</TableHead>
@@ -146,7 +148,7 @@ export default function EmployeeLeaveOverviewTable({
               ) : (
                 filtered.map((emp) => (
                   <TableRow key={emp.userId} className="hover:bg-muted/30">
-                    <TableCell className="font-medium text-foreground">
+                    <TableCell className="sticky left-0 z-10 bg-background font-medium text-foreground">
                       {emp.firstName} {emp.lastName}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
@@ -188,7 +190,7 @@ export default function EmployeeLeaveOverviewTable({
                     {summaryColumns.map((t) => {
                       const bal = emp.balances.find((b) => b.leaveType === t.code)
                       return (
-                        <TableCell key={t.code} className="text-sm whitespace-nowrap">
+                        <TableCell key={t.code} className="text-sm">
                           {bal ? (
                             t.isUnpaid ? (
                               <span>

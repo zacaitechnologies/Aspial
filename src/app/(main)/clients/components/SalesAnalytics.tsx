@@ -13,6 +13,7 @@ import { getSalesData, getAllAdvisors } from "../action"
 import { checkIsAdmin } from "../../actions/admin-actions"
 import { useSession } from "../../contexts/SessionProvider"
 import { formatNumber } from "@/lib/format-number"
+import { ProjectPagination } from "@/app/(main)/projects/components/ProjectPagination"
 
 interface SalesAnalyticsProps {
   defaultYear?: number
@@ -28,9 +29,14 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
   const [month, setMonth] = useState<string>(defaultMonth !== undefined ? defaultMonth.toString() : currentDate.getMonth().toString())
   const [advisorId, setAdvisorId] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [invoicePage, setInvoicePage] = useState(1)
+  const [invoicePageSize, setInvoicePageSize] = useState(10)
+  const [receiptPage, setReceiptPage] = useState(1)
+  const [receiptPageSize, setReceiptPageSize] = useState(10)
   const [salesData, setSalesData] = useState<{
     revenueView: "gross" | "attributed"
     totalSales: number
+    cashSales: number
     totalClients: number
     totalInvoices: number
     monthlyBreakdown?: Array<{
@@ -54,6 +60,30 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       client: { id: string; name: string; email: string; company: string | null; membershipType: string | null }
       advisors: Array<{ id: string; name: string; email: string }>
     }>
+    invoicePagination: {
+      page: number
+      pageSize: number
+      total: number
+      totalPages: number
+    }
+    receipts: Array<{
+      id: string
+      receiptNumber: string
+      amount: number
+      paymentMethod: string | null
+      receiptDate: string
+      created_at: string
+      source: "standalone" | "invoice-linked"
+      linkedInvoiceNumber: string | null
+      client: { id: string; name: string; email: string; company: string | null; membershipType: string | null } | null
+      advisors: Array<{ id: string; name: string; email: string }>
+    }>
+    receiptPagination: {
+      page: number
+      pageSize: number
+      total: number
+      totalPages: number
+    }
     salesByAdvisor: Array<{
       advisorId: string
       advisorName: string
@@ -108,6 +138,10 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
           month: viewMode === 'monthly' ? parseInt(month) : undefined,
           advisorId: advisorId !== 'all' ? advisorId : undefined,
           viewMode,
+          invoicePage,
+          invoicePageSize,
+          receiptPage,
+          receiptPageSize,
         })
         setSalesData(data)
       } catch (error) {
@@ -120,6 +154,11 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       }
     }
     fetchData()
+  }, [year, month, advisorId, viewMode, invoicePage, invoicePageSize, receiptPage, receiptPageSize])
+
+  useEffect(() => {
+    setInvoicePage(1)
+    setReceiptPage(1)
   }, [year, month, advisorId, viewMode])
 
   // Generate year options (current year and past 5 years)
@@ -131,7 +170,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
     'July', 'August', 'September', 'October', 'November', 'December'
   ]
 
-  // Filter invoices based on search term
+  // Filter current invoice/receipt page rows based on search term
   const filteredInvoices = salesData?.invoices?.filter((invoice) => {
     const searchLower = searchTerm.toLowerCase()
     return (
@@ -139,6 +178,16 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
       invoice.quotation?.name?.toLowerCase().includes(searchLower) ||
       invoice.client?.name?.toLowerCase().includes(searchLower) ||
       invoice.advisors?.some(a => a.name?.toLowerCase().includes(searchLower))
+    )
+  }) || []
+
+  const filteredReceipts = salesData?.receipts?.filter((receipt) => {
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      receipt.receiptNumber.toLowerCase().includes(searchLower) ||
+      (receipt.linkedInvoiceNumber?.toLowerCase().includes(searchLower) ?? false) ||
+      (receipt.client?.name?.toLowerCase().includes(searchLower) ?? false) ||
+      receipt.advisors?.some((a) => a.name?.toLowerCase().includes(searchLower))
     )
   }) || []
 
@@ -150,7 +199,7 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search invoices..."
+            placeholder="Search invoices or receipts on current page..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 border-2 bg-card border-border"
@@ -291,12 +340,9 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Avg per Invoice</p>
+                    <p className="text-sm font-medium text-muted-foreground">Cash Sales</p>
                     <p className="text-3xl font-bold text-foreground tabular-nums">
-                      RM{" "}
-                      {salesData.totalInvoices > 0
-                        ? formatNumber(salesData.totalSales / salesData.totalInvoices)
-                        : formatNumber(0)}
+                      RM {formatNumber(salesData.cashSales)}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-accent">
@@ -393,7 +439,9 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-foreground">
-                  {viewMode === 'yearly' ? `All Invoices (${filteredInvoices.length})` : `Invoices for ${months[parseInt(month)]} ${year} (${filteredInvoices.length})`}
+                  {viewMode === 'yearly'
+                    ? `All Invoices (${salesData.invoicePagination.total})`
+                    : `Invoices for ${months[parseInt(month)]} ${year} (${salesData.invoicePagination.total})`}
                 </CardTitle>
               </div>
             </CardHeader>
@@ -473,10 +521,113 @@ export default function SalesAnalytics({ defaultYear, defaultMonth }: SalesAnaly
                 <div className="p-12 text-center">
                   <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-lg text-muted-foreground">
-                    {searchTerm ? 'No invoices match your search' : 'No invoices found'}
+                    {searchTerm ? 'No invoices on this page match your search' : 'No invoices found'}
                   </p>
                 </div>
               )}
+              <ProjectPagination
+                currentPage={salesData.invoicePagination.page}
+                totalPages={salesData.invoicePagination.totalPages}
+                pageSize={salesData.invoicePagination.pageSize}
+                total={salesData.invoicePagination.total}
+                onPageChange={setInvoicePage}
+                onPageSizeChange={(size) => {
+                  setInvoicePageSize(size)
+                  setInvoicePage(1)
+                }}
+                itemLabel="invoices"
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card border-2 border-border">
+            <CardHeader>
+              <CardTitle className="text-foreground">
+                {viewMode === 'yearly'
+                  ? `All Receipts (${salesData.receiptPagination.total})`
+                  : `Receipts for ${months[parseInt(month)]} ${year} (${salesData.receiptPagination.total})`}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {filteredReceipts.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted">
+                        <TableHead className="font-bold whitespace-nowrap text-foreground">Receipt Number</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap text-foreground">Source</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap text-foreground">Linked Invoice</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap text-foreground">Client</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap text-foreground">Advisor</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap text-foreground">Payment Method</TableHead>
+                        <TableHead className="text-right font-bold whitespace-nowrap text-foreground">Amount</TableHead>
+                        <TableHead className="font-bold whitespace-nowrap text-foreground">Receipt Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredReceipts.map((receipt) => (
+                        <TableRow key={receipt.id} className="hover:bg-muted">
+                          <TableCell className="font-medium text-foreground">{receipt.receiptNumber}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {receipt.source === "invoice-linked" ? "Invoice-linked" : "Standalone"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {receipt.linkedInvoiceNumber ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              {receipt.client?.name ?? "N/A"}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            <div className="flex items-center gap-2">
+                              <UserIcon className="h-4 w-4 text-muted-foreground" />
+                              {receipt.advisors.length > 0
+                                ? receipt.advisors.map((a) => a.name).join(", ")
+                                : "N/A"}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {receipt.paymentMethod ?? "N/A"}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-foreground tabular-nums whitespace-nowrap">
+                            RM {formatNumber(receipt.amount)}
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {new Date(receipt.receiptDate).toLocaleDateString('en-GB', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="p-12 text-center">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-lg text-muted-foreground">
+                    {searchTerm ? 'No receipts on this page match your search' : 'No receipts found'}
+                  </p>
+                </div>
+              )}
+              <ProjectPagination
+                currentPage={salesData.receiptPagination.page}
+                totalPages={salesData.receiptPagination.totalPages}
+                pageSize={salesData.receiptPagination.pageSize}
+                total={salesData.receiptPagination.total}
+                onPageChange={setReceiptPage}
+                onPageSizeChange={(size) => {
+                  setReceiptPageSize(size)
+                  setReceiptPage(1)
+                }}
+                itemLabel="receipts"
+              />
             </CardContent>
           </Card>
         </>
