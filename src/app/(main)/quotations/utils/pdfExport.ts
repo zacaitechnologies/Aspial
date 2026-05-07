@@ -617,7 +617,9 @@ async function generateQuotationPDFInternal(quotation: QuotationWithServices) {
   const allServices = [
     ...regularServices.map((s) => ({
       name: sanitizePdfText(s.service?.name ?? ""),
-      description: sanitizePdfText(s.service?.description ?? ""),
+      description: sanitizePdfText(
+        s.descriptionOverride ?? s.service?.description ?? "",
+      ),
       price: s.price,
       quantity: s.quantity,
       type: "service",
@@ -1022,7 +1024,9 @@ async function _generateQuotationPDFBase64Internal(quotation: QuotationWithServi
   const allServices = [
     ...regularServices.map((s) => ({
       name: sanitizePdfText(s.service?.name ?? ""),
-      description: sanitizePdfText(s.service?.description ?? ""),
+      description: sanitizePdfText(
+        s.descriptionOverride ?? s.service?.description ?? "",
+      ),
       price: s.price,
       quantity: s.quantity,
       type: "service",
