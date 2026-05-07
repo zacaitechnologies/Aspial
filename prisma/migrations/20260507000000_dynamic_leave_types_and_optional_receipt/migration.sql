@@ -21,19 +21,19 @@ CREATE TABLE "leave_type" (
   "sortOrder"                INTEGER      NOT NULL DEFAULT 0,
   "isActive"                 BOOLEAN      NOT NULL DEFAULT TRUE,
   "created_at"               TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updated_at"               TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  "updated_at"               TIMESTAMP(3) NOT NULL 
 );
 
 CREATE UNIQUE INDEX "leave_type_code_key" ON "leave_type" ("code");
 
-INSERT INTO "leave_type" ("code", "name", "defaultEntitlement", "isDeletable", "isUnpaid", "requiresReplacementDate", "sortOrder")
+INSERT INTO "leave_type" ("code", "name", "defaultEntitlement", "isDeletable", "isUnpaid", "requiresReplacementDate", "sortOrder", "updated_at")
 VALUES
-  ('ANNUAL',      'Annual Leave',      14, FALSE, FALSE, FALSE, 10),
-  ('MEDICAL',     'Medical Leave',     14, TRUE,  FALSE, FALSE, 20),
-  ('MATERNITY',   'Maternity Leave',   98, TRUE,  FALSE, FALSE, 30),
-  ('PATERNITY',   'Paternity Leave',    7, TRUE,  FALSE, FALSE, 40),
-  ('REPLACEMENT', 'Replacement Leave',  0, TRUE,  FALSE, TRUE,  50),
-  ('UNPAID',      'Unpaid Leave',       0, FALSE, TRUE,  FALSE, 60)
+  ('ANNUAL',      'Annual Leave',      14, FALSE, FALSE, FALSE, 10, CURRENT_TIMESTAMP),
+  ('MEDICAL',     'Medical Leave',     14, TRUE,  FALSE, FALSE, 20, CURRENT_TIMESTAMP),
+  ('MATERNITY',   'Maternity Leave',   98, TRUE,  FALSE, FALSE, 30, CURRENT_TIMESTAMP),
+  ('PATERNITY',   'Paternity Leave',    7, TRUE,  FALSE, FALSE, 40, CURRENT_TIMESTAMP),
+  ('REPLACEMENT', 'Replacement Leave',  0, TRUE,  FALSE, TRUE,  50, CURRENT_TIMESTAMP),
+  ('UNPAID',      'Unpaid Leave',       0, FALSE, TRUE,  FALSE, 60, CURRENT_TIMESTAMP)
 ON CONFLICT ("code") DO NOTHING;
 
 -- ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Table,
   TableBody,
@@ -57,7 +57,11 @@ export default function BalanceGridEditor({
   const [loading, setLoading] = useState(false)
   const [savingUserId, setSavingUserId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
+  // Stabilise toast: useToast() returns a new arrow function on every render.
+  // If put in a useEffect dep array it would retrigger the load on every render (infinite loop).
   const { toast } = useToast()
+  const toastRef = useRef(toast)
+  toastRef.current = toast
 
   useEffect(() => {
     let cancelled = false
@@ -97,7 +101,7 @@ export default function BalanceGridEditor({
         }
         setGrid(next)
       } catch (error) {
-        toast({
+        toastRef.current({
           title: "Failed to load balances",
           description: error instanceof Error ? error.message : "Try again.",
           variant: "destructive",
@@ -110,7 +114,7 @@ export default function BalanceGridEditor({
     return () => {
       cancelled = true
     }
-  }, [currentYear, users, paidLeaveTypes, toast])
+  }, [currentYear, users, paidLeaveTypes])
 
   function setDraft(userId: string, code: string, value: string) {
     setGrid((prev) => {
@@ -165,10 +169,10 @@ export default function BalanceGridEditor({
         next[userId] = row
         return next
       })
-      toast({ title: "Balances saved" })
+      toastRef.current({ title: "Balances saved" })
       onSuccess?.()
     } catch (error) {
-      toast({
+      toastRef.current({
         title: "Save failed",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
