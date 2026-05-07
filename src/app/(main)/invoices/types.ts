@@ -113,6 +113,12 @@ export type InvoiceWithQuotation = {
 		lastName: string
 		email: string
 	}>
+	photographers?: Array<{
+		id: string
+		firstName: string
+		lastName: string
+		email: string
+	}>
 }
 
 export type InvoiceFormData = {

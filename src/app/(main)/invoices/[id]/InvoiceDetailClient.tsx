@@ -627,15 +627,23 @@ export default function InvoiceDetailClient({
 									{invoice.createdBy.firstName} {invoice.createdBy.lastName}
 								</p>
 							</div>
-							{invoice.advisors && invoice.advisors.length > 0 && (
-								<div>
-									<p className="text-sm font-medium text-muted-foreground">Advisors</p>
-									<p className="font-medium">
-										{invoice.advisors.map((a) => `${a.firstName} ${a.lastName}`).join(', ')}
-									</p>
-								</div>
-							)}
-						</CardContent>
+						{invoice.advisors && invoice.advisors.length > 0 && (
+							<div>
+								<p className="text-sm font-medium text-muted-foreground">Advisors</p>
+								<p className="font-medium">
+									{invoice.advisors.map((a) => `${a.firstName} ${a.lastName}`).join(', ')}
+								</p>
+							</div>
+						)}
+						{invoice.type === "EPO" && invoice.photographers && invoice.photographers.length > 0 && (
+							<div>
+								<p className="text-sm font-medium text-muted-foreground">Photographers</p>
+								<p className="font-medium">
+									{invoice.photographers.map((p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`).join(', ')}
+								</p>
+							</div>
+						)}
+					</CardContent>
 					</Card>
 				</div>
 			</div>

@@ -281,6 +281,8 @@ export const createInvoiceSchema = z.object({
 	amount: z.number().positive("Invoice amount must be greater than 0"),
 	createdById: z.string().optional(),
 	advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
+	/** Photographer IDs — only applicable for EPO invoices. */
+	photographerIds: z.array(z.string()).optional(),
 	/** Invoice document date (`invoiceDate`), HTML date input `YYYY-MM-DD`. */
 	invoiceDate: z.string().optional(),
 });
@@ -289,12 +291,13 @@ export type CreateInvoiceValues = z.infer<typeof createInvoiceSchema>;
 
 export const updateInvoiceAdminSchema = z.object({
 	advisorIds: z.array(z.string()).min(1, "At least one advisor is required").optional(),
+	/** Photographer IDs — only applicable for EPO invoices. */
+	photographerIds: z.array(z.string()).optional(),
 	status: invoiceStatusSchema.optional(),
 	/** Invoice document date (invoiceDate). Admin only. */
 	invoiceDate: z.string().optional(),
 }).refine((data) => {
-	// At least one field must be provided
-	return data.advisorIds !== undefined || data.status !== undefined || data.invoiceDate !== undefined;
+	return data.advisorIds !== undefined || data.photographerIds !== undefined || data.status !== undefined || data.invoiceDate !== undefined;
 }, {
 	message: "At least one field must be provided",
 });

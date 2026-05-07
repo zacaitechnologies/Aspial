@@ -113,23 +113,35 @@ async function _getInvoicesPaginatedInternal(
 						updated_at: true,
 					},
 				},
-				advisors: {
-					include: {
-						user: {
-							select: {
-								id: true,
-								firstName: true,
-								lastName: true,
-								email: true,
-							},
+			advisors: {
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
 						},
 					},
 				},
 			},
-			orderBy: { created_at: "desc" },
-			skip,
-			take: pageSize,
-		})
+			photographers: {
+				include: {
+					user: {
+						select: {
+							id: true,
+							firstName: true,
+							lastName: true,
+							email: true,
+						},
+					},
+				},
+			},
+		},
+		orderBy: { created_at: "desc" },
+		skip,
+		take: pageSize,
+	})
 	])
 
 	// Transform data
@@ -159,6 +171,7 @@ async function _getInvoicesPaginatedInternal(
 				: null,
 			createdBy: invoice.createdBy,
 			advisors: invoice.advisors.map((a) => a.user),
+			photographers: invoice.photographers.map((p) => p.user),
 			Client: invoice.quotation?.Client || null,
 		}
 	})
@@ -365,30 +378,42 @@ export async function getInvoiceFullById(id: unknown) {
 					},
 				},
 			},
-			createdBy: true,
-			advisors: {
-				include: {
-					user: {
-						select: {
-							id: true,
-							firstName: true,
-							lastName: true,
-							email: true,
-						},
+		createdBy: true,
+		advisors: {
+			include: {
+				user: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
 					},
 				},
 			},
 		},
-	})
+		photographers: {
+			include: {
+				user: {
+					select: {
+						id: true,
+						firstName: true,
+						lastName: true,
+						email: true,
+					},
+				},
+			},
+		},
+	},
+})
 
 	if (!invoice) {
 		return null
 	}
 
-	// Transform advisors from join-table shape to flat array
 	return {
 		...invoice,
 		advisors: flattenAdvisors(invoice.advisors),
+		photographers: flattenAdvisors(invoice.photographers),
 		quotation: invoice.quotation
 			? { ...invoice.quotation, advisors: flattenAdvisors(invoice.quotation.advisors) }
 			: invoice.quotation,
@@ -542,19 +567,25 @@ export async function createInvoice(data: unknown) {
 					await ensureClientAdvisors(quotation.clientId, finalAdvisorIds, tx)
 				}
 
+				const photographerData =
+					validatedData.type === "EPO" && validatedData.photographerIds && validatedData.photographerIds.length > 0
+						? { create: [...new Set(validatedData.photographerIds)].map((id) => ({ userId: id })) }
+						: undefined
+
 				const created = await tx.invoice.create({
-					data: {
-						invoiceNumber,
-						type: validatedData.type,
-						quotationId: validatedData.quotationId,
-						amount: validatedData.amount,
-						createdById: finalCreatedById,
-						status: "active",
-						invoiceDate: invoiceDateForDb,
-						advisors: {
-							create: finalAdvisorIds.map((id) => ({ userId: id })),
-						},
+				data: {
+					invoiceNumber,
+					type: validatedData.type,
+					quotationId: validatedData.quotationId,
+					amount: validatedData.amount,
+					createdById: finalCreatedById,
+					status: "active",
+					invoiceDate: invoiceDateForDb,
+					advisors: {
+						create: finalAdvisorIds.map((id) => ({ userId: id })),
 					},
+					...(photographerData ? { photographers: photographerData } : {}),
+				},
 					select: {
 						id: true,
 						invoiceNumber: true,
@@ -586,22 +617,34 @@ export async function createInvoice(data: unknown) {
 								email: true,
 							},
 						},
-						advisors: {
-							include: {
-								user: {
-									select: {
-										id: true,
-										firstName: true,
-										lastName: true,
-										email: true,
-									},
+					advisors: {
+						include: {
+							user: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									email: true,
 								},
 							},
 						},
 					},
-				})
+					photographers: {
+						include: {
+							user: {
+								select: {
+									id: true,
+									firstName: true,
+									lastName: true,
+									email: true,
+								},
+							},
+						},
+					},
+				},
+			})
 
-				return created
+			return created
 			}, {
 				isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
 				maxWait: 5000,
@@ -662,16 +705,17 @@ export async function updateInvoiceAdmin(
 	const [isAdmin, existingInvoice, dbUser] = await Promise.all([
 		getCachedIsUserAdmin(user.id),
 		prisma.invoice.findUnique({
-			where: { id: validatedInvoiceId },
-			select: {
-				createdById: true,
-				status: true,
-				quotationId: true,
-				quotation: {
-					select: {
-						workflowStatus: true,
-						clientId: true,
-					},
+		where: { id: validatedInvoiceId },
+		select: {
+			createdById: true,
+			status: true,
+			type: true,
+			quotationId: true,
+			quotation: {
+				select: {
+					workflowStatus: true,
+					clientId: true,
+				},
 				},
 				advisors: { select: { userId: true } },
 			},
@@ -708,9 +752,12 @@ export async function updateInvoiceAdmin(
 		throw new Error("You can only update invoices you created or are assigned to as an advisor")
 	}
 
-	// Non-admins cannot change advisors (even if they are an assigned advisor themselves).
 	if (!isAdmin && validatedData.advisorIds !== undefined) {
 		throw new Error("Only administrators can change invoice advisors")
+	}
+
+	if (!isAdmin && validatedData.photographerIds !== undefined) {
+		throw new Error("Only administrators can change invoice photographers")
 	}
 
 	// Build update data
@@ -758,14 +805,21 @@ export async function updateInvoiceAdmin(
 				})
 			}
 
-			// Any advisor added to this invoice is also linked to the client so they can
-			// view the client and track outstanding balances from their account.
 			if (existingInvoice.quotation.clientId && validatedData.advisorIds.length > 0) {
 				await ensureClientAdvisors(
 					existingInvoice.quotation.clientId,
 					validatedData.advisorIds,
 					tx,
 				)
+			}
+		}
+
+		if (validatedData.photographerIds !== undefined && isAdmin) {
+			await tx.invoicePhotographer.deleteMany({ where: { invoiceId: validatedInvoiceId } })
+			if (validatedData.photographerIds.length > 0) {
+				await tx.invoicePhotographer.createMany({
+					data: validatedData.photographerIds.map((id) => ({ invoiceId: validatedInvoiceId, userId: id })),
+				})
 			}
 		}
 

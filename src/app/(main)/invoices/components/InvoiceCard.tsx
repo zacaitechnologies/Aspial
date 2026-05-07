@@ -200,13 +200,19 @@ export default function InvoiceCard({
 							<span>Quotation: {invoice.quotation?.name || 'N/A'}</span>
 							<span className="text-gray-400">•</span>
 							<span>{new Date(invoice.invoiceDate ?? invoice.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-							{invoice.advisors && invoice.advisors.length > 0 && (
-								<>
-									<span className="text-gray-400">•</span>
-									<span>Advisors: {invoice.advisors.map(a => `${a.firstName} ${a.lastName}`).join(', ')}</span>
-								</>
-							)}
-						</div>
+						{invoice.advisors && invoice.advisors.length > 0 && (
+							<>
+								<span className="text-gray-400">•</span>
+								<span>Advisors: {invoice.advisors.map(a => `${a.firstName} ${a.lastName}`).join(', ')}</span>
+							</>
+						)}
+						{invoice.type === "EPO" && invoice.photographers && invoice.photographers.length > 0 && (
+							<>
+								<span className="text-gray-400">•</span>
+								<span>Photographers: {invoice.photographers.map((p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`).join(', ')}</span>
+							</>
+						)}
+					</div>
 					</div>
 
 					{/* Right Section - Fixed Width for Alignment */}

@@ -70,6 +70,7 @@ export default function CreateInvoiceForm({
 	const [users, setUsers] = useState<Array<{ id: string; supabase_id: string; firstName: string; lastName: string; email: string }>>([])
 	/** Advisor IDs: User.id (cuid) — defaults from quotation; editable on create */
 	const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([])
+	const [selectedPhotographerIds, setSelectedPhotographerIds] = useState<string[]>([])
 	/** Current user's DB id (cuid) for MultiSelect “you” label */
 	const [currentDbUserId, setCurrentDbUserId] = useState<string>("")
 
@@ -262,13 +263,16 @@ export default function CreateInvoiceForm({
 
 		setIsSaving(true)
 		try {
-			await createInvoice({
-				quotationId: invoiceForm.quotationId,
-				type: invoiceForm.type,
-				amount: parseFloat(invoiceForm.amount),
-				advisorIds: selectedAdvisorIds,
-				invoiceDate: invoiceForm.invoiceDate || undefined,
-			})
+		await createInvoice({
+			quotationId: invoiceForm.quotationId,
+			type: invoiceForm.type,
+			amount: parseFloat(invoiceForm.amount),
+			advisorIds: selectedAdvisorIds,
+			...(invoiceForm.type === "EPO" && selectedPhotographerIds.length > 0
+				? { photographerIds: selectedPhotographerIds }
+				: {}),
+			invoiceDate: invoiceForm.invoiceDate || undefined,
+		})
 
 			// Invalidate cache on client side to ensure invoices page refreshes
 			await invalidateInvoicesCache()
@@ -287,6 +291,7 @@ export default function CreateInvoiceForm({
 			})
 			setSelectedQuotation(null)
 			setSelectedAdvisorIds([])
+			setSelectedPhotographerIds([])
 			setSearchQuery("")
 			setSearchResults([])
 			setAmountWarning("")
@@ -410,9 +415,10 @@ export default function CreateInvoiceForm({
 						<Label htmlFor="invoice-type">Invoice Type <span className="text-red-500">*</span></Label>
 						<Select
 							value={invoiceForm.type}
-							onValueChange={(value: "SO" | "EPO" | "EO") =>
-								setInvoiceForm(prev => ({ ...prev, type: value }))
-							}
+						onValueChange={(value: "SO" | "EPO" | "EO") => {
+							setInvoiceForm(prev => ({ ...prev, type: value }))
+							if (value !== "EPO") setSelectedPhotographerIds([])
+						}}
 							disabled={isSaving}
 						>
 							<SelectTrigger id="invoice-type">
@@ -495,14 +501,32 @@ export default function CreateInvoiceForm({
 							disabled={!selectedQuotation || isSaving}
 							placeholder="Select advisors"
 						/>
+					<p className="text-xs text-muted-foreground">
+						Defaults to the quotation&apos;s advisors.
+						{isAdmin
+							? " You can add or remove advisors."
+							: " You can add others, but you cannot remove yourself as an advisor."}
+					</p>
+				</div>
+
+				{invoiceForm.type === "EPO" && (
+					<div className="space-y-2">
+						<Label htmlFor="photographers">Photographers</Label>
+						<MultiSelectAdvisors
+							users={users}
+							selectedIds={selectedPhotographerIds}
+							onChange={setSelectedPhotographerIds}
+							currentUserId={currentDbUserId}
+							isAdmin={true}
+							disabled={!selectedQuotation || isSaving}
+							placeholder="Select photographers (optional)"
+						/>
 						<p className="text-xs text-muted-foreground">
-							Defaults to the quotation&apos;s advisors.
-							{isAdmin
-								? " You can add or remove advisors."
-								: " You can add others, but you cannot remove yourself as an advisor."}
+							Photographers are only applicable for EPO invoices.
 						</p>
 					</div>
-				</div>
+				)}
+			</div>
 				<DialogFooter className="shrink-0 px-6 pb-6 pt-2 border-t">
 					<Button
 						variant="outline"

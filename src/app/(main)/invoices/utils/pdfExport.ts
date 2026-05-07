@@ -346,7 +346,6 @@ function addInvoiceHeader(
 	doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
 }
 
-// Add invoice info box to every page (INVOICE label, Bill To, INVOICE NO, DATE, ADVISOR, PAGE NO)
 function addInvoiceInfoBox(
 	doc: jsPDF,
 	pageNumber: number,
@@ -354,7 +353,8 @@ function addInvoiceInfoBox(
 	invoiceNumber: string,
 	invoiceDate: string,
 	advisorName: string,
-	clientInfo: ClientInfoPdf
+	clientInfo: ClientInfoPdf,
+	photographerName?: string,
 ) {
 	const pageWidth = doc.internal.pageSize.getWidth()
 	const margin = 20
@@ -418,6 +418,11 @@ function addInvoiceInfoBox(
 	
 	doc.text(`ADVISOR : ${advisorName}`, rightCol - 3, rightY, { align: "right" })
 	rightY += 5
+
+	if (photographerName) {
+		doc.text(`PHOTOGRAPHER : ${photographerName}`, rightCol - 3, rightY, { align: "right" })
+		rightY += 5
+	}
 	
 	// Page number
 	doc.text(`PAGE NO : ${pageNumber} of ${totalPages}`, rightCol - 3, rightY, { align: "right" })
@@ -439,7 +444,8 @@ function addTermsAndConditions(
 	invoiceNumber: string,
 	invoiceDate: string,
 	advisorName: string,
-	clientInfo: ClientInfoPdf
+	clientInfo: ClientInfoPdf,
+	photographerName?: string,
 ): number {
 	const contentWidth = pageWidth - 2 * margin
 	let currentY = startY
@@ -450,12 +456,11 @@ function addTermsAndConditions(
 	doc.text("Terms And Conditions", margin, currentY)
 	currentY += 6
 
-	// Helper to add new page with header and info box
 	const addNewPage = () => {
 		doc.addPage()
 		const newTotalPages = doc.getNumberOfPages()
 		addInvoiceHeader(doc, logoBase64)
-		addInvoiceInfoBox(doc, newTotalPages, newTotalPages, invoiceNumber, invoiceDate, advisorName, clientInfo)
+		addInvoiceInfoBox(doc, newTotalPages, newTotalPages, invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 		return CONTENT_AFTER_INFO_BOX_Y
 	}
 
@@ -573,7 +578,6 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		.filter((inv) => inv.id !== invoice.id)
 		.reduce((sum, inv) => sum + inv.amount, 0)
 	
-	// Get advisor name (flat advisors array with fallback to createdBy)
 	const quotationAdvisors = (quotation as any).advisors as Array<{ firstName?: string; lastName?: string }> | undefined
 	const advisorName = quotationAdvisors && quotationAdvisors.length > 0
 		? quotationAdvisors.map((a) => `${a.firstName || ''} ${a.lastName || ''}`.trim()).join(', ')
@@ -581,7 +585,10 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 			: 'ADMIN'
 
-	// Get client info (Client may include ic from Prisma; type allows optional ic for PDF)
+	const photographerName = invoice.type === "EPO" && invoice.photographers && invoice.photographers.length > 0
+		? invoice.photographers.map((p) => `${p.firstName || ''} ${p.lastName || ''}`.trim()).join(', ')
+		: undefined
+
 	const client = quotation.Client
 	const clientInfo: ClientInfoPdf = {
 		name: client?.name || '',
@@ -594,9 +601,8 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 
 	const invoiceDate = formatDate(new Date(invoice.invoiceDate))
 	
-	// Add header and info box to first page
 	addInvoiceHeader(doc, logoBase64)
-	addInvoiceInfoBox(doc, 1, 1, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	addInvoiceInfoBox(doc, 1, 1, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 	
 	// Start content after the info box
 	let currentY = CONTENT_AFTER_INFO_BOX_Y
@@ -810,7 +816,7 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 		didDrawPage: (data: { pageNumber: number }) => {
 			const totalPages = doc.getNumberOfPages()
 			addInvoiceHeader(doc, logoBase64)
-			addInvoiceInfoBox(doc, data.pageNumber, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+			addInvoiceInfoBox(doc, data.pageNumber, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 		},
 	})
 	
@@ -822,12 +828,11 @@ async function generateInvoicePDFInternal(invoice: InvoiceWithQuotation) {
 let totalPages = doc.getNumberOfPages()
 doc.setPage(totalPages)
 
-// Helper to add new page with header and info box
 const addNewPage = () => {
 	doc.addPage()
 	totalPages = doc.getNumberOfPages()
 	addInvoiceHeader(doc, logoBase64)
-	addInvoiceInfoBox(doc, totalPages, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	addInvoiceInfoBox(doc, totalPages, totalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 	return CONTENT_AFTER_INFO_BOX_Y
 }
 
@@ -900,7 +905,7 @@ autoTable(doc, {
 	},
 	didDrawPage: (data: { pageNumber: number }) => {
 		addInvoiceHeader(doc, logoBase64)
-		addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+		addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), invoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 	},
 })
 
@@ -913,7 +918,6 @@ doc.setLineWidth(0.5)
 doc.line(margin, currentY, pageWidth - margin, currentY)
 currentY += 4
 
-// Terms and Conditions
 currentY = addTermsAndConditions(
 	doc,
 	currentY,
@@ -924,15 +928,15 @@ currentY = addTermsAndConditions(
 	invoice.invoiceNumber,
 	invoiceDate,
 	advisorName,
-	clientInfo
+	clientInfo,
+	photographerName,
 )
 
-// Final update of page numbers on all pages (header + info box)
 const finalTotalPages = doc.getNumberOfPages()
 for (let i = 1; i <= finalTotalPages; i++) {
 	doc.setPage(i)
 	addInvoiceHeader(doc, logoBase64)
-	addInvoiceInfoBox(doc, i, finalTotalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	addInvoiceInfoBox(doc, i, finalTotalPages, invoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 }
 	
 	const fileName = `invoice-${invoice.invoiceNumber}-${
@@ -1025,13 +1029,16 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 		.filter((inv) => inv.id !== fullInvoice.id)
 		.reduce((sum, inv) => sum + inv.amount, 0)
 	
-	// Get advisor name (flat advisors array with fallback to createdBy)
 	const quotationAdvisors2 = (quotation as any).advisors as Array<{ firstName?: string; lastName?: string }> | undefined
 	const advisorName = quotationAdvisors2 && quotationAdvisors2.length > 0
 		? quotationAdvisors2.map((a) => `${a.firstName || ''} ${a.lastName || ''}`.trim()).join(', ')
 		: quotation.createdBy
 			? `${quotation.createdBy.firstName || ''} ${quotation.createdBy.lastName || ''}`.trim()
 			: 'ADMIN'
+
+	const photographerName = fullInvoice.type === "EPO" && fullInvoice.photographers && fullInvoice.photographers.length > 0
+		? fullInvoice.photographers.map((p) => `${p.firstName || ''} ${p.lastName || ''}`.trim()).join(', ')
+		: undefined
 
 	const client = quotation.Client
 	const clientInfo: ClientInfoPdf = {
@@ -1045,9 +1052,8 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 
 	const invoiceDate = formatDate(new Date(fullInvoice.invoiceDate))
 	
-	// Add header and info box to first page
 	addInvoiceHeader(doc, logoBase64)
-	addInvoiceInfoBox(doc, 1, 1, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	addInvoiceInfoBox(doc, 1, 1, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 	
 	// Start content after the info box
 	let currentY = CONTENT_AFTER_INFO_BOX_Y
@@ -1222,25 +1228,23 @@ async function _generateInvoicePDFInternal(fullInvoice: InvoiceWithQuotation): P
 				return false
 				}
 			},
-		didDrawPage: (data: any) => {
-			addInvoiceHeader(doc, logoBase64)
-			addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
-		},
-	})
-	currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
-	currentY += 10
+	didDrawPage: (data: any) => {
+		addInvoiceHeader(doc, logoBase64)
+		addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
+	},
+})
+currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
+currentY += 10
 }
 
-// Go to last page for totals
 let totalPages = doc.getNumberOfPages()
 doc.setPage(totalPages)
 
-// Helper to add new page with header and info box
 const addNewPage = () => {
 	doc.addPage()
 	totalPages = doc.getNumberOfPages()
 	addInvoiceHeader(doc, logoBase64)
-	addInvoiceInfoBox(doc, totalPages, totalPages, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	addInvoiceInfoBox(doc, totalPages, totalPages, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 	return CONTENT_AFTER_INFO_BOX_Y
 }
 
@@ -1290,28 +1294,25 @@ autoTable(doc, {
 	styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
 	didDrawPage: (data: { pageNumber: number }) => {
 		addInvoiceHeader(doc, logoBase64)
-		addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+		addInvoiceInfoBox(doc, data.pageNumber, doc.getNumberOfPages(), fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 	},
 })
 
 currentY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? currentY
 currentY += 5
 
-// Horizontal line
 doc.setDrawColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2])
 doc.setLineWidth(0.5)
 doc.line(margin, currentY, pageWidth - margin, currentY)
 currentY += 4
 
-// Terms and Conditions
-currentY = addTermsAndConditions(doc, currentY, margin, pageWidth, pageHeight, logoBase64, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+currentY = addTermsAndConditions(doc, currentY, margin, pageWidth, pageHeight, logoBase64, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 
-// Final update of page numbers on all pages (header + info box)
 const finalTotalPages = doc.getNumberOfPages()
 for (let i = 1; i <= finalTotalPages; i++) {
 	doc.setPage(i)
 	addInvoiceHeader(doc, logoBase64)
-	addInvoiceInfoBox(doc, i, finalTotalPages, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo)
+	addInvoiceInfoBox(doc, i, finalTotalPages, fullInvoice.invoiceNumber, invoiceDate, advisorName, clientInfo, photographerName)
 }
 	
 	return doc.output('datauristring').split(',')[1]

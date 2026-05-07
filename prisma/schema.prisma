@@ -70,6 +70,7 @@ model User {
   clientAdvisors           ClientAdvisor[]           @relation("ClientAdvisor")
   quotationAdvisors        QuotationAdvisor[]        @relation("QuotationAdvisor")
   invoiceAdvisors          InvoiceAdvisor[]          @relation("InvoiceAdvisor")
+  invoicePhotographers     InvoicePhotographer[]     @relation("InvoicePhotographer")
   receiptAdvisors          ReceiptAdvisor[]          @relation("ReceiptAdvisor")
   deliveryOrdersCreated      DeliveryOrder[]              @relation("DeliveryOrderCreator")
   deliveryOrderAdvisors      DeliveryOrderAdvisor[]       @relation("DeliveryOrderAdvisor")
@@ -203,6 +204,7 @@ model Invoice {
   created_at    DateTime       @default(now())
   updated_at    DateTime       @default(now())
   advisors      InvoiceAdvisor[]
+  photographers InvoicePhotographer[]
   quotation     Quotation      @relation(fields: [quotationId], references: [id], onDelete: Restrict)
   createdBy     User           @relation("InvoiceCreator", fields: [createdById], references: [supabase_id])
   invoiceEmails InvoiceEmail[]
@@ -444,6 +446,16 @@ model InvoiceAdvisor {
 
   @@id([invoiceId, userId])
   @@map("invoice_advisors")
+}
+
+model InvoicePhotographer {
+  invoiceId String
+  userId    String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user      User    @relation("InvoicePhotographer", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([invoiceId, userId])
+  @@map("invoice_photographers")
 }
 
 model ReceiptAdvisor {
