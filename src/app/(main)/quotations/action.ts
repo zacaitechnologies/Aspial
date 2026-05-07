@@ -932,7 +932,7 @@ export async function createQuotation(data: unknown) {
                 const serviceIdInt = Number.parseInt(svc.serviceId, 10)
                 const trimmedOverride = svc.descriptionOverride?.trim()
                 return {
-                  serviceId: serviceIdInt,
+                  service: { connect: { id: serviceIdInt } },
                   price: svc.price,
                   quantity: svc.quantity,
                   descriptionOverride:
@@ -1408,7 +1408,7 @@ export async function editQuotationById(
                   catalogDescriptionById.get(serviceIdInt) ??
                   ""
                 return {
-                  serviceId: serviceIdInt,
+                  service: { connect: { id: serviceIdInt } },
                   price: svc.price,
                   quantity: svc.quantity,
                   descriptionOverride:
