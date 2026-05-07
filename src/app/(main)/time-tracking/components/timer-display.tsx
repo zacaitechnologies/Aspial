@@ -1,15 +1,23 @@
 "use client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Timer, Play, Pause, Square } from "lucide-react"
+import { Timer, Play, Pause, Square, Save, Loader2 } from "lucide-react"
 import { formatTime } from "../utils"
 import { Button } from "@/components/ui/button"
-import { Project } from "@prisma/client"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Project, TaskStatus } from "@prisma/client"
+import type { ProjectTaskOption } from "../action"
 
 interface TimerDisplayProps {
   selectedProject: Project | null
+  selectedTask: ProjectTaskOption | null
   isTracking: boolean
   isPaused: boolean
   currentSession: number
+  description: string
+  onDescriptionChange: (value: string) => void
+  onSaveDescription: () => void
+  isDescriptionDirty: boolean
+  isSavingDescription: boolean
   onStart: () => void
   onPause: () => void
   onStop: () => void
@@ -19,11 +27,29 @@ interface TimerDisplayProps {
   isStopping?: boolean
 }
 
+const taskStatusLabel: Record<TaskStatus, string> = {
+  todo: "To do",
+  in_progress: "In progress",
+  done: "Done",
+}
+
+const taskStatusVariant: Record<TaskStatus, "default" | "secondary" | "outline"> = {
+  todo: "outline",
+  in_progress: "default",
+  done: "secondary",
+}
+
 export function TimerDisplay({
   selectedProject,
+  selectedTask,
   isTracking,
   isPaused,
   currentSession,
+  description,
+  onDescriptionChange,
+  onSaveDescription,
+  isDescriptionDirty,
+  isSavingDescription,
   onStart,
   onPause,
   onStop,
@@ -34,9 +60,21 @@ export function TimerDisplay({
 }: TimerDisplayProps) {
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 text-base sm:text-lg mb-4 sm:mb-6 font-semibold text-foreground">
-        <Timer className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
-        Timer
+      <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 flex-wrap">
+        <div className="flex items-center gap-2 text-base sm:text-lg font-semibold text-foreground">
+          <Timer className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
+          Timer
+        </div>
+        {selectedTask && (
+          <div className="flex items-center gap-2 text-sm min-w-0">
+            <Badge variant={taskStatusVariant[selectedTask.status]}>
+              {taskStatusLabel[selectedTask.status]}
+            </Badge>
+            <span className="text-muted-foreground truncate" title={selectedTask.title}>
+              {selectedTask.title}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Timer Display - Responsive size for mobile to desktop */}
@@ -160,6 +198,44 @@ export function TimerDisplay({
             <span className="text-muted-foreground">
               {isTracking && !isPaused ? "Timer is running" : isPaused ? "Timer is paused" : "Timer is stopped"}
             </span>
+          </div>
+
+          {/* Description input — editable both before starting and during tracking */}
+          <div className="text-left space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">
+              Description
+            </label>
+            <Textarea
+              value={description}
+              onChange={(e) => onDescriptionChange(e.target.value)}
+              placeholder="What are you working on?"
+              rows={3}
+              maxLength={1000}
+              className="resize-none bg-background/60"
+            />
+            {isTracking && (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onSaveDescription}
+                  disabled={!isDescriptionDirty || isSavingDescription}
+                >
+                  {isSavingDescription ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

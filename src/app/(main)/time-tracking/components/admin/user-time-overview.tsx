@@ -5,16 +5,9 @@ import { User, Clock, TrendingUp } from "lucide-react"
 import { User as UserType, Project } from "@prisma/client"
 import type { TimeEntryWithUserDTO } from "../../action"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { periodRange, type PeriodSelection } from "./period-utils"
 
 interface UserWithProfilePicture extends UserType {
-  profilePicture: string | null
-}
-
-interface TimeEntryUser {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
   profilePicture: string | null
 }
 
@@ -22,10 +15,10 @@ interface UserTimeOverviewProps {
   timeEntries: TimeEntryWithUserDTO[]
   users: UserWithProfilePicture[]
   projects: Project[]
-  selectedPeriod: "week" | "month" | "quarter"
+  period: PeriodSelection
 }
 
-export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod }: UserTimeOverviewProps) {
+export function UserTimeOverview({ timeEntries, users, period }: UserTimeOverviewProps) {
   const [isMounted, setIsMounted] = useState(false)
 
   useEffect(() => {
@@ -33,22 +26,11 @@ export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod 
   }, [])
 
   const userStats = useMemo(() => {
-    const now = new Date()
-    const periodStart = new Date()
+    const { start, end } = periodRange(period)
 
-    switch (selectedPeriod) {
-      case "week":
-        periodStart.setDate(now.getDate() - 7)
-        break
-      case "month":
-        periodStart.setMonth(now.getMonth() - 1)
-        break
-      case "quarter":
-        periodStart.setMonth(now.getMonth() - 3)
-        break
-    }
-
-    const periodEntries = timeEntries.filter((entry) => entry.startTime >= periodStart)
+    const periodEntries = timeEntries.filter(
+      (entry) => entry.startTime >= start && entry.startTime < end
+    )
 
     const userStatsMap = new Map()
 
@@ -69,7 +51,7 @@ export function UserTimeOverview({ timeEntries, users, projects, selectedPeriod 
     })
 
     return Array.from(userStatsMap.values()).sort((a, b) => b.totalHours - a.totalHours)
-  }, [timeEntries, users, selectedPeriod])
+  }, [timeEntries, users, period])
 
   const formatLastActivity = (date: Date | null) => {
     if (!date) return "No activity"

@@ -106,6 +106,7 @@ export type SalesDataFilters = z.infer<typeof salesDataFiltersSchema>;
 // Time entry validation schemas
 export const createTimeEntrySchema = z.object({
   projectId: z.number().int().positive("Project ID must be a positive integer"),
+  taskId: z.number().int().positive("Task ID must be a positive integer").optional(),
   startTime: z.date(),
   endTime: z.date().optional(),
   duration: z.number().int().min(0, "Duration must be non-negative"),
@@ -113,6 +114,24 @@ export const createTimeEntrySchema = z.object({
 });
 
 export type CreateTimeEntryValues = z.infer<typeof createTimeEntrySchema>;
+
+export const updateTimeEntryDescriptionSchema = z.object({
+  id: z.number().int().positive("Time entry ID must be a positive integer"),
+  description: z.string().trim().max(1000, "Description must be less than 1000 characters"),
+});
+
+export type UpdateTimeEntryDescriptionValues = z.infer<typeof updateTimeEntryDescriptionSchema>;
+
+export const timeEntriesFilterSchema = z.object({
+  startDate: z.date().optional(),
+  endDate: z.date().optional(),
+  userId: z.string().optional(),
+  projectId: z.number().int().positive().optional(),
+  page: z.number().int().min(1).optional(),
+  pageSize: z.number().int().min(1).max(200).optional(),
+});
+
+export type TimeEntriesFilterValues = z.infer<typeof timeEntriesFilterSchema>;
 
 export const updateTimeEntrySchema = z.object({
   endTime: z.date().optional(),
