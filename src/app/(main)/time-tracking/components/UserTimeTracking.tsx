@@ -2,11 +2,23 @@
 
 import { useState, useEffect } from "react"
 import { ProjectSelector } from "./project-selector"
+import { TaskSelector } from "./task-selector"
 import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
 import { Project } from "@prisma/client"
-import { createTimeEntry, getActiveTimeEntry, pauseTimeEntry, resumeTimeEntry, stopTimeEntry, getAllUserTimeEntries, type TimeEntryDTO } from "../action"
+import {
+  createTimeEntry,
+  getActiveTimeEntry,
+  pauseTimeEntry,
+  resumeTimeEntry,
+  stopTimeEntry,
+  getAllUserTimeEntries,
+  fetchProjectTasks,
+  updateTimeEntryDescription,
+  type TimeEntryDTO,
+  type ProjectTaskOption,
+} from "../action"
 
 interface UserTimeTrackingProps {
   initialTimeEntries: TimeEntryDTO[]
@@ -14,12 +26,18 @@ interface UserTimeTrackingProps {
   userId: string
 }
 
-export default function UserTimeTracking({ 
-  initialTimeEntries, 
-  initialProjects, 
-  userId 
+export default function UserTimeTracking({
+  initialTimeEntries,
+  initialProjects,
+  userId
 }: UserTimeTrackingProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [selectedTask, setSelectedTask] = useState<ProjectTaskOption | null>(null)
+  const [tasks, setTasks] = useState<ProjectTaskOption[]>([])
+  const [tasksLoading, setTasksLoading] = useState(false)
+  const [description, setDescription] = useState("")
+  const [savedDescription, setSavedDescription] = useState("")
+  const [isSavingDescription, setIsSavingDescription] = useState(false)
   const [isTracking, setIsTracking] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [currentSession, setCurrentSession] = useState(0)
@@ -46,13 +64,17 @@ export default function UserTimeTracking({
           if (fullProject) {
             setSelectedProject(fullProject)
           }
+          // Hydrate task + description from server
+          setSelectedTask(activeEntry.task ?? null)
+          setDescription(activeEntry.description ?? "")
+          setSavedDescription(activeEntry.description ?? "")
           setIsTracking(true)
           const isPausedValue = activeEntry.isPause ?? false
           setIsPaused(isPausedValue)
-          
+
           const start = new Date(activeEntry.startTime)
           setStartTime(start)
-          
+
           // If paused, use the stored duration
           if (isPausedValue) {
             setCurrentSession(activeEntry.duration)
@@ -74,6 +96,38 @@ export default function UserTimeTracking({
 
     loadActiveEntry()
   }, [])
+
+  // Fetch tasks whenever the user picks a different project (and the timer
+  // isn't already running — once tracking starts the project + task are
+  // locked in)
+  useEffect(() => {
+    if (isTracking) return
+    if (!selectedProject) {
+      setTasks([])
+      setSelectedTask(null)
+      return
+    }
+    let cancelled = false
+    const projectId = selectedProject.id
+    setTasksLoading(true)
+    setSelectedTask(null)
+    fetchProjectTasks(projectId)
+      .then((result) => {
+        if (cancelled) return
+        setTasks(result)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setTasks([])
+      })
+      .finally(() => {
+        if (cancelled) return
+        setTasksLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedProject, isTracking])
 
   // Timer logic - updates every second when tracking and not paused
   useEffect(() => {
@@ -143,19 +197,24 @@ export default function UserTimeTracking({
     setIsStarting(true)
     // Start fresh timer
     const now = new Date()
+    const trimmedDescription = description.trim()
     try {
       const newEntry = await createTimeEntry({
         projectId: selectedProject.id,
+        taskId: selectedTask?.id,
         startTime: now,
         duration: 0,
+        description: trimmedDescription || undefined,
       })
-      
+
       setActiveEntryId(newEntry.id)
       setStartTime(now)
       setIsTracking(true)
       setIsPaused(false)
       setCurrentSession(0)
       setPausedTime(0)
+      setSavedDescription(newEntry.description ?? "")
+      setDescription(newEntry.description ?? "")
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string' && err.message === "User already has an active time entry") {
         // Reload active entry
@@ -168,6 +227,9 @@ export default function UserTimeTracking({
             if (fullProject) {
               setSelectedProject(fullProject)
             }
+            setSelectedTask(activeEntry.task ?? null)
+            setDescription(activeEntry.description ?? "")
+            setSavedDescription(activeEntry.description ?? "")
             setIsTracking(true)
             const isPausedValue = activeEntry.isPause ?? false
             setIsPaused(isPausedValue)
@@ -188,6 +250,20 @@ export default function UserTimeTracking({
       }
     } finally {
       setIsStarting(false)
+    }
+  }
+
+  const saveDescription = async () => {
+    if (!activeEntryId) return
+    setIsSavingDescription(true)
+    try {
+      const updated = await updateTimeEntryDescription(activeEntryId, description)
+      setSavedDescription(updated.description ?? "")
+      setDescription(updated.description ?? "")
+    } catch (err) {
+      // Silently handle save error
+    } finally {
+      setIsSavingDescription(false)
     }
   }
 
@@ -218,6 +294,10 @@ export default function UserTimeTracking({
       setPausedTime(0)
       setActiveEntryId(null)
       setSelectedProject(null)
+      setSelectedTask(null)
+      setTasks([])
+      setDescription("")
+      setSavedDescription("")
     } catch (err) {
       // Silently handle stop error
     } finally {
@@ -244,12 +324,20 @@ export default function UserTimeTracking({
           {/* Left Column - Timer Section */}
           <div className="xl:col-span-3 flex flex-col space-y-6">
             <div className="relative">
-              <div className="relative z-10 bg-card rounded-lg p-6 border border-border">
+              <div className="relative z-10 bg-card rounded-lg p-6 border border-border space-y-6">
                 <ProjectSelector
                   projects={projects}
                   selectedProject={selectedProject}
                   onProjectSelect={setSelectedProject}
                   disabled={isTracking}
+                />
+                <TaskSelector
+                  tasks={tasks}
+                  selectedTask={selectedTask}
+                  onTaskSelect={setSelectedTask}
+                  disabled={isTracking}
+                  isLoading={tasksLoading}
+                  hasProject={!!selectedProject}
                 />
               </div>
             </div>
@@ -258,9 +346,15 @@ export default function UserTimeTracking({
               <div className="relative z-10 bg-card-background rounded-lg p-6 h-full border-card-border border-1">
                 <TimerDisplay
                   selectedProject={selectedProject}
+                  selectedTask={selectedTask}
                   isTracking={isTracking}
                   isPaused={isPaused}
                   currentSession={currentSession}
+                  description={description}
+                  onDescriptionChange={setDescription}
+                  onSaveDescription={saveDescription}
+                  isDescriptionDirty={description !== savedDescription}
+                  isSavingDescription={isSavingDescription}
                   onStart={startTimer}
                   onPause={pauseTimer}
                   onStop={stopTimer}

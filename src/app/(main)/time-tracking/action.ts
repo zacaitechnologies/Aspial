@@ -6,22 +6,26 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
-import { 
-  createTimeEntrySchema, 
+import {
+  createTimeEntrySchema,
   updateTimeEntrySchema,
+  updateTimeEntryDescriptionSchema,
   pauseTimeEntrySchema,
   resumeTimeEntrySchema,
   stopTimeEntrySchema,
+  timeEntriesFilterSchema,
   type CreateTimeEntryValues,
   type UpdateTimeEntryValues,
+  type TimeEntriesFilterValues,
 } from "@/lib/validation"
-import type { TimeEntry, Project, User } from "@prisma/client"
+import type { TimeEntry, TaskStatus } from "@prisma/client"
 
 // DTOs for time entries
 export interface TimeEntryDTO {
   id: number
   userId: string
   projectId: number
+  taskId: number | null
   startTime: Date
   endTime: Date | null
   duration: number
@@ -35,6 +39,11 @@ export interface TimeEntryDTO {
     name: string
     description: string | null
   }
+  task: {
+    id: number
+    title: string
+    status: TaskStatus
+  } | null
 }
 
 export interface TimeEntryWithUserDTO extends TimeEntryDTO {
@@ -44,6 +53,96 @@ export interface TimeEntryWithUserDTO extends TimeEntryDTO {
     lastName: string
     email: string
     profilePicture: string | null
+  }
+}
+
+export interface ProjectTaskOption {
+  id: number
+  title: string
+  status: TaskStatus
+}
+
+// Common Prisma include for time entries with project + task
+const timeEntryInclude = {
+  project: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+    },
+  },
+  task: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+    },
+  },
+} as const
+
+const timeEntryWithUserInclude = {
+  ...timeEntryInclude,
+  user: {
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      profilePicture: true,
+    },
+  },
+} as const
+
+type RawTimeEntry = TimeEntry & {
+  project: { id: number; name: string; description: string | null }
+  task: { id: number; title: string; status: TaskStatus } | null
+}
+
+type RawTimeEntryWithUser = RawTimeEntry & {
+  user: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    profilePicture: string | null
+  }
+}
+
+function toTimeEntryDTO(entry: RawTimeEntry): TimeEntryDTO {
+  return {
+    id: entry.id,
+    userId: entry.userId,
+    projectId: entry.projectId,
+    taskId: entry.taskId,
+    startTime: entry.startTime,
+    endTime: entry.endTime,
+    duration: entry.duration,
+    description: entry.description,
+    isActive: entry.isActive,
+    isPause: entry.isPause,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    project: {
+      id: entry.project.id,
+      name: entry.project.name,
+      description: entry.project.description,
+    },
+    task: entry.task
+      ? { id: entry.task.id, title: entry.task.title, status: entry.task.status }
+      : null,
+  }
+}
+
+function toTimeEntryWithUserDTO(entry: RawTimeEntryWithUser): TimeEntryWithUserDTO {
+  return {
+    ...toTimeEntryDTO(entry),
+    user: {
+      id: entry.user.id,
+      firstName: entry.user.firstName,
+      lastName: entry.user.lastName,
+      email: entry.user.email,
+      profilePicture: entry.user.profilePicture,
+    },
   }
 }
 
@@ -112,52 +211,11 @@ export async function fetchAllUserTimeEntries(
   const entries = await prisma.timeEntry.findMany({
     where: { startTime: { gte: rangeStart } },
     take: limit,
-    include: {
-      user: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          profilePicture: true,
-        },
-      },
-      project: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-        },
-      },
-    },
+    include: timeEntryWithUserInclude,
     orderBy: { startTime: "desc" },
   })
-  
-  return entries.map(entry => ({
-    id: entry.id,
-    userId: entry.userId,
-    projectId: entry.projectId,
-    startTime: entry.startTime,
-    endTime: entry.endTime,
-    duration: entry.duration,
-    description: entry.description,
-    isActive: entry.isActive,
-    isPause: entry.isPause,
-    createdAt: entry.createdAt,
-    updatedAt: entry.updatedAt,
-    project: {
-      id: entry.project.id,
-      name: entry.project.name,
-      description: entry.project.description,
-    },
-    user: {
-      id: entry.user.id,
-      firstName: entry.user.firstName,
-      lastName: entry.user.lastName,
-      email: entry.user.email,
-      profilePicture: entry.user.profilePicture,
-    }
-  }))
+
+  return entries.map(toTimeEntryWithUserDTO)
 }
 
 export async function fetchAllUsers() {
@@ -252,36 +310,11 @@ export async function fetchUserTimeEntries(
       startTime: { gte: rangeStart },
     },
     take: limit,
-    include: {
-      project: {
-        select: {
-          id: true,
-          name: true,
-          description: true,
-        },
-      },
-    },
+    include: timeEntryInclude,
     orderBy: { startTime: "desc" },
   })
-  
-  return entries.map(entry => ({
-    id: entry.id,
-    userId: entry.userId,
-    projectId: entry.projectId,
-    startTime: entry.startTime,
-    endTime: entry.endTime,
-    duration: entry.duration,
-    description: entry.description,
-    isActive: entry.isActive,
-    isPause: entry.isPause,
-    createdAt: entry.createdAt,
-    updatedAt: entry.updatedAt,
-    project: {
-      id: entry.project.id,
-      name: entry.project.name,
-      description: entry.project.description,
-    }
-  }))
+
+  return entries.map(toTimeEntryDTO)
 }
 
 export async function fetchUserProjects(supabaseId: string) {
@@ -387,15 +420,7 @@ export async function getActiveTimeEntry(): Promise<TimeEntryDTO | null> {
         userId: dbUser.id,
         isActive: true,
       },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          }
-        },
-      },
+      include: timeEntryInclude,
       orderBy: {
         createdAt: "desc",
       },
@@ -405,24 +430,7 @@ export async function getActiveTimeEntry(): Promise<TimeEntryDTO | null> {
       return null
     }
 
-    return {
-      id: activeEntry.id,
-      userId: activeEntry.userId,
-      projectId: activeEntry.projectId,
-      startTime: activeEntry.startTime,
-      endTime: activeEntry.endTime,
-      duration: activeEntry.duration,
-      description: activeEntry.description,
-      isActive: activeEntry.isActive,
-      isPause: activeEntry.isPause,
-      createdAt: activeEntry.createdAt,
-      updatedAt: activeEntry.updatedAt,
-      project: {
-        id: activeEntry.project.id,
-        name: activeEntry.project.name,
-        description: activeEntry.project.description,
-      }
-    }
+    return toTimeEntryDTO(activeEntry)
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
@@ -474,10 +482,25 @@ export async function createTimeEntry(data: CreateTimeEntryValues): Promise<Time
       throw new Error("Project not found")
     }
 
+    // If a task is provided, ensure it belongs to the same project
+    if (validatedData.taskId !== undefined) {
+      const task = await prisma.task.findUnique({
+        where: { id: validatedData.taskId },
+        select: { id: true, projectId: true },
+      })
+      if (!task) {
+        throw new Error("Task not found")
+      }
+      if (task.projectId !== validatedData.projectId) {
+        throw new Error("Task does not belong to the selected project")
+      }
+    }
+
     const timeEntry = await prisma.timeEntry.create({
       data: {
         userId: dbUser.id,
         projectId: validatedData.projectId,
+        taskId: validatedData.taskId,
         startTime: validatedData.startTime,
         endTime: validatedData.endTime,
         duration: validatedData.duration,
@@ -485,37 +508,12 @@ export async function createTimeEntry(data: CreateTimeEntryValues): Promise<Time
         isActive: true,
         isPause: false,
       },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          }
-        },
-      },
+      include: timeEntryInclude,
     })
 
     revalidatePath("/time-tracking")
-    
-    return {
-      id: timeEntry.id,
-      userId: timeEntry.userId,
-      projectId: timeEntry.projectId,
-      startTime: timeEntry.startTime,
-      endTime: timeEntry.endTime,
-      duration: timeEntry.duration,
-      description: timeEntry.description,
-      isActive: timeEntry.isActive,
-      isPause: timeEntry.isPause,
-      createdAt: timeEntry.createdAt,
-      updatedAt: timeEntry.updatedAt,
-      project: {
-        id: timeEntry.project.id,
-        name: timeEntry.project.name,
-        description: timeEntry.project.description,
-      }
-    }
+
+    return toTimeEntryDTO(timeEntry)
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
@@ -561,40 +559,60 @@ export async function updateTimeEntry(id: number, data: UpdateTimeEntryValues): 
         duration: validatedData.duration,
         description: validatedData.description,
       },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          },
-        },
-      },
+      include: timeEntryInclude,
     })
 
     revalidatePath("/time-tracking")
-    
-    return {
-      id: timeEntry.id,
-      userId: timeEntry.userId,
-      projectId: timeEntry.projectId,
-      startTime: timeEntry.startTime,
-      endTime: timeEntry.endTime,
-      duration: timeEntry.duration,
-      description: timeEntry.description,
-      isActive: timeEntry.isActive,
-      isPause: timeEntry.isPause,
-      createdAt: timeEntry.createdAt,
-      updatedAt: timeEntry.updatedAt,
-      project: {
-        id: timeEntry.project.id,
-        name: timeEntry.project.name,
-        description: timeEntry.project.description,
-      }
-    }
+
+    return toTimeEntryDTO(timeEntry)
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
+      throw error
+    }
+    throw error
+  }
+}
+
+// Update only the description on an active time entry (used during live tracking)
+export async function updateTimeEntryDescription(
+  id: number,
+  description: string
+): Promise<TimeEntryDTO> {
+  try {
+    const validated = updateTimeEntryDescriptionSchema.parse({ id, description })
+
+    const supabase = await createClient()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      throw new Error("Unauthorized")
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { supabase_id: user.id },
+    })
+    if (!dbUser) {
+      throw new Error("User not found")
+    }
+
+    const existingEntry = await prisma.timeEntry.findFirst({
+      where: { id: validated.id, userId: dbUser.id, isActive: true },
+    })
+    if (!existingEntry) {
+      throw new Error("Active time entry not found")
+    }
+
+    const timeEntry = await prisma.timeEntry.update({
+      where: { id: validated.id },
+      data: { description: validated.description },
+      include: timeEntryInclude,
+    })
+
+    revalidatePath("/time-tracking")
+
+    return toTimeEntryDTO(timeEntry)
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "digest" in error && typeof error.digest === "string" && error.digest.startsWith("NEXT_REDIRECT")) {
       throw error
     }
     throw error
@@ -637,37 +655,12 @@ export async function pauseTimeEntry(id: number, duration: number): Promise<Time
         isPause: true,
         duration: validatedData.duration,
       },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          }
-        },
-      },
+      include: timeEntryInclude,
     })
 
     revalidatePath("/time-tracking")
-    
-    return {
-      id: timeEntry.id,
-      userId: timeEntry.userId,
-      projectId: timeEntry.projectId,
-      startTime: timeEntry.startTime,
-      endTime: timeEntry.endTime,
-      duration: timeEntry.duration,
-      description: timeEntry.description,
-      isActive: timeEntry.isActive,
-      isPause: timeEntry.isPause,
-      createdAt: timeEntry.createdAt,
-      updatedAt: timeEntry.updatedAt,
-      project: {
-        id: timeEntry.project.id,
-        name: timeEntry.project.name,
-        description: timeEntry.project.description,
-      }
-    }
+
+    return toTimeEntryDTO(timeEntry)
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
@@ -713,37 +706,12 @@ export async function resumeTimeEntry(id: number): Promise<TimeEntryDTO> {
         isPause: false,
         startTime: new Date(), // Update start time to now for resume calculation
       },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          }
-        },
-      },
+      include: timeEntryInclude,
     })
 
     revalidatePath("/time-tracking")
-    
-    return {
-      id: timeEntry.id,
-      userId: timeEntry.userId,
-      projectId: timeEntry.projectId,
-      startTime: timeEntry.startTime,
-      endTime: timeEntry.endTime,
-      duration: timeEntry.duration,
-      description: timeEntry.description,
-      isActive: timeEntry.isActive,
-      isPause: timeEntry.isPause,
-      createdAt: timeEntry.createdAt,
-      updatedAt: timeEntry.updatedAt,
-      project: {
-        id: timeEntry.project.id,
-        name: timeEntry.project.name,
-        description: timeEntry.project.description,
-      }
-    }
+
+    return toTimeEntryDTO(timeEntry)
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
@@ -792,37 +760,12 @@ export async function stopTimeEntry(id: number, duration: number): Promise<TimeE
         endTime: endTime,
         duration: validatedData.duration,
       },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          }
-        },
-      },
+      include: timeEntryInclude,
     })
 
     revalidatePath("/time-tracking")
-    
-    return {
-      id: timeEntry.id,
-      userId: timeEntry.userId,
-      projectId: timeEntry.projectId,
-      startTime: timeEntry.startTime,
-      endTime: timeEntry.endTime,
-      duration: timeEntry.duration,
-      description: timeEntry.description,
-      isActive: timeEntry.isActive,
-      isPause: timeEntry.isPause,
-      createdAt: timeEntry.createdAt,
-      updatedAt: timeEntry.updatedAt,
-      project: {
-        id: timeEntry.project.id,
-        name: timeEntry.project.name,
-        description: timeEntry.project.description,
-      }
-    }
+
+    return toTimeEntryDTO(timeEntry)
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
@@ -856,38 +799,13 @@ export async function getTimeEntries(): Promise<TimeEntryDTO[]> {
         userId: dbUser.id,
         isActive: true,
       },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          },
-        },
-      },
+      include: timeEntryInclude,
       orderBy: {
         createdAt: "desc",
       },
     })
 
-    return timeEntries.map(entry => ({
-      id: entry.id,
-      userId: entry.userId,
-      projectId: entry.projectId,
-      startTime: entry.startTime,
-      endTime: entry.endTime,
-      duration: entry.duration,
-      description: entry.description,
-      isActive: entry.isActive,
-      isPause: entry.isPause,
-      createdAt: entry.createdAt,
-      updatedAt: entry.updatedAt,
-      project: {
-        id: entry.project.id,
-        name: entry.project.name,
-        description: entry.project.description,
-      }
-    }))
+    return timeEntries.map(toTimeEntryDTO)
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
@@ -919,43 +837,106 @@ export async function getAllUserTimeEntries(): Promise<TimeEntryDTO[]> {
       where: {
         userId: dbUser.id,
       },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          }
-        },
-      },
+      include: timeEntryInclude,
       orderBy: {
         startTime: "desc",
       },
     })
 
-    return timeEntries.map(entry => ({
-      id: entry.id,
-      userId: entry.userId,
-      projectId: entry.projectId,
-      startTime: entry.startTime,
-      endTime: entry.endTime,
-      duration: entry.duration,
-      description: entry.description,
-      isActive: entry.isActive,
-      isPause: entry.isPause,
-      createdAt: entry.createdAt,
-      updatedAt: entry.updatedAt,
-      project: {
-        id: entry.project.id,
-        name: entry.project.name,
-        description: entry.project.description,
-      }
-    }))
+    return timeEntries.map(toTimeEntryDTO)
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
     }
     throw error
+  }
+}
+
+// Fetch all tasks for a project (used by the task selector)
+export async function fetchProjectTasks(projectId: number): Promise<ProjectTaskOption[]> {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) {
+    throw new Error("Unauthorized")
+  }
+
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+
+  if (!isAdmin) {
+    const permission = await prisma.projectPermission.findFirst({
+      where: {
+        userId: user.id,
+        projectId,
+        OR: [{ isOwner: true }, { canView: true }],
+      },
+      select: { id: true },
+    })
+    if (!permission) {
+      throw new Error("Unauthorized: Cannot access tasks for this project")
+    }
+  }
+
+  const tasks = await prisma.task.findMany({
+    where: { projectId },
+    select: { id: true, title: true, status: true, order: true },
+    orderBy: [{ status: "asc" }, { order: "asc" }, { title: "asc" }],
+  })
+
+  return tasks.map((t) => ({ id: t.id, title: t.title, status: t.status }))
+}
+
+// Admin-only: filterable list of all time entries (for the All Entries tab)
+export interface FilteredTimeEntriesResult {
+  entries: TimeEntryWithUserDTO[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export async function fetchAllTimeEntriesFiltered(
+  filters: TimeEntriesFilterValues = {}
+): Promise<FilteredTimeEntriesResult> {
+  const validated = timeEntriesFilterSchema.parse(filters)
+
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+
+  const page = validated.page ?? 1
+  const pageSize = validated.pageSize ?? 50
+
+  const where: {
+    startTime?: { gte?: Date; lt?: Date }
+    userId?: string
+    projectId?: number
+  } = {}
+
+  if (validated.startDate || validated.endDate) {
+    where.startTime = {}
+    if (validated.startDate) where.startTime.gte = validated.startDate
+    if (validated.endDate) where.startTime.lt = validated.endDate
+  }
+  if (validated.userId) where.userId = validated.userId
+  if (validated.projectId) where.projectId = validated.projectId
+
+  const [total, entries] = await Promise.all([
+    prisma.timeEntry.count({ where }),
+    prisma.timeEntry.findMany({
+      where,
+      include: timeEntryWithUserInclude,
+      orderBy: { startTime: "desc" },
+      take: pageSize,
+      skip: (page - 1) * pageSize,
+    }),
+  ])
+
+  return {
+    entries: entries.map(toTimeEntryWithUserDTO),
+    total,
+    page,
+    pageSize,
   }
 } 

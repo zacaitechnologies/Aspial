@@ -2,44 +2,23 @@
 
 import { useMemo } from "react"
 import { BarChart3, Folder, Clock } from "lucide-react"
-import { TimeEntry } from "@prisma/client"
 import { Project } from "@prisma/client"
-
-interface TimeEntryUser {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
-  profilePicture: string | null
-}
+import type { TimeEntryWithUserDTO } from "../../action"
+import { periodRange, type PeriodSelection } from "./period-utils"
 
 interface ProjectAnalyticsProps {
-  timeEntries: (TimeEntry & {
-    user: TimeEntryUser
-    project: Project
-  })[]
+  timeEntries: TimeEntryWithUserDTO[]
   projects: Project[]
-  selectedPeriod: "week" | "month" | "quarter"
+  period: PeriodSelection
 }
 
-export function ProjectAnalytics({ timeEntries, projects, selectedPeriod }: ProjectAnalyticsProps) {
+export function ProjectAnalytics({ timeEntries, projects, period }: ProjectAnalyticsProps) {
   const projectStats = useMemo(() => {
-    const now = new Date()
-    const periodStart = new Date()
+    const { start, end } = periodRange(period)
 
-    switch (selectedPeriod) {
-      case "week":
-        periodStart.setDate(now.getDate() - 7)
-        break
-      case "month":
-        periodStart.setMonth(now.getMonth() - 1)
-        break
-      case "quarter":
-        periodStart.setMonth(now.getMonth() - 3)
-        break
-    }
-
-    const periodEntries = timeEntries.filter((entry) => entry.startTime >= periodStart)
+    const periodEntries = timeEntries.filter(
+      (entry) => entry.startTime >= start && entry.startTime < end
+    )
 
     const projectStatsMap = new Map()
     const totalHours = periodEntries.reduce((sum, entry) => sum + entry.duration, 0) / 3600
@@ -62,7 +41,7 @@ export function ProjectAnalytics({ timeEntries, projects, selectedPeriod }: Proj
     })
 
     return Array.from(projectStatsMap.values()).sort((a, b) => b.hours - a.hours)
-  }, [timeEntries, projects, selectedPeriod])
+  }, [timeEntries, projects, period])
 
   const maxHours = Math.max(...projectStats.map((stat) => stat.hours), 1)
 

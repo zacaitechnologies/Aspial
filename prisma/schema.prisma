@@ -621,6 +621,7 @@ model TimeEntry {
   id          Int       @id @default(autoincrement())
   userId      String
   projectId   Int
+  taskId      Int?
   startTime   DateTime
   endTime     DateTime?
   duration    Int
@@ -630,8 +631,10 @@ model TimeEntry {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task        Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([taskId])
   @@map("time_entries")
 }
 
@@ -692,6 +695,7 @@ model Task {
   creator     User         @relation("TaskCreator", fields: [creatorId], references: [supabase_id])
   milestone   Milestone?   @relation(fields: [milestoneId], references: [id])
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  timeEntries TimeEntry[]
 
   @@map("tasks")
 }

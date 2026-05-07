@@ -4,40 +4,22 @@ import { Users, Clock, TrendingUp, Calendar } from "lucide-react"
 import { useMemo } from "react"
 import { User, Project } from "@prisma/client"
 import type { TimeEntryWithUserDTO } from "../../action"
-
-interface TimeEntryUser {
-  id: string
-  firstName: string
-  lastName: string
-  email: string
-  profilePicture: string | null
-}
+import { periodRange, type PeriodSelection } from "./period-utils"
 
 interface AdminStatsProps {
   timeEntries: TimeEntryWithUserDTO[]
   users: User[]
   projects: Project[]
-  selectedPeriod: "week" | "month" | "quarter"
+  period: PeriodSelection
 }
 
-export function AdminStats({ timeEntries, users, projects, selectedPeriod }: AdminStatsProps) {
+export function AdminStats({ timeEntries, period }: AdminStatsProps) {
   const stats = useMemo(() => {
-    const now = new Date()
-    const periodStart = new Date()
+    const { start, end } = periodRange(period)
 
-    switch (selectedPeriod) {
-      case "week":
-        periodStart.setDate(now.getDate() - 7)
-        break
-      case "month":
-        periodStart.setMonth(now.getMonth() - 1)
-        break
-      case "quarter":
-        periodStart.setMonth(now.getMonth() - 3)
-        break
-    }
-
-    const periodEntries = timeEntries.filter((entry) => entry.startTime >= periodStart)
+    const periodEntries = timeEntries.filter(
+      (entry) => entry.startTime >= start && entry.startTime < end
+    )
 
     const totalHours = periodEntries.reduce((sum, entry) => sum + entry.duration, 0) / 3600
     const activeUsers = new Set(periodEntries.map((entry) => entry.userId)).size
@@ -50,7 +32,7 @@ export function AdminStats({ timeEntries, users, projects, selectedPeriod }: Adm
       avgHoursPerUser: Math.round(avgHoursPerUser * 10) / 10,
       totalProjects,
     }
-  }, [timeEntries, selectedPeriod])
+  }, [timeEntries, period])
 
   const statCards = [
     {
