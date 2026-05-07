@@ -84,11 +84,6 @@ async function _getDeliveryOrdersPaginatedInternal(
             user: { select: { id: true, firstName: true, lastName: true, email: true } },
           },
         },
-        photographers: {
-          include: {
-            user: { select: { id: true, firstName: true, lastName: true, email: true } },
-          },
-        },
       },
       orderBy: { created_at: "desc" },
       skip,
@@ -99,7 +94,6 @@ async function _getDeliveryOrdersPaginatedInternal(
   const data = deliveryOrders.map((d) => ({
     ...d,
     advisors: d.advisors.map((a) => a.user),
-    photographers: d.photographers.map((p) => p.user),
   }))
 
   return {
@@ -181,11 +175,6 @@ export async function getDeliveryOrderFullById(id: unknown) {
           user: { select: { id: true, firstName: true, lastName: true, email: true } },
         },
       },
-      photographers: {
-        include: {
-          user: { select: { id: true, firstName: true, lastName: true, email: true } },
-        },
-      },
       emails: {
         include: {
           sentBy: { select: { firstName: true, lastName: true, email: true } },
@@ -200,7 +189,6 @@ export async function getDeliveryOrderFullById(id: unknown) {
   return {
     ...row,
     advisors: row.advisors.map((a) => a.user),
-    photographers: row.photographers.map((p) => p.user),
   }
 }
 
@@ -249,8 +237,6 @@ export async function createDeliveryOrder(data: unknown) {
   if (!isAdmin && !advisorIds.includes(dbUser.id)) {
     advisorIds = [...advisorIds, dbUser.id]
   }
-  const photographerIds = [...new Set(validatedData.photographerIds ?? [])]
-
   const deliveryOrderDate = parseDocumentDateInputOrNow(validatedData.deliveryOrderDate)
   const subtotal = computeSubtotal(validatedData.services)
   const finalAmount = computeFinalAmount(
@@ -295,7 +281,6 @@ export async function createDeliveryOrder(data: unknown) {
                 })),
               },
               advisors: { create: advisorIds.map((id) => ({ userId: id })) },
-              photographers: { create: photographerIds.map((id) => ({ userId: id })) },
             },
             select: { id: true, deliveryOrderNumber: true },
           })
@@ -419,10 +404,6 @@ export async function updateDeliveryOrder(id: unknown, data: unknown) {
     if (validatedData.advisorIds) {
       await tx.deliveryOrderAdvisor.deleteMany({ where: { deliveryOrderId: validatedId } })
     }
-    if (validatedData.photographerIds) {
-      await tx.deliveryOrderPhotographer.deleteMany({ where: { deliveryOrderId: validatedId } })
-    }
-
     let nextAdvisorIds = validatedData.advisorIds
       ? [...new Set(validatedData.advisorIds)]
       : undefined
@@ -464,15 +445,6 @@ export async function updateDeliveryOrder(id: unknown, data: unknown) {
           : {}),
         ...(nextAdvisorIds
           ? { advisors: { create: nextAdvisorIds.map((uid) => ({ userId: uid })) } }
-          : {}),
-        ...(validatedData.photographerIds
-          ? {
-              photographers: {
-                create: [...new Set(validatedData.photographerIds)].map((uid) => ({
-                  userId: uid,
-                })),
-              },
-            }
           : {}),
       },
       select: { id: true },

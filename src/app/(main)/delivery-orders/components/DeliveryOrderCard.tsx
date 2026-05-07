@@ -256,15 +256,6 @@ export default function DeliveryOrderCard({
                   </span>
                 </>
               )}
-              {order.photographers.length > 0 && (
-                <>
-                  <span className="text-gray-400">•</span>
-                  <span>
-                    Photo:{" "}
-                    {order.photographers.map((p) => `${p.firstName} ${p.lastName}`).join(", ")}
-                  </span>
-                </>
-              )}
             </div>
           </div>
 

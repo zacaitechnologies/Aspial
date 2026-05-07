@@ -530,7 +530,6 @@ export const createDeliveryOrderSchema = z.object({
   notes: z.string().max(2000).optional(),
   services: z.array(deliveryOrderServiceItemSchema).min(1, "Add at least one service"),
   advisorIds: z.array(z.string()).min(1, "At least one advisor is required"),
-  photographerIds: z.array(z.string()).optional().default([]),
 });
 
 export type CreateDeliveryOrderValues = z.infer<typeof createDeliveryOrderSchema>;
@@ -543,7 +542,6 @@ export const updateDeliveryOrderSchema = z.object({
   notes: z.string().max(2000).nullable().optional(),
   services: z.array(deliveryOrderServiceItemSchema).min(1).optional(),
   advisorIds: z.array(z.string()).min(1).optional(),
-  photographerIds: z.array(z.string()).optional(),
   status: deliveryOrderStatusSchema.optional(),
 });
 

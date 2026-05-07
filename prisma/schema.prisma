@@ -73,7 +73,6 @@ model User {
   receiptAdvisors          ReceiptAdvisor[]          @relation("ReceiptAdvisor")
   deliveryOrdersCreated      DeliveryOrder[]              @relation("DeliveryOrderCreator")
   deliveryOrderAdvisors      DeliveryOrderAdvisor[]       @relation("DeliveryOrderAdvisor")
-  deliveryOrderPhotographers DeliveryOrderPhotographer[]  @relation("DeliveryOrderPhotographer")
   deliveryOrderEmails        DeliveryOrderEmail[]         @relation("DeliveryOrderEmailSender")
   leaveApplications        LeaveApplication[]
   reviewedLeaves           LeaveApplication[]        @relation("LeaveReviewer")
@@ -477,7 +476,6 @@ model DeliveryOrder {
   createdBy           User                         @relation("DeliveryOrderCreator", fields: [createdById], references: [supabase_id])
   services            DeliveryOrderService[]
   advisors            DeliveryOrderAdvisor[]
-  photographers       DeliveryOrderPhotographer[]
   emails              DeliveryOrderEmail[]
 
   @@index([clientId])
@@ -512,16 +510,6 @@ model DeliveryOrderAdvisor {
 
   @@id([deliveryOrderId, userId])
   @@map("delivery_order_advisors")
-}
-
-model DeliveryOrderPhotographer {
-  deliveryOrderId String
-  userId          String
-  deliveryOrder   DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
-  user            User          @relation("DeliveryOrderPhotographer", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([deliveryOrderId, userId])
-  @@map("delivery_order_photographers")
 }
 
 model DeliveryOrderEmail {

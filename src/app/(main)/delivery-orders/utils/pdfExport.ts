@@ -215,7 +215,6 @@ type HeaderInfo = {
   deliveryOrderNumber: string
   deliveryOrderDate: string
   advisorName: string
-  photographerName: string
   clientInfo: ClientInfoPdf
 }
 
@@ -265,7 +264,7 @@ function addInfoBox(
 ) {
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 20
-  const { deliveryOrderNumber, deliveryOrderDate, advisorName, photographerName, clientInfo } = info
+  const { deliveryOrderNumber, deliveryOrderDate, advisorName, clientInfo } = info
 
   doc.setFillColor(255, 255, 255)
   doc.rect(margin, INFO_BOX_START_Y, pageWidth - 2 * margin, INFO_BOX_HEIGHT, "F")
@@ -289,7 +288,6 @@ function addInfoBox(
     ["NO", deliveryOrderNumber],
     ["DATE", deliveryOrderDate],
     ["ADVISOR", advisorName],
-    ["PHOTOGRAPHER", photographerName || "-"],
     ["PAGE NO", `${pageNumber} of ${totalPages}`],
   ]
   for (const [label, value] of rightRows) {
@@ -436,13 +434,6 @@ async function buildDeliveryOrderPdf(order: FullDeliveryOrder): Promise<jsPDF> {
           .map((a) => `${a.firstName ?? ""} ${a.lastName ?? ""}`.trim())
           .join(", ")
       : `${order.createdBy?.firstName ?? ""} ${order.createdBy?.lastName ?? ""}`.trim() || "ADMIN"
-  const photographerName =
-    order.photographers.length > 0
-      ? order.photographers
-          .map((p) => `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim())
-          .join(", ")
-      : ""
-
   const clientInfo: ClientInfoPdf = {
     name: order.client?.name ?? "",
     company: order.client?.company ?? "",
@@ -457,7 +448,6 @@ async function buildDeliveryOrderPdf(order: FullDeliveryOrder): Promise<jsPDF> {
     deliveryOrderNumber: order.deliveryOrderNumber,
     deliveryOrderDate: formatDate(new Date(order.deliveryOrderDate)),
     advisorName,
-    photographerName,
     clientInfo,
   }
 

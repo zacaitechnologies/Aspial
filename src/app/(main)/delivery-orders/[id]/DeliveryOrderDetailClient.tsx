@@ -423,14 +423,6 @@ export default function DeliveryOrderDetailClient({
                   </p>
                 </div>
               )}
-              {order.photographers.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Photographers</p>
-                  <p className="font-medium">
-                    {order.photographers.map((p) => `${p.firstName} ${p.lastName}`).join(", ")}
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>

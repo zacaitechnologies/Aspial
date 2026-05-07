@@ -137,10 +137,6 @@ export default function DeliveryOrderForm({
     initial?.advisors.map((a) => a.id) ??
       (isAdmin ? [] : [currentUserId]),
   )
-  const [photographerIds, setPhotographerIds] = useState<string[]>(
-    initial?.photographers.map((p) => p.id) ?? [],
-  )
-
   const [submitting, setSubmitting] = useState(false)
 
   // Non-admin creators must always remain in the advisor list.
@@ -240,7 +236,6 @@ export default function DeliveryOrderForm({
           sortOrder: idx,
         })),
         advisorIds,
-        photographerIds,
       }
 
       if (mode === "create") {
@@ -305,18 +300,6 @@ export default function DeliveryOrderForm({
             You are automatically included as an advisor and cannot remove yourself.
           </p>
         )}
-      </div>
-
-      <div className="space-y-2">
-        <Label>Photographer (optional)</Label>
-        <MultiSelectAdvisors
-          users={staff}
-          selectedIds={photographerIds}
-          onChange={setPhotographerIds}
-          currentUserId={currentUserId}
-          isAdmin={true}
-          placeholder="Select photographer(s)"
-        />
       </div>
 
       <div className="space-y-3">
