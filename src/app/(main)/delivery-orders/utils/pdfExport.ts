@@ -280,8 +280,9 @@ function addInfoBox(
   const rightLineHeight = 5
   let rightY = leftY
   const labelX = pageWidth / 2 + 25
-  const colonX = labelX + 32
-  const valueX = colonX + 5
+  const colonX = labelX + 22
+  const valueX = colonX + 4
+  const maxValueWidth = pageWidth - margin - valueX
 
   doc.setFontSize(9)
   const rightRows: [string, string][] = [
@@ -294,8 +295,11 @@ function addInfoBox(
     doc.setFont("helvetica", "normal")
     doc.text(label, labelX, rightY)
     doc.text(":", colonX, rightY)
-    doc.text(value, valueX, rightY)
-    rightY += rightLineHeight
+    const wrapped = doc.splitTextToSize(value, maxValueWidth) as string[]
+    for (const line of wrapped) {
+      doc.text(line, valueX, rightY)
+      rightY += rightLineHeight
+    }
   }
 
   leftY += 6
