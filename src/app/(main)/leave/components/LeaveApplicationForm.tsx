@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { applyLeaveSchema } from "@/lib/validation"
-import { applyForLeave } from "../action"
+import { applyForLeave, uploadLeaveAttachment } from "../action"
 import { halfDayOptions, calculateLeaveDaysClient } from "../types"
 import type { LeaveBalanceDTO, LeaveTypeDTO } from "../types"
 import {
@@ -34,7 +34,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { AlertTriangle, Info } from "lucide-react"
+import { AlertTriangle, Info, Paperclip, X, Loader2 } from "lucide-react"
 
 interface LeaveApplicationFormProps {
   open: boolean
@@ -52,6 +52,9 @@ export default function LeaveApplicationForm({
   onSuccess,
 }: LeaveApplicationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [attachmentName, setAttachmentName] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
   const activeTypes = useMemo(() => leaveTypes.filter((t) => t.isActive), [leaveTypes])
@@ -63,6 +66,7 @@ export default function LeaveApplicationForm({
       leaveType: defaultLeaveType,
       halfDay: "NONE",
       reason: "",
+      attachmentUrl: undefined,
     },
   })
 
@@ -74,6 +78,8 @@ export default function LeaveApplicationForm({
   const selectedTypeMeta = activeTypes.find((t) => t.code === watchLeaveType)
   const isUnpaidType = !!selectedTypeMeta?.isUnpaid
   const requiresReplacementDate = !!selectedTypeMeta?.requiresReplacementDate
+  const requiresAttachment = !!selectedTypeMeta?.requiresAttachment
+  const watchAttachmentUrl = form.watch("attachmentUrl")
 
   const selectedBalance = balances.find((b) => b.leaveType === watchLeaveType)
   const estimatedDays =
@@ -110,6 +116,8 @@ export default function LeaveApplicationForm({
       await applyForLeave(data as Parameters<typeof applyForLeave>[0])
       toast({ title: "Leave application submitted" })
       form.reset()
+      setAttachmentName("")
+      if (fileInputRef.current) fileInputRef.current.value = ""
       onOpenChange(false)
       onSuccess?.()
     } catch (error) {
@@ -247,6 +255,87 @@ export default function LeaveApplicationForm({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="attachmentUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Supporting Document
+                    {requiresAttachment && (
+                      <span className="text-destructive ml-0.5">*</span>
+                    )}
+                  </FormLabel>
+                  <FormControl>
+                    <div className="space-y-2">
+                      <Input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        disabled={uploading || isSubmitting}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setUploading(true)
+                          try {
+                            const fd = new FormData()
+                            fd.append("file", file)
+                            const { url } = await uploadLeaveAttachment(fd)
+                            field.onChange(url)
+                            setAttachmentName(file.name)
+                          } catch (err) {
+                            toast({
+                              title: "Upload failed",
+                              description:
+                                err instanceof Error ? err.message : "Could not upload file",
+                              variant: "destructive",
+                            })
+                            if (fileInputRef.current) fileInputRef.current.value = ""
+                          } finally {
+                            setUploading(false)
+                          }
+                        }}
+                      />
+                      {uploading && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Uploading...
+                        </div>
+                      )}
+                      {!uploading && field.value && attachmentName && (
+                        <div className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm">
+                          <div className="flex items-center gap-2 truncate">
+                            <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{attachmentName}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => {
+                              field.onChange(undefined)
+                              setAttachmentName("")
+                              if (fileInputRef.current) fileInputRef.current.value = ""
+                            }}
+                            aria-label="Remove attachment"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    {requiresAttachment
+                      ? "Required for this leave type. Upload an image or PDF (max 5MB)."
+                      : "Optional. Upload an image or PDF (max 5MB), e.g. MC."}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {/* Balance info */}
             {estimatedDays > 0 && (
               <div className="rounded-md border p-3 space-y-1">
@@ -299,7 +388,14 @@ export default function LeaveApplicationForm({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                disabled={
+                  isSubmitting ||
+                  uploading ||
+                  (requiresAttachment && !watchAttachmentUrl)
+                }
+              >
                 {isSubmitting ? "Submitting..." : "Submit Application"}
               </Button>
             </DialogFooter>

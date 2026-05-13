@@ -833,6 +833,7 @@ model LeaveType {
   isDeletable              Boolean  @default(true)
   isUnpaid                 Boolean  @default(false)
   requiresReplacementDate  Boolean  @default(false)
+  requiresAttachment       Boolean  @default(false)
   sortOrder                Int      @default(0)
   isActive                 Boolean  @default(true)
   created_at               DateTime @default(now())

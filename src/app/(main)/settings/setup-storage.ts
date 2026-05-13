@@ -3,6 +3,35 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
 const PROFILE_PICTURES_BUCKET = "profile-pictures"
+const LEAVE_ATTACHMENTS_BUCKET = "leave-attachments"
+
+const LEAVE_ATTACHMENTS_RLS_SQL = `-- Drop existing policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "Allow authenticated leave uploads" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public leave reads" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated leave updates" ON storage.objects;
+DROP POLICY IF EXISTS "Allow authenticated leave deletes" ON storage.objects;
+
+-- Create policies
+CREATE POLICY "Allow authenticated leave uploads"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'leave-attachments');
+
+CREATE POLICY "Allow public leave reads"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'leave-attachments');
+
+CREATE POLICY "Allow authenticated leave updates"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'leave-attachments')
+WITH CHECK (bucket_id = 'leave-attachments');
+
+CREATE POLICY "Allow authenticated leave deletes"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'leave-attachments');`
 
 // Create admin client for bucket operations (requires SUPABASE_SERVICE_ROLE_KEY)
 function createAdminClient() {
@@ -147,3 +176,63 @@ USING (bucket_id = 'profile-pictures');`
 	}
 }
 
+/**
+ * Sets up the leave-attachments storage bucket for leave application
+ * supporting documents (MCs, proof images, PDFs). Mirrors the
+ * profile-pictures setup but with a broader allowed-MIME-type list.
+ */
+export async function setupLeaveAttachmentsStorage() {
+	try {
+		const adminClient = createAdminClient()
+
+		console.log("Checking if bucket exists...")
+		const { data: buckets, error: listError } = await adminClient.storage.listBuckets()
+
+		if (listError) {
+			throw new Error(`Failed to list buckets: ${listError.message}`)
+		}
+
+		const bucketExists = buckets?.some(bucket => bucket.name === LEAVE_ATTACHMENTS_BUCKET)
+
+		if (!bucketExists) {
+			console.log(`Creating bucket '${LEAVE_ATTACHMENTS_BUCKET}'...`)
+			const { error: createError } = await adminClient.storage.createBucket(
+				LEAVE_ATTACHMENTS_BUCKET,
+				{
+					public: true,
+					fileSizeLimit: 5242880, // 5MB
+					allowedMimeTypes: [
+						"image/jpeg",
+						"image/png",
+						"image/webp",
+						"application/pdf",
+					],
+				}
+			)
+
+			if (createError) {
+				throw new Error(`Failed to create bucket: ${createError.message}`)
+			}
+
+			console.log(`Bucket '${LEAVE_ATTACHMENTS_BUCKET}' created successfully`)
+		} else {
+			console.log(`Bucket '${LEAVE_ATTACHMENTS_BUCKET}' already exists`)
+		}
+
+		return {
+			success: true,
+			bucketCreated: !bucketExists,
+			policiesCreated: false,
+			message:
+				"Leave attachments bucket created/verified. Run the SQL below in the Supabase SQL Editor to install RLS policies.",
+			sql: LEAVE_ATTACHMENTS_RLS_SQL,
+		}
+	} catch (error: any) {
+		console.error("Error setting up leave-attachments storage:", error)
+		return {
+			success: false,
+			error: error.message || "Failed to set up leave-attachments storage",
+			sql: LEAVE_ATTACHMENTS_RLS_SQL,
+		}
+	}
+}
