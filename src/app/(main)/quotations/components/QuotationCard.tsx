@@ -337,7 +337,7 @@ export default function QuotationCard({
     }
   };
 
-  const handleLinkProject = async () => {
+  const handleLinkProject = async (): Promise<boolean> => {
     setIsLinkingProject(true);
     try {
       let projectId: number;
@@ -350,8 +350,7 @@ export default function QuotationCard({
             description: "Please enter a project name.",
             variant: "destructive",
           });
-          setIsLinkingProject(false);
-          return;
+          return false;
         }
 
         // Get client ID from quotation.clientId or quotation.Client.id
@@ -363,8 +362,7 @@ export default function QuotationCard({
             description: "Cannot create project: Quotation does not have a client assigned. Please assign a client to the quotation first.",
             variant: "destructive",
           });
-          setIsLinkingProject(false);
-          return;
+          return false;
         }
 
         const { createProject } = await import("../../projects/action");
@@ -380,6 +378,7 @@ export default function QuotationCard({
           quotationId: quotation.id,
         });
         projectId = newProject.id;
+        // Only update local state after create succeeds (project + link are persisted in createProject)
         setLinkedProject(normalizeLinkedProject(newProject));
         // Project already linked via createProject (no extra update needed)
       } else {
@@ -390,10 +389,19 @@ export default function QuotationCard({
             description: "Please select a project first.",
             variant: "destructive",
           });
-          setIsLinkingProject(false);
-          return;
+          return false;
         }
-        projectId = parseInt(selectedProjectId);
+        projectId = parseInt(selectedProjectId, 10);
+        if (Number.isNaN(projectId)) {
+          toast({
+            title: "Validation Error",
+            description: "Invalid project selection.",
+            variant: "destructive",
+          });
+          return false;
+        }
+        // Persist first; only then update UI so failed server actions do not show a false "linked" state
+        await updateQuotationProjectId(quotation.id, projectId);
         if (selectedProjectData) {
           setLinkedProject(
             normalizeLinkedProject({
@@ -416,55 +424,59 @@ export default function QuotationCard({
         }
       }
 
-      // Link project without changing status (skip if created new project)
-      if (projectMode === "existing") {
-        await updateQuotationProjectId(quotation.id, projectId);
-      }
-      
       toast({
         title: "Success",
         description: "Project linked successfully!",
       });
       setIsProjectSelectionDialogOpen(false);
-      
-      // Refresh cache in background (avoid blocking UI)
       onRefresh?.();
+      return true;
     } catch (error) {
-      console.error("Error linking project:", error);
+      if (process.env.NODE_ENV === "development") {
+        // eslint-disable-next-line no-console
+        console.error("Error linking project:", error);
+      }
       toast({
         title: "Error",
         description: "Failed to link project. Please try again.",
         variant: "destructive",
       });
+      setLinkedProject(quotation.project);
+      return false;
     } finally {
       setIsLinkingProject(false);
     }
   };
 
-  const handleUnlinkProject = async () => {
+  const handleUnlinkProject = async (): Promise<boolean> => {
     if (!linkedProject) {
-      return;
+      return false;
     }
 
     setIsLinkingProject(true);
     try {
-      // Set projectId to null to unlink
       await updateQuotationProjectId(quotation.id, null);
-      
+
       toast({
         title: "Success",
         description: "Project unlinked successfully!",
       });
-      
+
       setLinkedProject(null);
       onRefresh?.();
+      return true;
     } catch (error) {
-      console.error("Error unlinking project:", error);
+      if (process.env.NODE_ENV === "development") {
+        // eslint-disable-next-line no-console
+        console.error("Error unlinking project:", error);
+      }
       toast({
         title: "Error",
         description: "Failed to unlink project. Please try again.",
         variant: "destructive",
       });
+      setLinkedProject(quotation.project);
+      return false;
     } finally {
       setIsLinkingProject(false);
     }
@@ -956,8 +968,10 @@ export default function QuotationCard({
         isOpen={isUnlinkProjectDialogOpen}
         onClose={() => setIsUnlinkProjectDialogOpen(false)}
         onConfirm={async () => {
-          await handleUnlinkProject();
-          setIsUnlinkProjectDialogOpen(false);
+          const ok = await handleUnlinkProject();
+          if (ok) {
+            setIsUnlinkProjectDialogOpen(false);
+          }
         }}
         title="Unlink Project"
         description="Are you sure you want to unlink this project from the quotation?"

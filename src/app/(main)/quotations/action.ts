@@ -1917,8 +1917,18 @@ export async function updateQuotationProjectId(quotationId: number, projectId: n
     where: { id: validatedQuotationId },
     data: { projectId: validatedProjectId },
   })
-  revalidateTag("quotations", { expire: 0 })
-  revalidatePath("/quotations")
+  try {
+    revalidateTag("quotations", { expire: 0 })
+    revalidatePath("/quotations")
+  } catch (revalidateError: unknown) {
+    if (process.env.NODE_ENV === "development") {
+      // eslint-disable-next-line no-console
+      console.error(
+        "Failed to revalidate after quotation project update:",
+        revalidateError
+      )
+    }
+  }
 }
 
 export async function linkProjectAndUpdateQuotationStatus(quotationId: number, projectId: number) {
