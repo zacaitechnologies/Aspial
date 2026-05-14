@@ -1,17 +1,175 @@
-"use server"
+/**
+ * Idempotent Supabase Storage setup.
+ *
+ * - Creates buckets only if they do not already exist (never overwrites).
+ * - Returns the matching RLS policy SQL for each bucket so it can be applied
+ *   in the Supabase SQL Editor.
+ *
+ * Used by `scripts/setup-storage.ts`. Not imported by Next.js application code,
+ * so no "use server" directive is needed here.
+ */
 
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js"
 
-const PROFILE_PICTURES_BUCKET = "profile-pictures"
-const LEAVE_ATTACHMENTS_BUCKET = "leave-attachments"
+export type BucketKey =
+  | "profile-pictures"
+  | "service"
+  | "contracts"
+  | "leave-attachments"
 
-const LEAVE_ATTACHMENTS_RLS_SQL = `-- Drop existing policies if they exist (for idempotency)
+export const BUCKET_KEYS: readonly BucketKey[] = [
+  "profile-pictures",
+  "service",
+  "contracts",
+  "leave-attachments",
+] as const
+
+interface BucketConfig {
+  key: BucketKey
+  /** Public bucket = objects accessible via /object/public/... URLs. Private = signed URLs only. */
+  public: boolean
+  fileSizeLimit: number
+  /** Empty array = no MIME restriction (matches current dashboard config). */
+  allowedMimeTypes: string[]
+  description: string
+}
+
+const FIVE_MB = 5 * 1024 * 1024
+const TEN_MB = 10 * 1024 * 1024
+
+const IMAGE_MIMES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+const IMAGE_AND_PDF_MIMES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+]
+
+const BUCKET_CONFIGS: Record<BucketKey, BucketConfig> = {
+  "profile-pictures": {
+    key: "profile-pictures",
+    public: true,
+    fileSizeLimit: FIVE_MB,
+    allowedMimeTypes: IMAGE_MIMES,
+    description: "User profile photos (publicly viewable).",
+  },
+  service: {
+    key: "service",
+    public: false,
+    fileSizeLimit: FIVE_MB,
+    allowedMimeTypes: IMAGE_AND_PDF_MIMES,
+    description: "Service catalog images and PDFs (signed URLs).",
+  },
+  contracts: {
+    key: "contracts",
+    public: false,
+    fileSizeLimit: TEN_MB,
+    allowedMimeTypes: [],
+    description: "Project contracts (signed URLs).",
+  },
+  "leave-attachments": {
+    key: "leave-attachments",
+    public: true,
+    fileSizeLimit: FIVE_MB,
+    allowedMimeTypes: IMAGE_AND_PDF_MIMES,
+    description: "Leave application supporting documents.",
+  },
+}
+
+/**
+ * Policy names mirror the existing dashboard policies so re-running the SQL
+ * does not orphan policies under different names. Each bucket uses unique
+ * policy names so DROP POLICY IF EXISTS does not affect other buckets.
+ */
+const RLS_SQL: Record<BucketKey, string> = {
+  "profile-pictures": `-- profile-pictures (public bucket)
+DROP POLICY IF EXISTS "Users can upload their own profile pictures" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view profile pictures" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update their own profile pictures" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete their own profile pictures" ON storage.objects;
+
+CREATE POLICY "Users can upload their own profile pictures"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'profile-pictures');
+
+CREATE POLICY "Anyone can view profile pictures"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'profile-pictures');
+
+CREATE POLICY "Users can update their own profile pictures"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'profile-pictures')
+WITH CHECK (bucket_id = 'profile-pictures');
+
+CREATE POLICY "Users can delete their own profile pictures"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'profile-pictures');`,
+
+  service: `-- service (private bucket — authenticated users only)
+DROP POLICY IF EXISTS "Authenticated users can upload service files" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can view service files" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update service files" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete service files" ON storage.objects;
+
+CREATE POLICY "Authenticated users can upload service files"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'service');
+
+CREATE POLICY "Authenticated users can view service files"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (bucket_id = 'service');
+
+CREATE POLICY "Authenticated users can update service files"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'service')
+WITH CHECK (bucket_id = 'service');
+
+CREATE POLICY "Authenticated users can delete service files"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'service');`,
+
+  contracts: `-- contracts (private bucket — authenticated users only)
+DROP POLICY IF EXISTS "Users can upload contracts" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view contracts" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update contracts" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete contracts" ON storage.objects;
+
+CREATE POLICY "Users can upload contracts"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'contracts');
+
+CREATE POLICY "Anyone can view contracts"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (bucket_id = 'contracts');
+
+CREATE POLICY "Authenticated users can update contracts"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'contracts')
+WITH CHECK (bucket_id = 'contracts');
+
+CREATE POLICY "Authenticated users can delete contracts"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'contracts');`,
+
+  "leave-attachments": `-- leave-attachments (public bucket)
 DROP POLICY IF EXISTS "Allow authenticated leave uploads" ON storage.objects;
 DROP POLICY IF EXISTS "Allow public leave reads" ON storage.objects;
 DROP POLICY IF EXISTS "Allow authenticated leave updates" ON storage.objects;
 DROP POLICY IF EXISTS "Allow authenticated leave deletes" ON storage.objects;
 
--- Create policies
 CREATE POLICY "Allow authenticated leave uploads"
 ON storage.objects FOR INSERT
 TO authenticated
@@ -31,208 +189,119 @@ WITH CHECK (bucket_id = 'leave-attachments');
 CREATE POLICY "Allow authenticated leave deletes"
 ON storage.objects FOR DELETE
 TO authenticated
-USING (bucket_id = 'leave-attachments');`
-
-// Create admin client for bucket operations (requires SUPABASE_SERVICE_ROLE_KEY)
-function createAdminClient() {
-	if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-		throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set in environment variables")
-	}
-
-	return createSupabaseClient(
-		process.env.NEXT_PUBLIC_SUPABASE_URL!,
-		process.env.SUPABASE_SERVICE_ROLE_KEY!,
-		{
-			auth: {
-				autoRefreshToken: false,
-				persistSession: false,
-			},
-		}
-	)
+USING (bucket_id = 'leave-attachments');`,
 }
 
-/**
- * Note: Supabase doesn't provide a direct REST API to execute arbitrary SQL.
- * Policies must be created manually via the Supabase SQL Editor or Dashboard.
- * This function just returns the SQL for manual execution.
- */
-
-/**
- * Sets up the profile-pictures storage bucket and RLS policies
- * Run this script once during initial setup
- */
-export async function setupProfilePicturesStorage() {
-	try {
-		const adminClient = createAdminClient()
-
-		// Step 1: Check if bucket exists
-		console.log("Checking if bucket exists...")
-		const { data: buckets, error: listError } = await adminClient.storage.listBuckets()
-
-		if (listError) {
-			throw new Error(`Failed to list buckets: ${listError.message}`)
-		}
-
-		const bucketExists = buckets?.some(bucket => bucket.name === PROFILE_PICTURES_BUCKET)
-
-		// Step 2: Create bucket if it doesn't exist
-		if (!bucketExists) {
-			console.log(`Creating bucket '${PROFILE_PICTURES_BUCKET}'...`)
-			const { data: bucketData, error: createError } = await adminClient.storage.createBucket(
-				PROFILE_PICTURES_BUCKET,
-				{
-					public: true, // Make bucket public so images can be accessed
-					fileSizeLimit: 5242880, // 5MB
-					allowedMimeTypes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-				}
-			)
-
-			if (createError) {
-				throw new Error(`Failed to create bucket: ${createError.message}`)
-			}
-
-			console.log(`Bucket '${PROFILE_PICTURES_BUCKET}' created successfully`)
-		} else {
-			console.log(`Bucket '${PROFILE_PICTURES_BUCKET}' already exists`)
-		}
-
-		// Step 3: Generate SQL for RLS policies
-		// Note: Supabase doesn't support executing arbitrary SQL via REST API
-		// Policies must be created manually in the Supabase SQL Editor
-		console.log("Generating RLS policy SQL...")
-
-		const policySQL = `-- Drop existing policies if they exist (for idempotency)
-DROP POLICY IF EXISTS "Allow authenticated uploads" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public reads" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated updates" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated deletes" ON storage.objects;
-
--- Create policies
-CREATE POLICY "Allow authenticated uploads"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (bucket_id = 'profile-pictures');
-
-CREATE POLICY "Allow public reads"
-ON storage.objects FOR SELECT
-TO public
-USING (bucket_id = 'profile-pictures');
-
-CREATE POLICY "Allow authenticated updates"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (bucket_id = 'profile-pictures')
-WITH CHECK (bucket_id = 'profile-pictures');
-
-CREATE POLICY "Allow authenticated deletes"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (bucket_id = 'profile-pictures');`
-
-		return {
-			success: true,
-			bucketCreated: !bucketExists,
-			policiesCreated: false,
-			message: "Bucket created/verified successfully. Please run the SQL below in Supabase SQL Editor to create RLS policies.",
-			sql: policySQL,
-		}
-	} catch (error: any) {
-		console.error("Error setting up storage:", error)
-		
-		// Generate SQL for manual execution even on error
-		const policySQL = `-- Drop existing policies if they exist (for idempotency)
-DROP POLICY IF EXISTS "Allow authenticated uploads" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public reads" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated updates" ON storage.objects;
-DROP POLICY IF EXISTS "Allow authenticated deletes" ON storage.objects;
-
--- Create policies
-CREATE POLICY "Allow authenticated uploads"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (bucket_id = 'profile-pictures');
-
-CREATE POLICY "Allow public reads"
-ON storage.objects FOR SELECT
-TO public
-USING (bucket_id = 'profile-pictures');
-
-CREATE POLICY "Allow authenticated updates"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (bucket_id = 'profile-pictures')
-WITH CHECK (bucket_id = 'profile-pictures');
-
-CREATE POLICY "Allow authenticated deletes"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (bucket_id = 'profile-pictures');`
-
-		return {
-			success: false,
-			error: error.message || "Failed to set up storage",
-			sql: policySQL,
-		}
-	}
+export interface SetupResult {
+  success: boolean
+  bucket: BucketKey
+  alreadyExisted: boolean
+  bucketCreated: boolean
+  message: string
+  sql: string
+  error?: string
 }
 
-/**
- * Sets up the leave-attachments storage bucket for leave application
- * supporting documents (MCs, proof images, PDFs). Mirrors the
- * profile-pictures setup but with a broader allowed-MIME-type list.
- */
-export async function setupLeaveAttachmentsStorage() {
-	try {
-		const adminClient = createAdminClient()
+function createAdminClient(): SupabaseClient {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set in environment variables")
+  }
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set in environment variables")
+  }
 
-		console.log("Checking if bucket exists...")
-		const { data: buckets, error: listError } = await adminClient.storage.listBuckets()
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  )
+}
 
-		if (listError) {
-			throw new Error(`Failed to list buckets: ${listError.message}`)
-		}
+async function setupBucket(key: BucketKey): Promise<SetupResult> {
+  const config = BUCKET_CONFIGS[key]
+  const sql = RLS_SQL[key]
 
-		const bucketExists = buckets?.some(bucket => bucket.name === LEAVE_ATTACHMENTS_BUCKET)
+  try {
+    const adminClient = createAdminClient()
 
-		if (!bucketExists) {
-			console.log(`Creating bucket '${LEAVE_ATTACHMENTS_BUCKET}'...`)
-			const { error: createError } = await adminClient.storage.createBucket(
-				LEAVE_ATTACHMENTS_BUCKET,
-				{
-					public: true,
-					fileSizeLimit: 5242880, // 5MB
-					allowedMimeTypes: [
-						"image/jpeg",
-						"image/png",
-						"image/webp",
-						"application/pdf",
-					],
-				}
-			)
+    const { data: buckets, error: listError } = await adminClient.storage.listBuckets()
+    if (listError) {
+      throw new Error(`Failed to list buckets: ${listError.message}`)
+    }
 
-			if (createError) {
-				throw new Error(`Failed to create bucket: ${createError.message}`)
-			}
+    const alreadyExisted = Boolean(buckets?.some((b) => b.name === key))
 
-			console.log(`Bucket '${LEAVE_ATTACHMENTS_BUCKET}' created successfully`)
-		} else {
-			console.log(`Bucket '${LEAVE_ATTACHMENTS_BUCKET}' already exists`)
-		}
+    if (alreadyExisted) {
+      return {
+        success: true,
+        bucket: key,
+        alreadyExisted: true,
+        bucketCreated: false,
+        message: `Bucket '${key}' already exists — left untouched. RLS policy SQL below is safe to re-run if needed.`,
+        sql,
+      }
+    }
 
-		return {
-			success: true,
-			bucketCreated: !bucketExists,
-			policiesCreated: false,
-			message:
-				"Leave attachments bucket created/verified. Run the SQL below in the Supabase SQL Editor to install RLS policies.",
-			sql: LEAVE_ATTACHMENTS_RLS_SQL,
-		}
-	} catch (error: any) {
-		console.error("Error setting up leave-attachments storage:", error)
-		return {
-			success: false,
-			error: error.message || "Failed to set up leave-attachments storage",
-			sql: LEAVE_ATTACHMENTS_RLS_SQL,
-		}
-	}
+    const { error: createError } = await adminClient.storage.createBucket(key, {
+      public: config.public,
+      fileSizeLimit: config.fileSizeLimit,
+      allowedMimeTypes: config.allowedMimeTypes.length > 0
+        ? config.allowedMimeTypes
+        : undefined,
+    })
+
+    if (createError) {
+      throw new Error(`Failed to create bucket '${key}': ${createError.message}`)
+    }
+
+    return {
+      success: true,
+      bucket: key,
+      alreadyExisted: false,
+      bucketCreated: true,
+      message: `Bucket '${key}' created. Apply the RLS policy SQL below in the Supabase SQL Editor.`,
+      sql,
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    return {
+      success: false,
+      bucket: key,
+      alreadyExisted: false,
+      bucketCreated: false,
+      message: `Setup failed for '${key}': ${message}`,
+      sql,
+      error: message,
+    }
+  }
+}
+
+export const setupProfilePicturesStorage = (): Promise<SetupResult> =>
+  setupBucket("profile-pictures")
+
+export const setupServiceStorage = (): Promise<SetupResult> =>
+  setupBucket("service")
+
+export const setupContractsStorage = (): Promise<SetupResult> =>
+  setupBucket("contracts")
+
+export const setupLeaveAttachmentsStorage = (): Promise<SetupResult> =>
+  setupBucket("leave-attachments")
+
+/** Runs all bucket setups sequentially. Order is stable so output is predictable. */
+export async function setupAllStorage(): Promise<SetupResult[]> {
+  const results: SetupResult[] = []
+  for (const key of BUCKET_KEYS) {
+    results.push(await setupBucket(key))
+  }
+  return results
+}
+
+export function getBucketRlsSql(key: BucketKey): string {
+  return RLS_SQL[key]
 }
