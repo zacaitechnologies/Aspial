@@ -13,8 +13,10 @@ import Image from "next/image"
 import { 
   createService, 
   updateService,
-  uploadServiceImage
+  uploadServiceImage,
+  getServiceImageSignedUrl,
 } from "../service-actions"
+import { serviceAttachmentIsPdf } from "../service-utils"
 import { 
   Service, 
   ServiceTag, 
@@ -50,16 +52,40 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
   const availableTags = serviceTags.tags
 
   useEffect(() => {
-    if (service) {
-      setFormData({
-        name: service.name,
-        description: service.description,
-        basePrice: service.basePrice,
-        imageUrl: service.imageUrl || null,
-        tagIds: service.tags?.map(tag => tag.id) || []
-      })
-      setSelectedTagIds(service.tags?.map(tag => tag.id) || [])
-      setImagePreview(service.imageUrl || null)
+    if (!service) return
+
+    setFormData({
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      imageUrl: service.imageUrl || null,
+      tagIds: service.tags?.map((tag) => tag.id) || [],
+    })
+    setSelectedTagIds(service.tags?.map((tag) => tag.id) || [])
+
+    const raw = service.imageUrl
+    if (!raw) {
+      setImagePreview(null)
+      return
+    }
+
+    if (serviceAttachmentIsPdf(raw)) {
+      setImagePreview("existing-pdf")
+      return
+    }
+
+    let cancelled = false
+    void (async () => {
+      const { signedUrl } = await getServiceImageSignedUrl(raw)
+      if (!cancelled && signedUrl) {
+        setImagePreview(signedUrl)
+      } else if (!cancelled) {
+        setImagePreview(null)
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
   }, [service])
 
@@ -307,10 +333,8 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
                     {(() => {
                       // Determine if current file is a PDF
                       const currentFileIsPDF = imageFile && (imageFile.type === 'application/pdf' || imageFile.name.toLowerCase().endsWith('.pdf'))
-                      // Check if existing service has a PDF
-                      const existingServiceIsPDF = service?.imageUrl && service.imageUrl.toLowerCase().endsWith('.pdf')
-                      // Check if preview URL indicates PDF (data URLs won't work, but check anyway)
-                      const previewIsPDF = imagePreview.includes('application/pdf') || imagePreview.toLowerCase().endsWith('.pdf')
+                      const existingServiceIsPDF = service?.imageUrl && serviceAttachmentIsPdf(service.imageUrl)
+                      const previewIsPDF = imagePreview === "existing-pdf" || imagePreview?.includes('application/pdf') || (typeof imagePreview === "string" && imagePreview.toLowerCase().endsWith('.pdf'))
                       
                       const isPDF = currentFileIsPDF || existingServiceIsPDF || previewIsPDF
                       

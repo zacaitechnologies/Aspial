@@ -75,7 +75,9 @@ export async function uploadContract(
       })
 
     if (uploadError) {
-      console.error("Error uploading contract:", uploadError)
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error uploading contract:", uploadError)
+      }
       
       // Provide more specific error messages
       if (uploadError.message.includes("row-level security") || uploadError.message.includes("RLS")) {
@@ -112,7 +114,9 @@ export async function uploadContract(
 
     return { success: true, contract }
   } catch (error: unknown) {
-    console.error("Error uploading contract:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error uploading contract:", error)
+    }
     const errorMessage = error instanceof Error ? error.message : "Failed to upload contract"
     return { success: false, error: errorMessage }
   }
@@ -141,22 +145,46 @@ export async function getProjectContracts(
 
     return contracts
   } catch (error) {
-    console.error("Error fetching contracts:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error fetching contracts:", error)
+    }
     return []
   }
 }
 
+const SIGNED_CONTRACT_URL_TTL = 60 * 60 // 1 hour
+
 /**
- * Get public URL for a contract file
+ * Get a signed URL for a contract file (bucket is private).
+ * Requires the caller to be authenticated.
  */
-export async function getContractUrl(filePath: string): Promise<string | null> {
+export async function getContractSignedUrl(filePath: string): Promise<{ signedUrl: string | null; error?: string }> {
   try {
+    const user = await getCachedUser()
+    if (!user?.id) {
+      return { signedUrl: null, error: "Unauthorized" }
+    }
+
     const supabase = await createClient()
-    const { data } = supabase.storage.from(CONTRACTS_BUCKET).getPublicUrl(filePath)
-    return data.publicUrl
-  } catch (error) {
-    console.error("Error getting contract URL:", error)
-    return null
+    const { data: { user: sessionUser }, error: authError } = await supabase.auth.getUser()
+    if (authError || !sessionUser || sessionUser.id !== user.id) {
+      return { signedUrl: null, error: "Unauthorized" }
+    }
+
+    const { data, error } = await supabase.storage
+      .from(CONTRACTS_BUCKET)
+      .createSignedUrl(filePath, SIGNED_CONTRACT_URL_TTL)
+
+    if (error || !data?.signedUrl) {
+      return { signedUrl: null, error: error?.message ?? "Failed to create signed URL" }
+    }
+
+    return { signedUrl: data.signedUrl }
+  } catch (error: unknown) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error getting contract signed URL:", error)
+    }
+    return { signedUrl: null, error: "Failed to get contract URL" }
   }
 }
 
@@ -212,9 +240,8 @@ export async function deleteContract(
       .from(CONTRACTS_BUCKET)
       .remove([contract.filePath])
 
-    if (deleteError) {
+    if (deleteError && process.env.NODE_ENV === "development") {
       console.error("Error deleting contract file:", deleteError)
-      // Continue to delete database record even if file deletion fails
     }
 
     // Delete contract metadata from database
@@ -226,8 +253,10 @@ export async function deleteContract(
     revalidateTag('projects', "max")
 
     return { success: true }
-	} catch (error: unknown) {
-    console.error("Error deleting contract:", error)
+  } catch (error: unknown) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error deleting contract:", error)
+    }
     const errorMessage = error instanceof Error ? error.message : "Failed to delete contract"
     return { success: false, error: errorMessage }
   }

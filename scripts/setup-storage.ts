@@ -11,7 +11,7 @@
 import {
 	setupProfilePicturesStorage,
 	setupLeaveAttachmentsStorage,
-} from "../src/app/(main)/settings/setup-storage"
+} from "../supabase/storage/setup-storage"
 
 type SetupResult =
 	| { success: true; bucketCreated?: boolean; sql?: string }

@@ -7,10 +7,53 @@ import { revalidateTag } from "next/cache"
 import { z } from "zod"
 import { checkIsAdmin } from "../actions/admin-actions"
 import { CreateServiceData, UpdateServiceData, CreateServiceTagData, UpdateServiceTagData, Service, ServiceTag } from "./types"
+import { extractServiceStorageObjectKey } from "./service-utils"
 
 const serviceBasePriceSchema = z.number().finite().min(0, "Base price must be 0 or greater")
 
 const SERVICE_IMAGES_BUCKET = "service"
+
+const SIGNED_URL_TTL_SECONDS = 60 * 60 // 1 hour — refresh when list reloads or page revisits
+
+/**
+ * Signed URL for `service` bucket objects. Any authenticated user may read (RLS on bucket).
+ */
+export async function getServiceImageSignedUrl(
+  imageUrlOrKey: string | null | undefined
+): Promise<{ signedUrl: string | null; error?: string }> {
+  const key = extractServiceStorageObjectKey(imageUrlOrKey)
+  if (!key) {
+    return { signedUrl: null }
+  }
+
+  const user = await getCachedUser()
+  if (!user?.id) {
+    return { signedUrl: null, error: "Unauthorized" }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user: sessionUser },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !sessionUser || sessionUser.id !== user.id) {
+    return { signedUrl: null, error: "Unauthorized" }
+  }
+
+  const { data, error } = await supabase.storage
+    .from(SERVICE_IMAGES_BUCKET)
+    .createSignedUrl(key, SIGNED_URL_TTL_SECONDS)
+
+  if (error || !data?.signedUrl) {
+    return {
+      signedUrl: null,
+      error: error?.message ?? "Failed to create signed URL",
+    }
+  }
+
+  return { signedUrl: data.signedUrl }
+}
 
 // Helper function to transform Prisma service data to match our Service type
 function transformService(service: any): Service {
@@ -534,7 +577,9 @@ export async function uploadServiceImage(
       })
 
     if (uploadError) {
-      console.error("Upload error:", uploadError)
+      if (process.env.NODE_ENV === "development") {
+        console.error("Upload error:", uploadError)
+      }
       if (uploadError.message.includes("Bucket not found")) {
         return {
           success: false,
@@ -544,12 +589,8 @@ export async function uploadServiceImage(
       return { success: false, error: `Failed to upload image: ${uploadError.message}` }
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from(SERVICE_IMAGES_BUCKET)
-      .getPublicUrl(fileName)
-
-    const publicUrl = urlData.publicUrl
+    // Persist object key (private bucket — clients resolve via getServiceImageSignedUrl)
+    const objectKey = fileName
 
     // If service already has an image, delete the old one
     const existingService = await prisma.services.findUnique({
@@ -558,26 +599,29 @@ export async function uploadServiceImage(
     })
 
     if (existingService?.imageUrl) {
-      // Extract filename from URL
-      const oldFileName = existingService.imageUrl.split('/').pop()?.split('?')[0]
-      if (oldFileName) {
-        // Delete old file (best effort, don't fail if it doesn't exist)
+      const oldKey = extractServiceStorageObjectKey(existingService.imageUrl)
+      if (oldKey) {
         await supabase.storage
           .from(SERVICE_IMAGES_BUCKET)
-          .remove([oldFileName])
-          .catch(err => console.warn("Failed to delete old image:", err))
+          .remove([oldKey])
+          .catch(() => {
+            /* best effort */
+          })
       }
     }
 
-    // Update service with new image URL
+    // Update service with storage object key
     await prisma.services.update({
       where: { id: serviceId },
-      data: { imageUrl: publicUrl }
+      data: { imageUrl: objectKey }
     })
 
-    return { success: true, imageUrl: publicUrl }
-  } catch (error: any) {
-    console.error("Error uploading service image:", error)
-    return { success: false, error: error.message || "Failed to upload image" }
+    return { success: true, imageUrl: objectKey }
+  } catch (error: unknown) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error uploading service image:", error)
+    }
+    const message = error instanceof Error ? error.message : "Failed to upload image"
+    return { success: false, error: message }
   }
 }
