@@ -347,12 +347,12 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
                   onCheckedChange={(v) => setDraft({ ...draft, requiresReplacementDate: v })}
                 />
               </div>
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/5 p-3 transition-colors duration-200 hover:border-primary/25 hover:bg-muted/25">
+                <div className="min-w-0 flex-1">
                   <Label htmlFor="lt-attachment" className="cursor-pointer">
                     Requires supporting document
                   </Label>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                     Users must upload an image or PDF (e.g. MC) when applying for this leave type.
                   </p>
                 </div>

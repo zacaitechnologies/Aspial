@@ -13,7 +13,8 @@ import { LeaveStatusBadge, LeaveTypeBadge } from "./LeaveStatusBadge"
 import type { LeaveApplicationDTO, LeaveTypeDTO } from "../types"
 import { format } from "date-fns"
 import { formatMYTDateForDisplay } from "@/lib/date-utils"
-import { Check, X, Pencil, Ban, Eye } from "lucide-react"
+import { Check, X, Pencil, Ban, Eye, FileText } from "lucide-react"
+import { leaveAttachmentUrlIsPdf } from "../leave-attachment-utils"
 
 interface LeaveApplicationTableProps {
   applications: LeaveApplicationDTO[]
@@ -107,6 +108,20 @@ export default function LeaveApplicationTable({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
+                    {app.attachmentUrl && leaveAttachmentUrlIsPdf(app.attachmentUrl) ? (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <a
+                          href={app.attachmentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="View PDF attachment"
+                          aria-label="View PDF attachment"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    ) : null}
+
                     <Button
                       variant="ghost"
                       size="icon"

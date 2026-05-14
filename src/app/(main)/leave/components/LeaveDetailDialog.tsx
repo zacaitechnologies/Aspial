@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { LeaveStatusBadge, LeaveTypeBadge } from "./LeaveStatusBadge"
 import type { LeaveApplicationDTO, LeaveTypeDTO } from "../types"
+import { leaveAttachmentUrlIsPdf } from "../leave-attachment-utils"
 import { format } from "date-fns"
 import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { approveLeave, rejectLeave, cancelLeave } from "../action"
@@ -138,7 +139,7 @@ export default function LeaveDetailDialog({
           {application.attachmentUrl && (
             <div>
               <p className="text-sm text-muted-foreground">Supporting Document</p>
-              {/\.pdf(\?|$)/i.test(application.attachmentUrl) ? (
+              {leaveAttachmentUrlIsPdf(application.attachmentUrl) ? (
                 <a
                   href={application.attachmentUrl}
                   target="_blank"
