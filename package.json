@@ -20,7 +20,11 @@
     "seed:staffRoles": "ts-node prisma/staffRoleMockData.ts",
     "seed:clients": "ts-node prisma/clientMockData.ts",
     "seed": "npm run seed:roles && npm run seed:users && npm run seed:clients && npm run seed:appointments && npm run seed:appointmentBookings && npm run seed:quotations && npm run seed:services && npm run seed:staffRoles",
-    "setup:storage": "tsx scripts/setup-storage.ts"
+    "setup:storage": "tsx --env-file=.env scripts/setup-storage.ts",
+    "setup:storage:profile-pictures": "tsx --env-file=.env scripts/setup-storage.ts profile-pictures",
+    "setup:storage:service": "tsx --env-file=.env scripts/setup-storage.ts service",
+    "setup:storage:contracts": "tsx --env-file=.env scripts/setup-storage.ts contracts",
+    "setup:storage:leave-attachments": "tsx --env-file=.env scripts/setup-storage.ts leave-attachments"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",

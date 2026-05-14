@@ -58,6 +58,7 @@ export interface LeaveTypeDTO {
   isDeletable: boolean
   isUnpaid: boolean
   requiresReplacementDate: boolean
+  requiresAttachment: boolean
   sortOrder: number
   isActive: boolean
 }

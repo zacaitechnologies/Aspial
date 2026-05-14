@@ -41,6 +41,7 @@ interface DraftType {
   defaultEntitlement: string
   isUnpaid: boolean
   requiresReplacementDate: boolean
+  requiresAttachment: boolean
   isActive: boolean
   isDeletable: boolean
 }
@@ -51,6 +52,7 @@ const emptyDraft: DraftType = {
   defaultEntitlement: "0",
   isUnpaid: false,
   requiresReplacementDate: false,
+  requiresAttachment: false,
   isActive: true,
   isDeletable: true,
 }
@@ -71,6 +73,7 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
       defaultEntitlement: String(t.defaultEntitlement),
       isUnpaid: t.isUnpaid,
       requiresReplacementDate: t.requiresReplacementDate,
+      requiresAttachment: t.requiresAttachment,
       isActive: t.isActive,
       isDeletable: t.isDeletable,
     })
@@ -100,6 +103,7 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
           defaultEntitlement: days,
           isUnpaid: draft.isUnpaid,
           requiresReplacementDate: draft.requiresReplacementDate,
+          requiresAttachment: draft.requiresAttachment,
           isActive: draft.isActive,
         })
         toast({ title: "Leave type updated" })
@@ -110,6 +114,7 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
           defaultEntitlement: days,
           isUnpaid: draft.isUnpaid,
           requiresReplacementDate: draft.requiresReplacementDate,
+          requiresAttachment: draft.requiresAttachment,
         })
         toast({ title: "Leave type created" })
       }
@@ -135,6 +140,7 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
         defaultEntitlement: t.defaultEntitlement,
         isUnpaid: t.isUnpaid,
         requiresReplacementDate: t.requiresReplacementDate,
+        requiresAttachment: t.requiresAttachment,
         isActive: !t.isActive,
       })
       toast({ title: t.isActive ? "Leave type deactivated" : "Leave type reactivated" })
@@ -202,6 +208,7 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
                   <TableCell className="space-x-1">
                     {t.isUnpaid && <Badge variant="outline">Unpaid</Badge>}
                     {t.requiresReplacementDate && <Badge variant="outline">Replacement date</Badge>}
+                    {t.requiresAttachment && <Badge variant="outline">Attachment</Badge>}
                     {!t.isActive && <Badge variant="secondary">Inactive</Badge>}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
@@ -338,6 +345,21 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
                   id="lt-replacement"
                   checked={draft.requiresReplacementDate}
                   onCheckedChange={(v) => setDraft({ ...draft, requiresReplacementDate: v })}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/5 p-3 transition-colors duration-200 hover:border-primary/25 hover:bg-muted/25">
+                <div className="min-w-0 flex-1">
+                  <Label htmlFor="lt-attachment" className="cursor-pointer">
+                    Requires supporting document
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    Users must upload an image or PDF (e.g. MC) when applying for this leave type.
+                  </p>
+                </div>
+                <Switch
+                  id="lt-attachment"
+                  checked={draft.requiresAttachment}
+                  onCheckedChange={(v) => setDraft({ ...draft, requiresAttachment: v })}
                 />
               </div>
               {isEdit && (

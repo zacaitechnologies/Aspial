@@ -414,6 +414,9 @@ export async function applyForLeave(data: ApplyLeaveValues) {
 
   const validated = applyLeaveSchema.parse(data)
   const leaveTypeMeta = await getLeaveTypeOrThrow(validated.leaveType)
+  if (leaveTypeMeta.requiresAttachment && !validated.attachmentUrl) {
+    throw new Error(`${leaveTypeMeta.name} requires a supporting document`)
+  }
   const totalDays = calculateLeaveDays(
     validated.startDate,
     validated.endDate,
@@ -1185,6 +1188,51 @@ export async function bulkUpsertLeaveBalances(data: BulkUpsertLeaveBalancesValue
   revalidateLeaveAndCalendar()
 }
 
+// ─── Leave Attachment Upload ──────────────────────────────────────
+
+const LEAVE_ATTACHMENTS_BUCKET = "leave-attachments"
+const ALLOWED_ATTACHMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024 // 5MB
+
+export async function uploadLeaveAttachment(
+  formData: FormData
+): Promise<{ url: string }> {
+  const user = await getCurrentUser()
+  const file = formData.get("file")
+  if (!(file instanceof File)) {
+    throw new Error("No file provided")
+  }
+  if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
+    throw new Error("Only JPG, PNG, WEBP, or PDF files are allowed")
+  }
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    throw new Error("File must be 5MB or smaller")
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80)
+  const path = `${user.id}/${Date.now()}-${safeName}`
+  const supabase = await createClient()
+  const { error } = await supabase.storage
+    .from(LEAVE_ATTACHMENTS_BUCKET)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: file.type,
+    })
+  if (error) {
+    throw new Error(`Upload failed: ${error.message}`)
+  }
+  const { data } = supabase.storage
+    .from(LEAVE_ATTACHMENTS_BUCKET)
+    .getPublicUrl(path)
+  return { url: data.publicUrl }
+}
+
 // ─── Leave Types CRUD (admin) ─────────────────────────────────────
 
 export async function createLeaveType(data: CreateLeaveTypeValues) {
@@ -1205,6 +1253,7 @@ export async function createLeaveType(data: CreateLeaveTypeValues) {
       defaultEntitlement: validated.defaultEntitlement,
       isUnpaid: validated.isUnpaid,
       requiresReplacementDate: validated.requiresReplacementDate,
+      requiresAttachment: validated.requiresAttachment,
       sortOrder: validated.sortOrder ?? 100,
       // User-created types are always deletable.
       isDeletable: true,
@@ -1232,6 +1281,8 @@ export async function updateLeaveType(data: UpdateLeaveTypeValues) {
       isUnpaid: validated.isUnpaid ?? existing.isUnpaid,
       requiresReplacementDate:
         validated.requiresReplacementDate ?? existing.requiresReplacementDate,
+      requiresAttachment:
+        validated.requiresAttachment ?? existing.requiresAttachment,
       isActive: validated.isActive ?? existing.isActive,
       sortOrder: validated.sortOrder ?? existing.sortOrder,
     },

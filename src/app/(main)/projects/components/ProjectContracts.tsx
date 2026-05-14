@@ -20,7 +20,7 @@ import {
 	getProjectContracts,
 	uploadContract,
 	deleteContract,
-	getContractUrl,
+	getContractSignedUrl,
 	type ContractWithUploader,
 } from "../contract-actions"
 import { useSession } from "../../contexts/SessionProvider"
@@ -69,7 +69,9 @@ export default function ProjectContracts({
 			const data = await getProjectContracts(projectId)
 			setContracts(data)
 		} catch (error) {
-			console.error("Error fetching contracts:", error)
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error fetching contracts:", error)
+			}
 			toast({
 				title: "Error",
 				description: "Failed to load contracts",
@@ -176,7 +178,9 @@ export default function ProjectContracts({
 				})
 			}
 		} catch (error: unknown) {
-			console.error("Error uploading contract:", error)
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error uploading contract:", error)
+			}
 			const errorMessage = error instanceof Error ? error.message : "Failed to upload contract"
 			toast({
 				title: "Upload failed",
@@ -190,18 +194,54 @@ export default function ProjectContracts({
 
 	const handleDownload = async (contract: ContractWithUploader) => {
 		try {
-			const url = await getContractUrl(contract.filePath)
-			if (url) {
-				window.open(url, "_blank")
-			} else {
+			const { signedUrl, error: urlError } = await getContractSignedUrl(contract.filePath)
+			if (!signedUrl) {
 				toast({
 					title: "Download failed",
-					description: "Failed to get download URL",
+					description: urlError ?? "Failed to get download URL",
 					variant: "destructive",
 				})
+				return
 			}
+
+			const response = await fetch(signedUrl)
+			if (!response.ok) {
+				throw new Error("Failed to fetch contract file")
+			}
+
+			const blob = await response.blob()
+
+			// Derive extension from the stored file path (avoids JWT-fragment issue with signed URLs)
+			const pathExtension = contract.filePath.includes(".")
+				? contract.filePath.split(".").pop()?.toLowerCase()
+				: undefined
+			const blobExtension =
+				blob.type === "application/pdf"
+					? "pdf"
+					: blob.type.startsWith("image/")
+					? blob.type.replace("image/", "")
+					: undefined
+			const extension = pathExtension || blobExtension || "bin"
+
+			const blobUrl = window.URL.createObjectURL(blob)
+			const link = document.createElement("a")
+			link.href = blobUrl
+			link.download = contract.fileName.includes(".")
+				? contract.fileName
+				: `${contract.fileName}.${extension}`
+			document.body.appendChild(link)
+			link.click()
+			document.body.removeChild(link)
+			window.URL.revokeObjectURL(blobUrl)
+
+			toast({
+				title: "Success",
+				description: "Contract downloaded successfully",
+			})
 		} catch (error) {
-			console.error("Error downloading contract:", error)
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error downloading contract:", error)
+			}
 			toast({
 				title: "Download failed",
 				description: "Failed to download contract",
@@ -236,7 +276,9 @@ export default function ProjectContracts({
 				})
 			}
 		} catch (error: unknown) {
-			console.error("Error deleting contract:", error)
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error deleting contract:", error)
+			}
 			toast({
 				title: "Delete failed",
 				description: error instanceof Error ? error.message : "Failed to delete contract",

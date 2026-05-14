@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Trash2, Search, Plus, Loader2, Filter, Image as ImageIcon, Download, FileText, ExternalLink } from "lucide-react";
+import { Edit, Trash2, Search, Loader2, Filter, Download, FileText } from "lucide-react";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { deleteService, searchServices, getServiceDeletionImpact, type DeletionImpact } from "../service-actions";
+import {
+  deleteService,
+  searchServices,
+  getServiceDeletionImpact,
+  getServiceImageSignedUrl,
+  type DeletionImpact,
+} from "../service-actions";
+import { extractServiceStorageObjectKey, serviceAttachmentIsPdf } from "../service-utils";
 import { Service } from "../types";
 import ServiceForm from "./ServiceForm";
 
@@ -59,6 +66,52 @@ export default function ServicesList({
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedServices = filteredServices.slice(startIndex, endIndex);
+
+  const [signedImageUrls, setSignedImageUrls] = useState<Record<number, string>>({});
+
+  const paginatedImageSignature = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    return filteredServices
+      .slice(start, start + itemsPerPage)
+      .map((s) => `${s.id}:${s.imageUrl ?? ""}`)
+      .join("|")
+  }, [currentPage, filteredServices, itemsPerPage])
+
+  useEffect(() => {
+    let cancelled = false
+    const start = (currentPage - 1) * itemsPerPage
+    const slice = filteredServices.slice(start, start + itemsPerPage)
+    const withFiles = slice.filter((s) => Boolean(s.imageUrl))
+    if (withFiles.length === 0) {
+      setSignedImageUrls({})
+      return
+    }
+
+    void (async () => {
+      const results = await Promise.all(
+        withFiles.map(async (s) => {
+          const { signedUrl } = await getServiceImageSignedUrl(s.imageUrl)
+          return { id: s.id, signedUrl: signedUrl ?? null }
+        })
+      )
+      if (cancelled) return
+      setSignedImageUrls((prev) => {
+        const next = { ...prev }
+        for (const s of slice) {
+          if (!s.imageUrl) delete next[s.id]
+        }
+        for (const { id, signedUrl } of results) {
+          if (signedUrl) next[id] = signedUrl
+          else delete next[id]
+        }
+        return next
+      })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [paginatedImageSignature, currentPage, filteredServices])
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -146,7 +199,9 @@ export default function ServicesList({
       }
       // If no relations, the normal confirmation dialog will show (isOpen={deleteServiceId !== null && !isWarningDialogOpen})
     } catch (error) {
-      console.error("Failed to get deletion impact:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Failed to get deletion impact:", error)
+      }
       toast({
         title: "Error",
         description: "Failed to check deletion impact. Please try again.",
@@ -174,7 +229,9 @@ export default function ServicesList({
         description: "Service deleted successfully.",
       });
     } catch (error) {
-      console.error("Error deleting service:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error deleting service:", error)
+      }
       toast({
         title: "Error",
         description: "Failed to delete service. Please try again.",
@@ -203,27 +260,39 @@ export default function ServicesList({
     setFilteredServices(services);
   };
 
-  const handleDownloadImage = async (fileUrl: string, serviceName: string) => {
+  const handleDownloadImage = async (service: Service) => {
+    if (!service.imageUrl) return
     try {
-      // Fetch the file as a blob
-      const response = await fetch(fileUrl)
+      const { signedUrl, error } = await getServiceImageSignedUrl(service.imageUrl)
+      if (!signedUrl) {
+        throw new Error(error ?? "Could not resolve file URL")
+      }
+      const response = await fetch(signedUrl)
       if (!response.ok) {
         throw new Error("Failed to fetch file")
       }
-      
+
       const blob = await response.blob()
-      
-      // Get file extension from URL or default to jpg
-      const urlParts = fileUrl.split('.')
-      const extension = urlParts.length > 1 ? urlParts[urlParts.length - 1].split('?')[0] : 'jpg'
-      
+
+      // Resolve extension from the stored object key (signed URL contains a JWT with dots)
+      const objectKey = extractServiceStorageObjectKey(service.imageUrl) ?? ""
+      const keyExtension = objectKey.includes(".")
+        ? objectKey.split(".").pop()?.toLowerCase()
+        : undefined
+      const blobExtension = blob.type === "application/pdf"
+        ? "pdf"
+        : blob.type.startsWith("image/")
+          ? blob.type.replace("image/", "")
+          : undefined
+      const extension = keyExtension || blobExtension || "bin"
+
       // Create a temporary URL for the blob
       const blobUrl = window.URL.createObjectURL(blob)
-      
+
       // Create a temporary anchor element to trigger download
       const link = document.createElement('a')
       link.href = blobUrl
-      link.download = `${serviceName.replace(/\s+/g, '-')}-file.${extension}`
+      link.download = `${service.name.replace(/\s+/g, "-")}-file.${extension}`
       document.body.appendChild(link)
       link.click()
       
@@ -236,7 +305,9 @@ export default function ServicesList({
         description: "File downloaded successfully",
       })
     } catch (error) {
-      console.error("Error downloading file:", error)
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error downloading file:", error)
+      }
       toast({
         title: "Error",
         description: "Failed to download file. Please try again.",
@@ -353,12 +424,24 @@ export default function ServicesList({
                     {/* Document/Image buttons - shown to all users if file exists */}
                     {service.imageUrl && (
                       <>
-                        {service.imageUrl.toLowerCase().endsWith('.pdf') ? (
+                        {serviceAttachmentIsPdf(service.imageUrl) ? (
                           <>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(service.imageUrl!, '_blank')}
+                              onClick={async () => {
+                                const { signedUrl } = await getServiceImageSignedUrl(
+                                  service.imageUrl
+                                )
+                                if (signedUrl) window.open(signedUrl, "_blank", "noopener,noreferrer")
+                                else {
+                                  toast({
+                                    title: "Error",
+                                    description: "Could not open PDF. Please try again.",
+                                    variant: "destructive",
+                                  })
+                                }
+                              }}
                               className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                               title="View PDF"
                             >
@@ -367,7 +450,7 @@ export default function ServicesList({
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDownloadImage(service.imageUrl!, service.name)}
+                              onClick={() => void handleDownloadImage(service)}
                               className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                               title="Download PDF"
                             >
@@ -378,7 +461,7 @@ export default function ServicesList({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDownloadImage(service.imageUrl!, service.name)}
+                            onClick={() => void handleDownloadImage(service)}
                             className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                             title="Download image"
                           >
@@ -415,10 +498,12 @@ export default function ServicesList({
 
               <CardContent>
                 {/* Service Image - only show images, not PDFs */}
-                {service.imageUrl && !service.imageUrl.toLowerCase().endsWith('.pdf') && (
+                {service.imageUrl &&
+                  !serviceAttachmentIsPdf(service.imageUrl) &&
+                  signedImageUrls[service.id] && (
                   <div className="mb-4 rounded-lg overflow-hidden border border-gray-200 relative group">
                     <Image
-                      src={service.imageUrl}
+                      src={signedImageUrls[service.id]}
                       alt={service.name}
                       width={600}
                       height={300}

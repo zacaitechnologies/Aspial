@@ -388,7 +388,7 @@ export const applyLeaveSchema = z.object({
   endDate: leaveDateString,
   halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).default("NONE"),
   reason: z.string().trim().min(1, "Reason is required").max(500, "Reason must be 500 characters or less"),
-  attachmentUrl: z.string().optional(),
+  attachmentUrl: z.string().url().optional(),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date must be on or after start date",
   path: ["endDate"],
@@ -487,6 +487,7 @@ export const createLeaveTypeSchema = z.object({
   defaultEntitlement: z.number().min(0).default(0),
   isUnpaid: z.boolean().default(false),
   requiresReplacementDate: z.boolean().default(false),
+  requiresAttachment: z.boolean().default(false),
   sortOrder: z.number().int().optional(),
 });
 
@@ -498,6 +499,7 @@ export const updateLeaveTypeSchema = z.object({
   defaultEntitlement: z.number().min(0).optional(),
   isUnpaid: z.boolean().optional(),
   requiresReplacementDate: z.boolean().optional(),
+  requiresAttachment: z.boolean().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });
