@@ -452,11 +452,18 @@ export default function CalendarClient({
 		return days
 	}
 
-	// Memoize stats counts
+	// Memoize stats counts. Pending leave is excluded from the LEAVE bucket — only approved leave counts.
 	const statsCounts = useMemo(() => {
 		const counts: Record<string, number> = {}
 		Object.keys(CALENDAR_EVENT_TYPES).forEach((appointmentKey) => {
-			counts[appointmentKey] = statsBookings.filter((b) => b.appointmentType === appointmentKey).length
+			counts[appointmentKey] = statsBookings.filter((b) => {
+				if (b.appointmentType !== appointmentKey) return false
+				if (b.appointmentType === "LEAVE") {
+					const status = (b.originalData as { status?: string } | null)?.status
+					return status !== "PENDING"
+				}
+				return true
+			}).length
 		})
 		return counts
 	}, [statsBookings])

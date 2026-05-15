@@ -4,7 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import type { AppointmentType } from "@/app/(main)/calendar/constants"
-import { formatLocalDateTime, formatLocalDateTimeDisplay, parseDateInBusinessTZ } from "@/lib/date-utils"
+import { formatLocalDateTime, parseDateInBusinessTZ } from "@/lib/date-utils"
 
 // Project Actions
 export async function getUserProjects(userId: string) {
@@ -300,35 +300,6 @@ export async function createAppointmentBooking(formData: FormData) {
 
 				// Overwrite fields with project client info if project is selected
 				// (This happens even if fields were already filled - per user requirement)
-			}
-		}
-
-		// Check for overlapping bookings if appointment is specified
-		if (appointmentId) {
-			const overlappingBookings = await prisma.appointmentBooking.findMany({
-			where: {
-					appointmentId,
-				status: 'active',
-				AND: [
-						{ startDate: { lt: endDate } },
-						{ endDate: { gt: startDate } },
-				],
-			},
-			include: {
-					appointment: {
-						select: { name: true },
-				},
-			},
-		})
-
-		if (overlappingBookings.length > 0) {
-			const booking = overlappingBookings[0]
-			const bookingStartStr = formatLocalDateTimeDisplay(new Date(booking.startDate))
-			const bookingEndStr = formatLocalDateTimeDisplay(new Date(booking.endDate))
-			return {
-				success: false,
-					error: `This appointment is already booked from ${bookingStartStr} to ${bookingEndStr} by ${booking.bookedBy}`,
-				}
 			}
 		}
 

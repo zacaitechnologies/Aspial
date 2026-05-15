@@ -102,15 +102,23 @@ function getSlotStatus(
 		}
 	}
 
-	for (const booking of bookings) {
-		if (dayStart < booking.endDate && dayEnd > booking.startDate) {
-			return { status: "booked" as const, label: `Booked by ${booking.bookedBy}` }
-		}
-	}
-
 	const now = new Date()
 	if (dayStart < now) {
 		return { status: "past" as const, label: "Past" }
+	}
+
+	const overlapping = bookings.filter(
+		(b) => dayStart < b.endDate && dayEnd > b.startDate
+	)
+	if (overlapping.length > 0) {
+		const names = overlapping.map((b) => b.bookedBy)
+		const preview = names.slice(0, 2).join(", ")
+		const suffix = names.length > 2 ? `, +${names.length - 2}` : ""
+		return {
+			status: "available" as const,
+			label: `Also booked by ${preview}${suffix}`,
+			alsoBookedCount: overlapping.length,
+		}
 	}
 
 	return { status: "available" as const, label: "Available" }
@@ -564,6 +572,8 @@ export function AppointmentBookingDialog({
 												const slotInfo = getSlotStatus(hour, existingBookings, blockers, initialDate)
 												const isDisabled = slotInfo.status !== "available"
 												const isSelected = selectedTimeSlots.includes(slot)
+												const alsoBookedCount = ("alsoBookedCount" in slotInfo ? slotInfo.alsoBookedCount : 0) ?? 0
+												const isShared = alsoBookedCount > 0
 
 												return (
 													<button
@@ -573,12 +583,12 @@ export function AppointmentBookingDialog({
 															isDisabled
 																? slotInfo.status === "blocked"
 																	? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 cursor-not-allowed"
-																	: slotInfo.status === "booked"
-																		? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 cursor-not-allowed"
-																		: "bg-muted text-muted-foreground cursor-not-allowed"
+																	: "bg-muted text-muted-foreground cursor-not-allowed"
 																: isSelected
 																	? "bg-primary border-primary text-primary-foreground"
-																	: "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 hover:border-primary/70"
+																	: isShared
+																		? "bg-blue-50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:border-primary/70"
+																		: "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 hover:border-primary/70"
 														}`}
 														title={slotInfo.label}
 														disabled={isDisabled}
@@ -592,8 +602,11 @@ export function AppointmentBookingDialog({
 													>
 														{slot}
 														<div className="text-[10px] mt-0.5 truncate">
-															{slotInfo.status === "available" && (isSelected ? "Selected" : "Available")}
-															{slotInfo.status === "booked" && "Booked"}
+															{slotInfo.status === "available" && (isSelected
+																? "Selected"
+																: isShared
+																	? `Shared (+${alsoBookedCount})`
+																	: "Available")}
 															{slotInfo.status === "blocked" && "Blocked"}
 															{slotInfo.status === "past" && "Past"}
 														</div>

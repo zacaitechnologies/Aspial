@@ -8,6 +8,8 @@ import {
 	isCalendarAllDayRowEvent,
 	isToday,
 	getLocalTime,
+	mergeAdjacentBookings,
+	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, MapPin, Users } from "lucide-react"
@@ -77,24 +79,19 @@ export function DayView({
 		[timeRange]
 	)
 	
-	// Get events for each time slot
-	const getEventsForSlot = (slot: string) => {
-		const slotTime = parseTime(slot)
-		return timedEvents.filter(event => {
-			const eventStart = parseTime(event.startTime)
-			const eventEnd = parseTime(event.endTime)
-			return eventStart <= slotTime && eventEnd > slotTime
-		})
-	}
+	const eventLayouts = useMemo(
+		() => layoutOverlappingEvents(mergeAdjacentBookings(timedEvents)),
+		[timedEvents]
+	)
 	
 	return (
 		<div className="flex flex-col h-full">
 			{/* Day Header */}
-			<div className={`p-4 border-b border-(--color-border)] ${today ? 'bg-(--color-primary)]/5' : ''}`}>
-				<div className="flex items-center justify-between">
-					<div>
-						<h3 className={`text-2xl font-bold ${today ? 'text-(--color-primary)]' : 'text-(--color-foreground)]'}`}>
-							{currentDate.toLocaleDateString('en-US', { 
+			<div className={`p-3 sm:p-4 border-b border-(--color-border)] ${today ? 'bg-(--color-primary)]/5' : ''}`}>
+				<div className="flex items-center justify-between gap-2">
+					<div className="min-w-0">
+						<h3 className={`text-lg sm:text-2xl font-bold truncate ${today ? 'text-(--color-primary)]' : 'text-(--color-foreground)]'}`}>
+							{currentDate.toLocaleDateString('en-US', {
 								weekday: 'long',
 								month: 'long',
 								day: 'numeric',
@@ -102,11 +99,11 @@ export function DayView({
 							})}
 						</h3>
 						{today && (
-							<p className="text-sm text-(--color-muted-foreground)] mt-1">Today</p>
+							<p className="text-xs sm:text-sm text-(--color-muted-foreground)] mt-1">Today</p>
 						)}
 					</div>
-					<div className="text-right">
-						<div className="text-sm text-(--color-muted-foreground)]">
+					<div className="text-right shrink-0">
+						<div className="text-xs sm:text-sm text-(--color-muted-foreground)]">
 							{dayEvents.length} {dayEvents.length === 1 ? 'event' : 'events'}
 						</div>
 					</div>
@@ -159,80 +156,99 @@ export function DayView({
 			
 			{/* Time Slots */}
 			<div ref={scrollRef} className="flex-1 overflow-y-auto relative hide-scrollbar">
-				<div className="relative" style={{ minHeight: timeSlots.length * HALF_HOUR_HEIGHT }}>
-					{today && (
-						<div className="absolute inset-0 z-20 pointer-events-none" style={{ left: "5rem" }}>
-							<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
-						</div>
-					)}
-
-					{timeSlots.map(slot => {
-						const slotEvents = getEventsForSlot(slot)
-						const isHourMark = slot.endsWith(':00')
-
-						return (
-							<div
-								key={slot}
-								className={`flex ${isHourMark ? 'border-t border-(--color-border)]' : 'border-t border-(--color-border)]/30'} relative`}
-								style={{ height: HALF_HOUR_HEIGHT }}
-							>
-								{/* Time Label */}
-								<div className={`w-20 shrink-0 p-2 text-xs ${isHourMark ? 'font-medium' : ''} text-(--color-muted-foreground)] border-r border-(--color-border)]`}>
+				<div className="relative flex" style={{ minHeight: timeSlots.length * HALF_HOUR_HEIGHT }}>
+					{/* Time gutter */}
+					<div className="w-12 sm:w-16 md:w-20 shrink-0 border-r border-(--color-border)] bg-(--color-background)]">
+						{timeSlots.map((slot) => {
+							const isHourMark = slot.endsWith(':00')
+							return (
+								<div
+									key={slot}
+									className={`p-1 sm:p-2 text-[10px] sm:text-xs ${isHourMark ? 'font-medium border-t border-(--color-border)]' : 'border-t border-(--color-border)]/30'} text-(--color-muted-foreground)]`}
+									style={{ height: HALF_HOUR_HEIGHT }}
+								>
 									{isHourMark ? slot : ''}
 								</div>
+							)
+						})}
+					</div>
 
-								{/* Events */}
+					{/* Day column */}
+					<div className="flex-1 relative">
+						{today && (
+							<div className="absolute inset-0 z-20 pointer-events-none">
+								<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
+							</div>
+						)}
+
+						{/* Background slot grid for click + visual lines */}
+						{timeSlots.map((slot) => {
+							const isHourMark = slot.endsWith(':00')
+							return (
 								<div
-									className={`flex-1 p-2 transition-colors ${slotEvents.length === 0 ? 'cursor-pointer hover:bg-(--color-primary)]/10' : ''}`}
+									key={slot}
+									className={`${isHourMark ? 'border-t border-(--color-border)]' : 'border-t border-(--color-border)]/30'} cursor-pointer transition-colors hover:bg-(--color-primary)]/10`}
+									style={{ height: HALF_HOUR_HEIGHT }}
 									onClick={() => {
-										if (slotEvents.length === 0 && onTimeSlotClick) {
-											onTimeSlotClick(dateString, slot)
-										}
+										if (onTimeSlotClick) onTimeSlotClick(dateString, slot)
+									}}
+								/>
+							)
+						})}
+
+						{/* Absolute-positioned event cards */}
+						{eventLayouts.map(({ event, column, totalColumns }) => {
+							const startHour = parseTime(event.startTime)
+							const endHour = parseTime(event.endTime)
+							const top = startHour * HOUR_HEIGHT
+							const height = Math.max(40, (endHour - startHour) * HOUR_HEIGHT - 4)
+							const widthPct = 100 / totalColumns
+							const leftPct = column * widthPct
+							return (
+								<div
+									key={event.id}
+									className="absolute z-10 overflow-hidden p-2 rounded-lg border border-(--color-border)] bg-(--color-card)] cursor-pointer hover:shadow-md transition-shadow"
+									style={{
+										top,
+										height,
+										left: `calc(${leftPct}% + 2px)`,
+										width: `calc(${widthPct}% - 4px)`,
+									}}
+									onClick={(e) => {
+										e.stopPropagation()
+										onEventClick(event)
 									}}
 								>
-									{slotEvents.length > 0 && (
-										<div className="space-y-2">
-											{slotEvents.map(event => (
-												<div
-													key={event.id}
-													className="p-3 rounded-lg border border-(--color-border)] bg-(--color-card)] cursor-pointer hover:shadow-md transition-shadow"
-													onClick={() => onEventClick(event)}
-												>
-													<div className="flex items-start justify-between mb-2">
-														<div className="flex items-center gap-2">
-															<Badge variant="secondary" className={event.color}>
-																{bookingTypeLabels[event.type]}
-															</Badge>
-															<h4 className="font-semibold text-(--color-foreground)]">{event.title}</h4>
-														</div>
-													</div>
-													<p className="text-sm text-(--color-muted-foreground)] mb-2">{event.description}</p>
-													<div className="flex items-center gap-4 text-xs text-(--color-muted-foreground)]">
-														<div className="flex items-center gap-1">
-															<Clock className="w-3 h-3" />
-															{event.startTime} - {event.endTime}
-														</div>
-														{event.location && (
-															<div className="flex items-center gap-1">
-																<MapPin className="w-3 h-3" />
-																{event.location}
-															</div>
-														)}
-														{event.attendees > 1 && (
-															<div className="flex items-center gap-1">
-																<Users className="w-3 h-3" />
-																{event.attendees} attendees
-															</div>
-														)}
-													</div>
-												</div>
-											))}
+									<div className="flex items-center gap-2 mb-1">
+										<Badge variant="secondary" className={event.color}>
+											{bookingTypeLabels[event.type]}
+										</Badge>
+										<h4 className="font-semibold text-(--color-foreground)] truncate text-sm">
+											{event.title}
+										</h4>
+									</div>
+									<div className="flex items-center gap-3 text-[11px] text-(--color-muted-foreground)] flex-wrap">
+										<div className="flex items-center gap-1">
+											<Clock className="w-3 h-3" />
+											{event.startTime} - {event.endTime}
 										</div>
-									)}
+										{event.location && (
+											<div className="flex items-center gap-1 min-w-0">
+												<MapPin className="w-3 h-3 shrink-0" />
+												<span className="truncate">{event.location}</span>
+											</div>
+										)}
+										{event.attendees > 1 && (
+											<div className="flex items-center gap-1">
+												<Users className="w-3 h-3" />
+												{event.attendees}
+											</div>
+										)}
+									</div>
 								</div>
-							</div>
-						)
-					})}
+							)
+						})}
+					</div>
 				</div>
 			</div>
 		</div>

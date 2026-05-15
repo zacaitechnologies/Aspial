@@ -28,6 +28,14 @@ function leaveStatusLabel(booking: CalendarBooking): string | null {
   return typeof s === "string" ? s : null
 }
 
+function mergedPartCount(booking: CalendarBooking): number {
+  const raw = booking.originalData
+  if (raw === null || typeof raw !== "object" || !("kind" in raw)) return 0
+  const meta = raw as { kind?: unknown; parts?: unknown }
+  if (meta.kind !== "merged" || !Array.isArray(meta.parts)) return 0
+  return meta.parts.length
+}
+
 export function BookingDetailsDialog({
   booking,
   isOpen,
@@ -45,6 +53,7 @@ export function BookingDetailsDialog({
 
   const appointmentTypeLabel = CALENDAR_EVENT_TYPES[booking.appointmentType]?.label || "Others"
   const leaveStatus = leaveStatusLabel(booking)
+  const partCount = mergedPartCount(booking)
   const isBlocker = booking.type === "blocker"
   const blockerData = isBlocker
     ? (booking.originalData as {
@@ -77,17 +86,24 @@ export function BookingDetailsDialog({
   }
 
   const isAppointment = booking?.type === "appointment"
-  const canEditAppointment = isAppointment && (booking?.isUserBooking || isAdmin)
+  const isMerged = partCount > 1
+  // Merged events represent multiple booking rows — editing/cancelling one
+  // would be misleading, so route the user to the appointment-bookings page.
+  const canEditAppointment = isAppointment && !isMerged && (booking?.isUserBooking || isAdmin)
 
-  // Extract additional details from originalData for appointments
-  const appointmentOriginalData = isAppointment && booking?.originalData
-    ? (booking.originalData as {
-        companyName?: string | null
-        contactNumber?: string | null
-        remarks?: string | null
-        purpose?: string | null
-      })
-    : null
+  // Extract additional details from originalData for appointments. Merged
+  // events wrap the first booking's originalData under `first`.
+  const appointmentOriginalData = (() => {
+    if (!isAppointment || !booking?.originalData) return null
+    const raw = booking.originalData as Record<string, unknown>
+    const source = raw.kind === "merged" && raw.first ? (raw.first as Record<string, unknown>) : raw
+    return source as {
+      companyName?: string | null
+      contactNumber?: string | null
+      remarks?: string | null
+      purpose?: string | null
+    }
+  })()
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -99,16 +115,23 @@ export function BookingDetailsDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <Badge variant="secondary" className={booking.color}>
               {appointmentTypeLabel}
             </Badge>
-            {isBlocker && blockerData?.blocksAppointments && (
-              <Badge variant="destructive" className="flex items-center gap-1">
-                <ShieldAlert className="w-3 h-3" />
-                Blocks Appointments
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {isMerged && (
+                <Badge variant="outline" className="text-xs">
+                  {partCount} consecutive bookings
+                </Badge>
+              )}
+              {isBlocker && blockerData?.blocksAppointments && (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <ShieldAlert className="w-3 h-3" />
+                  Blocks Appointments
+                </Badge>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3">

@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { formatLocalDate, formatLocalDateTime, toBusinessTZParts, parseDateInBusinessTZ } from "@/lib/date-utils"
 import type { LeaveHalfDay } from "@prisma/client"
-import { getAllUserTasks } from "../projects/task-actions"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import {
 	APPOINTMENT_TYPES,
@@ -255,8 +254,12 @@ async function _fetchLeaveBookings(
 				: isSingleCalendarDayLeave && leave.halfDay === "SECOND_HALF"
 					? " (PM)"
 					: ""
-		const statusSuffix = leave.status === "PENDING" ? " · Pending" : ""
+		const isPending = leave.status === "PENDING"
+		const statusSuffix = isPending ? " · Pending" : ""
 		const titleBase = `${typeLabel}${halfLabel}${statusSuffix}`
+		const leaveColor = isPending
+			? "bg-calendar-leave-pending text-foreground border border-dashed border-calendar-leave/70"
+			: CALENDAR_EVENT_TYPES.LEAVE.color
 
 		for (const dateStr of dayStrings) {
 			results.push({
@@ -271,7 +274,7 @@ async function _fetchLeaveBookings(
 				appointmentType: "LEAVE",
 				location: "Leave",
 				attendees: 1,
-				color: CALENDAR_EVENT_TYPES.LEAVE.color,
+				color: leaveColor,
 				projectId: null,
 				projectName: null,
 				clientName: null,
@@ -396,100 +399,11 @@ async function _fetchAppointmentBookings(
 	return results
 }
 
-/** Fetch tasks mapped to calendar bookings. */
 async function _fetchTaskBookings(
-	userId: string,
-	safeRange?: { start: Date; end: Date }
+	_userId: string,
+	_safeRange?: { start: Date; end: Date }
 ): Promise<CalendarBooking[]> {
-	const tasks = await getAllUserTasks(userId, safeRange ?? undefined)
-
-	const projectIds = Array.from(new Set(tasks.map(t => t.project?.id).filter((id): id is number => id !== undefined)))
-	const projectsWithClients = await prisma.project.findMany({
-		where: { id: { in: projectIds } },
-		select: { id: true, clientName: true },
-	})
-	const clientNameMap = new Map(projectsWithClients.map(p => [p.id, p.clientName]))
-
-	const results: CalendarBooking[] = []
-	const today = new Date()
-	today.setHours(0, 0, 0, 0)
-
-	tasks.forEach((task) => {
-		if (!task.dueDate) return
-
-		const dueDate = new Date(task.dueDate)
-		dueDate.setHours(23, 59, 59, 999)
-		const startDate = task.startDate ? new Date(task.startDate) : new Date(task.dueDate)
-		startDate.setHours(0, 0, 0, 0)
-		const isOverdue = dueDate < today
-
-		const isUserTask = task.assigneeId === userId
-		const isCreatorTask = task.creatorId === userId
-
-		const creatorName = task.creator
-			? `${task.creator.firstName || ""} ${task.creator.lastName || ""}`.trim() || task.creator.email
-			: null
-		const assigneeName = task.assignee
-			? `${task.assignee.firstName || ""} ${task.assignee.lastName || ""}`.trim() || task.assignee.email
-			: null
-
-		const clientName = task.project?.id ? (clientNameMap.get(task.project.id) || null) : null
-		const startDateString = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`
-		const dueDateString = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, "0")}-${String(dueDate.getDate()).padStart(2, "0")}`
-
-		const shared = {
-			bookingName: task.title,
-			type: "task" as const,
-			appointmentType: "OTHERS" as const,
-			location: task.project?.name || "Unknown Project",
-			attendees: 1,
-			color: isOverdue ? "bg-destructive" : APPOINTMENT_TYPES.OTHERS.color,
-			projectId: task.project?.id,
-			projectName: task.project?.name || null,
-			clientName,
-			creatorName,
-			assigneeName,
-			taskStartDate: startDateString,
-			taskDueDate: dueDateString,
-			isUserBooking: isUserTask || isCreatorTask,
-			isTeamBooking: !isUserTask && !isCreatorTask,
-			assigneeId: task.assigneeId || null,
-			creatorId: task.creatorId,
-			originalData: { ...task, isOverdue, dueDate: formatLocalDate(dueDate) },
-		}
-
-		const startTitle = isOverdue
-			? `OVERDUE: ${task.title} - ${task.project?.name || "Unknown Project"} (START)`
-			: `START: ${task.title} - ${task.project?.name || "Unknown Project"}`
-
-		results.push({
-			...shared,
-			id: `task-${task.id}-start`,
-			title: startTitle,
-			description: task.description || `Task starts on ${startDate.toLocaleDateString()}`,
-			date: startDateString,
-			startTime: "00:00",
-			endTime: "23:59",
-		})
-
-		if (dueDateString !== startDateString) {
-			const dueTitle = isOverdue
-				? `OVERDUE: ${task.title} - ${task.project?.name || "Unknown Project"} (DUE)`
-				: `DUE: ${task.title} - ${task.project?.name || "Unknown Project"}`
-
-			results.push({
-				...shared,
-				id: `task-${task.id}-due`,
-				title: dueTitle,
-				description: task.description || `Task due on ${dueDate.toLocaleDateString()}`,
-				date: dueDateString,
-				startTime: "00:00",
-				endTime: "23:59",
-			})
-		}
-	})
-
-	return results
+	return []
 }
 
 /** Fetch calendar blockers, normalized to CalendarBooking[]. Visible to all users. */
@@ -821,25 +735,6 @@ export async function updateAppointmentBooking(
 
 	if (endDate <= startDate) {
 		return { success: false, error: "End time must be after start time" }
-	}
-
-	// Check for overlapping bookings (excluding this one)
-	const appointmentId = existing.appointmentId
-	if (appointmentId) {
-		const overlapping = await prisma.appointmentBooking.findMany({
-			where: {
-				appointmentId,
-				status: "active",
-				id: { not: id },
-				AND: [
-					{ startDate: { lt: endDate } },
-					{ endDate: { gt: startDate } },
-				],
-			},
-		})
-		if (overlapping.length > 0) {
-			return { success: false, error: "This time slot overlaps with another booking for the same appointment" }
-		}
 	}
 
 	try {

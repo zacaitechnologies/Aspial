@@ -9,6 +9,8 @@ import {
 	isCalendarAllDayRowEvent,
 	isToday,
 	getLocalTime,
+	mergeAdjacentBookings,
+	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
 import { useMemo, useRef, useEffect } from "react"
 import { CurrentTimeLine } from "./CurrentTimeLine"
@@ -80,27 +82,29 @@ export function WeekView({
 	
 	return (
 		<div className="flex flex-col h-full overflow-hidden">
+			<div className="overflow-x-auto flex-1 flex flex-col">
+				<div className="min-w-[640px] flex flex-col flex-1">
 			{/* Header row with day names - fixed position */}
 			<div className="flex border-b-2 border-(--color-border)] shrink-0">
-				<div className="w-16 shrink-0 border-r border-(--color-border)]"></div>
+				<div className="w-10 sm:w-14 md:w-16 shrink-0 border-r border-(--color-border)]"></div>
 				<div className="flex-1 grid grid-cols-7">
 					{weekDays.map((date, index) => {
 						const dateString = formatDate(date)
 						const today = isToday(date)
-						
+
 						return (
 							<div
 								key={dateString}
-								className={`p-2 text-center border-r border-(--color-border)] last:border-r-0 cursor-pointer hover:bg-(--color-muted)]/50 transition-colors ${
+								className={`p-1 sm:p-2 text-center border-r border-(--color-border)] last:border-r-0 cursor-pointer hover:bg-(--color-muted)]/50 transition-colors ${
 									today ? 'bg-(--color-primary)]/10' : ''
 								}`}
 								onClick={() => onDateClick(dateString)}
 							>
-								<div className={`text-xs font-medium ${today ? 'text-(--color-primary)]' : 'text-(--color-muted-foreground)]'}`}>
+								<div className={`text-[10px] sm:text-xs font-medium ${today ? 'text-(--color-primary)]' : 'text-(--color-muted-foreground)]'}`}>
 									{dayNames[index]}
 								</div>
 								<div
-									className={`text-lg font-semibold mt-1 ${
+									className={`text-base sm:text-lg font-semibold mt-1 ${
 										today
 											? 'text-(--color-primary)]'
 											: 'text-(--color-foreground)]'
@@ -116,7 +120,7 @@ export function WeekView({
 
 			{/* All-day row: tasks + leave (same as timed grid — excluded from slots below) */}
 			<div className="flex border-b-2 border-(--color-border)] shrink-0 bg-(--color-muted)]/30">
-				<div className="w-16 shrink-0 p-2 text-[10px] text-(--color-muted-foreground)] font-medium border-r border-(--color-border)] flex items-start pt-3">
+				<div className="w-10 sm:w-14 md:w-16 shrink-0 p-1 sm:p-2 text-[9px] sm:text-[10px] text-(--color-muted-foreground)] font-medium border-r border-(--color-border)] flex items-start pt-2 sm:pt-3">
 					All day
 				</div>
 				<div className="flex-1 grid grid-cols-7 min-h-[56px]">
@@ -160,76 +164,95 @@ export function WeekView({
 			
 			{/* Time slots with synchronized columns - scrollable */}
 			<div ref={scrollRef} className="flex-1 overflow-y-auto hide-scrollbar relative">
-				<div className="relative" style={{ minHeight: timeSlots.length * HOUR_HEIGHT }}>
-					{/* Current-time red line spanning all day columns (Teams-style) */}
-					{hasToday && (
-						<div className="absolute z-20 pointer-events-none inset-y-0" style={{ left: "4rem", right: 0 }}>
-							<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
-						</div>
-					)}
+				<div className="relative flex" style={{ minHeight: timeSlots.length * HOUR_HEIGHT }}>
+					{/* Time gutter */}
+					<div className="w-10 sm:w-14 md:w-16 shrink-0 border-r border-(--color-border)] bg-(--color-background)] relative">
+						{timeSlots.map((slot) => (
+							<div
+								key={slot}
+								className="border-b border-(--color-border)] p-1 sm:p-2 text-[10px] sm:text-xs text-(--color-muted-foreground)] font-medium"
+								style={{ height: HOUR_HEIGHT }}
+							>
+								{slot}
+							</div>
+						))}
+					</div>
 
-					{timeSlots.map((slot) => {
-						const slotHour = parseTime(slot)
+					{/* Day columns */}
+					<div className="flex-1 grid grid-cols-7 relative">
+						{/* Current-time red line spanning all day columns (Teams-style) */}
+						{hasToday && (
+							<div className="absolute z-20 pointer-events-none inset-0">
+								<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
+							</div>
+						)}
 
-						return (
-							<div key={slot} className="flex border-b border-(--color-border)]" style={{ height: HOUR_HEIGHT }}>
-								{/* Time label */}
-								<div className="w-16 shrink-0 p-2 text-xs text-(--color-muted-foreground)] font-medium border-r border-(--color-border)] bg-(--color-background)]">
-									{slot}
-								</div>
+						{weekDays.map((date) => {
+							const dateString = formatDate(date)
+							const today = isToday(date)
+							const dayEvents = getEventsForDay(date)
+							const timedEvents = dayEvents.filter((e) => !isCalendarAllDayRowEvent(e))
+							const merged = mergeAdjacentBookings(timedEvents)
+							const layouts = layoutOverlappingEvents(merged)
 
-								{/* Event columns for each day */}
-								<div className="flex-1 grid grid-cols-7">
-									{weekDays.map((date) => {
-										const dateString = formatDate(date)
-										const today = isToday(date)
-										const dayEvents = getEventsForDay(date)
-										const timedEvents = dayEvents.filter((e) => !isCalendarAllDayRowEvent(e))
-
-										const slotEvents = timedEvents.filter(event => {
-											const eventStart = parseTime(event.startTime)
-											const eventEnd = parseTime(event.endTime)
-											return eventStart <= slotHour && eventEnd > slotHour
-										})
-
+							return (
+								<div
+									key={dateString}
+									className={`relative border-r border-(--color-border)] last:border-r-0 ${
+										today ? "bg-(--color-primary)]/[0.06]" : ""
+									}`}
+								>
+									{/* Background slot grid for click-to-create + hour lines */}
+									{timeSlots.map((slot) => {
+										const slotHour = parseTime(slot)
 										return (
 											<div
-												key={dateString}
-												className={`border-r border-(--color-border)] last:border-r-0 p-1 transition-colors cursor-pointer ${
-													today ? 'bg-(--color-primary)]/[0.06]' : ''
-												} ${slotEvents.length === 0 ? 'hover:bg-(--color-primary)]/10' : 'hover:bg-(--color-muted)]/20'}`}
+												key={slot}
+												className="border-b border-(--color-border)] cursor-pointer transition-colors hover:bg-(--color-primary)]/10"
+												style={{ height: HOUR_HEIGHT }}
 												onClick={() => {
-													if (slotEvents.length === 0 && onTimeSlotClick) {
-														onTimeSlotClick(dateString, slotHour)
-													}
+													if (onTimeSlotClick) onTimeSlotClick(dateString, slotHour)
+												}}
+											/>
+										)
+									})}
+
+									{/* Absolute-positioned event cards */}
+									{layouts.map(({ event, column, totalColumns }) => {
+										const startHour = parseTime(event.startTime)
+										const endHour = parseTime(event.endTime)
+										const top = startHour * HOUR_HEIGHT
+										const height = Math.max(20, (endHour - startHour) * HOUR_HEIGHT - 2)
+										const widthPct = 100 / totalColumns
+										const leftPct = column * widthPct
+										return (
+											<div
+												key={event.id}
+												className={`absolute z-10 overflow-hidden rounded px-1.5 py-1 text-xs cursor-pointer ${event.color} hover:opacity-90 transition-opacity shadow-sm`}
+												style={{
+													top,
+													height,
+													left: `calc(${leftPct}% + 1px)`,
+													width: `calc(${widthPct}% - 2px)`,
+												}}
+												onClick={(e) => {
+													e.stopPropagation()
+													onEventClick(event)
 												}}
 											>
-												{slotEvents.length > 0 && (
-													<div className="space-y-1">
-														{slotEvents.map(event => (
-															<div
-																key={event.id}
-																className={`text-xs px-1.5 py-1 rounded cursor-pointer ${event.color} hover:opacity-90 transition-opacity`}
-																onClick={(e) => {
-																	e.stopPropagation()
-																	onEventClick(event)
-																}}
-															>
-																<div className="font-medium truncate">{event.title}</div>
-																<div className="text-[10px] truncate opacity-80">
-																	{event.startTime} - {event.endTime}
-																</div>
-															</div>
-														))}
-													</div>
-												)}
+												<div className="font-medium truncate">{event.title}</div>
+												<div className="text-[10px] truncate opacity-80">
+													{event.startTime} - {event.endTime}
+												</div>
 											</div>
 										)
 									})}
 								</div>
-							</div>
-						)
-					})}
+							)
+						})}
+					</div>
+				</div>
+			</div>
 				</div>
 			</div>
 		</div>

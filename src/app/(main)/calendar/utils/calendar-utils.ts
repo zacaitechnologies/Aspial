@@ -233,3 +233,136 @@ export function getLocalTime(): { hours: number; minutes: number } {
 	const now = new Date()
 	return { hours: now.getHours(), minutes: now.getMinutes() }
 }
+
+/**
+ * Wrapper attached to merged events' originalData. Lets the details dialog
+ * surface the underlying parts (e.g. four hourly slots booked back-to-back).
+ */
+export interface MergedBookingMeta {
+	kind: "merged"
+	parts: string[]
+	first: unknown
+}
+
+/**
+ * Merge appointment events that are back-to-back (or overlapping) when they
+ * share the same appointment + booker. Non-appointment events pass through
+ * untouched. Used so that 10–11 + 11–12 + 12–13 hourly bookings (or one DB
+ * row spanning 10–13) render as one continuous block.
+ */
+export function mergeAdjacentBookings(events: CalendarBooking[]): CalendarBooking[] {
+	const appointments: CalendarBooking[] = []
+	const others: CalendarBooking[] = []
+	for (const e of events) {
+		if (e.type === "appointment") appointments.push(e)
+		else others.push(e)
+	}
+
+	const groupKeyFor = (e: CalendarBooking): string => {
+		const raw = e.originalData as { appointmentId?: number | null; bookedBy?: string } | null
+		const apptId = raw?.appointmentId ?? "none"
+		const bookedBy = raw?.bookedBy ?? e.creatorName ?? "unknown"
+		return `${apptId}|${bookedBy}|${e.date}`
+	}
+
+	const groups = new Map<string, CalendarBooking[]>()
+	for (const e of appointments) {
+		const key = groupKeyFor(e)
+		const arr = groups.get(key) ?? []
+		arr.push(e)
+		groups.set(key, arr)
+	}
+
+	const out: CalendarBooking[] = []
+	for (const group of groups.values()) {
+		group.sort((a, b) => a.startTime.localeCompare(b.startTime))
+		let current: CalendarBooking = { ...group[0] }
+		let parts: string[] = [group[0].id]
+		let firstOriginal: unknown = group[0].originalData
+
+		const flush = () => {
+			if (parts.length > 1) {
+				const meta: MergedBookingMeta = { kind: "merged", parts: [...parts], first: firstOriginal }
+				out.push({ ...current, id: `${parts[0]}+${parts.length - 1}`, originalData: meta })
+			} else {
+				out.push(current)
+			}
+		}
+
+		for (let i = 1; i < group.length; i++) {
+			const next = group[i]
+			if (next.startTime <= current.endTime) {
+				current = {
+					...current,
+					endTime: next.endTime > current.endTime ? next.endTime : current.endTime,
+					attendees: Math.max(current.attendees, next.attendees),
+				}
+				parts.push(next.id)
+			} else {
+				flush()
+				current = { ...next }
+				parts = [next.id]
+				firstOriginal = next.originalData
+			}
+		}
+		flush()
+	}
+
+	return [...out, ...others]
+}
+
+/**
+ * Greedy column assignment for overlapping events (Google/Teams style).
+ * Returns each event's column index and the max parallel column count for
+ * its overlap cluster, so views can render width = 100% / totalColumns.
+ */
+export function layoutOverlappingEvents(events: CalendarBooking[]): Array<{
+	event: CalendarBooking
+	column: number
+	totalColumns: number
+}> {
+	if (events.length === 0) return []
+
+	const sorted = [...events].sort((a, b) => {
+		const s = a.startTime.localeCompare(b.startTime)
+		if (s !== 0) return s
+		return a.endTime.localeCompare(b.endTime)
+	})
+
+	const columnEnds: string[] = []
+	const cols: number[] = []
+	for (const e of sorted) {
+		let col = columnEnds.findIndex((end) => end <= e.startTime)
+		if (col === -1) {
+			col = columnEnds.length
+			columnEnds.push(e.endTime)
+		} else {
+			columnEnds[col] = e.endTime
+		}
+		cols.push(col)
+	}
+
+	const result: Array<{ event: CalendarBooking; column: number; totalColumns: number }> = []
+	let clusterStart = 0
+	let clusterMaxEnd = sorted[0].endTime
+	let clusterMaxCol = cols[0]
+
+	for (let i = 1; i < sorted.length; i++) {
+		if (sorted[i].startTime >= clusterMaxEnd) {
+			for (let j = clusterStart; j < i; j++) {
+				result.push({ event: sorted[j], column: cols[j], totalColumns: clusterMaxCol + 1 })
+			}
+			clusterStart = i
+			clusterMaxEnd = sorted[i].endTime
+			clusterMaxCol = cols[i]
+		} else {
+			if (sorted[i].endTime > clusterMaxEnd) clusterMaxEnd = sorted[i].endTime
+			if (cols[i] > clusterMaxCol) clusterMaxCol = cols[i]
+		}
+	}
+	for (let j = clusterStart; j < sorted.length; j++) {
+		result.push({ event: sorted[j], column: cols[j], totalColumns: clusterMaxCol + 1 })
+	}
+
+	return result
+}
