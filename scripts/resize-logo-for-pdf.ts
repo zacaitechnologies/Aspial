@@ -11,23 +11,35 @@
 import * as fs from "fs";
 import * as path from "path";
 
-const LOGO_PATH = path.join(process.cwd(), "public/images/mainlogo.png");
-const OUT_PATH = path.join(process.cwd(), "public/images/mainlogo-pdf.png");
-const MAX_WIDTH = 250;
+const sources = [
+  {
+    in: path.join(process.cwd(), "public/images/mainlogo.png"),
+    out: path.join(process.cwd(), "public/images/mainlogo-pdf.png"),
+    maxWidth: 250,
+  },
+  {
+    in: path.join(process.cwd(), "public/images/logoPng.png"),
+    out: path.join(process.cwd(), "public/images/logoPng-pdf.png"),
+    maxWidth: 500,
+  },
+];
 
 async function main() {
-  if (!fs.existsSync(LOGO_PATH)) {
-    console.error("Logo not found:", LOGO_PATH);
-    process.exit(1);
-  }
+  let sharp;
   try {
-    const sharp = (await import("sharp")).default;
-    await sharp(LOGO_PATH).resize({ width: MAX_WIDTH }).toFile(OUT_PATH);
-    console.log("Created", OUT_PATH, "(max width", MAX_WIDTH + "px)");
+    sharp = (await import("sharp")).default;
   } catch (e) {
-    console.error("Install sharp first: npm install -D sharp");
+    console.error("sharp not installed; run: npm install -D sharp");
     console.error(e);
     process.exit(1);
+  }
+  for (const src of sources) {
+    if (!fs.existsSync(src.in)) {
+      console.warn("source missing, skipping:", src.in);
+      continue;
+    }
+    await sharp(src.in).resize({ width: src.maxWidth }).toFile(src.out);
+    console.log("Created", src.out, "(max width", src.maxWidth + "px)");
   }
 }
 
