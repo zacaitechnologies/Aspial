@@ -362,6 +362,7 @@ model Project {
   tasks         Task[]
   timeEntries   TimeEntry[]
   complaints    Complaint[]
+  deliveryOrders DeliveryOrder[]
 
   @@index([created_at])
   @@index([status])
@@ -486,9 +487,11 @@ model DeliveryOrder {
   created_at          DateTime                     @default(now())
   updated_at          DateTime                     @default(now()) @updatedAt
   createdById         String
+  projectId           Int?
 
   client              Client                       @relation(fields: [clientId], references: [id])
   createdBy           User                         @relation("DeliveryOrderCreator", fields: [createdById], references: [supabase_id])
+  project             Project?                     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   services            DeliveryOrderService[]
   advisors            DeliveryOrderAdvisor[]
   emails              DeliveryOrderEmail[]
@@ -496,6 +499,7 @@ model DeliveryOrder {
   @@index([clientId])
   @@index([created_at])
   @@index([status])
+  @@index([projectId])
   @@map("delivery_orders")
 }
 

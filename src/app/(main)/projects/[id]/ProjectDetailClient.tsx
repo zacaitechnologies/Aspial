@@ -44,6 +44,7 @@ import {
   Trash2,
   PlayCircle,
   File as FileIcon,
+  Truck,
 } from "lucide-react"
 import Link from "next/link"
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog"
@@ -688,6 +689,64 @@ export default function ProjectDetailClient({
 											)}
 										</div>
 									))}
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Delivery Orders Card */}
+						{project.deliveryOrders && project.deliveryOrders.length > 0 && (
+							<Card className="mb-6">
+								<CardHeader>
+									<CardTitle className="flex items-center gap-2">
+										<Truck className="w-5 h-5" />
+										Delivery Orders
+									</CardTitle>
+								</CardHeader>
+								<CardContent>
+									<div className="space-y-3">
+										{project.deliveryOrders.map((deliveryOrder) => (
+											<Link
+												key={deliveryOrder.id}
+												href={`/delivery-orders/${deliveryOrder.id}`}
+												className="block"
+											>
+												<div className="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
+													<div className="flex flex-wrap items-center justify-between gap-3">
+														<div className="flex items-center gap-3 min-w-0">
+															<h3 className="font-semibold text-base text-gray-900 truncate">
+																{deliveryOrder.deliveryOrderNumber}
+															</h3>
+															<Badge
+																variant={
+																	deliveryOrder.status === "active"
+																		? "default"
+																		: "secondary"
+																}
+															>
+																{deliveryOrder.status === "active"
+																	? "Active"
+																	: "Cancelled"}
+															</Badge>
+														</div>
+														<div className="flex items-center gap-3 text-sm">
+															<span className="text-gray-600">
+																{new Date(
+																	deliveryOrder.deliveryOrderDate,
+																).toLocaleDateString("en-GB", {
+																	day: "numeric",
+																	month: "short",
+																	year: "numeric",
+																})}
+															</span>
+															<span className="font-medium text-green-600">
+																RM {formatNumber(deliveryOrder.finalAmount)}
+															</span>
+														</div>
+													</div>
+												</div>
+											</Link>
+										))}
+									</div>
 								</CardContent>
 							</Card>
 						)}

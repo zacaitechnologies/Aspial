@@ -625,6 +625,7 @@ export const createDeliveryOrderSchema = z.object({
   notes: z.string().max(2000).optional(),
   services: z.array(deliveryOrderServiceItemSchema).min(1, "Add at least one service"),
   advisorIds: z.array(z.string()).min(1, "At least one advisor is required"),
+  projectId: z.number().int().positive().nullable().optional(),
 });
 
 export type CreateDeliveryOrderValues = z.infer<typeof createDeliveryOrderSchema>;
@@ -638,6 +639,7 @@ export const updateDeliveryOrderSchema = z.object({
   services: z.array(deliveryOrderServiceItemSchema).min(1).optional(),
   advisorIds: z.array(z.string()).min(1).optional(),
   status: deliveryOrderStatusSchema.optional(),
+  projectId: z.number().int().positive().nullable().optional(),
 });
 
 export type UpdateDeliveryOrderValues = z.infer<typeof updateDeliveryOrderSchema>;
@@ -655,6 +657,7 @@ export const deliveryOrderListFiltersSchema = z.object({
   advisorFilter: z.string().optional(),
   monthYear: z.string().optional(),
   status: deliveryOrderStatusSchema.optional(),
+  projectId: z.number().int().positive().nullable().optional(),
 });
 
 export type DeliveryOrderListFilters = z.infer<typeof deliveryOrderListFiltersSchema>;

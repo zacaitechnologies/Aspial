@@ -18,8 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, FileText, Filter, Search, Calendar } from "lucide-react"
-import { getDeliveryOrdersPaginatedFresh } from "../action"
+import { Plus, FileText, Filter, Search, Calendar, Briefcase } from "lucide-react"
+import { getDeliveryOrdersPaginatedFresh, getProjectsForDeliveryOrder } from "../action"
 import DeliveryOrderForm from "./DeliveryOrderForm"
 import DeliveryOrderCard from "./DeliveryOrderCard"
 import type {
@@ -60,6 +60,10 @@ export default function DeliveryOrdersClient({
   const [advisorFilter, setAdvisorFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "cancelled">("all")
   const [monthYearFilter, setMonthYearFilter] = useState<string>("all")
+  const [projectFilter, setProjectFilter] = useState<string>("all")
+  const [projectOptions, setProjectOptions] = useState<
+    { id: number; name: string }[]
+  >([])
   const [createOpen, setCreateOpen] = useState(false)
 
   const orders = data.data
@@ -81,13 +85,16 @@ export default function DeliveryOrdersClient({
   }, [])
 
   const buildFilters = useCallback((): DeliveryOrderListFilters => {
+    const projectIdNum =
+      projectFilter !== "all" ? Number.parseInt(projectFilter, 10) : NaN
     return {
       searchQuery: searchQuery || undefined,
       advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
       monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+      projectId: Number.isFinite(projectIdNum) ? projectIdNum : undefined,
     }
-  }, [searchQuery, advisorFilter, statusFilter, monthYearFilter])
+  }, [searchQuery, advisorFilter, statusFilter, monthYearFilter, projectFilter])
 
   const fetchPage = useCallback(
     async (nextPage: number, nextSize: number, filters: DeliveryOrderListFilters) => {
@@ -105,6 +112,26 @@ export default function DeliveryOrdersClient({
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const projects = await getProjectsForDeliveryOrder(userId)
+        if (cancelled) return
+        setProjectOptions(
+          projects.map((p) => ({ id: p.id, name: p.name })).sort((a, b) =>
+            a.name.localeCompare(b.name),
+          ),
+        )
+      } catch {
+        // ignore
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
 
   useEffect(() => {
     const t = setTimeout(() => setSearchQuery(searchInput.trim()), 300)
@@ -136,18 +163,21 @@ export default function DeliveryOrdersClient({
       setPage(1)
       setLoading(true)
       try {
+        const projectIdNum =
+          projectFilter !== "all" ? Number.parseInt(projectFilter, 10) : NaN
         const result = await getDeliveryOrdersPaginatedFresh(1, pageSize, {
           searchQuery: searchQuery || undefined,
           advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
           status: nextStatus === "all" ? undefined : nextStatus,
           monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+          projectId: Number.isFinite(projectIdNum) ? projectIdNum : undefined,
         })
         setData(result)
       } finally {
         setLoading(false)
       }
     },
-    [pageSize, searchQuery, advisorFilter, monthYearFilter],
+    [pageSize, searchQuery, advisorFilter, monthYearFilter, projectFilter],
   )
 
   const handleAdvisorFilterChange = useCallback(
@@ -156,18 +186,21 @@ export default function DeliveryOrdersClient({
       setPage(1)
       setLoading(true)
       try {
+        const projectIdNum =
+          projectFilter !== "all" ? Number.parseInt(projectFilter, 10) : NaN
         const result = await getDeliveryOrdersPaginatedFresh(1, pageSize, {
           searchQuery: searchQuery || undefined,
           advisorFilter: value !== "all" ? value : undefined,
           status: statusFilter !== "all" ? statusFilter : undefined,
           monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+          projectId: Number.isFinite(projectIdNum) ? projectIdNum : undefined,
         })
         setData(result)
       } finally {
         setLoading(false)
       }
     },
-    [pageSize, searchQuery, statusFilter, monthYearFilter],
+    [pageSize, searchQuery, statusFilter, monthYearFilter, projectFilter],
   )
 
   const handleMonthYearFilterChange = useCallback(
@@ -176,18 +209,43 @@ export default function DeliveryOrdersClient({
       setPage(1)
       setLoading(true)
       try {
+        const projectIdNum =
+          projectFilter !== "all" ? Number.parseInt(projectFilter, 10) : NaN
         const result = await getDeliveryOrdersPaginatedFresh(1, pageSize, {
           searchQuery: searchQuery || undefined,
           advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
           status: statusFilter !== "all" ? statusFilter : undefined,
           monthYear: value !== "all" ? value : undefined,
+          projectId: Number.isFinite(projectIdNum) ? projectIdNum : undefined,
         })
         setData(result)
       } finally {
         setLoading(false)
       }
     },
-    [pageSize, searchQuery, advisorFilter, statusFilter],
+    [pageSize, searchQuery, advisorFilter, statusFilter, projectFilter],
+  )
+
+  const handleProjectFilterChange = useCallback(
+    async (value: string) => {
+      setProjectFilter(value)
+      setPage(1)
+      setLoading(true)
+      try {
+        const projectIdNum = value !== "all" ? Number.parseInt(value, 10) : NaN
+        const result = await getDeliveryOrdersPaginatedFresh(1, pageSize, {
+          searchQuery: searchQuery || undefined,
+          advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+          status: statusFilter !== "all" ? statusFilter : undefined,
+          monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+          projectId: Number.isFinite(projectIdNum) ? projectIdNum : undefined,
+        })
+        setData(result)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [pageSize, searchQuery, advisorFilter, statusFilter, monthYearFilter],
   )
 
   const goToPage = useCallback(
@@ -214,12 +272,16 @@ export default function DeliveryOrdersClient({
   )
 
   const hasActiveFilters =
-    statusFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all"
+    statusFilter !== "all" ||
+    advisorFilter !== "all" ||
+    monthYearFilter !== "all" ||
+    projectFilter !== "all"
 
   const clearNonSearchFilters = useCallback(async () => {
     setStatusFilter("all")
     setAdvisorFilter("all")
     setMonthYearFilter("all")
+    setProjectFilter("all")
     setPage(1)
     setLoading(true)
     try {
@@ -300,6 +362,27 @@ export default function DeliveryOrdersClient({
                     ))}
                   </SelectContent>
                 </Select>
+              )}
+              {projectOptions.length > 0 && (
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Briefcase className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  <Select value={projectFilter} onValueChange={handleProjectFilterChange}>
+                    <SelectTrigger
+                      className="h-9 w-[min(14rem,100%)] shrink-0 border-2 bg-white sm:w-56"
+                      style={{ borderColor: LIST_BORDER }}
+                    >
+                      <SelectValue placeholder="All projects" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      <SelectItem value="all">All projects</SelectItem>
+                      {projectOptions.map((p) => (
+                        <SelectItem key={p.id} value={p.id.toString()}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
               <div className="flex shrink-0 items-center gap-1.5">
                 <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden />

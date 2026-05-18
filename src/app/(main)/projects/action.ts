@@ -812,6 +812,16 @@ export async function getProjectById(userId: string, projectId: string) {
           },
         },
       },
+      deliveryOrders: {
+        select: {
+          id: true,
+          deliveryOrderNumber: true,
+          status: true,
+          finalAmount: true,
+          deliveryOrderDate: true,
+        },
+        orderBy: { created_at: "desc" },
+      },
       _count: {
         select: {
           tasks: true,

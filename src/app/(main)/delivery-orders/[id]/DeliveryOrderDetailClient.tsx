@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import Link from "next/link"
 import {
   ArrowLeft,
   Download,
@@ -37,6 +38,7 @@ import {
   Send,
   History,
   Phone,
+  Briefcase,
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { formatNumber } from "@/lib/format-number"
@@ -329,6 +331,70 @@ export default function DeliveryOrderDetailClient({
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {order.project && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5" />
+                  Project Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Project</p>
+                    <p className="font-medium">
+                      <Link
+                        href={`/projects/${order.project.id}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {order.project.name}
+                      </Link>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Status</p>
+                    <Badge variant="outline">
+                      {order.project.status?.toString().replace("_", " ")}
+                    </Badge>
+                  </div>
+                  {order.project.startDate && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Start Date</p>
+                      <p className="font-medium">
+                        {new Date(order.project.startDate).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  {order.project.endDate && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">End Date</p>
+                      <p className="font-medium">
+                        {new Date(order.project.endDate).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {order.project.description && (
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Description</p>
+                    <p className="font-medium whitespace-pre-line">
+                      {order.project.description}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

@@ -438,6 +438,13 @@ export type ProjectWithDetails = {
         status: string;
       }>;
     }>;
+    deliveryOrders: Array<{
+      id: string;
+      deliveryOrderNumber: string;
+      status: string;
+      finalAmount: number;
+      deliveryOrderDate: Date;
+    }>;
   };
   collaborators: Array<{
     isOwner: boolean;
