@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { getServicesPaginated } from "../action"
-import { Service } from "../types"
+import { HiddenFilter, Service } from "../types"
 
 interface UseServicesPaginatedReturn {
   services: Service[]
@@ -32,7 +32,8 @@ let isCurrentlyLoading = false
 export function useServicesPaginated(
   initialPage: number = 1,
   initialPageSize: number = 12,
-  searchQuery?: string
+  searchQuery?: string,
+  hiddenFilter: HiddenFilter = "visible"
 ): UseServicesPaginatedReturn {
   const [services, setServices] = useState<Service[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -43,7 +44,7 @@ export function useServicesPaginated(
 
   const loadServices = useCallback(
     async (targetPage: number, targetPageSize: number, forceRefresh = false) => {
-      const cacheKey = `${targetPage}_${targetPageSize}_${searchQuery || ''}`
+      const cacheKey = `${targetPage}_${targetPageSize}_${searchQuery || ''}_${hiddenFilter}`
       const now = Date.now()
 
       // Check cache
@@ -66,6 +67,7 @@ export function useServicesPaginated(
       try {
         const result = await getServicesPaginated(targetPage, targetPageSize, {
           searchQuery,
+          hiddenFilter,
         })
 
         // Update cache
@@ -86,7 +88,7 @@ export function useServicesPaginated(
         isCurrentlyLoading = false
       }
     },
-    [searchQuery]
+    [searchQuery, hiddenFilter]
   )
 
   const goToPage = useCallback(
@@ -133,8 +135,8 @@ export function useServicesPaginated(
 }
 
 // Keep the old hook for backward compatibility
-export function useServicesCache() {
-  const result = useServicesPaginated(1, 1000) // Large page size for "all"
+export function useServicesCache(hiddenFilter: HiddenFilter = "visible") {
+  const result = useServicesPaginated(1, 1000, undefined, hiddenFilter) // Large page size for "all"
   return {
     services: result.services,
     isLoading: result.isLoading,

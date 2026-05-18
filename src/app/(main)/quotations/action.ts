@@ -350,6 +350,7 @@ async function _getQuotationsPaginatedInternal(
         description: "",
         basePrice: 0,
         imageUrl: null,
+        hidden: false,
         created_at: new Date(),
         updated_at: new Date(),
       },

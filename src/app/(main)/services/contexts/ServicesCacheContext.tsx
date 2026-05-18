@@ -1,19 +1,23 @@
 "use client"
 
-import { createContext, useContext, ReactNode } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import { useServicesCache } from "../hooks/useServicesCache"
 import { useServiceTagsCache } from "../hooks/useServiceTagsCache"
+import { HiddenFilter } from "../types"
 
 interface ServicesCacheContextType {
   services: ReturnType<typeof useServicesCache>
   serviceTags: ReturnType<typeof useServiceTagsCache>
   invalidateAllCaches: () => void
+  hiddenFilter: HiddenFilter
+  setHiddenFilter: (filter: HiddenFilter) => void
 }
 
 const ServicesCacheContext = createContext<ServicesCacheContextType | undefined>(undefined)
 
 export function ServicesCacheProvider({ children }: { children: ReactNode }) {
-  const services = useServicesCache()
+  const [hiddenFilter, setHiddenFilter] = useState<HiddenFilter>("visible")
+  const services = useServicesCache(hiddenFilter)
   const serviceTags = useServiceTagsCache()
 
   const invalidateAllCaches = () => {
@@ -22,7 +26,7 @@ export function ServicesCacheProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ServicesCacheContext.Provider value={{ services, serviceTags, invalidateAllCaches }}>
+    <ServicesCacheContext.Provider value={{ services, serviceTags, invalidateAllCaches, hiddenFilter, setHiddenFilter }}>
       {children}
     </ServicesCacheContext.Provider>
   )
