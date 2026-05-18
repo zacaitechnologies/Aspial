@@ -821,6 +821,28 @@ export async function getProjectById(userId: string, projectId: string) {
           status: true,
           finalAmount: true,
           deliveryOrderDate: true,
+          services: {
+            select: {
+              id: true,
+              price: true,
+              quantity: true,
+              descriptionOverride: true,
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  basePrice: true,
+                  ServiceToTag: {
+                    include: {
+                      service_tags: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: { sortOrder: "asc" },
+          },
         },
         orderBy: { created_at: "desc" },
       },

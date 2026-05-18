@@ -20,6 +20,8 @@ import {
   type DeliveryOrderListFilters,
 } from "@/lib/validation"
 import { computeSubtotal, computeFinalAmount } from "./utils/totals"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
+import { ProjectStatus } from "@prisma/client"
 
 // ==================== Listing ====================
 
@@ -622,6 +624,11 @@ export async function getStaffForSelect() {
 
 // ==================== Project linking ====================
 
+const linkableProjectWhere: Prisma.ProjectWhereInput = {
+  ...excludeNoProjectSentinelWhere,
+  status: { not: ProjectStatus.cancelled },
+}
+
 export async function getProjectsForDeliveryOrder(userId: string) {
   unstable_noStore()
   if (!userId) return []
@@ -639,26 +646,34 @@ export async function getProjectsForDeliveryOrder(userId: string) {
     } as const
 
     if (isAdmin) {
-      const projects = await prisma.project.findMany({
+      return prisma.project.findMany({
+        where: linkableProjectWhere,
         select,
         orderBy: { name: "asc" },
       })
-      return projects
     }
 
-    const userPermissions = await prisma.projectPermission.findMany({
-      where: { userId, OR: [{ isOwner: true }, { canView: true }] },
-      select: { projectId: true },
-    })
-    const projectIds = userPermissions.map((p) => p.projectId)
-    if (projectIds.length === 0) return []
+    const [createdProjects, permittedProjects] = await Promise.all([
+      prisma.project.findMany({
+        where: { ...linkableProjectWhere, createdBy: userId },
+        select,
+        orderBy: { name: "asc" },
+      }),
+      prisma.project.findMany({
+        where: {
+          ...linkableProjectWhere,
+          permissions: { some: { userId } },
+        },
+        select,
+        orderBy: { name: "asc" },
+      }),
+    ])
 
-    const projects = await prisma.project.findMany({
-      where: { id: { in: projectIds } },
-      select,
-      orderBy: { name: "asc" },
-    })
-    return projects
+    const byId = new Map<number, (typeof createdProjects)[number]>()
+    for (const project of [...createdProjects, ...permittedProjects]) {
+      byId.set(project.id, project)
+    }
+    return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name))
   } catch (error: unknown) {
     if (process.env.NODE_ENV === "development") {
       console.error("Error fetching projects for delivery order:", error)

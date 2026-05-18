@@ -444,6 +444,25 @@ export type ProjectWithDetails = {
       status: string;
       finalAmount: number;
       deliveryOrderDate: Date;
+      services: Array<{
+        id: number;
+        price: number;
+        quantity: number;
+        descriptionOverride: string;
+        service: {
+          id: number;
+          name: string;
+          description: string;
+          basePrice: number;
+          ServiceToTag?: Array<{
+            service_tags: {
+              id: number;
+              name: string;
+              color: string | null;
+            };
+          }>;
+        };
+      }>;
     }>;
   };
   collaborators: Array<{

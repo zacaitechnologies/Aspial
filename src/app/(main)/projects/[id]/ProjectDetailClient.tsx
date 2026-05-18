@@ -44,7 +44,6 @@ import {
   Trash2,
   PlayCircle,
   File as FileIcon,
-  Truck,
 } from "lucide-react"
 import Link from "next/link"
 import ProjectCollaboratorsDialog from "../components/ProjectCollaboratorsDialog"
@@ -552,7 +551,8 @@ export default function ProjectDetailClient({
 						)}
 
 						{/* Services Card */}
-						{project.quotations && project.quotations.length > 0 && (
+						{((project.quotations && project.quotations.length > 0) ||
+							(project.deliveryOrders && project.deliveryOrders.length > 0)) && (
 							<Card className="mb-6">
 								<CardHeader>
 									<CardTitle className="flex items-center gap-2">
@@ -561,7 +561,7 @@ export default function ProjectDetailClient({
 									</CardTitle>
 								</CardHeader>
 								<CardContent>
-									{project.quotations.map((quotation) => (
+									{project.quotations?.map((quotation) => (
 										<div key={quotation.id} className="mb-6 last:mb-0">
 											<div className="flex items-center justify-between mb-4">
 												<div>
@@ -689,64 +689,98 @@ export default function ProjectDetailClient({
 											)}
 										</div>
 									))}
-								</CardContent>
-							</Card>
-						)}
 
-						{/* Delivery Orders Card */}
-						{project.deliveryOrders && project.deliveryOrders.length > 0 && (
-							<Card className="mb-6">
-								<CardHeader>
-									<CardTitle className="flex items-center gap-2">
-										<Truck className="w-5 h-5" />
-										Delivery Orders
-									</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<div className="space-y-3">
-										{project.deliveryOrders.map((deliveryOrder) => (
-											<Link
-												key={deliveryOrder.id}
-												href={`/delivery-orders/${deliveryOrder.id}`}
-												className="block"
-											>
-												<div className="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
-													<div className="flex flex-wrap items-center justify-between gap-3">
-														<div className="flex items-center gap-3 min-w-0">
-															<h3 className="font-semibold text-base text-gray-900 truncate">
-																{deliveryOrder.deliveryOrderNumber}
-															</h3>
-															<Badge
-																variant={
-																	deliveryOrder.status === "active"
-																		? "default"
-																		: "secondary"
-																}
-															>
-																{deliveryOrder.status === "active"
-																	? "Active"
-																	: "Cancelled"}
-															</Badge>
-														</div>
-														<div className="flex items-center gap-3 text-sm">
-															<span className="text-gray-600">
-																{new Date(
-																	deliveryOrder.deliveryOrderDate,
-																).toLocaleDateString("en-GB", {
-																	day: "numeric",
-																	month: "short",
-																	year: "numeric",
-																})}
-															</span>
-															<span className="font-medium text-green-600">
-																RM {formatNumber(deliveryOrder.finalAmount)}
-															</span>
-														</div>
+									{project.deliveryOrders?.map((deliveryOrder) => (
+										<div key={deliveryOrder.id} className="mb-6 last:mb-0">
+											<div className="flex items-center justify-between mb-4">
+												<div>
+													<h3 className="font-semibold text-lg">
+														{deliveryOrder.deliveryOrderNumber}
+													</h3>
+													<div className="flex items-center gap-3 mt-1">
+														<Badge
+															variant={
+																deliveryOrder.status === "active"
+																	? "default"
+																	: "secondary"
+															}
+														>
+															{deliveryOrder.status === "active"
+																? "Active"
+																: "Cancelled"}
+														</Badge>
+														<span className="text-sm font-medium text-green-600">
+															Total: RM {formatNumber(deliveryOrder.finalAmount)}
+														</span>
 													</div>
 												</div>
-											</Link>
-										))}
-									</div>
+											</div>
+
+											{deliveryOrder.services && deliveryOrder.services.length > 0 && (
+												<div className="space-y-3">
+													<h4 className="text-sm font-medium text-gray-700 mb-2">
+														Standard Services:
+													</h4>
+													<div className="grid gap-3 md:grid-cols-2">
+														{deliveryOrder.services.map((line) => (
+															<div
+																key={line.id}
+																className="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+															>
+																<div className="flex items-start justify-between mb-2">
+																	<h5 className="font-semibold text-gray-900">
+																		{line.service.name}
+																	</h5>
+																	<span className="text-sm font-medium text-green-600 whitespace-nowrap ml-2">
+																		RM {formatNumber(line.price * line.quantity)}
+																	</span>
+																</div>
+																<p className="text-sm text-gray-600 mb-2">
+																	{line.descriptionOverride ||
+																		line.service.description}
+																	{line.quantity > 1
+																		? ` (Qty: ${line.quantity})`
+																		: ""}
+																</p>
+																{line.service.ServiceToTag &&
+																	line.service.ServiceToTag.length > 0 && (
+																		<div className="flex flex-wrap gap-1 mt-2">
+																			{line.service.ServiceToTag.map((st) => (
+																				<Badge
+																					key={st.service_tags.id}
+																					className={`text-xs ${st.service_tags.color ? "" : "bg-primary text-primary-foreground"}`}
+																					style={
+																						st.service_tags.color
+																							? {
+																									backgroundColor:
+																										st.service_tags.color,
+																									color: "white",
+																								}
+																							: undefined
+																					}
+																				>
+																					{st.service_tags.name}
+																				</Badge>
+																			))}
+																		</div>
+																	)}
+															</div>
+														))}
+													</div>
+												</div>
+											)}
+
+											{(!deliveryOrder.services ||
+												deliveryOrder.services.length === 0) && (
+												<div className="text-center py-6 bg-gray-50 rounded-lg">
+													<Package className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+													<p className="text-gray-600 text-sm">
+														No services in this delivery order
+													</p>
+												</div>
+											)}
+										</div>
+									))}
 								</CardContent>
 							</Card>
 						)}

@@ -1,5 +1,4 @@
 import { getCachedUser } from "@/lib/auth-cache"
-import { prisma } from "@/lib/prisma"
 import {
   getDeliveryOrdersPaginated,
   getDeliveryOrderAdvisors,
@@ -16,10 +15,9 @@ export default async function DeliveryOrdersPage() {
   const user = await getCachedUser()
   if (!user) return null
 
-  const [isOperationUser, isAdmin, dbUser] = await Promise.all([
+  const [isOperationUser, isAdmin] = await Promise.all([
     checkIsOperationUser(user.id),
     checkHasFullAccess(user.id),
-    prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
   ])
 
   if (isOperationUser) return <AccessDenied />
@@ -34,7 +32,7 @@ export default async function DeliveryOrdersPage() {
   return (
     <DeliveryOrdersClient
       initialData={initialData}
-      userId={dbUser?.id ?? user.id}
+      userId={user.id}
       isAdmin={isAdmin}
       advisors={advisors}
       services={services}

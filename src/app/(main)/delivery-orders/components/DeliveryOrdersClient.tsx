@@ -329,12 +329,12 @@ export default function DeliveryOrdersClient({
                 aria-label="Search delivery orders"
               />
             </div>
-            <div className="flex w-full min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:gap-3">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:gap-3">
               <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="shrink-0 text-sm font-medium">Filters</span>
               <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                 <SelectTrigger
-                  className="h-9 w-[min(12rem,100%)] shrink-0 border-2 bg-white sm:w-48"
+                  className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-card sm:w-48"
                   style={{ borderColor: LIST_BORDER }}
                 >
                   <SelectValue placeholder="All statuses" />
@@ -348,7 +348,7 @@ export default function DeliveryOrdersClient({
               {advisors.length > 0 && (
                 <Select value={advisorFilter} onValueChange={handleAdvisorFilterChange}>
                   <SelectTrigger
-                    className="h-9 w-[min(12rem,100%)] shrink-0 border-2 bg-white sm:w-48"
+                    className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-card sm:w-48"
                     style={{ borderColor: LIST_BORDER }}
                   >
                     <SelectValue placeholder="All advisors" />
@@ -364,11 +364,11 @@ export default function DeliveryOrdersClient({
                 </Select>
               )}
               {projectOptions.length > 0 && (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <Briefcase className="h-4 w-4 text-muted-foreground" aria-hidden />
+                <div className="flex w-full min-w-[9rem] flex-1 items-center gap-1.5 sm:w-auto sm:max-w-56 sm:flex-none">
+                  <Briefcase className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <Select value={projectFilter} onValueChange={handleProjectFilterChange}>
                     <SelectTrigger
-                      className="h-9 w-[min(14rem,100%)] shrink-0 border-2 bg-white sm:w-56"
+                      className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-card sm:w-56"
                       style={{ borderColor: LIST_BORDER }}
                     >
                       <SelectValue placeholder="All projects" />
@@ -384,11 +384,11 @@ export default function DeliveryOrdersClient({
                   </Select>
                 </div>
               )}
-              <div className="flex shrink-0 items-center gap-1.5">
-                <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <div className="flex w-full min-w-[9rem] flex-1 items-center gap-1.5 sm:w-auto sm:flex-none">
+                <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 <Select value={monthYearFilter} onValueChange={handleMonthYearFilterChange}>
                   <SelectTrigger
-                    className="h-9 w-[min(12.5rem,85vw)] border-2 bg-white sm:w-[200px]"
+                    className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-card sm:w-[200px]"
                     style={{ borderColor: LIST_BORDER }}
                   >
                     <SelectValue placeholder="All months" />
@@ -407,13 +407,13 @@ export default function DeliveryOrdersClient({
                   variant="outline"
                   size="sm"
                   onClick={() => void clearNonSearchFilters()}
-                  className="shrink-0 border-2 bg-white"
+                  className="shrink-0 border-2 bg-card"
                   style={{ borderColor: LIST_BORDER }}
                 >
                   Clear Filters
                 </Button>
               )}
-              <span className="ml-auto shrink-0 pl-2 text-sm whitespace-nowrap text-muted-foreground">
+              <span className="w-full text-sm text-muted-foreground sm:ml-auto sm:w-auto sm:shrink-0 sm:pl-2 sm:text-right">
                 Showing {orders.length} of {total} delivery orders
               </span>
             </div>
