@@ -1,4 +1,5 @@
 import { getCachedUser } from "@/lib/auth-cache"
+import { prisma } from "@/lib/prisma"
 import { fetchAllBookings, getUserProjects, checkIsAdmin, getAvailableAppointments } from "./actions"
 import CalendarClient from "./components/CalendarClient"
 
@@ -13,7 +14,13 @@ export default async function OrganizationCalendar() {
 		return null
 	}
 
-	const userName = user.email || user.id
+	const dbUser = await prisma.user.findUnique({
+		where: { supabase_id: user.id },
+		select: { firstName: true, lastName: true, email: true },
+	})
+	const userName = dbUser
+		? `${dbUser.firstName} ${dbUser.lastName}`.trim() || dbUser.email
+		: user.email || user.id
 
 	// Initial range: current month for fast first load
 	const now = new Date()

@@ -45,7 +45,7 @@ export interface CalendarBooking {
 	isUserBooking?: boolean
 	isTeamBooking?: boolean
 	assigneeId?: string | null
-	creatorId?: string
+	creatorId?: string | null
 	/** Blockers only: true when the event is stored as full local days (week/day views use the all-day row). */
 	allDay?: boolean
 }
@@ -304,6 +304,7 @@ async function _fetchLeaveBookings(
 
 /** Fetch all active appointment bookings in range (visible to every user on the calendar). */
 async function _fetchAppointmentBookings(
+	userId: string,
 	userName: string,
 	userProjectIds: number[],
 	safeRange?: { start: Date; end: Date }
@@ -332,44 +333,45 @@ async function _fetchAppointmentBookings(
 					name: true,
 					clientName: true
 				}
+			},
+			bookedByUser: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+				}
 			}
 		}
 	})
 
 	const results: CalendarBooking[] = []
 
-	const bookerEmails = [...new Set(appointmentBookings.map((b) => b.bookedBy))]
-	const bookerUsers =
-		bookerEmails.length > 0
-			? await prisma.user.findMany({
-					where: { email: { in: bookerEmails } },
-					select: { email: true, firstName: true, lastName: true },
-				})
-			: []
-	const displayNameByEmail = new Map(
-		bookerUsers.map((u) => [u.email, formatLeaveApplicantName(u)]),
-	)
-
 	appointmentBookings.forEach((booking) => {
-		const bookingWithProject = booking as Record<string, unknown> & typeof booking
+		const isUserBooking = booking.userId
+			? booking.userId === userId
+			: booking.bookedBy === userName
+		const projId = booking.project?.id
+		const isProjectBooking = projId != null && userProjectIds.includes(projId)
 
 		const startDate = new Date(booking.startDate)
 		const endDate = new Date(booking.endDate)
-		const isUserBooking = booking.bookedBy === userName
-		const projId = (bookingWithProject.project as { id: number } | null)?.id
-		const isProjectBooking = projId != null && userProjectIds.includes(projId)
+
+		const bookerDisplay = booking.bookedByUser
+			? `${booking.bookedByUser.firstName} ${booking.bookedByUser.lastName}`.trim()
+				|| booking.bookedByUser.email
+			: booking.bookedBy
 
 		const appointmentType = (booking.appointmentType as AppointmentType) || "OTHERS"
 		const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS
 
-		const resolvedName = displayNameByEmail.get(booking.bookedBy)
-		const bookerIsEmail = booking.bookedBy.includes("@")
-		const creatorName = resolvedName ?? booking.bookedBy
-		const creatorEmail = resolvedName && bookerIsEmail ? booking.bookedBy : null
-		const title = booking.appointment?.name ?? "Appointment"
-		const location = booking.appointment
-			? booking.appointment.location || booking.appointment.brand || "Appointment"
-			: "Unspecified"
+		let title = `Appointment - ${bookerDisplay}`
+		let location = "Unspecified"
+		if (booking.appointment) {
+			title = `${booking.appointment.name} - ${bookerDisplay}`
+			location = booking.appointment.location || booking.appointment.brand || "Appointment"
+		}
+
+		const creatorEmail = booking.bookedBy.includes("@") ? booking.bookedBy : null
 
 		const startParts = toBusinessTZParts(startDate)
 		const endParts = toBusinessTZParts(endDate)
@@ -378,7 +380,7 @@ async function _fetchAppointmentBookings(
 			id: `appointment-${booking.id}`,
 			title,
 			bookingName: booking.appointment?.name ?? null,
-			description: booking.purpose?.trim() ?? "",
+			description: booking.purpose || `Appointment by ${bookerDisplay}`,
 			date: startParts.dateStr,
 			startTime: startParts.timeStr,
 			endTime: endParts.timeStr,
@@ -388,10 +390,11 @@ async function _fetchAppointmentBookings(
 			attendees: booking.attendees || 1,
 			color: appointmentConfig.color,
 			projectId: projId ?? null,
-			projectName: (bookingWithProject.project as { name?: string } | null)?.name || null,
-			clientName: (bookingWithProject.project as { clientName?: string | null } | null)?.clientName || null,
-			creatorName,
+			projectName: booking.project?.name || null,
+			clientName: booking.project?.clientName || null,
+			creatorName: bookerDisplay || null,
 			creatorEmail,
+			creatorId: booking.userId ?? null,
 			assigneeName: null,
 			taskStartDate: null,
 			taskDueDate: null,
@@ -722,11 +725,14 @@ export async function updateAppointmentBooking(
 	// Fetch existing booking to check ownership
 	const existing = await prisma.appointmentBooking.findUnique({
 		where: { id },
-		select: { bookedBy: true, appointmentId: true, status: true },
+		select: { bookedBy: true, userId: true, appointmentId: true, status: true },
 	})
 	if (!existing) return { success: false, error: "Booking not found" }
 	if (existing.status !== "active") return { success: false, error: "Booking is not active" }
-	if (existing.bookedBy !== currentUserName && !isAdmin) {
+	const isOwner = existing.userId
+		? existing.userId === user.id
+		: existing.bookedBy === currentUserName
+	if (!isOwner && !isAdmin) {
 		return { success: false, error: "You can only edit your own bookings" }
 	}
 
@@ -785,7 +791,7 @@ export async function fetchAllBookings(
 		const userProjectIds = await getUserProjectIds(userId)
 
 		const [appointments, tasks, leave, blockers] = await Promise.allSettled([
-			_fetchAppointmentBookings(userName, userProjectIds, safeRange),
+			_fetchAppointmentBookings(userId, userName, userProjectIds, safeRange),
 			_fetchTaskBookings(userId, safeRange),
 			_fetchLeaveBookings(userId, safeRange),
 			_fetchCalendarBlockers(safeRange),

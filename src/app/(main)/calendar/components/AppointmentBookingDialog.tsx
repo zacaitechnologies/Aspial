@@ -371,6 +371,7 @@ export function AppointmentBookingDialog({
 					const nextHour = String(slotHour + 1).padStart(2, "0")
 					const formData = new FormData()
 					formData.set("bookedBy", userName)
+					formData.set("userId", userId)
 					formData.set("startDate", `${initialDate}T${slot}:00`)
 					formData.set("endDate", `${initialDate}T${nextHour}:00:00`)
 					formData.set("purpose", purpose)

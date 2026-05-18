@@ -107,6 +107,13 @@ async function _getBookingsInternal() {
 					},
 				}
 			},
+			bookedByUser: {
+				select: {
+					firstName: true,
+					lastName: true,
+					email: true,
+				}
+			},
 			reminders: {
 				where: {
 					status: {

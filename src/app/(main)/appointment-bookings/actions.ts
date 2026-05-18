@@ -205,6 +205,9 @@ export async function deleteAppointment(id: number) {
 // Unified Appointment Booking Actions
 export async function createAppointmentBooking(formData: FormData) {
 	const bookedBy = formData.get("bookedBy") as string
+	const formUserId = (formData.get("userId") as string | null)?.trim() || null
+	const authUser = await getCachedUser()
+	const userId = authUser?.id ?? formUserId
 	const startDateStr = formData.get("startDate") as string
 	const endDateStr = formData.get("endDate") as string
 	const startDate = parseDateInBusinessTZ(startDateStr)
@@ -311,6 +314,7 @@ export async function createAppointmentBooking(formData: FormData) {
 		const booking = await prisma.appointmentBooking.create({
 			data: {
 				bookedBy,
+				userId,
 				startDate,
 				endDate,
 				purpose: purpose || null,

@@ -17,6 +17,7 @@ export interface ProjectWithClient {
 export interface AppointmentBookingWithDetails {
 	id: number
 	bookedBy: string
+	userId: string | null
 	startDate: Date
 	endDate: Date
 	purpose: string | null
@@ -44,5 +45,10 @@ export interface AppointmentBookingWithDetails {
 			phone: string | null
 			company: string | null
 		} | null
+	} | null
+	bookedByUser?: {
+		firstName: string
+		lastName: string
+		email: string
 	} | null
 }
