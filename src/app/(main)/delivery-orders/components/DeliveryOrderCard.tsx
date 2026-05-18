@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -31,8 +32,12 @@ import {
   Ban,
   RotateCcw,
   Trash2,
+  Briefcase,
+  Unlink,
+  AlertTriangle,
 } from "lucide-react"
 import { formatNumber } from "@/lib/format-number"
+import { formatLocalDate } from "@/lib/date-utils"
 import { toast } from "@/components/ui/use-toast"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import type { DeliveryOrderListItem, DeliveryOrderFull, ServiceOption, StaffOption } from "../types"
@@ -40,10 +45,13 @@ import {
   deleteDeliveryOrder,
   getDeliveryOrderFullById,
   getDeliveryOrderEmailHistory,
+  getProjectsForDeliveryOrder,
   updateDeliveryOrder,
+  updateDeliveryOrderProjectId,
 } from "../action"
 import SendDeliveryOrderDialog from "./SendDeliveryOrderDialog"
 import DeliveryOrderForm from "./DeliveryOrderForm"
+import ProjectSelection from "../../quotations/components/ProjectSelection"
 
 interface DeliveryOrderCardProps {
   order: DeliveryOrderListItem
@@ -76,10 +84,41 @@ export default function DeliveryOrderCard({
   const [statusBusy, setStatusBusy] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
 
+  const [linkedProject, setLinkedProject] = useState<DeliveryOrderListItem["project"]>(order.project)
+  const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false)
+  const [isUnlinkDialogOpen, setIsUnlinkDialogOpen] = useState(false)
+  const [projectMode, setProjectMode] = useState<"existing" | "new">("existing")
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("")
+  const [selectedProjectName, setSelectedProjectName] = useState<string>("")
+  const [selectedProjectData, setSelectedProjectData] = useState<{
+    id: number
+    name: string
+    description?: string | null
+    status?: string
+    startDate?: Date | null
+    endDate?: Date | null
+  } | null>(null)
+  const [newProjectData, setNewProjectData] = useState<{
+    name: string
+    description?: string
+    startDate?: string
+    endDate?: string
+    priority: "low" | "medium" | "high"
+  }>({
+    name: order.deliveryOrderNumber,
+    description: "",
+    startDate: formatLocalDate(new Date(order.deliveryOrderDate)),
+    endDate: formatLocalDate(new Date(order.deliveryOrderDate)),
+    priority: "low",
+  })
+  const [isLinkingProject, setIsLinkingProject] = useState(false)
+
   const isActive = order.status === "active"
   const isCancelled = order.status === "cancelled"
   const grandTotal = order.finalAmount
   const date = new Date(order.deliveryOrderDate)
+  const hasProject = linkedProject !== null && linkedProject !== undefined
+  const isProjectCancelled = linkedProject?.status === "cancelled"
 
   const handleRefresh = useCallback(() => {
     onRefresh?.()
@@ -191,6 +230,155 @@ export default function DeliveryOrderCard({
     }
   }, [order.id, handleRefresh])
 
+  const openLinkProjectDialog = useCallback(() => {
+    setSelectedProjectId("")
+    setSelectedProjectName("")
+    setSelectedProjectData(null)
+    setProjectMode("existing")
+    setNewProjectData({
+      name: order.deliveryOrderNumber,
+      description: "",
+      startDate: formatLocalDate(new Date(order.deliveryOrderDate)),
+      endDate: formatLocalDate(new Date(order.deliveryOrderDate)),
+      priority: "low",
+    })
+    setIsProjectDialogOpen(true)
+  }, [order.deliveryOrderNumber, order.deliveryOrderDate])
+
+  const handleProjectSelection = useCallback(
+    (
+      projectId: number,
+      projectName: string,
+      projectData?: {
+        id: number
+        name: string
+        description?: string | null
+        status?: string
+        startDate?: Date | null
+        endDate?: Date | null
+      },
+    ) => {
+      setSelectedProjectId(projectId.toString())
+      setSelectedProjectName(projectName)
+      setSelectedProjectData(projectData ?? null)
+    },
+    [],
+  )
+
+  const handleLinkProject = useCallback(async () => {
+    setIsLinkingProject(true)
+    try {
+      let projectId: number
+      let linked: NonNullable<DeliveryOrderListItem["project"]> | null = null
+
+      if (projectMode === "new") {
+        if (!newProjectData.name) {
+          toast({
+            title: "Validation Error",
+            description: "Please enter a project name.",
+            variant: "destructive",
+          })
+          return
+        }
+        if (!order.clientId) {
+          toast({
+            title: "Validation Error",
+            description: "Cannot create project: Delivery order has no client.",
+            variant: "destructive",
+          })
+          return
+        }
+        const { createProject } = await import("../../projects/action")
+        const newProject = await createProject({
+          name: newProjectData.name,
+          description: newProjectData.description,
+          createdBy: currentUserId,
+          startDate: newProjectData.startDate ? new Date(newProjectData.startDate) : undefined,
+          endDate: newProjectData.endDate ? new Date(newProjectData.endDate) : undefined,
+          priority: newProjectData.priority,
+          clientId: order.clientId,
+          clientName: order.client?.name ?? "",
+        })
+        projectId = newProject.id
+        await updateDeliveryOrderProjectId(order.id, projectId)
+        linked = {
+          id: newProject.id,
+          name: newProject.name,
+          status: newProject.status as NonNullable<DeliveryOrderListItem["project"]>["status"],
+        }
+      } else {
+        if (!selectedProjectId) {
+          toast({
+            title: "Validation Error",
+            description: "Please select a project.",
+            variant: "destructive",
+          })
+          return
+        }
+        projectId = parseInt(selectedProjectId, 10)
+        if (Number.isNaN(projectId)) {
+          toast({
+            title: "Validation Error",
+            description: "Invalid project selection.",
+            variant: "destructive",
+          })
+          return
+        }
+        await updateDeliveryOrderProjectId(order.id, projectId)
+        linked = {
+          id: projectId,
+          name: selectedProjectData?.name ?? selectedProjectName,
+          status: (selectedProjectData?.status ?? "planning") as NonNullable<
+            DeliveryOrderListItem["project"]
+          >["status"],
+        }
+      }
+
+      setLinkedProject(linked)
+      setIsProjectDialogOpen(false)
+      toast({ title: "Success", description: "Project linked successfully." })
+      onRefresh?.()
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Link failed",
+        description: e instanceof Error ? e.message : "Could not link project.",
+      })
+    } finally {
+      setIsLinkingProject(false)
+    }
+  }, [
+    projectMode,
+    newProjectData,
+    selectedProjectId,
+    selectedProjectName,
+    selectedProjectData,
+    order.id,
+    order.clientId,
+    order.client?.name,
+    currentUserId,
+    onRefresh,
+  ])
+
+  const handleUnlinkProject = useCallback(async () => {
+    setIsLinkingProject(true)
+    try {
+      await updateDeliveryOrderProjectId(order.id, null)
+      setLinkedProject(null)
+      setIsUnlinkDialogOpen(false)
+      toast({ title: "Success", description: "Project unlinked." })
+      onRefresh?.()
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Unlink failed",
+        description: e instanceof Error ? e.message : "Could not unlink project.",
+      })
+    } finally {
+      setIsLinkingProject(false)
+    }
+  }, [order.id, onRefresh])
+
   return (
     <Card
       className="hover:shadow-md transition-shadow duration-200 border-l-2 pt-0 pb-0"
@@ -210,6 +398,12 @@ export default function DeliveryOrderCard({
                 <Badge variant={isActive ? "default" : "secondary"}>
                   {order.status === "active" ? "Active" : "Cancelled"}
                 </Badge>
+                {isProjectCancelled && (
+                  <Badge variant="destructive" className="bg-red-600 text-xs px-1.5 py-0">
+                    <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
+                    Project Cancelled
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -254,6 +448,15 @@ export default function DeliveryOrderCard({
                     Advisors:{" "}
                     {order.advisors.map((a) => `${a.firstName} ${a.lastName}`).join(", ")}
                   </span>
+                </>
+              )}
+              {linkedProject && (
+                <>
+                  <span className="text-gray-400">•</span>
+                  <div className="flex items-center gap-1">
+                    <Briefcase className="w-3 h-3" />
+                    <span className="font-medium text-gray-900">{linkedProject.name}</span>
+                  </div>
                 </>
               )}
             </div>
@@ -398,6 +601,48 @@ export default function DeliveryOrderCard({
                     </>
                   )}
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {!hasProject ? (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      openLinkProjectDialog()
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="cursor-pointer"
+                  >
+                    <Briefcase className="w-4 h-4 mr-2" />
+                    Link Project
+                  </DropdownMenuItem>
+                ) : (
+                  <>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        openLinkProjectDialog()
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="cursor-pointer"
+                    >
+                      <Briefcase className="w-4 h-4 mr-2" />
+                      Change Project
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        e.preventDefault()
+                        setIsUnlinkDialogOpen(true)
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="cursor-pointer text-red-600"
+                    >
+                      <Unlink className="w-4 h-4 mr-2" />
+                      Unlink Project
+                    </DropdownMenuItem>
+                  </>
+                )}
                 {isAdmin && (
                   <>
                     <DropdownMenuSeparator />
@@ -499,6 +744,70 @@ export default function DeliveryOrderCard({
         cancelText="Cancel"
         variant="danger"
         isLoading={deleteBusy}
+      />
+
+      <Dialog open={isProjectDialogOpen} onOpenChange={setIsProjectDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {hasProject ? "Change Linked Project" : "Link Project"}
+            </DialogTitle>
+            <DialogDescription>
+              Select an existing project or create a new one to link to this delivery order.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <ProjectSelection
+              selectedProjectId={selectedProjectId ? parseInt(selectedProjectId) : undefined}
+              newProjectData={newProjectData}
+              onProjectSelect={handleProjectSelection}
+              onNewProjectDataChange={setNewProjectData}
+              onModeChange={setProjectMode}
+              mode={projectMode}
+              currentUserId={currentUserId}
+              clientId={order.clientId}
+              clientName={order.client?.name ?? ""}
+              fetchProjects={getProjectsForDeliveryOrder}
+            />
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsProjectDialogOpen(false)}
+              disabled={isLinkingProject}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleLinkProject()}
+              disabled={
+                isLinkingProject ||
+                (projectMode === "existing" ? !selectedProjectId : !newProjectData.name)
+              }
+            >
+              {isLinkingProject ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Linking...
+                </>
+              ) : (
+                "Link Project"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmationDialog
+        isOpen={isUnlinkDialogOpen}
+        onClose={() => setIsUnlinkDialogOpen(false)}
+        onConfirm={() => void handleUnlinkProject()}
+        title="Unlink Project"
+        description="Are you sure you want to unlink this project from the delivery order?"
+        confirmText="Unlink"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isLinkingProject}
       />
     </Card>
   )

@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getProjectsForQuotationOptimized } from "../action";
-import { Button } from "@/components/ui/button";
 
 interface ProjectForQuotation {
   id: number;
@@ -38,6 +37,12 @@ interface ProjectSelectionProps {
   currentUserId: string;
   clientId?: string;
   clientName?: string;
+  /**
+   * Optional fetcher; defaults to the quotation projects fetcher.
+   * Allows other modules (e.g. delivery orders) to reuse this component
+   * with their own permission-aware project loader.
+   */
+  fetchProjects?: (userId: string) => Promise<ProjectForQuotation[]>;
 }
 
 export default function ProjectSelection({
@@ -50,6 +55,7 @@ export default function ProjectSelection({
   currentUserId,
   clientId,
   clientName,
+  fetchProjects: fetchProjectsProp,
 }: ProjectSelectionProps) {
   const [projects, setProjects] = useState<ProjectForQuotation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,16 +64,15 @@ export default function ProjectSelection({
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true);
-      const projectsData = await getProjectsForQuotationOptimized(
-        currentUserId
-      );
+      const loader = fetchProjectsProp ?? getProjectsForQuotationOptimized;
+      const projectsData = await loader(currentUserId);
       setProjects(projectsData as ProjectForQuotation[]);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
     } finally {
       setLoading(false);
     }
-  }, [currentUserId]);
+  }, [currentUserId, fetchProjectsProp]);
 
   useEffect(() => {
     fetchProjects();

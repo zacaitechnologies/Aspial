@@ -1,5 +1,6 @@
 "use server"
 
+import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
@@ -30,7 +31,7 @@ async function _getDeliveryOrdersPaginatedInternal(
   const skip = (page - 1) * pageSize
   const parsed = deliveryOrderListFiltersSchema.safeParse(filters)
   const raw = parsed.success ? parsed.data : {}
-  const { searchQuery, clientId, advisorFilter, status } = raw
+  const { searchQuery, clientId, advisorFilter, status, projectId } = raw
   const monthYear = raw.monthYear && /^\d{4}-\d{2}$/.test(raw.monthYear) ? raw.monthYear : undefined
 
   const where: Prisma.DeliveryOrderWhereInput = {}
@@ -38,6 +39,9 @@ async function _getDeliveryOrdersPaginatedInternal(
   if (status) where.status = status
   if (advisorFilter && advisorFilter !== "all") {
     where.advisors = { some: { userId: advisorFilter } }
+  }
+  if (projectId !== undefined && projectId !== null) {
+    where.projectId = projectId
   }
   if (monthYear) {
     const [y, m] = monthYear.split("-").map(Number)
@@ -65,6 +69,7 @@ async function _getDeliveryOrdersPaginatedInternal(
         id: true,
         deliveryOrderNumber: true,
         clientId: true,
+        projectId: true,
         totalAmount: true,
         finalAmount: true,
         discountType: true,
@@ -75,6 +80,9 @@ async function _getDeliveryOrdersPaginatedInternal(
         updated_at: true,
         client: {
           select: { id: true, name: true, email: true, company: true, phone: true },
+        },
+        project: {
+          select: { id: true, name: true, status: true },
         },
         createdBy: {
           select: { supabase_id: true, firstName: true, lastName: true, email: true },
@@ -158,6 +166,16 @@ export async function getDeliveryOrderFullById(id: unknown) {
     where: { id: validatedId },
     include: {
       client: true,
+      project: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
       createdBy: {
         select: {
           supabase_id: true,
@@ -600,4 +618,103 @@ export async function getStaffForSelect() {
     orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
   })
   return users
+}
+
+// ==================== Project linking ====================
+
+export async function getProjectsForDeliveryOrder(userId: string) {
+  unstable_noStore()
+  if (!userId) return []
+  try {
+    const isAdmin = await getCachedIsUserAdmin(userId)
+
+    const select = {
+      id: true,
+      name: true,
+      description: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      Client: { select: { name: true } },
+    } as const
+
+    if (isAdmin) {
+      const projects = await prisma.project.findMany({
+        select,
+        orderBy: { name: "asc" },
+      })
+      return projects
+    }
+
+    const userPermissions = await prisma.projectPermission.findMany({
+      where: { userId, OR: [{ isOwner: true }, { canView: true }] },
+      select: { projectId: true },
+    })
+    const projectIds = userPermissions.map((p) => p.projectId)
+    if (projectIds.length === 0) return []
+
+    const projects = await prisma.project.findMany({
+      where: { id: { in: projectIds } },
+      select,
+      orderBy: { name: "asc" },
+    })
+    return projects
+  } catch (error: unknown) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error fetching projects for delivery order:", error)
+    }
+    return []
+  }
+}
+
+export async function updateDeliveryOrderProjectId(
+  deliveryOrderId: unknown,
+  projectId: number | null,
+) {
+  const validatedId = deliveryOrderIdSchema.parse(deliveryOrderId)
+  const validatedProjectId =
+    projectId === null ? null : z.number().int().positive().parse(projectId)
+
+  const user = await getCachedUser()
+  if (!user) throw new Error("User must be authenticated to update delivery order project")
+
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+
+  unstable_noStore()
+  const existing = await prisma.deliveryOrder.findUnique({
+    where: { id: validatedId },
+    select: {
+      createdById: true,
+      advisors: { select: { userId: true } },
+    },
+  })
+  if (!existing) throw new Error("Delivery order not found")
+
+  const dbUser = await prisma.user.findUnique({
+    where: { supabase_id: user.id },
+    select: { id: true },
+  })
+  const isCreator = existing.createdById === user.id
+  const isAdvisorOnDO = dbUser ? existing.advisors.some((a) => a.userId === dbUser.id) : false
+  if (!isAdmin && !isCreator && !isAdvisorOnDO) {
+    throw new Error("You can only link or unlink projects for delivery orders you own")
+  }
+
+  await prisma.deliveryOrder.update({
+    where: { id: validatedId },
+    data: { projectId: validatedProjectId ?? null },
+  })
+
+  try {
+    revalidateTag("delivery-orders", { expire: 0 })
+    revalidatePath("/delivery-orders")
+    revalidatePath(`/delivery-orders/${validatedId}`)
+  } catch (revalidateError: unknown) {
+    if (process.env.NODE_ENV === "development") {
+      console.error(
+        "Failed to revalidate after delivery order project update:",
+        revalidateError,
+      )
+    }
+  }
 }
