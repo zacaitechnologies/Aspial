@@ -8,6 +8,21 @@ This skill guides creation of distinctive, production-grade frontend interfaces 
 
 The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
 
+## Project Consistency (read first)
+
+This skill operates inside an existing codebase. Before designing anything new, study what already exists and stay consistent with it. A polished design that clashes with the rest of the app is a regression, not an upgrade.
+
+**Required discovery steps before writing UI code:**
+
+1. **Survey existing pages and components.** Look at sibling pages under `src/app/**` and shared components under `src/components/**`. Identify the recurring page shell, header pattern, card style, table style, dialog/form style, badge style, empty-state style, and spacing rhythm.
+2. **Read the project design rules.** Honor `.cursor/rules/best-practice.mdc` and any other rule files in `.cursor/rules/`. Use theme tokens (`bg-background`, `text-foreground`, `border-border`, `bg-card`, `text-muted-foreground`, `bg-primary`, `bg-accent`, sidebar/chart tokens, etc.) and CSS variables from global styles. Do NOT hardcode colors.
+3. **Reuse before recreating.** If a similar surface already exists (e.g. a stat card, filter bar, data table, status badge, dialog footer pattern), reuse the same component or replicate its structure and classNames exactly. Only create a new variant when no existing pattern fits, and place new shared pieces under `src/components/**` so the rest of the app can adopt them.
+4. **Match existing primitives.** This project uses shadcn/ui + Tailwind. Use the same primitives the rest of the codebase uses (`Button`, `Card`, `Dialog`, `Select`, `Popover`, `Badge`, `Avatar`, etc.) and the same variants/sizes already in use. Do not introduce a different UI library or competing primitives.
+5. **Match layout conventions.** Page headers, breadcrumbs, tab bars, container widths, gutter spacing, grid breakpoints (`md:`, `lg:`, `xl:`), and responsive stacking should mirror existing pages. New pages should feel like they were always part of the app.
+6. **Match interaction patterns.** Loading states, empty states, error toasts, confirmation dialogs, expand/collapse chevrons, and form validation should follow the patterns already used in the app.
+
+**Consistency overrides novelty.** When project conventions conflict with the "bold aesthetic" guidance below, project conventions win. The aesthetic guidance applies within the established design system, not against it. Propose system-wide changes explicitly before deviating.
+
 ## Design Thinking
 
 Before coding, understand the context and commit to a BOLD aesthetic direction:

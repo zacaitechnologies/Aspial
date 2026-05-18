@@ -26,8 +26,7 @@ import { getMalaysiaDateStr } from "@/lib/malaysia-time"
 import { fetchLeaveApplicationsForExport } from "../action"
 import { exportLeaveApplicationsToExcel } from "../utils/export-leave"
 import type { LeaveTypeDTO } from "../types"
-import { leaveStatusOptions } from "../types"
-import type { LeaveStatus } from "@prisma/client"
+import type { LeaveExportFilters } from "@/lib/validation"
 
 interface UserOption {
   id: string
@@ -44,11 +43,15 @@ interface ExportLeaveDialogProps {
   leaveTypes: LeaveTypeDTO[]
 }
 
-const EXPORT_STATUSES: LeaveStatus[] = ["PENDING", "APPROVED", "REJECTED"]
+type ExportLeaveStatus = LeaveExportFilters["statuses"][number]
 
-const exportStatusOptions = leaveStatusOptions.filter((opt) =>
-  EXPORT_STATUSES.includes(opt.value)
-)
+const EXPORT_STATUSES: ExportLeaveStatus[] = ["PENDING", "APPROVED", "REJECTED"]
+
+const exportStatusOptions: { value: ExportLeaveStatus; label: string }[] = [
+  { value: "PENDING", label: "Pending" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "REJECTED", label: "Rejected" },
+]
 
 function firstOfCurrentMonthMYT(): string {
   const today = getMalaysiaDateStr()
@@ -65,7 +68,7 @@ export default function ExportLeaveDialog({
 
   const [startDate, setStartDate] = useState<string>(() => firstOfCurrentMonthMYT())
   const [endDate, setEndDate] = useState<string>(() => getMalaysiaDateStr())
-  const [statuses, setStatuses] = useState<LeaveStatus[]>(EXPORT_STATUSES)
+  const [statuses, setStatuses] = useState<ExportLeaveStatus[]>(EXPORT_STATUSES)
   const [userIds, setUserIds] = useState<string[]>([])
   const [leaveTypeCodes, setLeaveTypeCodes] = useState<string[]>([])
   const [isExporting, setIsExporting] = useState(false)
@@ -76,7 +79,7 @@ export default function ExportLeaveDialog({
   const noStatusesSelected = statuses.length === 0
   const submitDisabled = isExporting || dateRangeInvalid || noStatusesSelected
 
-  const toggleStatus = (status: LeaveStatus) => {
+  const toggleStatus = (status: ExportLeaveStatus) => {
     setStatuses((prev) =>
       prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
     )

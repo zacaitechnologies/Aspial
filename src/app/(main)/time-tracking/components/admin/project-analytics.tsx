@@ -21,8 +21,13 @@ interface ContributorBreakdown {
   percentageOfProject: number
 }
 
+interface ProjectRef {
+  id: number
+  name: string
+}
+
 interface ProjectStat {
-  project: Project
+  project: ProjectRef
   isPlaceholderProject: boolean
   hours: number
   contributors: number
@@ -33,7 +38,7 @@ interface ProjectStat {
 
 function buildProjectStat(
   projectEntries: TimeEntryWithUserDTO[],
-  project: Project,
+  project: ProjectRef,
   isPlaceholderProject: boolean,
   totalSeconds: number,
 ): ProjectStat | null {
