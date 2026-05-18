@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, X, DollarSign, Tag, FileText, Loader2, Image as ImageIcon, Upload } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Plus, X, DollarSign, Tag, FileText, Loader2, Image as ImageIcon, Upload, EyeOff } from "lucide-react"
 import Image from "next/image"
 import { 
   createService, 
@@ -45,6 +46,7 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
     description: "",
     basePrice: 0,
     imageUrl: null,
+    hidden: false,
     tagIds: []
   })
 
@@ -59,6 +61,7 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
       description: service.description,
       basePrice: service.basePrice,
       imageUrl: service.imageUrl || null,
+      hidden: service.hidden,
       tagIds: service.tags?.map((tag) => tag.id) || [],
     })
     setSelectedTagIds(service.tags?.map((tag) => tag.id) || [])
@@ -210,6 +213,7 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
       description: "",
       basePrice: 0,
       imageUrl: null,
+      hidden: false,
       tagIds: []
     })
     setSelectedTagIds([])
@@ -317,6 +321,24 @@ export default function ServiceForm({ service, onSuccess, trigger }: ServiceForm
                 placeholder="Enter detailed service description..."
                 rows={4}
                 className="border-gray-300 focus:border-blue-500 focus:ring-blue-500 resize-none"
+              />
+            </div>
+
+            {/* Hidden Toggle */}
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+              <div className="space-y-1">
+                <Label htmlFor="serviceHidden" className="text-sm font-medium flex items-center gap-2">
+                  <EyeOff className="w-4 h-4 text-gray-500" />
+                  Hide from non-admins
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  When hidden, this service is removed from every services list, search, and picker. Existing quotations and delivery orders that already reference it are not affected.
+                </p>
+              </div>
+              <Switch
+                id="serviceHidden"
+                checked={!!formData.hidden}
+                onCheckedChange={(checked) => setFormData({ ...formData, hidden: checked })}
               />
             </div>
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Trash2, Search, Loader2, Filter, Download, FileText } from "lucide-react";
+import { Edit, Trash2, Search, Loader2, Filter, Download, FileText, Eye, EyeOff } from "lucide-react";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +17,7 @@ import {
 import {
   deleteService,
   searchServices,
+  toggleServiceHidden,
   getServiceDeletionImpact,
   getServiceImageSignedUrl,
   type DeletionImpact,
@@ -48,7 +49,7 @@ export default function ServicesList({
   onRefresh,
   isAdmin = false,
 }: ServicesListProps) {
-  const { invalidateAllCaches, serviceTags } = useServicesCacheContext();
+  const { invalidateAllCaches, serviceTags, hiddenFilter, setHiddenFilter } = useServicesCacheContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>("all");
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -59,6 +60,8 @@ export default function ServicesList({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isWarningDialogOpen, setIsWarningDialogOpen] = useState(false);
   const [deletionImpact, setDeletionImpact] = useState<DeletionImpact | null>(null);
+  const [hideConfirmService, setHideConfirmService] = useState<Service | null>(null);
+  const [isTogglingHidden, setIsTogglingHidden] = useState(false);
   const itemsPerPage = 12;
 
   // Calculate pagination
@@ -116,7 +119,7 @@ export default function ServicesList({
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedTagFilter]);
+  }, [searchQuery, selectedTagFilter, hiddenFilter]);
 
   // Search as you type with debounce
   useEffect(() => {
@@ -137,15 +140,25 @@ export default function ServicesList({
 
       setIsSearching(true);
       try {
-        const cacheKey = searchQuery.trim().toLowerCase();
-        const now = Date.now();
-        const cached = searchResultCache.get(cacheKey);
         let searchResults: Service[];
-        if (cached && now - cached.timestamp < SEARCH_CACHE_TTL) {
-          searchResults = cached.data;
+        // Server-side search returns visible-only. In admin Hidden/All modes
+        // we filter the already-loaded list client-side so hidden rows match.
+        if (hiddenFilter !== "visible") {
+          const q = searchQuery.trim().toLowerCase();
+          searchResults = services.filter((s) =>
+            s.name.toLowerCase().includes(q) ||
+            (s.description ?? "").toLowerCase().includes(q),
+          );
         } else {
-          searchResults = await searchServices(searchQuery);
-          searchResultCache.set(cacheKey, { data: searchResults, timestamp: now });
+          const cacheKey = searchQuery.trim().toLowerCase();
+          const now = Date.now();
+          const cached = searchResultCache.get(cacheKey);
+          if (cached && now - cached.timestamp < SEARCH_CACHE_TTL) {
+            searchResults = cached.data;
+          } else {
+            searchResults = await searchServices(searchQuery);
+            searchResultCache.set(cacheKey, { data: searchResults, timestamp: now });
+          }
         }
         // Apply tag filter to search results
         let filtered = searchResults;
@@ -170,7 +183,7 @@ export default function ServicesList({
     }, 300); // 300ms debounce
 
     return () => clearTimeout(delayDebounce);
-  }, [searchQuery, selectedTagFilter, services]);
+  }, [searchQuery, selectedTagFilter, services, hiddenFilter]);
 
   // Update filtered services when services prop or tag filter changes (when not searching)
   React.useEffect(() => {
@@ -239,6 +252,61 @@ export default function ServicesList({
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleToggleHidden = async (service: Service) => {
+    // Unhide is instant; hide requires confirmation.
+    if (!service.hidden) {
+      setHideConfirmService(service);
+      return;
+    }
+    setIsTogglingHidden(true);
+    try {
+      await toggleServiceHidden(service.id, false);
+      invalidateAllCaches();
+      await onRefresh();
+      toast({
+        title: "Service unhidden",
+        description: `"${service.name}" is now visible to everyone.`,
+      });
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error toggling service visibility:", error);
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update service visibility. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTogglingHidden(false);
+    }
+  };
+
+  const confirmHideService = async () => {
+    if (!hideConfirmService) return;
+    setIsTogglingHidden(true);
+    try {
+      await toggleServiceHidden(hideConfirmService.id, true);
+      invalidateAllCaches();
+      await onRefresh();
+      toast({
+        title: "Service hidden",
+        description: `"${hideConfirmService.name}" is hidden from non-admins. Existing quotations and delivery orders are unaffected.`,
+      });
+      setHideConfirmService(null);
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error hiding service:", error);
+      }
+      toast({
+        title: "Error",
+        description: "Failed to hide service. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTogglingHidden(false);
     }
   };
 
@@ -359,8 +427,8 @@ export default function ServicesList({
           )}
         </div>
 
-        {/* Tag Filter Row */}
-        <div className="flex items-center gap-3">
+        {/* Tag + Visibility Filter Row */}
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-gray-500" />
             <span className="text-sm font-medium text-gray-700">
@@ -389,6 +457,30 @@ export default function ServicesList({
               ))}
             </SelectContent>
           </Select>
+
+          {isAdmin && (
+            <>
+              <div className="flex items-center gap-2 sm:ml-4">
+                <EyeOff className="w-4 h-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">
+                  Visibility:
+                </span>
+              </div>
+              <Select
+                value={hiddenFilter}
+                onValueChange={(v) => setHiddenFilter(v as typeof hiddenFilter)}
+              >
+                <SelectTrigger className="w-48 bg-white border-2" style={{ borderColor: "#BDC4A5" }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="visible">Visible only</SelectItem>
+                  <SelectItem value="hidden">Hidden only</SelectItem>
+                  <SelectItem value="all">Show all</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
         </div>
       </div>
 
@@ -410,7 +502,17 @@ export default function ServicesList({
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-lg">{service.name}</CardTitle>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span>{service.name}</span>
+                      {service.hidden && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-gray-200 text-gray-700 border border-gray-300"
+                        >
+                          Hidden
+                        </Badge>
+                      )}
+                    </CardTitle>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge
                         variant="secondary"
@@ -473,6 +575,16 @@ export default function ServicesList({
                     {/* Admin buttons */}
                     {isAdmin && (
                       <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleToggleHidden(service)}
+                          disabled={isTogglingHidden}
+                          className={service.hidden ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-gray-600 hover:text-gray-700 hover:bg-gray-100"}
+                          title={service.hidden ? "Unhide service" : "Hide service"}
+                        >
+                          {service.hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -630,6 +742,21 @@ export default function ServicesList({
         entityName="service"
         impactItems={deletionImpact?.items || []}
         isLoading={isDeleting}
+      />
+
+      <ConfirmationDialog
+        isOpen={hideConfirmService !== null}
+        onClose={() => setHideConfirmService(null)}
+        onConfirm={confirmHideService}
+        title="Hide Service"
+        description={
+          hideConfirmService
+            ? `Hide "${hideConfirmService.name}" from non-admin users? It will disappear from the services list and from quotation / delivery-order pickers. Existing quotations and delivery orders that already reference it are unaffected. You can unhide it at any time.`
+            : ""
+        }
+        confirmText="Hide"
+        cancelText="Cancel"
+        isLoading={isTogglingHidden}
       />
     </div>
   );

@@ -107,12 +107,15 @@ model Services {
   description  String
   basePrice    Float
   imageUrl     String?
+  hidden       Boolean            @default(false)
   created_at   DateTime           @default(now())
   updated_at   DateTime           @default(now())
   ServiceToTag ServiceToTag[]
   milestones   Milestone[]
   quotations   QuotationService[]
   deliveryOrders DeliveryOrderService[]
+
+  @@index([hidden])
 }
 
 model ServiceTag {

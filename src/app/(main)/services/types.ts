@@ -13,6 +13,7 @@ export type Service = {
   description: string;
   basePrice: number;
   imageUrl?: string | null;
+  hidden: boolean;
   created_at: Date;
   updated_at: Date;
   tags?: ServiceTag[];
@@ -23,6 +24,7 @@ export type CreateServiceData = {
   description: string;
   basePrice: number;
   imageUrl?: string | null;
+  hidden?: boolean;
   tagIds?: number[];
 };
 
@@ -31,8 +33,11 @@ export type UpdateServiceData = {
   description?: string;
   basePrice?: number;
   imageUrl?: string | null;
+  hidden?: boolean;
   tagIds?: number[];
 };
+
+export type HiddenFilter = "visible" | "hidden" | "all";
 
 export type CreateServiceTagData = {
   name: string;

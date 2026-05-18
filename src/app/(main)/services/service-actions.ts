@@ -381,6 +381,7 @@ export async function createService(data: CreateServiceData): Promise<Service> {
 
 export async function getAllServices(): Promise<Service[]> {
   const services = await prisma.services.findMany({
+    where: { hidden: false },
     include: {
       ServiceToTag: {
         include: {
@@ -390,7 +391,7 @@ export async function getAllServices(): Promise<Service[]> {
     },
     orderBy: { name: 'asc' },
   })
-  
+
   return services.map(transformService)
 }
 
@@ -472,6 +473,7 @@ export async function deleteService(id: number): Promise<void> {
 export async function getServicesByTag(tagId: number): Promise<Service[]> {
   const services = await prisma.services.findMany({
     where: {
+      hidden: false,
       ServiceToTag: {
         some: {
           A: tagId,
@@ -487,7 +489,7 @@ export async function getServicesByTag(tagId: number): Promise<Service[]> {
     },
     orderBy: { name: 'asc' },
   })
-  
+
   return services.map(transformService)
 }
 
@@ -495,6 +497,7 @@ export async function getServicesByTag(tagId: number): Promise<Service[]> {
 export async function searchServices(query: string): Promise<Service[]> {
   const services = await prisma.services.findMany({
     where: {
+      hidden: false,
       OR: [
         { name: { contains: query, mode: 'insensitive' } },
         { description: { contains: query, mode: 'insensitive' } },
@@ -509,8 +512,37 @@ export async function searchServices(query: string): Promise<Service[]> {
     },
     orderBy: { name: 'asc' },
   })
-  
+
   return services.map(transformService)
+}
+
+/**
+ * Admin-only toggle for the `hidden` flag on a service. Hidden services
+ * disappear from every picker / list / search for non-admins but remain
+ * intact as catalog rows so existing quotation and delivery-order line
+ * items keep rendering their snapshot fields.
+ */
+export async function toggleServiceHidden(id: number, hidden: boolean): Promise<Service> {
+  const user = await getCachedUser()
+  if (!user?.id) throw new Error("Unauthorized")
+  const isAdmin = await checkIsAdmin(user.id)
+  if (!isAdmin) {
+    throw new Error("Unauthorized: Admin access required")
+  }
+
+  const service = await prisma.services.update({
+    where: { id },
+    data: { hidden },
+    include: {
+      ServiceToTag: {
+        include: {
+          service_tags: true
+        }
+      }
+    },
+  })
+  revalidateTag("services", { expire: 0 })
+  return transformService(service)
 }
 
 /**

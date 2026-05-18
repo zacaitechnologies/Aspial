@@ -2,7 +2,10 @@
 
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { unstable_cache, revalidateTag } from "next/cache"
+
+type HiddenFilter = "visible" | "hidden" | "all"
 
 // Helper function to transform Prisma service data to include tags
 function transformService(service: any) {
@@ -14,6 +17,7 @@ function transformService(service: any) {
 
 export async function getAllServices() {
   const services = await prisma.services.findMany({
+    where: { hidden: false },
     orderBy: { created_at: "desc" },
     include: {
       ServiceToTag: {
@@ -23,7 +27,7 @@ export async function getAllServices() {
       }
     }
   })
-  
+
   return services.map(transformService)
 }
 
@@ -33,13 +37,16 @@ async function _getServicesPaginatedInternal(
   pageSize: number = 12,
   filters: {
     searchQuery?: string
+    hiddenFilter?: HiddenFilter
   } = {}
 ) {
   const skip = (page - 1) * pageSize
-  const { searchQuery } = filters
+  const { searchQuery, hiddenFilter = "visible" } = filters
 
   // Build where clause
   const where: any = {}
+  if (hiddenFilter === "visible") where.hidden = false
+  else if (hiddenFilter === "hidden") where.hidden = true
   if (searchQuery) {
     where.OR = [
       { name: { contains: searchQuery, mode: 'insensitive' } },
@@ -79,12 +86,28 @@ export async function getServicesPaginated(
   pageSize: number = 12,
   filters: {
     searchQuery?: string
+    hiddenFilter?: HiddenFilter
   } = {}
 ) {
-  await getCachedUser()
+  const user = await getCachedUser()
+  // Non-admins are pinned to "visible" regardless of what the client requested.
+  let effectiveHiddenFilter: HiddenFilter = "visible"
+  if (user?.id) {
+    const isAdmin = await getCachedIsUserAdmin(user.id)
+    if (isAdmin && filters.hiddenFilter) {
+      effectiveHiddenFilter = filters.hiddenFilter
+    }
+  }
+  const effectiveFilters = { ...filters, hiddenFilter: effectiveHiddenFilter }
   return await unstable_cache(
-    () => _getServicesPaginatedInternal(page, pageSize, filters),
-    ["services-paginated", String(page), String(pageSize), filters.searchQuery ?? ""],
+    () => _getServicesPaginatedInternal(page, pageSize, effectiveFilters),
+    [
+      "services-paginated",
+      String(page),
+      String(pageSize),
+      effectiveFilters.searchQuery ?? "",
+      effectiveHiddenFilter,
+    ],
     { revalidate: 30, tags: ["services"] }
   )()
 }
@@ -92,6 +115,7 @@ export async function getServicesPaginated(
 export async function searchServices(query: string) {
   const services = await prisma.services.findMany({
     where: {
+      hidden: false,
       OR: [
         { name: { contains: query, mode: "insensitive" } },
         { description: { contains: query, mode: "insensitive" } },
@@ -106,7 +130,7 @@ export async function searchServices(query: string) {
       }
     }
   })
-  
+
   return services.map(transformService)
 }
 

@@ -608,6 +608,7 @@ export async function getClientsForSelect() {
 export async function getServicesForSelect() {
   unstable_noStore()
   return prisma.services.findMany({
+    where: { hidden: false },
     select: { id: true, name: true, description: true, basePrice: true },
     orderBy: { name: "asc" },
   })
