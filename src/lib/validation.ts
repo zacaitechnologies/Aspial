@@ -474,7 +474,7 @@ export const leaveExportFiltersSchema = z
     startDate: isoDateString,
     endDate: isoDateString,
     statuses: z
-      .array(z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]))
+      .array(z.enum(["PENDING", "APPROVED", "REJECTED"]))
       .min(1, "Select at least one status"),
     userIds: z.array(z.string()).default([]),
     leaveTypeCodes: z.array(leaveTypeCode).default([]),

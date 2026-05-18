@@ -44,7 +44,11 @@ interface ExportLeaveDialogProps {
   leaveTypes: LeaveTypeDTO[]
 }
 
-const ALL_STATUSES: LeaveStatus[] = ["PENDING", "APPROVED", "REJECTED", "CANCELLED"]
+const EXPORT_STATUSES: LeaveStatus[] = ["PENDING", "APPROVED", "REJECTED"]
+
+const exportStatusOptions = leaveStatusOptions.filter((opt) =>
+  EXPORT_STATUSES.includes(opt.value)
+)
 
 function firstOfCurrentMonthMYT(): string {
   const today = getMalaysiaDateStr()
@@ -61,7 +65,7 @@ export default function ExportLeaveDialog({
 
   const [startDate, setStartDate] = useState<string>(() => firstOfCurrentMonthMYT())
   const [endDate, setEndDate] = useState<string>(() => getMalaysiaDateStr())
-  const [statuses, setStatuses] = useState<LeaveStatus[]>(ALL_STATUSES)
+  const [statuses, setStatuses] = useState<LeaveStatus[]>(EXPORT_STATUSES)
   const [userIds, setUserIds] = useState<string[]>([])
   const [leaveTypeCodes, setLeaveTypeCodes] = useState<string[]>([])
   const [isExporting, setIsExporting] = useState(false)
@@ -194,7 +198,7 @@ export default function ExportLeaveDialog({
           <div className="space-y-2">
             <Label className="text-sm font-semibold">Status</Label>
             <div className="grid grid-cols-2 gap-2">
-              {leaveStatusOptions.map((opt) => {
+              {exportStatusOptions.map((opt) => {
                 const checked = statuses.includes(opt.value)
                 return (
                   <label
