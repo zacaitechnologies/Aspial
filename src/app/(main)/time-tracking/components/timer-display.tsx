@@ -17,6 +17,7 @@ interface TimerDisplayProps {
   onDescriptionChange: (value: string) => void
   onSaveDescription: () => void
   isDescriptionDirty: boolean
+  canSaveDescription?: boolean
   isSavingDescription: boolean
   onStart: () => void
   onPause: () => void
@@ -51,6 +52,7 @@ export function TimerDisplay({
   onDescriptionChange,
   onSaveDescription,
   isDescriptionDirty,
+  canSaveDescription = true,
   isSavingDescription,
   onStart,
   onPause,
@@ -250,7 +252,7 @@ export function TimerDisplay({
                   size="sm"
                   variant="outline"
                   onClick={onSaveDescription}
-                  disabled={!isDescriptionDirty || isSavingDescription}
+                  disabled={!isDescriptionDirty || !canSaveDescription || isSavingDescription}
                 >
                   {isSavingDescription ? (
                     <>

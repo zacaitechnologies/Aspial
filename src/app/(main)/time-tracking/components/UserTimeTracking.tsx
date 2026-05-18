@@ -6,7 +6,7 @@ import { TaskSelector } from "./task-selector"
 import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { Project } from "@prisma/client"
@@ -158,7 +158,7 @@ export default function UserTimeTracking({
   const descriptionInvalid = mustHaveDescription && description.trim() === ""
 
   const guardPauseStop = (action: "pause" | "stop") => {
-    if (activeProjectIsPlaceholder && description.trim() === "") {
+    if (mustHaveDescription && description.trim() === "") {
       toast({
         variant: "destructive",
         title: "Description required",
@@ -308,15 +308,33 @@ export default function UserTimeTracking({
     }
   }
 
-  const saveDescription = async () => {
-    if (!activeEntryId) return
+  const saveDescription = async (): Promise<boolean> => {
+    if (!activeEntryId) return false
+    const trimmed = description.trim()
+    if (mustHaveDescription && trimmed === "") {
+      toast({
+        variant: "destructive",
+        title: "Description required",
+        description: "Add a description before saving — this entry isn't tied to a project.",
+      })
+      return false
+    }
     setIsSavingDescription(true)
     try {
-      const updated = await updateTimeEntryDescription(activeEntryId, description)
+      const updated = await updateTimeEntryDescription(activeEntryId, trimmed)
       setSavedDescription(updated.description ?? "")
       setDescription(updated.description ?? "")
+      return true
     } catch (err) {
-      // Silently handle save error
+      toast({
+        variant: "destructive",
+        title: "Could not save description",
+        description:
+          err && typeof err === "object" && "message" in err && typeof err.message === "string"
+            ? err.message
+            : "Something went wrong while saving.",
+      })
+      return false
     } finally {
       setIsSavingDescription(false)
     }
@@ -384,7 +402,8 @@ export default function UserTimeTracking({
   }
 
   const handleSaveAndContinue = async () => {
-    await saveDescription()
+    const saved = await saveDescription()
+    if (!saved) return
     const action = pendingAction
     setPendingAction(null)
     if (action === "pause") {
@@ -445,7 +464,8 @@ export default function UserTimeTracking({
                   description={description}
                   onDescriptionChange={setDescription}
                   onSaveDescription={saveDescription}
-                  isDescriptionDirty={description !== savedDescription}
+                  isDescriptionDirty={description.trim() !== savedDescription.trim()}
+                  canSaveDescription={!mustHaveDescription || description.trim().length > 0}
                   isSavingDescription={isSavingDescription}
                   onStart={startTimer}
                   onPause={handlePauseRequest}
@@ -473,17 +493,18 @@ export default function UserTimeTracking({
         </div>
       </div>
       <Dialog open={pendingAction !== null} onOpenChange={(open) => (!open ? setPendingAction(null) : undefined)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="min-w-0 overflow-x-hidden sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Save description first?</DialogTitle>
             <DialogDescription>
               You have unsaved description changes. Save them before you {pendingAction === "pause" ? "pause" : "stop"} the timer.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-end">
+          <div className="flex flex-col gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
+              className="h-auto min-h-9 w-full shrink whitespace-normal px-4 py-2.5"
               onClick={() => setPendingAction(null)}
               disabled={isSavingDescription || isPausing || isStopping}
             >
@@ -492,6 +513,7 @@ export default function UserTimeTracking({
             <Button
               type="button"
               variant="outline"
+              className="h-auto min-h-9 w-full shrink whitespace-normal px-4 py-2.5"
               onClick={handleConfirmWithoutSaving}
               disabled={isSavingDescription || isPausing || isStopping}
             >
@@ -499,12 +521,13 @@ export default function UserTimeTracking({
             </Button>
             <Button
               type="button"
+              className="h-auto min-h-9 w-full shrink whitespace-normal px-4 py-2.5"
               onClick={handleSaveAndContinue}
-              disabled={isSavingDescription || isPausing || isStopping}
+              disabled={isSavingDescription || isPausing || isStopping || descriptionInvalid}
             >
               Save and continue
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

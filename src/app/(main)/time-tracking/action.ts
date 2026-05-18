@@ -630,15 +630,23 @@ export async function updateTimeEntryDescription(
       throw new Error("Active time entry not found")
     }
 
+    const placeholderProjectId = await getNoProjectIdOrNull()
+    if (
+      placeholderProjectId !== null &&
+      existingEntry.projectId === placeholderProjectId &&
+      validated.description.length === 0
+    ) {
+      throw new Error("Description is required when no project is selected")
+    }
+
     const timeEntry = await prisma.timeEntry.update({
       where: { id: validated.id },
-      data: { description: validated.description },
+      data: { description: validated.description || null },
       include: timeEntryInclude,
     })
 
     revalidatePath("/time-tracking")
 
-    const placeholderProjectId = await getNoProjectIdOrNull()
     return toTimeEntryDTO(timeEntry, placeholderProjectId)
   } catch (error: unknown) {
     if (error && typeof error === "object" && "digest" in error && typeof error.digest === "string" && error.digest.startsWith("NEXT_REDIRECT")) {

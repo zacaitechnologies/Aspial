@@ -1,5 +1,3 @@
-"use server"
-
 import { prisma } from "@/lib/prisma"
 
 export const NO_PROJECT_SENTINEL_NAME = "__NO_PROJECT__"
@@ -8,25 +6,27 @@ const SYSTEM_CLIENT_EMAIL = "system@aspial.local"
 
 let cachedNoProjectId: number | null = null
 
-async function pickBootstrapUserSupabaseId(): Promise<string> {
+type BootstrapUser = { id: string; supabase_id: string }
+
+async function pickBootstrapUser(): Promise<BootstrapUser> {
   const adminUser = await prisma.user.findFirst({
     where: {
       userRoles: { some: { role: { slug: "admin" } } },
     },
-    select: { supabase_id: true },
+    select: { id: true, supabase_id: true },
   })
-  if (adminUser) return adminUser.supabase_id
+  if (adminUser) return adminUser
 
   const anyUser = await prisma.user.findFirst({
-    select: { supabase_id: true },
+    select: { id: true, supabase_id: true },
   })
   if (!anyUser) {
     throw new Error("Cannot create No-Project placeholder: no users in the database yet.")
   }
-  return anyUser.supabase_id
+  return anyUser
 }
 
-async function getOrCreateSystemClientId(bootstrapUserSupabaseId: string): Promise<string> {
+async function getOrCreateSystemClientId(createdByUserId: string): Promise<string> {
   const existing = await prisma.client.findFirst({
     where: { name: SYSTEM_CLIENT_NAME, email: SYSTEM_CLIENT_EMAIL },
     select: { id: true },
@@ -37,7 +37,7 @@ async function getOrCreateSystemClientId(bootstrapUserSupabaseId: string): Promi
     data: {
       name: SYSTEM_CLIENT_NAME,
       email: SYSTEM_CLIENT_EMAIL,
-      createdById: bootstrapUserSupabaseId,
+      createdById: createdByUserId,
     },
     select: { id: true },
   })
@@ -56,8 +56,8 @@ export async function getOrCreateNoProjectId(): Promise<number> {
     return cachedNoProjectId
   }
 
-  const bootstrapUserSupabaseId = await pickBootstrapUserSupabaseId()
-  const clientId = await getOrCreateSystemClientId(bootstrapUserSupabaseId)
+  const bootstrapUser = await pickBootstrapUser()
+  const clientId = await getOrCreateSystemClientId(bootstrapUser.id)
   const now = new Date()
 
   const created = await prisma.project.create({
@@ -67,7 +67,7 @@ export async function getOrCreateNoProjectId(): Promise<number> {
       status: "planning",
       startDate: now,
       endDate: now,
-      createdBy: bootstrapUserSupabaseId,
+      createdBy: bootstrapUser.supabase_id,
       clientId,
       clientName: SYSTEM_CLIENT_NAME,
     },
