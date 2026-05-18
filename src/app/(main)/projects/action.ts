@@ -504,16 +504,53 @@ export async function createProject(data: CreateProjectData) {
       })
     }
 
+    // If quotationIds is provided, bulk-link those quotations to the project
+    if (data.quotationIds && data.quotationIds.length > 0) {
+      await tx.quotation.updateMany({
+        where: { id: { in: data.quotationIds } },
+        data: { projectId: created.id },
+      })
+    }
+
     return created
   })
 
   // Invalidate cache
   revalidateTag('projects', { expire: 0 })
-  if (data.quotationId) {
+  if (data.quotationId || (data.quotationIds && data.quotationIds.length > 0)) {
     revalidateTag('quotations', { expire: 0 })
   }
 
   return project
+}
+
+export async function getUnlinkedQuotations() {
+  unstable_noStore()
+  const quotations = await prisma.quotation.findMany({
+    where: { projectId: null },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      totalPrice: true,
+      workflowStatus: true,
+      paymentStatus: true,
+      clientId: true,
+      Client: { select: { name: true } },
+    },
+    orderBy: { created_at: "desc" },
+  })
+
+  return quotations.map((q) => ({
+    id: q.id,
+    name: q.name,
+    description: q.description,
+    totalPrice: q.totalPrice,
+    workflowStatus: q.workflowStatus,
+    paymentStatus: q.paymentStatus,
+    clientId: q.clientId,
+    clientName: q.Client?.name ?? "",
+  }))
 }
 
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, Info, Edit, Trash2 } from "lucide-react";
+import { Calendar, Info, Edit, Trash2, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useState, useMemo, useEffect, useCallback, useRef, useTransition } from
 import { cancelProject, getProjectsPaginated, invalidateProjectsCache } from "../action";
 import { formatDateStringNumeric, formatLocalDate, formatLocalDateTimeForDisplay } from "@/lib/date-utils";
 import EditProjectDialog from "./EditProjectDialog";
+import CreateProjectDialog from "./CreateProjectDialog";
 import ProjectSearchBar from "./ProjectSearchBar";
 import ProjectCollaboratorsDialog from "./ProjectCollaboratorsDialog";
 import { useSession } from "../../contexts/SessionProvider";
@@ -42,6 +43,7 @@ export default function ProjectsClient({
   
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectsPaginatedResult['projects'][0] | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectsPaginatedResult['projects'][0] | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -392,6 +394,10 @@ export default function ProjectsClient({
               statusFilter={statusFilter}
               onStatusFilterChange={setStatusFilter}
             />
+            <Button onClick={() => setIsCreateOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Project
+            </Button>
           </div>
         </div>
 
@@ -486,7 +492,7 @@ export default function ProjectsClient({
           <div className="text-center py-12">
             <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">No projects available.</p>
-            <p className="text-sm text-muted-foreground mt-2">Create projects from accepted or paid quotations.</p>
+            <p className="text-sm text-muted-foreground mt-2">Click &quot;Create Project&quot; to get started, or create one from a quotation.</p>
           </div>
         )}
 
@@ -500,6 +506,8 @@ export default function ProjectsClient({
         />
 
         <EditProjectDialog isOpen={isEditOpen} onOpenChange={setIsEditOpen} onSuccess={onRefresh} project={editingProject} />
+
+        <CreateProjectDialog isOpen={isCreateOpen} onOpenChange={setIsCreateOpen} onSuccess={onRefresh} />
 
         <ProjectCollaboratorsDialog
           isOpen={isCollaboratorsOpen}
