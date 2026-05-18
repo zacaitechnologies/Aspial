@@ -9,8 +9,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import type { LeaveApplicationDTO } from "../types"
+import type { LeaveApplicationDTO, LeaveTypeDTO } from "../types"
 import { isMalaysiaNonWorkingDay, leaveTypeChipClasses, formatLeaveTypeName } from "../types"
+import LeaveDayPopover from "./LeaveDayPopover"
 import { parseLocalDateString, toBusinessTZParts } from "@/lib/date-utils"
 import { getMalaysiaDateStr } from "@/lib/malaysia-time"
 import {
@@ -37,11 +38,13 @@ import {
 interface LeaveCalendarProps {
   applications: LeaveApplicationDTO[]
   showEmployeeName?: boolean
+  leaveTypes?: LeaveTypeDTO[]
 }
 
 export default function LeaveCalendar({
   applications,
   showEmployeeName = false,
+  leaveTypes,
 }: LeaveCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(() =>
     startOfMonth(parseLocalDateString(getMalaysiaDateStr()))
@@ -153,16 +156,16 @@ export default function LeaveCalendar({
             const isCurrentMonth = isSameMonth(day, currentMonth)
             const isToday = getMalaysiaDateStr(day) === getMalaysiaDateStr()
             const isSundayOff = isMalaysiaNonWorkingDay(getMalaysiaDateStr(day))
+            const hasLeaves = dayLeaves.length > 0
 
-            return (
-              <div
-                key={day.toISOString()}
-                className={cn(
-                  "bg-background p-1 min-h-[64px] sm:min-h-[72px]",
-                  !isCurrentMonth && "bg-muted/30",
-                  isSundayOff && isCurrentMonth && "bg-muted/20"
-                )}
-              >
+            const cellClasses = cn(
+              "bg-background p-1 min-h-[64px] sm:min-h-[72px]",
+              !isCurrentMonth && "bg-muted/30",
+              isSundayOff && isCurrentMonth && "bg-muted/20"
+            )
+
+            const cellContent = (
+              <>
                 <div
                   className={cn(
                     "text-xs mb-0.5 font-medium tabular-nums",
@@ -183,7 +186,8 @@ export default function LeaveCalendar({
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
-                                "text-[10px] px-1 py-0.5 rounded-sm truncate cursor-default font-medium border",
+                                "text-[10px] px-1 py-0.5 rounded-sm truncate font-medium border",
+                                hasLeaves ? "cursor-pointer" : "cursor-default",
                                 chipClass,
                                 leave.status === "PENDING" && "opacity-80 ring-1 ring-foreground/20"
                               )}
@@ -211,7 +215,40 @@ export default function LeaveCalendar({
                     </div>
                   )}
                 </div>
-              </div>
+              </>
+            )
+
+            if (!hasLeaves) {
+              return (
+                <div key={day.toISOString()} className={cellClasses}>
+                  {cellContent}
+                </div>
+              )
+            }
+
+            return (
+              <Popover key={day.toISOString()}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`View leaves on ${format(day, "PPP")}`}
+                    className={cn(
+                      cellClasses,
+                      "text-left w-full hover:bg-accent/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    )}
+                  >
+                    {cellContent}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-auto p-0">
+                  <LeaveDayPopover
+                    date={day}
+                    leaves={dayLeaves}
+                    showEmployeeName={showEmployeeName}
+                    leaveTypes={leaveTypes}
+                  />
+                </PopoverContent>
+              </Popover>
             )
           })}
         </div>

@@ -511,6 +511,25 @@ export const leaveFiltersSchema = z.object({
 
 export type LeaveFilters = z.infer<typeof leaveFiltersSchema>;
 
+const isoDateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
+
+export const leaveExportFiltersSchema = z
+  .object({
+    startDate: isoDateString,
+    endDate: isoDateString,
+    statuses: z
+      .array(z.enum(["PENDING", "APPROVED", "REJECTED"]))
+      .min(1, "Select at least one status"),
+    userIds: z.array(z.string()).default([]),
+    leaveTypeCodes: z.array(leaveTypeCode).default([]),
+  })
+  .refine((v) => v.startDate <= v.endDate, {
+    message: "End date must be on or after start date",
+    path: ["endDate"],
+  });
+
+export type LeaveExportFilters = z.infer<typeof leaveExportFiltersSchema>;
+
 export const updateEmployeeBalanceSchema = z.object({
   userId: z.string().min(1),
   leaveType: leaveTypeCode,

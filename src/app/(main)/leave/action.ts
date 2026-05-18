@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
+import { Prisma } from "@prisma/client"
 import {
   applyLeaveSchema,
   reviewLeaveSchema,
@@ -18,12 +19,14 @@ import {
   createLeaveTypeSchema,
   updateLeaveTypeSchema,
   bulkUpsertLeaveBalancesSchema,
+  leaveExportFiltersSchema,
   type ApplyLeaveValues,
   type AdminEditLeaveValues,
   type LeaveChangeRequestValues,
   type CancelOwnPendingLeaveValues,
   type WithdrawChangeRequestValues,
   type LeaveFilters,
+  type LeaveExportFilters,
   type UpdateEmployeeBalanceValues,
   type CreateLeaveTypeValues,
   type UpdateLeaveTypeValues,
@@ -189,6 +192,39 @@ export async function fetchAllLeaveApplications(
     where,
     include: leaveApplicationInclude,
     orderBy: { created_at: "desc" },
+  }) as unknown as LeaveApplicationDTO[]
+}
+
+/**
+ * Admin-only export query. Returns every leave application whose [startDate,
+ * endDate] interval overlaps the requested range, optionally narrowed by
+ * status / user / leave type. Overlap semantics match LeaveCalendar so a
+ * leave straddling the range boundary is not silently dropped.
+ */
+export async function fetchLeaveApplicationsForExport(
+  filters: LeaveExportFilters
+): Promise<LeaveApplicationDTO[]> {
+  const user = await getCurrentUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) throw new Error("Unauthorized")
+
+  const validated = leaveExportFiltersSchema.parse(filters)
+
+  const startBoundary = toMYTDate(validated.startDate)
+  const endBoundary = toMYTDate(validated.endDate)
+
+  const where: Prisma.LeaveApplicationWhereInput = {
+    status: { in: validated.statuses },
+    startDate: { lte: endBoundary },
+    endDate: { gte: startBoundary },
+  }
+  if (validated.userIds.length > 0) where.userId = { in: validated.userIds }
+  if (validated.leaveTypeCodes.length > 0) where.leaveType = { in: validated.leaveTypeCodes }
+
+  return prisma.leaveApplication.findMany({
+    where,
+    include: leaveApplicationInclude,
+    orderBy: [{ startDate: "asc" }, { user: { firstName: "asc" } }],
   }) as unknown as LeaveApplicationDTO[]
 }
 
