@@ -195,8 +195,8 @@ export default function EditProjectDialog({
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid min-w-0 gap-2">
               <Label htmlFor="startDate">Start Date</Label>
               <Input
                 id="startDate"
@@ -204,10 +204,11 @@ export default function EditProjectDialog({
                 value={form.startDate}
                 onChange={(e) => setForm(prev => ({ ...prev, startDate: e.target.value }))}
                 disabled={isProjectCancelled && !isAdmin}
+                className="w-full min-w-0"
               />
             </div>
 
-            <div className="grid gap-2">
+            <div className="grid min-w-0 gap-2">
               <Label htmlFor="endDate">End Date</Label>
               <Input
                 id="endDate"
@@ -215,6 +216,7 @@ export default function EditProjectDialog({
                 value={form.endDate}
                 onChange={(e) => setForm(prev => ({ ...prev, endDate: e.target.value }))}
                 disabled={isProjectCancelled && !isAdmin}
+                className="w-full min-w-0"
               />
             </div>
           </div>

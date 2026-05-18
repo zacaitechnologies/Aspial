@@ -121,9 +121,12 @@ export default function CreateProjectDialog({
     if (clientMode === "existing") {
       if (!selectedClientId) return "Please select a client.";
     } else {
-      if (!newClientData.name?.trim()) return "New client name is required.";
-      if (!newClientData.email?.trim()) return "New client email is required.";
-      if (!newClientData.ic?.trim()) return "New client IC is required.";
+      if (!newClientData.name?.trim()) return "Client name is required.";
+      if (!newClientData.email?.trim()) return "Email is required.";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClientData.email.trim())) {
+        return "Please enter a valid email address.";
+      }
+      if (!newClientData.ic?.trim()) return "IC / NRIC is required.";
     }
 
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
@@ -214,12 +217,23 @@ export default function CreateProjectDialog({
       onSuccess();
       onOpenChange(false);
     } catch (error) {
-      console.error("Error creating project:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error creating project:", error);
+      }
+      const message =
+        error instanceof Error ? error.message : "Something went wrong. Please try again.";
+      const isClientValidation =
+        clientMode === "new" &&
+        (message.includes("is required") ||
+          message.includes("email") ||
+          message.includes("IC"));
       toast({
-        title: "Error",
-        description:
-          "Failed to create project: " +
-          (error instanceof Error ? error.message : "Unknown error"),
+        title: isClientValidation ? "Client details incomplete" : "Could not create project",
+        description: isClientValidation
+          ? message
+          : message.startsWith("Failed to")
+            ? message
+            : `Failed to create project. ${message}`,
         variant: "destructive",
       });
     } finally {
@@ -229,7 +243,7 @@ export default function CreateProjectDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-[700px] max-w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-full max-w-[95vw] max-h-[90vh] overflow-y-auto sm:max-w-lg lg:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create Project</DialogTitle>
         </DialogHeader>
@@ -259,28 +273,30 @@ export default function CreateProjectDialog({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="grid gap-2">
+            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid min-w-0 gap-2">
                 <Label htmlFor="project-start-date">Start Date</Label>
                 <Input
                   id="project-start-date"
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full min-w-0"
                 />
               </div>
 
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <Label htmlFor="project-end-date">End Date</Label>
                 <Input
                   id="project-end-date"
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full min-w-0"
                 />
               </div>
 
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2 sm:col-span-2 lg:col-span-1">
                 <Label htmlFor="project-priority">Priority</Label>
                 <Select
                   value={priority}
@@ -288,7 +304,7 @@ export default function CreateProjectDialog({
                     setPriority(value as "low" | "medium" | "high")
                   }
                 >
-                  <SelectTrigger id="project-priority">
+                  <SelectTrigger id="project-priority" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

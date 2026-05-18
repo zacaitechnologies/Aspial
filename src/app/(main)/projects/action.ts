@@ -527,7 +527,10 @@ export async function createProject(data: CreateProjectData) {
 export async function getUnlinkedQuotations() {
   unstable_noStore()
   const quotations = await prisma.quotation.findMany({
-    where: { projectId: null },
+    where: {
+      projectId: null,
+      workflowStatus: "final",
+    },
     select: {
       id: true,
       name: true,

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertTriangle, Building2, FileText } from "lucide-react";
 import { getUnlinkedQuotations } from "../action";
@@ -90,12 +89,13 @@ export default function QuotationPicker({ selectedIds, onChange }: QuotationPick
   };
 
   return (
-    <div>
-      <Label className="text-base font-semibold">
-        Linked Quotations <span className="text-sm font-normal text-muted-foreground">(optional)</span>
-      </Label>
+    <div className="min-w-0 space-y-2">
+      <p className="text-base font-semibold text-foreground">
+        <span>Quotations</span>{" "}
+        <span className="text-sm font-normal text-muted-foreground">(optional)</span>
+      </p>
 
-      <div className="border rounded-lg p-6 mt-2 space-y-4">
+      <div className="space-y-4 rounded-lg border p-4 sm:p-6">
         <Input
           placeholder="Search by quotation name, description, or client..."
           value={searchQuery}
@@ -123,7 +123,7 @@ export default function QuotationPicker({ selectedIds, onChange }: QuotationPick
                 <p className="text-muted-foreground">
                   {searchQuery
                     ? "No quotations match your search."
-                    : "No unlinked quotations available."}
+                    : "No finalised unlinked quotations available."}
                 </p>
               </div>
             ) : (

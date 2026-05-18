@@ -57,8 +57,52 @@ export const createClientSchema = z.object({
   industry: z.string().trim().optional(),
   yearlyRevenue: z.number().positive().optional(),
   membershipType: z.enum(["MEMBER", "NON_MEMBER"]),
-  advisorIds: z.array(z.string()).min(1, "At least one advisor is required"),
+  /** Omitted when creating a client inline (e.g. project flow); server assigns the current user. */
+  advisorIds: z.array(z.string()).optional(),
 });
+
+const ZOD_FIELD_LABELS: Record<string, string> = {
+  name: "Client name",
+  email: "Email",
+  ic: "IC / NRIC",
+  phone: "Phone",
+  company: "Company",
+  companyRegistrationNumber: "Company registration number",
+  address: "Address",
+  notes: "Notes",
+  industry: "Industry",
+  yearlyRevenue: "Yearly revenue",
+  membershipType: "Membership type",
+  advisorIds: "Advisor",
+};
+
+/** Turns Zod issues into user-facing sentences (e.g. "Email is required."). */
+export function formatZodErrorMessage(error: z.ZodError): string {
+  const messages = error.errors.map((issue) => {
+    const fieldKey = issue.path.length > 0 ? String(issue.path[issue.path.length - 1]) : "";
+    const label =
+      ZOD_FIELD_LABELS[fieldKey] ??
+      (fieldKey
+        ? fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())
+        : "This field");
+
+    if (issue.code === "invalid_type" && issue.received === "undefined") {
+      return `${label} is required.`;
+    }
+    if (issue.message === "Required") {
+      return `${label} is required.`;
+    }
+    if (issue.message === "Invalid email address") {
+      return "Please enter a valid email address.";
+    }
+    if (fieldKey && !issue.message.toLowerCase().includes(label.toLowerCase())) {
+      return `${label}: ${issue.message}`;
+    }
+    return issue.message;
+  });
+
+  return [...new Set(messages)].join(" ");
+}
 
 export type CreateClientValues = z.infer<typeof createClientSchema>;
 

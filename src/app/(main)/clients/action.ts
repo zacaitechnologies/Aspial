@@ -13,6 +13,7 @@ import {
   updateClientSchema, 
   clientFiltersSchema,
   salesDataFiltersSchema,
+  formatZodErrorMessage,
   type CreateClientValues,
   type UpdateClientValues,
   type ClientFilters,
@@ -717,7 +718,7 @@ export async function createCustomerClient(data: unknown) {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
     if (error instanceof z.ZodError) {
-      throw new Error(`Validation failed: ${error.errors.map(e => e.message).join(', ')}`)
+      throw new Error(formatZodErrorMessage(error))
     }
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
@@ -833,7 +834,7 @@ export async function updateClient(id: string, data: {
     // Handle redirect errors
     if (isRedirectError(error)) throw error;
     if (error instanceof z.ZodError) {
-      throw new Error(`Validation failed: ${error.errors.map(e => e.message).join(', ')}`)
+      throw new Error(formatZodErrorMessage(error))
     }
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
@@ -1513,7 +1514,7 @@ export async function getSalesData(filters: unknown) {
     }
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
-      throw new Error(`Validation failed: ${error.errors.map(e => e.message).join(', ')}`)
+      throw new Error(formatZodErrorMessage(error))
     }
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
