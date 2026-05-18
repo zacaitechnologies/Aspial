@@ -72,15 +72,16 @@ model User {
   invoiceAdvisors          InvoiceAdvisor[]          @relation("InvoiceAdvisor")
   invoicePhotographers     InvoicePhotographer[]     @relation("InvoicePhotographer")
   receiptAdvisors          ReceiptAdvisor[]          @relation("ReceiptAdvisor")
-  deliveryOrdersCreated      DeliveryOrder[]              @relation("DeliveryOrderCreator")
-  deliveryOrderAdvisors      DeliveryOrderAdvisor[]       @relation("DeliveryOrderAdvisor")
-  deliveryOrderEmails        DeliveryOrderEmail[]         @relation("DeliveryOrderEmailSender")
+  deliveryOrdersCreated    DeliveryOrder[]           @relation("DeliveryOrderCreator")
+  deliveryOrderAdvisors    DeliveryOrderAdvisor[]    @relation("DeliveryOrderAdvisor")
+  deliveryOrderEmails      DeliveryOrderEmail[]      @relation("DeliveryOrderEmailSender")
   leaveApplications        LeaveApplication[]
   reviewedLeaves           LeaveApplication[]        @relation("LeaveReviewer")
   leaveBalances            LeaveBalance[]
   leaveChangeRequests      LeaveChangeRequest[]      @relation("ChangeRequestor")
   reviewedChangeRequests   LeaveChangeRequest[]      @relation("ChangeRequestReviewer")
   calendarBlockers         CalendarBlocker[]         @relation("CalendarBlockerCreator")
+  appointmentBookings      AppointmentBooking[]      @relation("AppointmentBookingBooker")
 
   @@index([supabase_id])
   @@map("user")
@@ -102,16 +103,16 @@ model Complaint {
 }
 
 model Services {
-  id           Int                @id @default(autoincrement())
-  name         String
-  description  String
-  basePrice    Float
-  imageUrl     String?
-  created_at   DateTime           @default(now())
-  updated_at   DateTime           @default(now())
-  ServiceToTag ServiceToTag[]
-  milestones   Milestone[]
-  quotations   QuotationService[]
+  id             Int                    @id @default(autoincrement())
+  name           String
+  description    String
+  basePrice      Float
+  imageUrl       String?
+  created_at     DateTime               @default(now())
+  updated_at     DateTime               @default(now())
+  ServiceToTag   ServiceToTag[]
+  milestones     Milestone[]
+  quotations     QuotationService[]
   deliveryOrders DeliveryOrderService[]
 }
 
@@ -150,7 +151,7 @@ model Quotation {
   createdBy      User               @relation("QuotationCreator", fields: [createdById], references: [supabase_id])
   project        Project?           @relation(fields: [projectId], references: [id])
 
-  advisors       QuotationAdvisor[]
+  advisors QuotationAdvisor[]
 
   quotationEmails QuotationEmail[]
   invoices        Invoice[]
@@ -192,21 +193,21 @@ model QuotationEmail {
 }
 
 model Invoice {
-  id            String         @id @default(cuid())
-  invoiceNumber String         @unique
+  id            String                @id @default(cuid())
+  invoiceNumber String                @unique
   type          InvoiceType
   quotationId   Int
   amount        Float
   createdById   String
-  status        InvoiceStatus  @default(active)
+  status        InvoiceStatus         @default(active)
   /// Business / document date (editable by admin). Used for sales analytics.
-  invoiceDate   DateTime       @default(now()) @map("invoice_date")
-  created_at    DateTime       @default(now())
-  updated_at    DateTime       @default(now())
+  invoiceDate   DateTime              @default(now()) @map("invoice_date")
+  created_at    DateTime              @default(now())
+  updated_at    DateTime              @default(now())
   advisors      InvoiceAdvisor[]
   photographers InvoicePhotographer[]
-  quotation     Quotation      @relation(fields: [quotationId], references: [id], onDelete: Restrict)
-  createdBy     User           @relation("InvoiceCreator", fields: [createdById], references: [supabase_id])
+  quotation     Quotation             @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  createdBy     User                  @relation("InvoiceCreator", fields: [createdById], references: [supabase_id])
   invoiceEmails InvoiceEmail[]
   receipts      Receipt[]
 
@@ -230,22 +231,22 @@ model InvoiceEmail {
 }
 
 model Receipt {
-  id            String         @id @default(cuid())
-  receiptNumber String         @unique
+  id            String           @id @default(cuid())
+  receiptNumber String           @unique
   invoiceId     String?
   clientId      String?
   amount        Float
   createdById   String
-  status        ReceiptStatus  @default(active)
+  status        ReceiptStatus    @default(active)
   /// Business / document date (editable by admin). Used for reporting.
-  receiptDate   DateTime       @default(now()) @map("receipt_date")
-  created_at    DateTime       @default(now())
-  updated_at    DateTime       @default(now())
-  paymentMethod PaymentMethod  @default(bank_transfer)
+  receiptDate   DateTime         @default(now()) @map("receipt_date")
+  created_at    DateTime         @default(now())
+  updated_at    DateTime         @default(now())
+  paymentMethod PaymentMethod    @default(bank_transfer)
   advisors      ReceiptAdvisor[]
-  invoice       Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
-  client        Client?        @relation("ClientReceipts", fields: [clientId], references: [id], onDelete: Restrict)
-  createdBy     User           @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
+  invoice       Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  client        Client?          @relation("ClientReceipts", fields: [clientId], references: [id], onDelete: Restrict)
+  createdBy     User             @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
   receiptEmails ReceiptEmail[]
 
   @@index([invoiceId])
@@ -300,18 +301,18 @@ enum PaymentStatus {
 }
 
 model QuotationService {
-  id              Int             @id @default(autoincrement())
-  quotationId     Int
-  serviceId       Int?            // null when row links a custom service (customServiceId set)
-  customServiceId String?
+  id                  Int            @id @default(autoincrement())
+  quotationId         Int
+  serviceId           Int? // null when row links a custom service (customServiceId set)
+  customServiceId     String?
   /// Per-quotation description override; snapshotted from Services.description at creation,
   /// editable on this quotation only, never written back to Services. Null for custom service rows.
   descriptionOverride String?
-  price           Float           @default(0)
-  quantity        Int             @default(1)
-  customService   CustomService?  @relation(fields: [customServiceId], references: [id], onDelete: Cascade)
-  quotation       Quotation       @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  service         Services?       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  price               Float          @default(0)
+  quantity            Int            @default(1)
+  customService       CustomService? @relation(fields: [customServiceId], references: [id], onDelete: Cascade)
+  quotation           Quotation      @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  service             Services?      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
   @@unique([quotationId, serviceId])
   @@unique([quotationId, customServiceId])
@@ -396,7 +397,7 @@ model ProjectPermission {
 }
 
 model Client {
-  id                        String         @id @default(cuid())
+  id                        String          @id @default(cuid())
   name                      String
   email                     String
   phone                     String?
@@ -405,18 +406,18 @@ model Client {
   ic                        String?
   address                   String?
   notes                     String?
-  created_at                DateTime       @default(now())
-  updated_at                DateTime       @default(now())
+  created_at                DateTime        @default(now())
+  updated_at                DateTime        @default(now())
   industry                  String?
-  membershipType            MembershipType @default(NON_MEMBER)
+  membershipType            MembershipType  @default(NON_MEMBER)
   yearlyRevenue             Float?
   createdById               String
-  createdBy                 User           @relation("ClientCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy                 User            @relation("ClientCreator", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
   advisors                  ClientAdvisor[]
   projects                  Project[]
   quotations                Quotation[]
   deliveryOrders            DeliveryOrder[]
-  receipts                  Receipt[]      @relation("ClientReceipts")
+  receipts                  Receipt[]       @relation("ClientReceipts")
 
   @@map("clients")
 }
@@ -472,26 +473,26 @@ model ReceiptAdvisor {
 }
 
 model DeliveryOrder {
-  id                  String                       @id @default(cuid())
-  deliveryOrderNumber String                       @unique
+  id                  String              @id @default(cuid())
+  deliveryOrderNumber String              @unique
   clientId            String
   notes               String?
   discountType        DiscountType?
   discountValue       Float?
-  totalAmount         Float                        @default(0)
-  finalAmount         Float                        @default(0)
-  status              DeliveryOrderStatus          @default(active)
+  totalAmount         Float               @default(0)
+  finalAmount         Float               @default(0)
+  status              DeliveryOrderStatus @default(active)
   /// Business / document date (editable). Shown on the PDF as "DATE".
-  deliveryOrderDate   DateTime                     @default(now()) @map("delivery_order_date")
-  created_at          DateTime                     @default(now())
-  updated_at          DateTime                     @default(now()) @updatedAt
+  deliveryOrderDate   DateTime            @default(now()) @map("delivery_order_date")
+  created_at          DateTime            @default(now())
+  updated_at          DateTime            @default(now()) @updatedAt
   createdById         String
 
-  client              Client                       @relation(fields: [clientId], references: [id])
-  createdBy           User                         @relation("DeliveryOrderCreator", fields: [createdById], references: [supabase_id])
-  services            DeliveryOrderService[]
-  advisors            DeliveryOrderAdvisor[]
-  emails              DeliveryOrderEmail[]
+  client    Client                 @relation(fields: [clientId], references: [id])
+  createdBy User                   @relation("DeliveryOrderCreator", fields: [createdById], references: [supabase_id])
+  services  DeliveryOrderService[]
+  advisors  DeliveryOrderAdvisor[]
+  emails    DeliveryOrderEmail[]
 
   @@index([clientId])
   @@index([created_at])
@@ -500,18 +501,18 @@ model DeliveryOrder {
 }
 
 model DeliveryOrderService {
-  id                  Int            @id @default(autoincrement())
+  id                  Int    @id @default(autoincrement())
   deliveryOrderId     String
   serviceId           Int
   /// Per-DO description override; snapshotted from Services.description at creation,
   /// editable on this DO only, never written back to Services.
   descriptionOverride String
-  price               Float          @default(0)
-  quantity            Int            @default(1)
-  sortOrder           Int            @default(0)
+  price               Float  @default(0)
+  quantity            Int    @default(1)
+  sortOrder           Int    @default(0)
 
-  deliveryOrder       DeliveryOrder  @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
-  service             Services       @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  deliveryOrder DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  service       Services      @relation(fields: [serviceId], references: [id], onDelete: Restrict)
 
   @@index([deliveryOrderId])
   @@map("delivery_order_services")
@@ -528,13 +529,13 @@ model DeliveryOrderAdvisor {
 }
 
 model DeliveryOrderEmail {
-  id                Int           @id @default(autoincrement())
-  deliveryOrderId   String
-  deliveryOrder     DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
-  recipientEmail    String
-  sentAt            DateTime      @default(now())
-  sentById          String
-  sentBy            User          @relation("DeliveryOrderEmailSender", fields: [sentById], references: [supabase_id])
+  id              Int           @id @default(autoincrement())
+  deliveryOrderId String
+  deliveryOrder   DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  recipientEmail  String
+  sentAt          DateTime      @default(now())
+  sentById        String
+  sentBy          User          @relation("DeliveryOrderEmailSender", fields: [sentById], references: [supabase_id])
 
   @@map("delivery_order_emails")
 }
@@ -569,6 +570,7 @@ model Appointment {
 model AppointmentBooking {
   id              Int                          @id @default(autoincrement())
   bookedBy        String
+  userId          String?
   startDate       DateTime
   endDate         DateTime
   purpose         String?
@@ -585,9 +587,11 @@ model AppointmentBooking {
   updatedAt       DateTime                     @updatedAt
   appointment     Appointment?                 @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   project         Project?                     @relation("AppointmentBookingProject", fields: [projectId], references: [id], onDelete: SetNull)
+  bookedByUser    User?                        @relation("AppointmentBookingBooker", fields: [userId], references: [supabase_id], onDelete: SetNull, onUpdate: Cascade)
   bookingEmails   AppointmentBookingEmail[]
   reminders       AppointmentBookingReminder[]
 
+  @@index([userId])
   @@map("appointment_bookings")
 }
 
@@ -826,18 +830,18 @@ model Contract {
 // Leave Application Module
 
 model LeaveType {
-  id                       Int      @id @default(autoincrement())
-  code                     String   @unique
-  name                     String
-  defaultEntitlement       Float    @default(0)
-  isDeletable              Boolean  @default(true)
-  isUnpaid                 Boolean  @default(false)
-  requiresReplacementDate  Boolean  @default(false)
-  requiresAttachment       Boolean  @default(false)
-  sortOrder                Int      @default(0)
-  isActive                 Boolean  @default(true)
-  created_at               DateTime @default(now())
-  updated_at               DateTime @updatedAt
+  id                      Int      @id @default(autoincrement())
+  code                    String   @unique
+  name                    String
+  defaultEntitlement      Float    @default(0)
+  isDeletable             Boolean  @default(true)
+  isUnpaid                Boolean  @default(false)
+  requiresReplacementDate Boolean  @default(false)
+  requiresAttachment      Boolean  @default(false)
+  sortOrder               Int      @default(0)
+  isActive                Boolean  @default(true)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
 
   applications LeaveApplication[]
   balances     LeaveBalance[]

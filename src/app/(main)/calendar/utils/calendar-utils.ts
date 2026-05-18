@@ -259,10 +259,10 @@ export function mergeAdjacentBookings(events: CalendarBooking[]): CalendarBookin
 	}
 
 	const groupKeyFor = (e: CalendarBooking): string => {
-		const raw = e.originalData as { appointmentId?: number | null; bookedBy?: string } | null
+		const raw = e.originalData as { appointmentId?: number | null; userId?: string | null; bookedBy?: string } | null
 		const apptId = raw?.appointmentId ?? "none"
-		const bookedBy = raw?.bookedBy ?? e.creatorName ?? "unknown"
-		return `${apptId}|${bookedBy}|${e.date}`
+		const bookerKey = raw?.userId ?? raw?.bookedBy ?? e.creatorName ?? "unknown"
+		return `${apptId}|${bookerKey}|${e.date}`
 	}
 
 	const groups = new Map<string, CalendarBooking[]>()

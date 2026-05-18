@@ -13,6 +13,7 @@ const BookingDashboard = dynamic(
 interface AppointmentBooking {
 	id: number
 	bookedBy: string
+	userId: string | null
 	startDate: Date
 	endDate: Date
 	purpose: string | null
@@ -41,6 +42,11 @@ interface AppointmentBooking {
 			phone: string | null
 			company: string | null
 		} | null
+	} | null
+	bookedByUser?: {
+		firstName: string
+		lastName: string
+		email: string
 	} | null
 	reminders?: {
 		id: number

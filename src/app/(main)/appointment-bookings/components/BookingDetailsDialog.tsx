@@ -92,7 +92,12 @@ export default function BookingDetailsDialog({
 						<div className="space-y-2 pl-6">
 							<div className="flex items-start gap-3">
 								<span className="font-medium min-w-[120px]">Booked By:</span>
-								<span>{booking.bookedBy}</span>
+								<span>
+									{booking.bookedByUser
+										? `${booking.bookedByUser.firstName} ${booking.bookedByUser.lastName}`.trim()
+											|| booking.bookedByUser.email
+										: booking.bookedBy}
+								</span>
 							</div>
 							{booking.purpose && (
 								<div className="flex items-start gap-3">

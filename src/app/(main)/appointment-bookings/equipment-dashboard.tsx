@@ -39,6 +39,7 @@ interface Appointment {
 export interface AppointmentBooking {
 	id: number
 	bookedBy: string
+	userId: string | null
 	startDate: Date
 	endDate: Date
 	purpose: string | null
@@ -67,6 +68,11 @@ export interface AppointmentBooking {
 			phone: string | null
 			company: string | null
 		} | null
+	} | null
+	bookedByUser?: {
+		firstName: string
+		lastName: string
+		email: string
 	} | null
 	reminders?: {
 		id: number
@@ -128,9 +134,10 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
   const [showBookingDetailsDialog, setShowBookingDetailsDialog] = useState(false)
   const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<AppointmentBooking | null>(null)
 
-  // Get user name for filtering bookings
-  const userName = enhancedUser?.profile 
-    ? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim() 
+  // Get user name (for legacy bookedBy fallback) and id for filtering bookings
+  const supabaseId = enhancedUser?.id ?? null
+  const userName = enhancedUser?.profile
+    ? `${enhancedUser.profile.firstName || ''} ${enhancedUser.profile.lastName || ''}`.trim()
     : enhancedUser?.email || 'Unknown User'
 
   const handleRefresh = () => {
@@ -172,10 +179,12 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
   // Get all user bookings for pagination
   const getAllUserBookings = () => {
     const userBookings = safeBookings.filter(booking => {
-      const isUserBooking = booking.bookedBy === userName
-      const isUserProjectBooking = booking.project && 
+      const isUserBooking = booking.userId
+        ? booking.userId === supabaseId
+        : booking.bookedBy === userName
+      const isUserProjectBooking = booking.project &&
         safeUserProjectIds.includes(booking.project.id)
-      
+
       return isUserBooking || isUserProjectBooking
     }).map(booking => ({
       ...booking,

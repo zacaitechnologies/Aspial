@@ -336,6 +336,7 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				}
 
 				formData.append("bookedBy", userName)
+				if (enhancedUser?.id) formData.append("userId", enhancedUser.id)
 				// Send dates preserving local time (avoid timezone conversion)
 				const startDateTime = group[0].start
 				const endDateTime = group[group.length - 1].end
