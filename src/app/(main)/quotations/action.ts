@@ -1217,6 +1217,24 @@ export async function editQuotationById(
     }
   }
 
+  // Only admins may remove standard catalogue services (including via edit save)
+  if (validatedData.services !== undefined && !isAdmin) {
+    const existingRows = await prisma.quotationService.findMany({
+      where: { quotationId, serviceId: { not: null } },
+      select: { serviceId: true },
+    })
+    const existingIds = existingRows
+      .map((r) => r.serviceId)
+      .filter((id): id is number => id != null)
+    const newIdSet = new Set(
+      validatedData.services.map((s) => Number.parseInt(s.serviceId, 10)),
+    )
+    const removedCount = existingIds.filter((id) => !newIdSet.has(id)).length
+    if (removedCount > 0) {
+      throw new Error("Only admins can remove services from a quotation")
+    }
+  }
+
   const quotation = await prisma.$transaction(async (tx) => {
     // First, get the current quotation to check if it has a project
     const currentQuotation = await tx.quotation.findUnique({

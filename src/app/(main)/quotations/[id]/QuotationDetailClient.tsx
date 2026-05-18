@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import {
 	Card,
 	CardContent,
@@ -49,6 +49,7 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { useSession } from "../../contexts/SessionProvider"
+import { checkIsAdmin } from "../../actions/admin-actions"
 import type { QuotationWithServices } from "../types"
 
 type QuotationFull = NonNullable<Awaited<ReturnType<typeof import("../action").getQuotationFullById>>>
@@ -82,6 +83,16 @@ export default function QuotationDetailClient({
 		| { kind: "customService"; id: string; name: string }
 	const [pendingRemove, setPendingRemove] = useState<PendingRemove | null>(null)
 	const [isRemoving, setIsRemoving] = useState(false)
+	const [canDeleteServices, setCanDeleteServices] = useState(false)
+
+	useEffect(() => {
+		if (!enhancedUser?.id) {
+			setCanDeleteServices(false)
+			return
+		}
+		void checkIsAdmin(enhancedUser.id).then(setCanDeleteServices)
+	}, [enhancedUser?.id])
+
 	const isCancelled = quotation.workflowStatus === "cancelled"
 	const hasLinkedInvoices = initialInvoices.some((inv) => inv.status === "active")
 	const standardServices = (quotation.services ?? []).filter((qs) => !qs.customServiceId)
@@ -327,7 +338,7 @@ export default function QuotationDetailClient({
 									<Package className="w-5 h-5" />
 									Services
 								</CardTitle>
-								{isAdmin && hasLinkedInvoices && (
+								{canDeleteServices && hasLinkedInvoices && (
 									<CardDescription className="text-amber-700 bg-amber-50 p-2 rounded mt-2">
 										⚠️ This quotation has linked invoices/receipts. Removing services will <strong>not</strong> update existing invoice/receipt amounts — update them manually if needed.
 									</CardDescription>
@@ -351,7 +362,7 @@ export default function QuotationDetailClient({
 												<div className="text-xs text-muted-foreground">RM{formatNumber(qs.price)} × {qs.quantity}</div>
 												<Badge variant="outline">RM{formatNumber(qs.price * qs.quantity)}</Badge>
 											</div>
-											{isAdmin && (
+											{canDeleteServices && (
 												<Button
 													variant="ghost"
 													size="sm"
@@ -401,7 +412,7 @@ export default function QuotationDetailClient({
 											<Badge variant="outline" className="ml-4">
 												RM{formatNumber(cs.price)}
 											</Badge>
-											{isAdmin && (
+											{canDeleteServices && (
 												<Button
 													variant="ghost"
 													size="sm"
@@ -725,6 +736,15 @@ export default function QuotationDetailClient({
 				}}
 				onConfirm={async () => {
 					if (!pendingRemove) return
+					if (!canDeleteServices) {
+						toast({
+							title: "Not allowed",
+							description: "Only admins can remove services from a quotation.",
+							variant: "destructive",
+						})
+						setPendingRemove(null)
+						return
+					}
 					setIsRemoving(true)
 					try {
 						if (pendingRemove.kind === "service") {

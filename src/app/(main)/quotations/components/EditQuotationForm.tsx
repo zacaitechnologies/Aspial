@@ -425,6 +425,14 @@ export default function EditQuotationForm({
   };
 
   const handleRemoveEditService = (serviceId: string) => {
+    if (!isAdmin) {
+      toast({
+        title: "Not allowed",
+        description: "Only admins can remove services from a quotation.",
+        variant: "destructive",
+      });
+      return;
+    }
     setEditSelectedServices((prev) => prev.filter((s) => s.serviceId !== serviceId));
   };
 
@@ -1283,6 +1291,7 @@ export default function EditQuotationForm({
                         <div className="col-span-2 text-right text-sm font-medium">
                           RM{formatNumber(s.price * s.quantity)}
                         </div>
+                        {isAdmin && (
                         <div className="col-span-1 flex justify-end">
                           <Button
                             type="button"
@@ -1304,8 +1313,10 @@ export default function EditQuotationForm({
                               }
                             }}
                             className="h-8 w-8 p-0 text-destructive"
+                            aria-label="Remove service"
                           >×</Button>
                         </div>
+                        )}
                       </div>
                       {s.expanded && (
                         <div className="border-t bg-muted/40 p-3 space-y-2">
@@ -1811,6 +1822,15 @@ export default function EditQuotationForm({
       onConfirm={async () => {
         if (!pendingRemove) return;
         if (pendingRemove.kind === "service") {
+          if (!isAdmin) {
+            toast({
+              title: "Not allowed",
+              description: "Only admins can remove services from a quotation.",
+              variant: "destructive",
+            });
+            setPendingRemove(null);
+            return;
+          }
           handleRemoveEditService(pendingRemove.serviceId);
           setPendingRemove(null);
           return;
