@@ -76,12 +76,24 @@ export type CreateProjectData = {
   name: string;
   description?: string;
   quotationId?: number; // Make optional - can create project without quotation
+  quotationIds?: number[]; // Optional list to link multiple quotations at creation time
   createdBy: string;
   startDate?: Date;
   endDate?: Date;
   clientName?: string;
   clientId?: string;
   priority?: "low" | "medium" | "high";
+};
+
+export type UnlinkedQuotation = {
+  id: number;
+  name: string;
+  description: string;
+  totalPrice: number;
+  workflowStatus: string;
+  paymentStatus: string;
+  clientId: string;
+  clientName: string;
 };
 
 export type UpdateProjectData = {
