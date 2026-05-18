@@ -750,13 +750,28 @@ export default function QuotationDetailClient({
 				}}
 				title={pendingRemove?.kind === "customService" ? "Remove Custom Service" : "Remove Service"}
 				description={
-					<>
-						Remove <strong>{pendingRemove?.name}</strong> from this quotation?
-						<br />
-						<span className="text-amber-700">
-							Existing invoice/receipt amounts will <strong>not</strong> be updated automatically.
-						</span>
-					</>
+					pendingRemove?.kind === "customService" ? (
+						<>
+							Remove <strong>{pendingRemove.name}</strong> from this quotation?
+							<br />
+							<span className="mt-2 block text-muted-foreground">
+								The custom service request will also be permanently deleted, including any pending,
+								approved, or rejected approval details.
+							</span>
+							<br />
+							<span className="text-amber-700">
+								Existing invoice/receipt amounts will <strong>not</strong> be updated automatically.
+							</span>
+						</>
+					) : (
+						<>
+							Remove <strong>{pendingRemove?.name}</strong> from this quotation?
+							<br />
+							<span className="text-amber-700">
+								Existing invoice/receipt amounts will <strong>not</strong> be updated automatically.
+							</span>
+						</>
+					)
 				}
 				confirmText="Remove"
 				cancelText="Cancel"
