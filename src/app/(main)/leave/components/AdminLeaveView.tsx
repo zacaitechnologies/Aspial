@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Settings2 } from "lucide-react"
+import { Plus, Settings2, Download } from "lucide-react"
 import LeaveOverviewCards from "./LeaveOverviewCards"
 import LeaveApplicationTable from "./LeaveApplicationTable"
 import LeaveApplicationForm from "./LeaveApplicationForm"
@@ -23,6 +23,7 @@ import EmployeeLeaveOverviewTable from "./EmployeeLeaveOverview"
 import LeaveCalendar from "./LeaveCalendar"
 import LeaveTypesSettings from "./LeaveTypesSettings"
 import BalanceGridEditor from "./BalanceGridEditor"
+import ExportLeaveDialog from "./ExportLeaveDialog"
 import {
   approveLeave,
   rejectLeave,
@@ -85,6 +86,7 @@ export default function AdminLeaveView({
   const [showDetailDialog, setShowDetailDialog] = useState(false)
   const [editingApp, setEditingApp] = useState<LeaveApplicationDTO | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
   const [adminBalances, setAdminBalances] = useState<LeaveBalanceDTO[]>([])
   const [adminLeaveTypes, setAdminLeaveTypes] = useState<LeaveTypeDTO[]>(initialLeaveTypes)
 
@@ -241,11 +243,15 @@ export default function AdminLeaveView({
             yearMax={currentYear + 1}
             onYearChange={(y) => router.replace(`/leave?year=${y}`)}
           />
-          <LeaveCalendar applications={initialApplications} showEmployeeName />
+          <LeaveCalendar
+            applications={initialApplications}
+            leaveTypes={initialLeaveTypes}
+            showEmployeeName
+          />
         </TabsContent>
 
         <TabsContent value="applications" className="space-y-4 mt-4">
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[150px] min-w-[120px]">
                 <SelectValue placeholder="Status" />
@@ -287,6 +293,16 @@ export default function AdminLeaveView({
                 ))}
               </SelectContent>
             </Select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto gap-2"
+              onClick={() => setShowExportDialog(true)}
+            >
+              <Download className="h-4 w-4" />
+              Export to Excel
+            </Button>
           </div>
 
           <LeaveApplicationTable
@@ -355,6 +371,13 @@ export default function AdminLeaveView({
         onOpenChange={setShowEditDialog}
         leaveTypes={initialLeaveTypes}
         onSuccess={refresh}
+      />
+
+      <ExportLeaveDialog
+        open={showExportDialog}
+        onOpenChange={setShowExportDialog}
+        allUsers={allUsers}
+        leaveTypes={initialLeaveTypes}
       />
 
       {/* Confirm Action Dialog */}

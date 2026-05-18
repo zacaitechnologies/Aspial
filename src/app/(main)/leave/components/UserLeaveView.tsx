@@ -246,7 +246,10 @@ export default function UserLeaveView({
             </Card>
           </div>
 
-          <LeaveCalendar applications={initialApplications} />
+          <LeaveCalendar
+            applications={initialApplications}
+            leaveTypes={initialLeaveTypes}
+          />
         </TabsContent>
 
         <TabsContent value="applications" className="space-y-4 mt-4">
