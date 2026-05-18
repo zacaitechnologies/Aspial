@@ -2266,6 +2266,46 @@ export async function rejectCustomService(
   return await updateCustomServiceStatus(customServiceId, "REJECTED", comment)
 }
 
+// Admin: hard-delete a custom service from a quotation. If it was APPROVED, mirror the
+// totalPrice decrement that `updateCustomServiceStatus` would have incremented. The
+// linked QuotationService row (if any) cascade-deletes via schema.prisma:312.
+export async function deleteCustomServiceAdmin(customServiceId: string) {
+  unstable_noStore()
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to remove a custom service")
+  }
+
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) {
+    throw new Error("Only admins can remove custom services")
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const cs = await tx.customService.findUnique({
+      where: { id: customServiceId },
+      select: { id: true, price: true, status: true, quotationId: true },
+    })
+    if (!cs) {
+      throw new Error("Custom service not found")
+    }
+
+    await tx.customService.delete({ where: { id: customServiceId } })
+
+    if (cs.status === "APPROVED") {
+      await tx.quotation.update({
+        where: { id: cs.quotationId },
+        data: { totalPrice: { decrement: cs.price } },
+      })
+    }
+
+    return cs
+  })
+
+  await invalidateQuotationsCache(result.quotationId)
+  return result
+}
+
 /**
  * Send quotation PDF via email
  * Note: unstable_noStore() is required because email sending needs fresh data.

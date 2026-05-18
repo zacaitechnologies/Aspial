@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { editQuotationById, getCustomServicesByQuotationId, getAllUsers, getQuotationFullById, reactivateQuotationCascade } from "../action";
+import { editQuotationById, getCustomServicesByQuotationId, getAllUsers, getQuotationFullById, reactivateQuotationCascade, deleteCustomServiceAdmin } from "../action";
 import { getAllServices } from "../../services/action";
 import { getAllProjects } from "../../projects/action";
 import { useSession } from "../../contexts/SessionProvider";
@@ -122,6 +122,12 @@ export default function EditQuotationForm({
   const [activeReceiptsCount, setActiveReceiptsCount] = useState<number | null>(null);
   const [fullQuotationData, setFullQuotationData] = useState<QuotationWithServices | null>(null);
   const [isReactivating, setIsReactivating] = useState(false);
+  const [hasLinkedInvoices, setHasLinkedInvoices] = useState(false);
+  type PendingRemove =
+    | { kind: "service"; serviceId: string; name: string }
+    | { kind: "customService"; id: string; name: string };
+  const [pendingRemove, setPendingRemove] = useState<PendingRemove | null>(null);
+  const [isRemovingCustomService, setIsRemovingCustomService] = useState(false);
   const [editForm, setEditForm] = useState<EditFormData>({
     name: "",
     description: "",
@@ -155,8 +161,15 @@ export default function EditQuotationForm({
     if (isOpen) {
       fetchServices();
       checkAdminAndFetchUsers();
+      if (editingQuotation) {
+        getInvoicesForQuotation(editingQuotation.id)
+          .then((list) => setHasLinkedInvoices(list.some((inv) => inv.status === "active")))
+          .catch(() => setHasLinkedInvoices(false));
+      } else {
+        setHasLinkedInvoices(false);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, editingQuotation]);
 
   const checkAdminAndFetchUsers = async () => {
     if (enhancedUser?.id) {
@@ -1020,6 +1033,11 @@ export default function EditQuotationForm({
               ⚠️ Admin Mode: You can fully edit this final quotation, including services and all fields.
             </DialogDescription>
           )}
+          {hasLinkedInvoices && (
+            <DialogDescription className="text-amber-700 bg-amber-50 p-2 rounded mt-2">
+              ⚠️ This quotation has linked invoices/receipts. Removing or changing services will <strong>not</strong> update existing invoice/receipt amounts — update them manually if needed.
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         {isLoadingFullData ? (
@@ -1266,7 +1284,19 @@ export default function EditQuotationForm({
                           RM{formatNumber(s.price * s.quantity)}
                         </div>
                         <div className="col-span-1 flex justify-end">
-                          <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveEditService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              if (hasLinkedInvoices) {
+                                setPendingRemove({ kind: "service", serviceId: s.serviceId, name: s.name });
+                              } else {
+                                handleRemoveEditService(s.serviceId);
+                              }
+                            }}
+                            className="h-8 w-8 p-0 text-destructive"
+                          >×</Button>
                         </div>
                       </div>
                       {s.expanded && (
@@ -1382,6 +1412,16 @@ export default function EditQuotationForm({
                         </div>
                       )}
                     </div>
+                    {isAdmin && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-destructive"
+                        onClick={() => setPendingRemove({ kind: "customService", id: cs.id, name: cs.name })}
+                        aria-label="Remove custom service"
+                      >×</Button>
+                    )}
                   </div>
                 ))
               )}
@@ -1744,6 +1784,54 @@ export default function EditQuotationForm({
       cancelText="Keep Active"
       variant="warning"
       isLoading={isSaving}
+    />
+
+    {/* Remove Service / Custom Service Confirmation */}
+    <ConfirmationDialog
+      isOpen={pendingRemove !== null}
+      onClose={() => setPendingRemove(null)}
+      onConfirm={async () => {
+        if (!pendingRemove) return;
+        if (pendingRemove.kind === "service") {
+          handleRemoveEditService(pendingRemove.serviceId);
+          setPendingRemove(null);
+          return;
+        }
+        setIsRemovingCustomService(true);
+        try {
+          await deleteCustomServiceAdmin(pendingRemove.id);
+          if (editingQuotation) {
+            await fetchCustomServices(editingQuotation.id);
+          }
+          toast({ title: "Removed", description: "Custom service removed." });
+        } catch (error: unknown) {
+          if (process.env.NODE_ENV === "development") {
+            console.error("Error removing custom service:", error);
+          }
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "Failed to remove custom service.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsRemovingCustomService(false);
+          setPendingRemove(null);
+        }
+      }}
+      title={pendingRemove?.kind === "customService" ? "Remove Custom Service" : "Remove Service"}
+      description={
+        <>
+          Remove <strong>{pendingRemove?.name}</strong> from this quotation?
+          <br />
+          <span className="text-amber-700">
+            Existing invoice/receipt amounts will <strong>not</strong> be updated automatically.
+          </span>
+        </>
+      }
+      confirmText="Remove"
+      cancelText="Cancel"
+      variant="warning"
+      isLoading={isRemovingCustomService}
     />
     </>
   );
