@@ -488,17 +488,16 @@ export default function QuotationCard({
       style={{ borderLeftColor: isFinalQuotation ? '#10b981' : '#3b82f6' }}
     >
       <CardContent className="p-3">
-        <div className="flex items-center gap-3">
-          {/* Left Section - Main Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-3">
+          <div className="min-w-0 flex-1 w-full">
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
               <CardTitle 
-                className={`text-base font-semibold truncate ${isFinalQuotation ? 'text-gray-700' : 'text-gray-900'}`}
+                className={`min-w-0 max-w-full truncate text-base font-semibold ${isFinalQuotation ? 'text-gray-700' : 'text-gray-900'}`}
                 title={quotation.name}
               >
                 {quotation.name}
               </CardTitle>
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                 {getWorkflowStatusBadge(quotation.workflowStatus)}
                 {getPaymentStatusBadge(quotation.paymentStatus)}
                 {isProjectCancelled && (
@@ -510,8 +509,7 @@ export default function QuotationCard({
               </div>
             </div>
             
-            {/* Client and Metadata - Single Line */}
-            <div className="flex items-center gap-3 text-xs text-gray-600">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600">
               {quotation.Client && (
                 <>
                   <div className="flex items-center gap-1">
@@ -568,22 +566,25 @@ export default function QuotationCard({
             </div>
           </div>
 
-          {/* Right Section - Fixed Width for Alignment */}
-          <div className="flex items-center gap-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="flex w-full shrink-0 items-center justify-between gap-2 border-t border-border/60 pt-3 sm:w-auto sm:border-t-0 sm:pt-0 sm:justify-end"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
             {/* Balance - Compact (only for Final status) */}
             {quotation.balance !== undefined && isFinalQuotation && (
               <div className="text-right">
                 <div
-                  className={`rounded px-3 py-1.5 border ${
+                  className={`rounded border px-2.5 py-1.5 sm:px-3 ${
                     quotation.balance === 0
                       ? "bg-linear-to-br from-green-50 to-emerald-50 border-green-200"
                       : "bg-linear-to-br from-amber-50 to-orange-50 border-amber-200"
                   }`}
                 >
-                  <p className="text-[10px] text-gray-600 mb-0.5">Balance</p>
+                  <p className="mb-0.5 text-[10px] text-gray-600">Balance</p>
                   <p
                     className={`text-lg font-bold ${
-                      quotation.balance === 0 ? "text-green-700" : "text-amber-700"
+                      quotation.balance === 0 ? "text-green-900" : "text-amber-900"
                     }`}
                   >
                     RM{formatNumber(quotation.balance)}
@@ -591,17 +592,16 @@ export default function QuotationCard({
                 </div>
               </div>
             )}
-            {/* Grand Total - Compact */}
             <div className="text-right">
-              <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded px-3 py-1.5 border border-blue-200">
-                <p className="text-[10px] text-gray-600 mb-0.5">Total</p>
-                <p className="text-lg font-bold text-blue-700">
+              <div className="rounded border border-blue-200 bg-linear-to-br from-blue-50 to-indigo-50 px-2.5 py-1.5 sm:px-3">
+                <p className="mb-0.5 text-[10px] text-gray-600">Total</p>
+                <p className="text-lg font-bold text-blue-900">
                   RM{formatNumber(grandTotal)}
                 </p>
               </div>
             </div>
+            </div>
 
-            {/* Three Dot Dropdown Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button

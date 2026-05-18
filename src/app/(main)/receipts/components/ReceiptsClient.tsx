@@ -271,16 +271,16 @@ export default function ReceiptsClient({
 
 	return (
 		<>
-			<div className="container mx-auto p-6">
-				<div className="mb-6 flex justify-between items-center">
-					<div>
-						<h1 className="text-3xl font-bold">Receipts Management</h1>
+			<div className="container mx-auto overflow-x-hidden p-4 sm:p-6">
+				<div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0">
+						<h1 className="text-2xl font-bold sm:text-3xl">Receipts Management</h1>
 						<p className="text-muted-foreground">
 							Create and manage payment receipts linked to invoices.
 						</p>
 					</div>
 
-					<Button onClick={() => setIsCreateOpen(true)} className="text-white" style={{ backgroundColor: "#202F21" }}>
+					<Button onClick={() => setIsCreateOpen(true)} className="w-full shrink-0 text-white sm:w-auto" style={{ backgroundColor: "#202F21" }}>
 						<Plus className="mr-2 h-5 w-5" />
 						Create Receipt
 					</Button>
@@ -300,13 +300,13 @@ export default function ReceiptsClient({
 								aria-label="Search receipts"
 							/>
 						</div>
-						<div className="flex w-full min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:gap-3">
+						<div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:gap-3">
 							<Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
 							<span className="shrink-0 text-sm font-medium">Filters</span>
 							{initialAdvisors.length > 0 && (
 								<Select value={advisorFilter} onValueChange={handleAdvisorFilterChange}>
 									<SelectTrigger
-										className="h-9 w-[min(12rem,100%)] shrink-0 border-2 bg-white sm:w-48"
+										className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-48"
 										style={{ borderColor: "#BDC4A5" }}
 									>
 										<SelectValue placeholder="All Advisors" />
@@ -321,11 +321,11 @@ export default function ReceiptsClient({
 									</SelectContent>
 								</Select>
 							)}
-							<div className="flex shrink-0 items-center gap-1.5">
-								<Calendar className="h-4 w-4 text-muted-foreground" aria-hidden />
+							<div className="flex w-full min-w-[9rem] flex-1 items-center gap-1.5 sm:w-auto sm:flex-none">
+								<Calendar className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
 								<Select value={monthYearFilter} onValueChange={handleMonthYearFilterChange}>
 									<SelectTrigger
-										className="h-9 w-[min(12.5rem,85vw)] border-2 bg-white sm:w-[200px]"
+										className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-[200px]"
 										style={{ borderColor: "#BDC4A5" }}
 									>
 										<SelectValue placeholder="All months" />
@@ -339,11 +339,11 @@ export default function ReceiptsClient({
 									</SelectContent>
 								</Select>
 							</div>
-							<div className="flex shrink-0 items-center gap-1.5">
-								<CreditCard className="h-4 w-4 text-muted-foreground" aria-hidden />
+							<div className="flex w-full min-w-[9rem] flex-1 items-center gap-1.5 sm:w-auto sm:flex-none">
+								<CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
 								<Select value={paymentMethodFilter} onValueChange={handlePaymentMethodFilterChange}>
 									<SelectTrigger
-										className="h-9 w-[min(12rem,85vw)] border-2 bg-white sm:w-44"
+										className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-44"
 										style={{ borderColor: "#BDC4A5" }}
 									>
 										<SelectValue placeholder="All methods" />
@@ -389,7 +389,7 @@ export default function ReceiptsClient({
 									Clear Filters
 								</Button>
 							)}
-							<span className="ml-auto shrink-0 pl-2 text-sm whitespace-nowrap text-muted-foreground">
+							<span className="w-full text-sm text-muted-foreground sm:ml-auto sm:w-auto sm:shrink-0 sm:pl-2 sm:text-right">
 								Showing {receipts.length} of {total} receipts
 							</span>
 						</div>

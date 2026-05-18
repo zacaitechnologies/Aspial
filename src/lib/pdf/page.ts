@@ -24,11 +24,31 @@ import {
   LOGO_Y,
   MARGIN,
   OLIVE_ACCENT,
-  OLIVE_DARK,
-  OLIVE_LIGHT,
+  PRIMARY_DARK_GREEN,
+  SAGE_ACCENT,
   TOP_DECORATION_HEIGHT,
   WHITE,
 } from "./constants"
+
+/**
+ * Decorative divider used below the logo and inside the footer between the
+ * corporate names line and the 4-column block. Renders a thin full-width
+ * olive line with a shorter, thicker bar in the primary dark green centered
+ * on top of it.
+ */
+function drawAccentDivider(doc: jsPDF, pageWidth: number, centerY: number): void {
+  // Thin full-width olive line (bottom layer)
+  doc.setDrawColor(OLIVE_ACCENT[0], OLIVE_ACCENT[1], OLIVE_ACCENT[2])
+  doc.setLineWidth(0.4)
+  doc.line(0, centerY, pageWidth, centerY)
+
+  // Shorter thicker bar centered over the line, in the primary dark green
+  const barWidth = pageWidth * 0.6
+  const barX = (pageWidth - barWidth) / 2
+  const barHeight = 2.2
+  doc.setFillColor(PRIMARY_DARK_GREEN[0], PRIMARY_DARK_GREEN[1], PRIMARY_DARK_GREEN[2])
+  doc.rect(barX, centerY - barHeight / 2, barWidth, barHeight, "F")
+}
 
 // jspdf-autotable attaches `lastAutoTable` on the jsPDF instance. Centralize the
 // module augmentation here so any importer of `@/lib/pdf` picks it up automatically.
@@ -80,14 +100,8 @@ export function addTopDecoration(doc: jsPDF, logoBase64: string | null): void {
     }
   }
 
-  // Olive accent bar with a thin contrasting black line through its midpoint.
-  const barY = TOP_DECORATION_HEIGHT - 6
-  const barHeight = 3
-  doc.setFillColor(OLIVE_ACCENT[0], OLIVE_ACCENT[1], OLIVE_ACCENT[2])
-  doc.rect(0, barY, pageWidth, barHeight, "F")
-  doc.setDrawColor(BLACK[0], BLACK[1], BLACK[2])
-  doc.setLineWidth(0.3)
-  doc.line(0, barY + barHeight / 2, pageWidth, barY + barHeight / 2)
+  // Decorative divider: thin full-width line with a shorter thicker bar on top.
+  drawAccentDivider(doc, pageWidth, TOP_DECORATION_HEIGHT - 4)
 }
 
 // --- Info box --------------------------------------------------------------
@@ -181,17 +195,12 @@ export function addFooter(doc: jsPDF): void {
   doc.setFillColor(WHITE[0], WHITE[1], WHITE[2])
   doc.rect(0, footerTop, pageWidth, FOOTER_HEIGHT, "F")
 
-  // Olive rule across the top of the footer block
-  doc.setDrawColor(OLIVE_ACCENT[0], OLIVE_ACCENT[1], OLIVE_ACCENT[2])
-  doc.setLineWidth(0.6)
-  doc.line(MARGIN, footerTop + 2, pageWidth - MARGIN, footerTop + 2)
-
-  // Corporate names line (two companies side by side, centered)
+  // 1. Corporate names line at the top of the footer (no rule above)
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
   const [companyA, companyB] = COMPANY_FOOTER.corporateNames
-  const corporateY = footerTop + 8
+  const corporateY = footerTop + 5
   const corpAW = doc.getTextWidth(companyA)
   const corpBW = doc.getTextWidth(companyB)
   const gap = 14
@@ -200,9 +209,13 @@ export function addFooter(doc: jsPDF): void {
   doc.text(companyA, corpStartX, corporateY)
   doc.text(companyB, corpStartX + corpAW + gap, corporateY)
 
-  // 4-column payment / email / phone / address block
-  const blockTop = footerTop + 13
-  const blockHeight = FOOTER_HEIGHT - 13 - 8 // leave room for bottom strip + a little padding
+  // 2. Decorative divider below the corporate names
+  drawAccentDivider(doc, pageWidth, corporateY + 3)
+
+  // 3. 4-column payment / email / phone / address block (tight padding)
+  const blockTop = footerTop + 11
+  // Sized to the tallest column (PAYMENT INFORMATION wraps to ~4 lines on A4) plus a small buffer.
+  const blockHeight = 26
   const usableWidth = pageWidth - 2 * MARGIN
   const colWidth = usableWidth / 4
   const colPad = 3
@@ -256,12 +269,20 @@ export function addFooter(doc: jsPDF): void {
     }
   })
 
-  // Two-tone bottom strip (light olive over dark olive)
-  const stripHeight = 5
-  doc.setFillColor(OLIVE_LIGHT[0], OLIVE_LIGHT[1], OLIVE_LIGHT[2])
-  doc.rect(0, pageHeight - stripHeight, pageWidth, stripHeight, "F")
-  doc.setFillColor(OLIVE_DARK[0], OLIVE_DARK[1], OLIVE_DARK[2])
-  doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+  // 4. Slim olive line spanning the full page width, just before the bottom two-tone strip
+  const stripHeight = 4
+  const slimLineY = pageHeight - stripHeight - 1.5
+  doc.setDrawColor(OLIVE_ACCENT[0], OLIVE_ACCENT[1], OLIVE_ACCENT[2])
+  doc.setLineWidth(0.4)
+  doc.line(0, slimLineY, pageWidth, slimLineY)
+
+  // 5. Two-tone bottom strip — split horizontally:
+  //    left half = primary dark green, right half = sage accent
+  const halfWidth = pageWidth / 2
+  doc.setFillColor(PRIMARY_DARK_GREEN[0], PRIMARY_DARK_GREEN[1], PRIMARY_DARK_GREEN[2])
+  doc.rect(0, pageHeight - stripHeight, halfWidth, stripHeight, "F")
+  doc.setFillColor(SAGE_ACCENT[0], SAGE_ACCENT[1], SAGE_ACCENT[2])
+  doc.rect(halfWidth, pageHeight - stripHeight, pageWidth - halfWidth, stripHeight, "F")
 
   // Restore default colors so subsequent draws aren't affected
   doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])

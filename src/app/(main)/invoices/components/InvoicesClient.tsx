@@ -254,16 +254,16 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 
 	return (
 		<>
-			<div className="container mx-auto p-6">
-				<div className="flex justify-between items-center mb-6">
-					<div>
-						<h1 className="text-3xl font-bold">Invoices Management</h1>
+			<div className="container mx-auto overflow-x-hidden p-4 sm:p-6">
+				<div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+					<div className="min-w-0">
+						<h1 className="text-2xl font-bold sm:text-3xl">Invoices Management</h1>
 						<p className="text-muted-foreground">
 							Create and manage invoices linked to quotations.
 						</p>
 					</div>
 
-					<Button onClick={() => setIsCreateOpen(true)} className="text-white" style={{ backgroundColor: "#202F21" }}>
+					<Button onClick={() => setIsCreateOpen(true)} className="w-full shrink-0 text-white sm:w-auto" style={{ backgroundColor: "#202F21" }}>
 						<Plus className="w-5 h-5 mr-2" />
 						Create Invoice
 					</Button>
@@ -284,11 +284,11 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 							aria-label="Search invoices"
 						/>
 					</div>
-					<div className="flex w-full min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 sm:gap-3">
+					<div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:gap-3">
 						<Filter className="w-4 h-4 shrink-0 text-muted-foreground" />
 						<span className="shrink-0 text-sm font-medium">Filters</span>
 						<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
-							<SelectTrigger className="h-9 w-[min(12rem,100%)] shrink-0 bg-white border-2 sm:w-48" style={{ borderColor: "#BDC4A5" }}>
+							<SelectTrigger className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-48" style={{ borderColor: "#BDC4A5" }}>
 								<SelectValue placeholder="All types" />
 							</SelectTrigger>
 							<SelectContent>
@@ -302,7 +302,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 						</Select>
 						{initialAdvisors.length > 0 && (
 							<Select value={advisorFilter} onValueChange={handleAdvisorFilterChange}>
-								<SelectTrigger className="h-9 w-[min(12rem,100%)] shrink-0 bg-white border-2 sm:w-48" style={{ borderColor: "#BDC4A5" }}>
+								<SelectTrigger className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-48" style={{ borderColor: "#BDC4A5" }}>
 									<SelectValue placeholder="All Advisors" />
 								</SelectTrigger>
 								<SelectContent>
@@ -315,10 +315,10 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 								</SelectContent>
 							</Select>
 						)}
-						<div className="flex shrink-0 items-center gap-1.5">
-							<Calendar className="h-4 w-4 text-muted-foreground" aria-hidden />
+						<div className="flex w-full min-w-[9rem] flex-1 items-center gap-1.5 sm:w-auto sm:flex-none">
+							<Calendar className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
 							<Select value={monthYearFilter} onValueChange={handleMonthYearFilterChange}>
-								<SelectTrigger className="h-9 w-[min(12.5rem,85vw)] bg-white border-2 sm:w-[200px]" style={{ borderColor: "#BDC4A5" }}>
+								<SelectTrigger className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-[200px]" style={{ borderColor: "#BDC4A5" }}>
 									<SelectValue placeholder="All months" />
 								</SelectTrigger>
 								<SelectContent className="max-h-72">
@@ -361,7 +361,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 								Clear Filters
 							</Button>
 						)}
-						<span className="ml-auto shrink-0 pl-2 text-sm text-muted-foreground whitespace-nowrap">
+						<span className="w-full text-sm text-muted-foreground sm:ml-auto sm:w-auto sm:shrink-0 sm:pl-2 sm:text-right">
 							Showing {invoices.length} of {total} invoices
 						</span>
 					</div>

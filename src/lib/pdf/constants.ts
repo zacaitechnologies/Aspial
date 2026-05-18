@@ -4,7 +4,11 @@
  */
 
 // --- Colors ----------------------------------------------------------------
+/** Mirrors the global CSS `--primary: #202F21`. */
 export const PRIMARY_DARK_GREEN: [number, number, number] = [32, 47, 33]
+/** Mirrors the global CSS `--accent: #BDC4A5` — the sage-olive used in dividers and the right half of the bottom strip. */
+export const SAGE_ACCENT: [number, number, number] = [189, 196, 165]
+/** Slightly darker sage used on the decorative dividers (below the logo and inside the footer). */
 export const OLIVE_ACCENT: [number, number, number] = [157, 173, 138]
 export const OLIVE_LIGHT: [number, number, number] = [212, 220, 200]
 export const OLIVE_DARK: [number, number, number] = [120, 140, 105]
@@ -28,7 +32,7 @@ export const INFO_BOX_START_Y = TOP_DECORATION_HEIGHT
 export const CONTENT_AFTER_INFO_BOX_Y = INFO_BOX_START_Y + INFO_BOX_HEIGHT + 6
 
 /** Total reserved space at the bottom of every page for the footer block. */
-export const FOOTER_HEIGHT = 52
+export const FOOTER_HEIGHT = 44
 /** Safe Y boundary; below this content gets clipped by the footer. */
 export const FOOTER_TOP_PADDING = 4
 

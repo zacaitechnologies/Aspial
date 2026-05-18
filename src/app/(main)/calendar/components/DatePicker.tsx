@@ -97,24 +97,27 @@ export function DatePicker({ currentDate, onDateChange, viewMode = 'month' }: Da
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full min-w-0 items-center gap-1 sm:gap-2">
       <Button
         variant="outline"
         size="sm"
         onClick={() => navigate("prev")}
+        className="shrink-0 px-2 sm:px-3"
+        aria-label="Previous"
       >
-        <ChevronLeft className="w-4 h-4" />
+        <ChevronLeft className="h-4 w-4" />
       </Button>
 
-      <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
         <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
-              className="justify-start text-left font-normal min-w-[240px]"
+              size="sm"
+              className="h-9 w-full min-w-0 justify-start px-2 text-left font-normal sm:px-3"
             >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {getDisplayText()}
+              <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2" />
+              <span className="truncate">{getDisplayText()}</span>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -132,6 +135,7 @@ export function DatePicker({ currentDate, onDateChange, viewMode = 'month' }: Da
         variant="outline"
         size="sm"
         onClick={goToToday}
+        className="shrink-0 px-2 text-xs sm:px-3 sm:text-sm"
       >
         Today
       </Button>
@@ -140,9 +144,11 @@ export function DatePicker({ currentDate, onDateChange, viewMode = 'month' }: Da
         variant="outline"
         size="sm"
         onClick={() => navigate("next")}
+        className="shrink-0 px-2 sm:px-3"
+        aria-label="Next"
       >
-        <ChevronRight className="w-4 h-4" />
+        <ChevronRight className="h-4 w-4" />
       </Button>
     </div>
   )
-} 
+}

@@ -639,9 +639,9 @@ export default function CalendarClient({
 							</>
 						)}
 						
-						{viewMode === 'week' && (
-							<div className="h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
-								<WeekView
+					{viewMode === 'week' && (
+						<div className="h-[calc(100vh-360px)] min-h-[600px] overflow-hidden">
+							<WeekView
 									currentDate={currentDate}
 									bookings={bookingsInDateRange}
 									onEventClick={handleBookingClick}
@@ -682,40 +682,50 @@ export default function CalendarClient({
 									return (
 										<div
 											key={booking.id}
-											className={`p-4 rounded-lg border-l-4 bg-muted border-border ${borderColorClass}`}
+											className={`p-3 sm:p-4 rounded-lg border-l-4 bg-muted border-border ${borderColorClass}`}
 										>
-											<div className="flex items-start justify-between">
-												<div className="flex-1">
-													<h4 className="font-semibold text-foreground">{booking.title}</h4>
-													<p className="text-sm text-muted-foreground mt-1">{booking.description}</p>
-													<div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-														<div className="flex items-center gap-1">
-															<Calendar className="w-3 h-3" />
-															{formatDateStringDirect(booking.date)}
-														</div>
-														{booking.type !== "task" && (
-															<div className="flex items-center gap-1">
-																<Clock className="w-3 h-3" />
-																{booking.startTime} - {booking.endTime}
-															</div>
-														)}
-														{booking.type === "appointment" && (
-															<div className="flex items-center gap-1">
-																<Users className="w-3 h-3" />
-																{booking.attendees} attendees
-															</div>
-														)}
-														{booking.type !== "task" && (
-															<div className="flex items-center gap-1">
-																<MapPin className="w-3 h-3" />
-																{booking.location}
-															</div>
-														)}
-													</div>
+											{/* Title row */}
+											<div className="flex items-start gap-2">
+												<div className="flex-1 min-w-0">
+													<h4 className="font-semibold text-foreground leading-snug break-words">
+														{booking.title}
+													</h4>
+													<p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
+														{booking.description}
+													</p>
 												</div>
-												<Badge variant={badgeConfig.variant} className={badgeConfig.className}>
+												<Badge
+													variant={badgeConfig.variant}
+													className={`${badgeConfig.className} shrink-0 mt-0.5 text-[11px]`}
+												>
 													{CALENDAR_EVENT_TYPES[booking.appointmentType]?.label || "Others"}
 												</Badge>
+											</div>
+
+											{/* Meta row — wraps on small screens */}
+											<div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
+												<div className="flex items-center gap-1 shrink-0">
+													<Calendar className="w-3 h-3 shrink-0" />
+													<span>{formatDateStringDirect(booking.date)}</span>
+												</div>
+												{booking.type !== "task" && (
+													<div className="flex items-center gap-1 shrink-0">
+														<Clock className="w-3 h-3 shrink-0" />
+														<span>{booking.startTime} – {booking.endTime}</span>
+													</div>
+												)}
+												{booking.type === "appointment" && (
+													<div className="flex items-center gap-1 shrink-0">
+														<Users className="w-3 h-3 shrink-0" />
+														<span>{booking.attendees} attendee{booking.attendees !== 1 ? "s" : ""}</span>
+													</div>
+												)}
+												{booking.type !== "task" && booking.location && (
+													<div className="flex items-center gap-1 min-w-0">
+														<MapPin className="w-3 h-3 shrink-0" />
+														<span className="truncate">{booking.location}</span>
+													</div>
+												)}
 											</div>
 										</div>
 									)

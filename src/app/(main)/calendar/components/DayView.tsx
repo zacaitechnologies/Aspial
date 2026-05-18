@@ -12,7 +12,8 @@ import {
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, MapPin, Users } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Clock, MapPin, Users } from "lucide-react"
 import { useMemo, useRef, useEffect } from "react"
 import { CurrentTimeLine } from "./CurrentTimeLine"
 
@@ -29,6 +30,9 @@ const bookingTypeLabels: Record<CalendarBooking["type"], string> = {
 	leave: "Leave",
 	blocker: "Blocker",
 }
+
+const eventCardClassName =
+	"cursor-pointer rounded-lg border border-border/50 shadow-sm transition-all hover:opacity-95 hover:shadow-md"
 
 export function DayView({
 	currentDate,
@@ -118,21 +122,24 @@ export function DayView({
 						{allDayEvents.map(event => (
 							<div
 								key={event.id}
-								className="p-3 rounded-lg border border-(--color-border)] bg-(--color-card)] cursor-pointer hover:shadow-md transition-shadow"
+								className={cn("p-3", eventCardClassName, event.color)}
 								onClick={() => onEventClick(event)}
 							>
 								<div className="flex items-start justify-between">
-									<div className="flex-1">
-										<div className="flex items-center gap-2 mb-2">
-											<Badge variant="secondary" className={event.color}>
+									<div className="flex-1 min-w-0">
+										<div className="flex items-center gap-2 mb-2 flex-wrap">
+											<Badge
+												variant="outline"
+												className="shrink-0 border-border/50 bg-background/70 text-xs font-medium"
+											>
 												{bookingTypeLabels[event.type]}
 											</Badge>
-											<h4 className="font-semibold text-(--color-foreground)]">
+											<h4 className="font-semibold truncate">
 												{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, '')}
 											</h4>
 										</div>
-										<p className="text-sm text-(--color-muted-foreground)]">{event.description}</p>
-										<div className="flex items-center gap-4 mt-2 text-xs text-(--color-muted-foreground)]">
+										<p className="text-sm opacity-90">{event.description}</p>
+										<div className="flex items-center gap-4 mt-2 text-xs opacity-80">
 											{event.projectName && (
 												<div className="flex items-center gap-1">
 													<MapPin className="w-3 h-3" />
@@ -207,7 +214,11 @@ export function DayView({
 							return (
 								<div
 									key={event.id}
-									className="absolute z-10 overflow-hidden p-2 rounded-lg border border-(--color-border)] bg-(--color-card)] cursor-pointer hover:shadow-md transition-shadow"
+									className={cn(
+										"absolute z-10 overflow-hidden p-2",
+										eventCardClassName,
+										event.color
+									)}
 									style={{
 										top,
 										height,
@@ -219,15 +230,18 @@ export function DayView({
 										onEventClick(event)
 									}}
 								>
-									<div className="flex items-center gap-2 mb-1">
-										<Badge variant="secondary" className={event.color}>
+									<div className="flex items-center gap-1.5 mb-1 min-w-0">
+										<Badge
+											variant="outline"
+											className="shrink-0 border-border/50 bg-background/70 px-1.5 py-0 text-[10px] font-medium leading-tight"
+										>
 											{bookingTypeLabels[event.type]}
 										</Badge>
-										<h4 className="font-semibold text-(--color-foreground)] truncate text-sm">
+										<h4 className="font-semibold truncate text-sm min-w-0">
 											{event.title}
 										</h4>
 									</div>
-									<div className="flex items-center gap-3 text-[11px] text-(--color-muted-foreground)] flex-wrap">
+									<div className="flex items-center gap-3 text-[11px] opacity-90 flex-wrap">
 										<div className="flex items-center gap-1">
 											<Clock className="w-3 h-3" />
 											{event.startTime} - {event.endTime}
