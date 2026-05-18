@@ -234,81 +234,54 @@ export function getLocalTime(): { hours: number; minutes: number } {
 	return { hours: now.getHours(), minutes: now.getMinutes() }
 }
 
-/**
- * Wrapper attached to merged events' originalData. Lets the details dialog
- * surface the underlying parts (e.g. four hourly slots booked back-to-back).
- */
-export interface MergedBookingMeta {
-	kind: "merged"
-	parts: string[]
-	first: unknown
+/** Group "HH:00" hour slots into consecutive runs for a single booking record per run. */
+export function groupConsecutiveHourSlots(slots: string[]): string[][] {
+	if (slots.length === 0) return []
+	const sorted = [...slots].sort((a, b) => a.localeCompare(b))
+	const groups: string[][] = [[sorted[0]]]
+	for (let i = 1; i < sorted.length; i++) {
+		const slot = sorted[i]
+		const group = groups[groups.length - 1]
+		const prevHour = parseInt(group[group.length - 1].split(":")[0], 10)
+		const currHour = parseInt(slot.split(":")[0], 10)
+		if (currHour === prevHour + 1) {
+			group.push(slot)
+		} else {
+			groups.push([slot])
+		}
+	}
+	return groups
 }
 
-/**
- * Merge appointment events that are back-to-back (or overlapping) when they
- * share the same appointment + booker. Non-appointment events pass through
- * untouched. Used so that 10–11 + 11–12 + 12–13 hourly bookings (or one DB
- * row spanning 10–13) render as one continuous block.
- */
-export function mergeAdjacentBookings(events: CalendarBooking[]): CalendarBooking[] {
-	const appointments: CalendarBooking[] = []
-	const others: CalendarBooking[] = []
-	for (const e of events) {
-		if (e.type === "appointment") appointments.push(e)
-		else others.push(e)
+/** From hour slots, verify they are consecutive; return start "HH:00" and end "HH:00:00". */
+export function contiguousRangeFromSlots(
+	slots: string[]
+): { startSlot: string; endTime: string } | null {
+	if (slots.length === 0) return null
+	const sorted = [...slots].sort((a, b) => a.localeCompare(b))
+	const hours = sorted.map((s) => parseInt(s.split(":")[0], 10))
+	for (let i = 1; i < hours.length; i++) {
+		if (hours[i] !== hours[i - 1] + 1) return null
 	}
-
-	const groupKeyFor = (e: CalendarBooking): string => {
-		const raw = e.originalData as { appointmentId?: number | null; userId?: string | null; bookedBy?: string } | null
-		const apptId = raw?.appointmentId ?? "none"
-		const bookerKey = raw?.userId ?? raw?.bookedBy ?? e.creatorName ?? "unknown"
-		return `${apptId}|${bookerKey}|${e.date}`
+	const lastHour = hours[hours.length - 1]
+	const endHour = lastHour + 1
+	return {
+		startSlot: sorted[0],
+		endTime: `${String(endHour).padStart(2, "0")}:00:00`,
 	}
+}
 
-	const groups = new Map<string, CalendarBooking[]>()
-	for (const e of appointments) {
-		const key = groupKeyFor(e)
-		const arr = groups.get(key) ?? []
-		arr.push(e)
-		groups.set(key, arr)
+/** Build naive local datetime strings for appointment booking FormData. */
+export function hourSlotRangeToFormDateTimes(
+	date: string,
+	slots: string[]
+): { startDate: string; endDate: string } | null {
+	const range = contiguousRangeFromSlots(slots)
+	if (!range) return null
+	return {
+		startDate: `${date}T${range.startSlot}:00`,
+		endDate: `${date}T${range.endTime}`,
 	}
-
-	const out: CalendarBooking[] = []
-	for (const group of groups.values()) {
-		group.sort((a, b) => a.startTime.localeCompare(b.startTime))
-		let current: CalendarBooking = { ...group[0] }
-		let parts: string[] = [group[0].id]
-		let firstOriginal: unknown = group[0].originalData
-
-		const flush = () => {
-			if (parts.length > 1) {
-				const meta: MergedBookingMeta = { kind: "merged", parts: [...parts], first: firstOriginal }
-				out.push({ ...current, id: `${parts[0]}+${parts.length - 1}`, originalData: meta })
-			} else {
-				out.push(current)
-			}
-		}
-
-		for (let i = 1; i < group.length; i++) {
-			const next = group[i]
-			if (next.startTime <= current.endTime) {
-				current = {
-					...current,
-					endTime: next.endTime > current.endTime ? next.endTime : current.endTime,
-					attendees: Math.max(current.attendees, next.attendees),
-				}
-				parts.push(next.id)
-			} else {
-				flush()
-				current = { ...next }
-				parts = [next.id]
-				firstOriginal = next.originalData
-			}
-		}
-		flush()
-	}
-
-	return [...out, ...others]
 }
 
 /**

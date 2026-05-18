@@ -37,8 +37,10 @@ export interface CalendarBooking {
 	projectName?: string | null
 	clientName?: string | null
 	creatorName?: string | null
-	/** For appointments: booker's email (stored in bookedBy); shown once in details UI. */
+	/** For appointments: booker's email from bookedByUser. */
 	creatorEmail?: string | null
+	/** For appointments: confirmation email recipients stored on the booking. */
+	clientEmails?: string[]
 	assigneeName?: string | null
 	taskStartDate?: string | null
 	taskDueDate?: string | null
@@ -331,7 +333,10 @@ async function _fetchAppointmentBookings(
 				select: {
 					id: true,
 					name: true,
-					clientName: true
+					clientName: true,
+					Client: {
+						select: { email: true },
+					},
 				}
 			},
 			bookedByUser: {
@@ -340,7 +345,11 @@ async function _fetchAppointmentBookings(
 					lastName: true,
 					email: true,
 				}
-			}
+			},
+			bookingEmails: {
+				select: { recipientEmail: true },
+				orderBy: { sentAt: "asc" },
+			},
 		}
 	})
 
@@ -357,9 +366,24 @@ async function _fetchAppointmentBookings(
 		const endDate = new Date(booking.endDate)
 
 		const bookerDisplay = booking.bookedByUser
-			? `${booking.bookedByUser.firstName} ${booking.bookedByUser.lastName}`.trim()
-				|| booking.bookedByUser.email
+			? formatLeaveApplicantName(booking.bookedByUser)
 			: booking.bookedBy
+
+		const creatorName = booking.bookedByUser
+			? formatLeaveApplicantName(booking.bookedByUser)
+			: null
+		const creatorEmail = booking.bookedByUser?.email ?? null
+
+		const clientEmailSet = new Set<string>()
+		for (const row of booking.bookingEmails) {
+			const email = row.recipientEmail.trim()
+			if (email) clientEmailSet.add(email)
+		}
+		const projectClientEmail = booking.project?.Client?.email?.trim()
+		if (projectClientEmail && clientEmailSet.size === 0) {
+			clientEmailSet.add(projectClientEmail)
+		}
+		const clientEmails = Array.from(clientEmailSet)
 
 		const appointmentType = (booking.appointmentType as AppointmentType) || "OTHERS"
 		const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS
@@ -371,8 +395,6 @@ async function _fetchAppointmentBookings(
 			location = booking.appointment.location || booking.appointment.brand || "Appointment"
 		}
 
-		const creatorEmail = booking.bookedBy.includes("@") ? booking.bookedBy : null
-
 		const startParts = toBusinessTZParts(startDate)
 		const endParts = toBusinessTZParts(endDate)
 
@@ -380,7 +402,7 @@ async function _fetchAppointmentBookings(
 			id: `appointment-${booking.id}`,
 			title,
 			bookingName: booking.appointment?.name ?? null,
-			description: booking.purpose || `Appointment by ${bookerDisplay}`,
+			description: booking.purpose?.trim() ?? "",
 			date: startParts.dateStr,
 			startTime: startParts.timeStr,
 			endTime: endParts.timeStr,
@@ -392,8 +414,9 @@ async function _fetchAppointmentBookings(
 			projectId: projId ?? null,
 			projectName: booking.project?.name || null,
 			clientName: booking.project?.clientName || null,
-			creatorName: bookerDisplay || null,
+			creatorName,
 			creatorEmail,
+			clientEmails: clientEmails.length > 0 ? clientEmails : undefined,
 			creatorId: booking.userId ?? null,
 			assigneeName: null,
 			taskStartDate: null,

@@ -25,6 +25,7 @@ import {
 } from "@/app/(main)/calendar/actions"
 import { getAppointmentBookings } from "@/app/(main)/appointment-bookings/actions"
 import { parseDateInBusinessTZ, toBusinessTZParts } from "@/lib/date-utils"
+import { contiguousRangeFromSlots } from "../utils/calendar-utils"
 import type { CalendarBooking } from "../actions"
 
 interface EditBookingDialogProps {
@@ -51,22 +52,6 @@ function expandBookingToHourSlots(start: Date, end: Date): string[] {
 		cur.setTime(cur.getTime() + 60 * 60 * 1000)
 	}
 	return slots
-}
-
-/** From sorted hour numbers, verify consecutive; return start "HH:00" and end next hour "HH:00:00" string parts. */
-function contiguousRangeFromSlots(slots: string[]): { startSlot: string; endTime: string } | null {
-	if (slots.length === 0) return null
-	const sorted = [...slots].sort((a, b) => a.localeCompare(b))
-	const hours = sorted.map((s) => parseInt(s.split(":")[0], 10))
-	for (let i = 1; i < hours.length; i++) {
-		if (hours[i] !== hours[i - 1] + 1) return null
-	}
-	const lastHour = hours[hours.length - 1]
-	const endHour = lastHour + 1
-	return {
-		startSlot: sorted[0],
-		endTime: `${String(endHour).padStart(2, "0")}:00:00`,
-	}
 }
 
 export function EditBookingDialog({

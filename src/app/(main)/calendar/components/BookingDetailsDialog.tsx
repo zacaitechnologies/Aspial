@@ -149,6 +149,30 @@ export function BookingDetailsDialog({
                     <span className="font-bold">{booking.creatorName}</span>
                   </p>
                 )}
+                {booking.creatorEmail && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="text-muted-foreground">Booked by email:</span>
+                    <span className="truncate">{booking.creatorEmail}</span>
+                  </div>
+                )}
+                {booking.clientName && (
+                  <p className="text-lg text-foreground">
+                    <span className="font-medium text-muted-foreground">Client: </span>
+                    <span className="font-medium">{booking.clientName}</span>
+                  </p>
+                )}
+                {booking.clientEmails && booking.clientEmails.length > 0 && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <Mail className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+                    <span className="text-muted-foreground shrink-0">
+                      Client email{booking.clientEmails.length > 1 ? "s" : ""}:
+                    </span>
+                    <span className="min-w-0 break-all">
+                      {booking.clientEmails.join(", ")}
+                    </span>
+                  </div>
+                )}
                 {booking.description ? (
                   <p className="text-sm text-muted-foreground">{booking.description}</p>
                 ) : null}
@@ -163,13 +187,6 @@ export function BookingDetailsDialog({
             )}
 
             <div className="space-y-2">
-              {booking.type === "appointment" && booking.creatorEmail && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="text-muted-foreground">Email:</span>
-                  <span className="truncate">{booking.creatorEmail}</span>
-                </div>
-              )}
               {booking.type === "leave" && booking.creatorName && (
                 <div className="flex items-center gap-2 text-sm">
                   <User className="w-4 h-4 text-muted-foreground" />

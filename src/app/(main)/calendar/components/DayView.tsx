@@ -8,7 +8,6 @@ import {
 	isCalendarAllDayRowEvent,
 	isToday,
 	getLocalTime,
-	mergeAdjacentBookings,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
 import { Badge } from "@/components/ui/badge"
@@ -84,7 +83,7 @@ export function DayView({
 	)
 	
 	const eventLayouts = useMemo(
-		() => layoutOverlappingEvents(mergeAdjacentBookings(timedEvents)),
+		() => layoutOverlappingEvents(timedEvents),
 		[timedEvents]
 	)
 	

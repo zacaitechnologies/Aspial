@@ -113,6 +113,12 @@ export function DateEventsDialog({
                         <span className="font-bold">{event.creatorName}</span>
                       </p>
                     )}
+                    {event.type === "appointment" && event.clientName && (
+                      <p className="text-sm text-foreground">
+                        <span className="text-muted-foreground">Client: </span>
+                        <span className="font-medium">{event.clientName}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 

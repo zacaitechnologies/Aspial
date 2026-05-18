@@ -1,28 +1,33 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { subMinutes, format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import {
 	ArrowLeft,
 	ArrowRight,
 	Calendar,
+	CheckCircle,
 	Clock,
 	Loader2,
 	MapPin,
 	AlertTriangle,
-	Plus,
-	Trash2,
 	Search,
+	XCircle,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import { getActiveBlockers } from "@/app/(main)/calendar/actions"
+import {
+	groupConsecutiveHourSlots,
+	hourSlotRangeToFormDateTimes,
+} from "@/app/(main)/calendar/utils/calendar-utils"
 import {
 	createAppointmentBooking,
 	getUserProjects,
@@ -76,15 +81,17 @@ const TIME_SLOTS = Array.from({ length: 15 }, (_, i) => {
 	return `${String(hour).padStart(2, "0")}:00`
 })
 
-const REMINDER_OPTIONS = [
-	{ value: 60, label: "1 hour before" },
-	{ value: 120, label: "2 hours before" },
-	{ value: 180, label: "3 hours before" },
-	{ value: 360, label: "6 hours before" },
-	{ value: 720, label: "12 hours before" },
-	{ value: 1440, label: "24 hours before" },
-	{ value: 2880, label: "48 hours before" },
-]
+const REMINDER_HOURS = [1, 2, 6, 12, 24, 48]
+
+function reminderOffsetToMinutes(hours: number): number {
+	return hours === 48 ? 2880 : hours * 60
+}
+
+function reminderLabel(hours: number): string {
+	if (hours === 48) return "2 days"
+	if (hours === 1) return "1h"
+	return `${hours}h`
+}
 
 function getSlotStatus(
 	hour: number,
@@ -163,6 +170,10 @@ export function AppointmentBookingDialog({
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const errorRef = useRef<HTMLDivElement>(null)
+
+	// Email result dialog
+	const [showResultDialog, setShowResultDialog] = useState(false)
+	const [emailResult, setEmailResult] = useState<{ success: boolean; message: string } | null>(null)
 
 	// Overwrite dialog
 	const [showOverwriteDialog, setShowOverwriteDialog] = useState(false)
@@ -315,21 +326,28 @@ export function AppointmentBookingDialog({
 	}
 
 	// Reminder management
-	const addReminder = () => {
-		const usedOffsets = new Set(reminders.map((r) => r.offsetMinutes))
-		const nextAvailable = REMINDER_OPTIONS.find((o) => !usedOffsets.has(o.value))
-		if (nextAvailable) {
-			setReminders([...reminders, { offsetMinutes: nextAvailable.value, recipientEmails: [...clientEmails.filter((e) => e.trim())] }])
+	const toggleReminder = (hours: number) => {
+		const minutes = reminderOffsetToMinutes(hours)
+		const exists = reminders.some((r) => r.offsetMinutes === minutes)
+		if (exists) {
+			setReminders(reminders.filter((r) => r.offsetMinutes !== minutes))
+		} else {
+			const defaultEmails = clientEmails.filter((e) => e.trim())
+			setReminders([
+				...reminders,
+				{ offsetMinutes: minutes, recipientEmails: defaultEmails.length > 0 ? defaultEmails : [""] },
+			])
 		}
 	}
 
 	const removeReminder = (index: number) => {
-		if (reminders.length <= 1) return
 		setReminders(reminders.filter((_, i) => i !== index))
 	}
 
-	const updateReminderOffset = (index: number, offset: number) => {
-		setReminders(reminders.map((r, i) => (i === index ? { ...r, offsetMinutes: offset } : r)))
+	const updateReminderEmails = (index: number, emails: string[]) => {
+		const updated = [...reminders]
+		updated[index] = { ...updated[index], recipientEmails: emails }
+		setReminders(updated)
 	}
 
 	// Submit booking
@@ -352,61 +370,101 @@ export function AppointmentBookingDialog({
 			return
 		}
 		if (reminders.length === 0) {
-			setError("At least one reminder is required")
+			setError("Automated Reminders: Please add at least one reminder (e.g. 24h before).")
 			return
+		}
+		for (const r of reminders) {
+			if (!r.recipientEmails.some((e) => e.trim())) {
+				setError("Each reminder must have at least one recipient email.")
+				return
+			}
 		}
 
 		setIsSubmitting(true)
 		const sortedSlots = [...selectedTimeSlots].sort((a, b) => a.localeCompare(b))
+		const slotGroups = groupConsecutiveHourSlots(sortedSlots)
 
 		try {
-			const bookingResults = await Promise.all(
-				sortedSlots.map(async (slot) => {
-					const slotHour = parseInt(slot.split(":")[0], 10)
-					const slotInfo = getSlotStatus(slotHour, existingBookings, blockers, initialDate)
-					if (slotInfo.status !== "available") {
-						return { success: false as const, error: `Slot ${slot} is no longer available` }
-					}
+			for (const slot of sortedSlots) {
+				const slotHour = parseInt(slot.split(":")[0], 10)
+				const slotInfo = getSlotStatus(slotHour, existingBookings, blockers, initialDate)
+				if (slotInfo.status !== "available") {
+					setError(`Slot ${slot} is no longer available`)
+					return
+				}
+			}
 
-					const nextHour = String(slotHour + 1).padStart(2, "0")
-					const formData = new FormData()
-					formData.set("bookedBy", userName)
-					formData.set("userId", userId)
-					formData.set("startDate", `${initialDate}T${slot}:00`)
-					formData.set("endDate", `${initialDate}T${nextHour}:00:00`)
-					formData.set("purpose", purpose)
-					formData.set("appointmentType", selectedAppointment?.appointmentType || "OTHERS")
-					if (selectedProject !== "none") formData.set("projectId", selectedProject)
-					if (selectedAppointment) formData.set("appointmentId", String(selectedAppointment.id))
-					if (attendees) formData.set("attendees", attendees)
-					formData.set("bookingName", bookingName)
-					formData.set("companyName", companyName)
-					formData.set("contactNumber", contactNumber)
-					formData.set("remarks", remarks)
-					formData.set("clientEmails", JSON.stringify(validEmails))
-					formData.set("reminderOffsets", JSON.stringify(reminders))
+			let successfulCount = 0
+			let totalEmailSent = 0
+			let totalEmailFailed = 0
+			let totalRecipients = 0
+			const errors: string[] = []
 
-					return createAppointmentBooking(formData)
-				})
-			)
+			for (const group of slotGroups) {
+				const dateTimes = hourSlotRangeToFormDateTimes(initialDate, group)
+				if (!dateTimes) {
+					errors.push("Selected times must be consecutive hours within each booking")
+					continue
+				}
 
-			const successfulCount = bookingResults.filter((result) => result.success).length
-			const failedResults = bookingResults.filter((result) => !result.success)
+				const formData = new FormData()
+				formData.set("bookedBy", userName)
+				formData.set("userId", userId)
+				formData.set("startDate", dateTimes.startDate)
+				formData.set("endDate", dateTimes.endDate)
+				formData.set("purpose", purpose)
+				formData.set("appointmentType", selectedAppointment?.appointmentType || "OTHERS")
+				if (selectedProject !== "none") formData.set("projectId", selectedProject)
+				if (selectedAppointment) formData.set("appointmentId", String(selectedAppointment.id))
+				if (attendees) formData.set("attendees", attendees)
+				formData.set("bookingName", bookingName)
+				formData.set("companyName", companyName)
+				formData.set("contactNumber", contactNumber)
+				formData.set("remarks", remarks)
+				formData.set("clientEmails", JSON.stringify(validEmails))
+				formData.set("reminderOffsets", JSON.stringify(reminders))
 
-			if (failedResults.length === 0 && successfulCount > 0) {
-				toast({
-					title: successfulCount === 1 ? "Appointment Booked" : "Appointments Booked",
-					description:
-						successfulCount === 1
-							? "Booking confirmed successfully."
-							: `${successfulCount} appointments booked successfully.`,
-				})
+				const result = await createAppointmentBooking(formData)
+				if (result.success) {
+					successfulCount += 1
+					totalEmailSent += result.emailSentCount ?? 0
+					totalEmailFailed += result.emailFailedCount ?? 0
+					totalRecipients += result.uniqueRecipientCount ?? 0
+				} else {
+					errors.push(result.error || "Failed to create booking")
+				}
+			}
+
+			if (errors.length === 0 && successfulCount > 0) {
 				onSuccess()
-				onClose()
+				// Show email result dialog if emails were attempted
+				if (totalEmailSent > 0 || totalEmailFailed > 0) {
+					if (totalEmailFailed === 0) {
+						setEmailResult({
+							success: true,
+							message: `Appointment confirmation email${totalRecipients !== 1 ? "s" : ""} sent successfully to ${totalRecipients} recipient${totalRecipients !== 1 ? "s" : ""}.`,
+						})
+					} else {
+						setEmailResult({
+							success: false,
+							message: `Confirmation emails sent to ${totalEmailSent} recipient${totalEmailSent !== 1 ? "s" : ""}, but failed to send to ${totalEmailFailed}. Check the appointment-bookings page for details.`,
+						})
+					}
+					setShowResultDialog(true)
+				} else {
+					toast({
+						title: successfulCount === 1 ? "Appointment Booked" : "Appointments Booked",
+						description:
+							successfulCount === 1
+								? "Booking confirmed successfully."
+								: `${successfulCount} appointments booked successfully.`,
+					})
+					onClose()
+				}
 			} else {
-				const firstError = failedResults[0]?.error || "Failed to create booking"
+				const firstError = errors[0] || "Failed to create booking"
 				if (successfulCount > 0) {
-					setError(`${firstError}. ${successfulCount} slot(s) booked, ${failedResults.length} failed.`)
+					setError(`${firstError}. ${successfulCount} booking(s) created, ${errors.length} failed.`)
 				} else {
 					setError(firstError)
 				}
@@ -767,50 +825,101 @@ export function AppointmentBookingDialog({
 							/>
 
 							{/* Reminders */}
-							<div className="space-y-2">
-								<Label>Automated Reminders <span className="text-destructive">*</span></Label>
-								{reminders.map((reminder, index) => (
-									<div key={index} className="flex items-center gap-2">
-										<Select
-											value={String(reminder.offsetMinutes)}
-											onValueChange={(v) => updateReminderOffset(index, parseInt(v))}
-										>
-											<SelectTrigger className="w-[180px]">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{REMINDER_OPTIONS.map((opt) => (
-													<SelectItem key={opt.value} value={String(opt.value)}>
-														{opt.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-										{reminders.length > 1 && (
-											<Button
-												type="button"
-												variant="ghost"
-												size="icon"
-												onClick={() => removeReminder(index)}
-												className="shrink-0"
-											>
-												<Trash2 className="w-4 h-4" />
-											</Button>
+							{(() => {
+								const firstSlotHour = sortedSelectedSlots.length > 0
+									? parseInt(sortedSelectedSlots[0].split(":")[0], 10)
+									: null
+								const appointmentStart = firstSlotHour !== null && initialDate
+									? parseDateInBusinessTZ(`${initialDate}T${String(firstSlotHour).padStart(2, "0")}:00:00`)
+									: null
+
+								return (
+									<div className="space-y-3">
+										<div>
+											<Label>Automated Reminders <span className="text-destructive">*</span></Label>
+											<p className="text-xs text-muted-foreground mt-0.5">
+												Set up reminder emails to be sent before the appointment. At least one reminder is required.
+											</p>
+										</div>
+
+										{/* Toggle buttons */}
+										<div className="flex flex-wrap gap-2">
+											{REMINDER_HOURS.map((hours) => {
+												const minutes = reminderOffsetToMinutes(hours)
+												const isSelected = reminders.some((r) => r.offsetMinutes === minutes)
+												const reminderTime = appointmentStart ? subMinutes(appointmentStart, minutes) : null
+												return (
+													<Button
+														key={minutes}
+														type="button"
+														variant={isSelected ? "default" : "outline"}
+														size="sm"
+														onClick={() => toggleReminder(hours)}
+														className="text-xs"
+													>
+														{reminderLabel(hours)} before
+														{isSelected && reminderTime && (
+															<span className="ml-1 opacity-70">
+																({format(reminderTime, "h:mm a")})
+															</span>
+														)}
+													</Button>
+												)
+											})}
+										</div>
+
+										{/* Selected reminders with per-reminder email inputs */}
+										{reminders.length > 0 && (
+											<div className="space-y-2 border rounded-lg p-3 bg-muted/30">
+												<p className="text-xs font-medium text-muted-foreground">
+													Selected Reminders ({reminders.length})
+												</p>
+												{[...reminders]
+													.sort((a, b) => b.offsetMinutes - a.offsetMinutes)
+													.map((reminder, sortedIndex) => {
+														const origIndex = reminders.findIndex(
+															(r) => r.offsetMinutes === reminder.offsetMinutes
+														)
+														const hours = reminder.offsetMinutes === 2880 ? 48 : reminder.offsetMinutes / 60
+														const reminderTime = appointmentStart
+															? subMinutes(appointmentStart, reminder.offsetMinutes)
+															: null
+														const label = hours === 48 ? "48 hours (2 days)" : hours === 1 ? "1 hour" : `${hours} hours`
+														return (
+															<div key={`${reminder.offsetMinutes}-${sortedIndex}`} className="space-y-1.5 p-2 bg-background rounded border">
+																<div className="flex items-center justify-between">
+																	<div>
+																		<p className="text-sm font-medium">{label} before</p>
+																		{reminderTime && (
+																			<p className="text-xs text-muted-foreground">
+																				Will send at: {format(reminderTime, "MMM d, yyyy 'at' h:mm a")}
+																			</p>
+																		)}
+																	</div>
+																	<Button
+																		type="button"
+																		variant="ghost"
+																		size="sm"
+																		onClick={() => removeReminder(origIndex)}
+																		className="h-6 w-6 p-0 text-destructive hover:text-destructive/80"
+																	>
+																		×
+																	</Button>
+																</div>
+																<EmailListInput
+																	emails={reminder.recipientEmails}
+																	onChange={(emails) => updateReminderEmails(origIndex, emails)}
+																	required
+																	className="mt-1"
+																/>
+															</div>
+														)
+													})}
+											</div>
 										)}
 									</div>
-								))}
-								{reminders.length < REMINDER_OPTIONS.length && (
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={addReminder}
-									>
-										<Plus className="w-4 h-4 mr-1" />
-										Add Reminder
-									</Button>
-								)}
-							</div>
+								)
+							})()}
 
 							{/* Submit */}
 							<div className="flex justify-end gap-2 pt-4 border-t">
@@ -840,7 +949,49 @@ export function AppointmentBookingDialog({
 				projectClientName={
 					projects.find((p) => p.id.toString() === pendingProjectSelection)?.Client?.name || "Client"
 				}
-			/>
+		/>
+
+		{/* Email Result Dialog */}
+		<Dialog
+				open={showResultDialog}
+				onOpenChange={(open) => {
+					if (!open) {
+						setShowResultDialog(false)
+						setEmailResult(null)
+						onClose()
+					}
+				}}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							{emailResult?.success ? (
+								<>
+									<CheckCircle className="w-5 h-5 text-green-600" />
+									Email Sent Successfully
+								</>
+							) : (
+								<>
+									<XCircle className="w-5 h-5 text-red-600" />
+									Failed to Send Email
+								</>
+							)}
+						</DialogTitle>
+						<DialogDescription>{emailResult?.message}</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							onClick={() => {
+								setShowResultDialog(false)
+								setEmailResult(null)
+								onClose()
+							}}
+						>
+							OK
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</>
 	)
 }

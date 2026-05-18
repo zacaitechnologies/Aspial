@@ -9,7 +9,6 @@ import {
 	isCalendarAllDayRowEvent,
 	isToday,
 	getLocalTime,
-	mergeAdjacentBookings,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
 import { useMemo, useRef, useEffect } from "react"
@@ -224,8 +223,7 @@ export function WeekView({
 							const today = isToday(date)
 							const dayEvents = getEventsForDay(date)
 							const timedEvents = dayEvents.filter((e) => !isCalendarAllDayRowEvent(e))
-							const merged = mergeAdjacentBookings(timedEvents)
-							const layouts = layoutOverlappingEvents(merged)
+							const layouts = layoutOverlappingEvents(timedEvents)
 
 							return (
 								<div

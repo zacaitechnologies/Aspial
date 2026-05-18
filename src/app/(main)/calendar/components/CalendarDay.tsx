@@ -1,8 +1,6 @@
 "use client"
 
 import { CalendarBooking } from "@/app/(main)/calendar/actions"
-import { mergeAdjacentBookings } from "@/app/(main)/calendar/utils/calendar-utils"
-import { useMemo } from "react"
 
 interface CalendarDayProps {
   day: number
@@ -23,8 +21,6 @@ export function CalendarDay({
   onDateClick,
   onBookingClick
 }: CalendarDayProps) {
-  const merged = useMemo(() => mergeAdjacentBookings(dayBookings), [dayBookings])
-
   return (
     <div
       className={`calendar-day h-24 border border-border p-0.5 sm:p-1 cursor-pointer relative ${
@@ -36,7 +32,7 @@ export function CalendarDay({
         {day}
       </div>
       <div className="space-y-1">
-        {merged.slice(0, 2).map((booking) => (
+        {dayBookings.slice(0, 2).map((booking) => (
           <div
             key={booking.id}
             className={`text-xs px-1 py-0.5 rounded truncate ${booking.color} cursor-pointer`}
@@ -48,9 +44,9 @@ export function CalendarDay({
             {booking.title}
           </div>
         ))}
-        {merged.length > 2 && (
+        {dayBookings.length > 2 && (
           <div className="text-xs text-muted-foreground px-1">
-            +{merged.length - 2} more
+            +{dayBookings.length - 2} more
           </div>
         )}
       </div>
