@@ -12,18 +12,22 @@ interface ProjectSelectorProps {
   selectedProject: Project | null
   onProjectSelect: (project: Project) => void
   disabled?: boolean
+  required?: boolean
 }
 
-export function ProjectSelector({ projects, selectedProject, onProjectSelect, disabled }: ProjectSelectorProps) {
+export function ProjectSelector({ projects, selectedProject, onProjectSelect, disabled, required }: ProjectSelectorProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-          <div className="space-y-6">
+          <div className="space-y-3">
         <div className="flex items-center gap-2 text-lg">
           <FolderOpen className="h-5 w-5 text-primary" />
-          Select Project
+          <span>
+            Select Project
+            {required && <span className="ml-1 text-destructive" aria-label="required">*</span>}
+          </span>
         </div>
-      
+
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <Button
@@ -83,6 +87,12 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, di
           </div>
         </DialogContent>
       </Dialog>
+      {required && (
+        <p className="text-xs text-muted-foreground">
+          <span className="text-destructive">*</span> Select a project{" "}
+          <span className="font-semibold">OR</span> fill in the description below to start the timer.
+        </p>
+      )}
     </div>
   )
 }

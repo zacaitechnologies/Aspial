@@ -333,7 +333,13 @@ export function AllTimeEntries({ users, projects }: AllTimeEntriesProps) {
                       <div className="flex items-center gap-3 text-xs text-gray-600 flex-wrap">
                         <div className="flex items-center gap-1">
                           <User className="w-3 h-3" />
-                          <span className="font-medium text-gray-900">{entry.project.name}</span>
+                          <span className="font-medium text-gray-900">
+                            {entry.isPlaceholderProject ? (
+                              <span className="text-gray-500 italic">— No project</span>
+                            ) : (
+                              entry.project.name
+                            )}
+                          </span>
                         </div>
 
                         {entry.task && (

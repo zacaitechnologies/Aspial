@@ -147,7 +147,13 @@ export function TimeEntries({ entries, projects }: TimeEntriesProps) {
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <div className="w-3 h-3 rounded-full flex-shrink-0 bg-primary" />
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{entry.project.name}</div>
+                      <div className="font-medium text-sm truncate">
+                        {entry.isPlaceholderProject ? (
+                          <span className="text-muted-foreground italic">— No project</span>
+                        ) : (
+                          entry.project.name
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {formatDate(entry.startTime)} - {entry.endTime ? formatDate(entry.endTime) : "Running"}
                       </div>

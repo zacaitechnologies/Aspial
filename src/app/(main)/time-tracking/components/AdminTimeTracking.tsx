@@ -7,6 +7,7 @@ import { ProjectAnalytics } from "./admin/project-analytics"
 import { RecentActivity } from "./admin/recent-activity"
 import { AllTimeEntries } from "./admin/all-time-entries"
 import { FloatingElements } from "./floating-elements"
+import UserTimeTracking from "./UserTimeTracking"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
@@ -16,7 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { User, Project } from "@prisma/client"
-import type { TimeEntryWithUserDTO } from "../action"
+import type { TimeEntryDTO, TimeEntryWithUserDTO } from "../action"
 import {
   monthOptions,
   yearOptions,
@@ -32,12 +33,18 @@ interface AdminTimeTrackingProps {
   initialTimeEntries: TimeEntryWithUserDTO[]
   initialProjects: Project[]
   initialUsers: UserWithProfilePicture[]
+  timerEntries: TimeEntryDTO[]
+  timerProjects: Project[]
+  userId: string
 }
 
 export default function AdminTimeTracking({
   initialTimeEntries,
   initialProjects,
   initialUsers,
+  timerEntries,
+  timerProjects,
+  userId,
 }: AdminTimeTrackingProps) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [timeEntries] = useState(initialTimeEntries)
@@ -58,7 +65,13 @@ export default function AdminTimeTracking({
       <div className="mx-auto max-w-7xl space-y-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <div className="relative">
-            <TabsList className="grid w-full grid-cols-2 bg-transparent border-primary border">
+            <TabsList className="grid w-full grid-cols-3 bg-transparent border-primary border">
+              <TabsTrigger
+                value="timer"
+                className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
+              >
+                Timer
+              </TabsTrigger>
               <TabsTrigger
                 value="dashboard"
                 className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
@@ -74,12 +87,22 @@ export default function AdminTimeTracking({
             </TabsList>
             <div
               className={`absolute top-1 h-[calc(100%-8px)] bg-secondary transition-all duration-300 ease-in-out rounded-md z-0 ${
-                activeTab === "dashboard"
-                  ? "left-1 w-[calc(50%-4px)]"
-                  : "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+                activeTab === "timer"
+                  ? "left-1 w-[calc(33.333%-4px)]"
+                  : activeTab === "dashboard"
+                    ? "left-[33.333%] w-[calc(33.333%-2px)]"
+                    : "left-[calc(66.666%+1px)] w-[calc(33.333%-4px)]"
               }`}
             />
           </div>
+
+          <TabsContent value="timer">
+            <UserTimeTracking
+              initialTimeEntries={timerEntries}
+              initialProjects={timerProjects}
+              userId={userId}
+            />
+          </TabsContent>
 
           <TabsContent value="dashboard" className="space-y-8">
             {/* Period controls */}

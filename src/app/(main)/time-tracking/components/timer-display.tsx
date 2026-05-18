@@ -25,6 +25,8 @@ interface TimerDisplayProps {
   isPausing?: boolean
   isResuming?: boolean
   isStopping?: boolean
+  mustHaveDescription?: boolean
+  descriptionInvalid?: boolean
 }
 
 const taskStatusLabel: Record<TaskStatus, string> = {
@@ -57,7 +59,12 @@ export function TimerDisplay({
   isPausing = false,
   isResuming = false,
   isStopping = false,
+  mustHaveDescription = false,
+  descriptionInvalid = false,
 }: TimerDisplayProps) {
+  const trimmedDescription = description.trim()
+  const cannotStart = !selectedProject && trimmedDescription === ""
+  const pauseStopBlocked = descriptionInvalid
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 flex-wrap">
@@ -102,7 +109,7 @@ export function TimerDisplay({
             {!isTracking ? (
               <Button
                 onClick={onStart}
-                disabled={!selectedProject || isStarting}
+                disabled={cannotStart || isStarting}
                 size="lg"
                 className="bg-primary hover:bg-primary/80 text-primary-foreground text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3"
               >
@@ -123,7 +130,7 @@ export function TimerDisplay({
                 {!isPaused ? (
                   <Button
                     onClick={onPause}
-                    disabled={isPausing}
+                    disabled={isPausing || pauseStopBlocked}
                     size="lg"
                     variant="outline"
                     className="border-primary text-primary hover:bg-primary/10 text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 [&_svg]:shrink-0"
@@ -163,7 +170,7 @@ export function TimerDisplay({
                 )}
                 <Button
                   onClick={onStop}
-                  disabled={isStopping}
+                  disabled={isStopping || pauseStopBlocked}
                   size="lg"
                   variant="destructive"
                   className="text-destructive-foreground text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 [&_svg]:shrink-0"
@@ -184,6 +191,17 @@ export function TimerDisplay({
             )}
           </div>
 
+          {!isTracking && cannotStart && (
+            <p className="text-xs text-destructive">
+              <span aria-hidden="true">*</span> Select a project or fill in a description to start the timer.
+            </p>
+          )}
+          {isTracking && pauseStopBlocked && (
+            <p className="text-xs text-destructive">
+              <span aria-hidden="true">*</span> Add a description before you pause or stop — this entry isn't tied to a project.
+            </p>
+          )}
+
           {/* Status Indicator */}
           <div className="flex items-center justify-center gap-2 text-sm">
             <div
@@ -202,8 +220,18 @@ export function TimerDisplay({
 
           {/* Description input — editable both before starting and during tracking */}
           <div className="text-left space-y-2">
-            <label className="text-sm font-medium text-muted-foreground">
-              Description
+            <label className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <span>
+                Description
+                {mustHaveDescription && (
+                  <span className="ml-1 text-destructive" aria-label="required">*</span>
+                )}
+              </span>
+              {mustHaveDescription && (
+                <span className="text-xs text-destructive font-normal">
+                  (required — no project selected)
+                </span>
+              )}
             </label>
             <Textarea
               value={description}
@@ -211,7 +239,9 @@ export function TimerDisplay({
               placeholder="What are you working on?"
               rows={3}
               maxLength={1000}
-              className="resize-none bg-background/60"
+              className={`resize-none bg-background/60 ${
+                descriptionInvalid ? "border-destructive focus-visible:ring-destructive" : ""
+              }`}
             />
             {isTracking && (
               <div className="flex justify-end">

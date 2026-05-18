@@ -121,7 +121,13 @@ export function RecentActivity({ timeEntries, users, projects }: RecentActivityP
                   <div
                     className="w-3 h-3 rounded-full flex-shrink-0 bg-accent"
                   />
-                  <span className="text-sm text-foreground font-medium truncate">{activity.project?.name}</span>
+                  <span className="text-sm text-foreground font-medium truncate">
+                    {activity.isPlaceholderProject ? (
+                      <span className="text-muted-foreground italic">— No project</span>
+                    ) : (
+                      activity.project?.name
+                    )}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
