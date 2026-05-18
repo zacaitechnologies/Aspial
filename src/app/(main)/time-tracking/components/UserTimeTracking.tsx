@@ -6,8 +6,9 @@ import { TaskSelector } from "./task-selector"
 import { TimerDisplay } from "./timer-display"
 import { TimeEntries } from "./time-entries"
 import { FloatingElements } from "./floating-elements"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/components/ui/use-toast"
 import { Project } from "@prisma/client"
 import {
   createTimeEntry,
@@ -33,6 +34,7 @@ export default function UserTimeTracking({
   initialProjects,
   userId
 }: UserTimeTrackingProps) {
+  const { toast } = useToast()
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [selectedTask, setSelectedTask] = useState<ProjectTaskOption | null>(null)
   const [tasks, setTasks] = useState<ProjectTaskOption[]>([])
@@ -48,6 +50,7 @@ export default function UserTimeTracking({
   const [startTime, setStartTime] = useState<Date | null>(null)
   const [pausedTime, setPausedTime] = useState(0)
   const [activeEntryId, setActiveEntryId] = useState<number | null>(null)
+  const [activeProjectIsPlaceholder, setActiveProjectIsPlaceholder] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isStarting, setIsStarting] = useState(false)
   const [isPausing, setIsPausing] = useState(false)
@@ -62,10 +65,13 @@ export default function UserTimeTracking({
         const activeEntry = await getActiveTimeEntry()
         if (activeEntry) {
           setActiveEntryId(activeEntry.id)
-          // Find the full project from initialProjects
-          const fullProject = initialProjects.find(p => p.id === activeEntry.project.id)
-          if (fullProject) {
-            setSelectedProject(fullProject)
+          setActiveProjectIsPlaceholder(activeEntry.isPlaceholderProject)
+          if (!activeEntry.isPlaceholderProject) {
+            // Find the full project from initialProjects
+            const fullProject = initialProjects.find(p => p.id === activeEntry.project.id)
+            if (fullProject) {
+              setSelectedProject(fullProject)
+            }
           }
           // Hydrate task + description from server
           setSelectedTask(activeEntry.task ?? null)
@@ -148,9 +154,24 @@ export default function UserTimeTracking({
   }, [isTracking, isPaused, startTime, pausedTime, activeEntryId])
 
   const hasUnsavedDescription = isTracking && description.trim() !== savedDescription.trim()
+  const mustHaveDescription = !selectedProject || activeProjectIsPlaceholder
+  const descriptionInvalid = mustHaveDescription && description.trim() === ""
+
+  const guardPauseStop = (action: "pause" | "stop") => {
+    if (mustHaveDescription && description.trim() === "") {
+      toast({
+        variant: "destructive",
+        title: "Description required",
+        description: `Add a description before you ${action} — this entry isn't tied to a project.`,
+      })
+      return false
+    }
+    return true
+  }
 
   const pauseTimer = async () => {
     if (!isTracking || !startTime || !activeEntryId) return
+    if (!guardPauseStop("pause")) return
 
     setIsPausing(true)
     const now = new Date()
@@ -170,6 +191,7 @@ export default function UserTimeTracking({
   }
 
   const handlePauseRequest = () => {
+    if (!guardPauseStop("pause")) return
     if (hasUnsavedDescription) {
       setPendingAction("pause")
       return
@@ -196,8 +218,6 @@ export default function UserTimeTracking({
   }
 
   const startTimer = async () => {
-    if (!selectedProject) return
-
     // Check if there's already an active entry
     if (activeEntryId) {
       if (isPaused) {
@@ -207,13 +227,22 @@ export default function UserTimeTracking({
       return
     }
 
+    const trimmedDescription = description.trim()
+    if (!selectedProject && trimmedDescription === "") {
+      toast({
+        variant: "destructive",
+        title: "Cannot start timer",
+        description: "Select a project or fill in the description to start the timer.",
+      })
+      return
+    }
+
     setIsStarting(true)
     // Start fresh timer
     const now = new Date()
-    const trimmedDescription = description.trim()
     try {
       const newEntry = await createTimeEntry({
-        projectId: selectedProject.id,
+        projectId: selectedProject?.id,
         taskId: selectedTask?.id,
         startTime: now,
         duration: 0,
@@ -221,6 +250,7 @@ export default function UserTimeTracking({
       })
 
       setActiveEntryId(newEntry.id)
+      setActiveProjectIsPlaceholder(newEntry.isPlaceholderProject)
       setStartTime(now)
       setIsTracking(true)
       setIsPaused(false)
@@ -235,10 +265,13 @@ export default function UserTimeTracking({
           const activeEntry = await getActiveTimeEntry()
           if (activeEntry) {
             setActiveEntryId(activeEntry.id)
-            // Find the full project from initialProjects
-            const fullProject = initialProjects.find(p => p.id === activeEntry.project.id)
-            if (fullProject) {
-              setSelectedProject(fullProject)
+            setActiveProjectIsPlaceholder(activeEntry.isPlaceholderProject)
+            if (!activeEntry.isPlaceholderProject) {
+              // Find the full project from initialProjects
+              const fullProject = initialProjects.find(p => p.id === activeEntry.project.id)
+              if (fullProject) {
+                setSelectedProject(fullProject)
+              }
             }
             setSelectedTask(activeEntry.task ?? null)
             setDescription(activeEntry.description ?? "")
@@ -260,28 +293,56 @@ export default function UserTimeTracking({
         } catch (loadErr) {
           // Silently handle reload error
         }
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Cannot start timer",
+          description:
+            err && typeof err === "object" && "message" in err && typeof err.message === "string"
+              ? err.message
+              : "Something went wrong while starting the timer.",
+        })
       }
     } finally {
       setIsStarting(false)
     }
   }
 
-  const saveDescription = async () => {
-    if (!activeEntryId) return
+  const saveDescription = async (): Promise<boolean> => {
+    if (!activeEntryId) return false
+    const trimmed = description.trim()
+    if (mustHaveDescription && trimmed === "") {
+      toast({
+        variant: "destructive",
+        title: "Description required",
+        description: "Add a description before saving — this entry isn't tied to a project.",
+      })
+      return false
+    }
     setIsSavingDescription(true)
     try {
-      const updated = await updateTimeEntryDescription(activeEntryId, description)
+      const updated = await updateTimeEntryDescription(activeEntryId, trimmed)
       setSavedDescription(updated.description ?? "")
       setDescription(updated.description ?? "")
+      return true
     } catch (err) {
-      // Silently handle save error
+      toast({
+        variant: "destructive",
+        title: "Could not save description",
+        description:
+          err && typeof err === "object" && "message" in err && typeof err.message === "string"
+            ? err.message
+            : "Something went wrong while saving.",
+      })
+      return false
     } finally {
       setIsSavingDescription(false)
     }
   }
 
   const stopTimer = async () => {
-    if (!selectedProject || !startTime || !activeEntryId) return
+    if (!startTime || !activeEntryId) return
+    if (!guardPauseStop("stop")) return
 
     setIsStopping(true)
     const endTime = new Date()
@@ -295,17 +356,18 @@ export default function UserTimeTracking({
 
     try {
       await stopTimeEntry(activeEntryId, totalDuration)
-      
+
       // Refetch all time entries to get the updated list with the newly stopped entry
       const refreshedEntries = await getAllUserTimeEntries()
       setTimeEntries(refreshedEntries)
-      
+
       setIsTracking(false)
       setIsPaused(false)
       setCurrentSession(0)
       setStartTime(null)
       setPausedTime(0)
       setActiveEntryId(null)
+      setActiveProjectIsPlaceholder(false)
       setSelectedProject(null)
       setSelectedTask(null)
       setTasks([])
@@ -319,6 +381,7 @@ export default function UserTimeTracking({
   }
 
   const handleStopRequest = () => {
+    if (!guardPauseStop("stop")) return
     if (hasUnsavedDescription) {
       setPendingAction("stop")
       return
@@ -339,7 +402,8 @@ export default function UserTimeTracking({
   }
 
   const handleSaveAndContinue = async () => {
-    await saveDescription()
+    const saved = await saveDescription()
+    if (!saved) return
     const action = pendingAction
     setPendingAction(null)
     if (action === "pause") {
@@ -376,6 +440,7 @@ export default function UserTimeTracking({
                   selectedProject={selectedProject}
                   onProjectSelect={setSelectedProject}
                   disabled={isTracking}
+                  required={!isTracking && description.trim() === ""}
                 />
                 <TaskSelector
                   tasks={tasks}
@@ -399,7 +464,8 @@ export default function UserTimeTracking({
                   description={description}
                   onDescriptionChange={setDescription}
                   onSaveDescription={saveDescription}
-                  isDescriptionDirty={description !== savedDescription}
+                  isDescriptionDirty={description.trim() !== savedDescription.trim()}
+                  canSaveDescription={!mustHaveDescription || description.trim().length > 0}
                   isSavingDescription={isSavingDescription}
                   onStart={startTimer}
                   onPause={handlePauseRequest}
@@ -408,6 +474,8 @@ export default function UserTimeTracking({
                   isPausing={isPausing}
                   isResuming={isResuming}
                   isStopping={isStopping}
+                  mustHaveDescription={mustHaveDescription}
+                  descriptionInvalid={descriptionInvalid}
                 />
               </div>
             </div>
@@ -425,17 +493,18 @@ export default function UserTimeTracking({
         </div>
       </div>
       <Dialog open={pendingAction !== null} onOpenChange={(open) => (!open ? setPendingAction(null) : undefined)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="min-w-0 overflow-x-hidden sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Save description first?</DialogTitle>
             <DialogDescription>
               You have unsaved description changes. Save them before you {pendingAction === "pause" ? "pause" : "stop"} the timer.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-end">
+          <div className="flex flex-col gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
+              className="h-auto min-h-9 w-full shrink whitespace-normal px-4 py-2.5"
               onClick={() => setPendingAction(null)}
               disabled={isSavingDescription || isPausing || isStopping}
             >
@@ -444,6 +513,7 @@ export default function UserTimeTracking({
             <Button
               type="button"
               variant="outline"
+              className="h-auto min-h-9 w-full shrink whitespace-normal px-4 py-2.5"
               onClick={handleConfirmWithoutSaving}
               disabled={isSavingDescription || isPausing || isStopping}
             >
@@ -451,12 +521,13 @@ export default function UserTimeTracking({
             </Button>
             <Button
               type="button"
+              className="h-auto min-h-9 w-full shrink whitespace-normal px-4 py-2.5"
               onClick={handleSaveAndContinue}
-              disabled={isSavingDescription || isPausing || isStopping}
+              disabled={isSavingDescription || isPausing || isStopping || descriptionInvalid}
             >
               Save and continue
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -175,16 +175,6 @@ export function AllTimeEntries({ users, projects }: AllTimeEntriesProps) {
 
   return (
     <div className="container mx-auto">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">All Time Entries</h1>
-          <p className="text-muted-foreground">
-            View and filter tracked time across all team members and projects.
-          </p>
-        </div>
-      </div>
-
       {/* Search + Filters */}
       <div className="mb-6 flex flex-col gap-3">
         {/* Search bar — identical pattern to receipts/quotations */}
@@ -333,7 +323,13 @@ export function AllTimeEntries({ users, projects }: AllTimeEntriesProps) {
                       <div className="flex items-center gap-3 text-xs text-gray-600 flex-wrap">
                         <div className="flex items-center gap-1">
                           <User className="w-3 h-3" />
-                          <span className="font-medium text-gray-900">{entry.project.name}</span>
+                          <span className="font-medium text-gray-900">
+                            {entry.isPlaceholderProject ? (
+                              <span className="text-gray-500 italic">— No project</span>
+                            ) : (
+                              entry.project.name
+                            )}
+                          </span>
                         </div>
 
                         {entry.task && (
@@ -377,7 +373,7 @@ export function AllTimeEntries({ users, projects }: AllTimeEntriesProps) {
                       <button
                         type="button"
                         onClick={() => toggleExpanded(entry.id)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-gray-100"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-accent"
                         aria-label={isExpanded ? "Hide details" : "Show details"}
                       >
                         <ChevronDown

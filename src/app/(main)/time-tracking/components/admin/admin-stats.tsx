@@ -5,6 +5,7 @@ import { useMemo } from "react"
 import { User, Project } from "@prisma/client"
 import type { TimeEntryWithUserDTO } from "../../action"
 import { periodRange, type PeriodSelection } from "./period-utils"
+import { dashboardSummaryCardStyles, type MetricStatTone } from "./metric-stat-box"
 
 interface AdminStatsProps {
   timeEntries: TimeEntryWithUserDTO[]
@@ -18,7 +19,7 @@ export function AdminStats({ timeEntries, period }: AdminStatsProps) {
     const { start, end } = periodRange(period)
 
     const periodEntries = timeEntries.filter(
-      (entry) => entry.startTime >= start && entry.startTime < end
+      (entry) => entry.startTime >= start && entry.startTime < end,
     )
 
     const totalHours = periodEntries.reduce((sum, entry) => sum + entry.duration, 0) / 3600
@@ -34,47 +35,65 @@ export function AdminStats({ timeEntries, period }: AdminStatsProps) {
     }
   }, [timeEntries, period])
 
-  const statCards = [
+  const statCards: Array<{
+    title: string
+    value: string
+    subtitle: string
+    icon: typeof Clock
+    tone: MetricStatTone
+  }> = [
     {
       title: "Total Hours",
       value: `${stats.totalHours}h`,
+      subtitle: "Tracked this period",
       icon: Clock,
+      tone: "blue",
     },
     {
       title: "Active Users",
       value: stats.activeUsers.toString(),
+      subtitle: "With time entries",
       icon: Users,
+      tone: "amber",
     },
     {
-      title: "Avg Hours/User",
+      title: "Avg Hours / User",
       value: `${stats.avgHoursPerUser}h`,
+      subtitle: "Per active member",
       icon: TrendingUp,
+      tone: "green",
     },
     {
       title: "Active Projects",
       value: stats.totalProjects.toString(),
+      subtitle: "Including no-project",
       icon: Calendar,
+      tone: "violet",
     },
   ]
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-      {statCards.map((stat, index) => (
-        <div
-          key={stat.title}
-          className="relative overflow-hidden rounded-2xl bg-card p-6 border border-border shadow-lg"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-1">{stat.title}</p>
-              <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-            </div>
-            <div className="p-3 rounded-xl bg-secondary">
-              <stat.icon className="w-6 h-6 text-secondary-foreground" />
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {statCards.map((stat) => {
+        const palette = dashboardSummaryCardStyles[stat.tone]
+        return (
+          <div
+            key={stat.title}
+            className={`rounded-2xl border-2 p-5 shadow-sm transition-shadow hover:shadow-md ${palette.card}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                <p className={`mt-1 text-3xl font-bold tabular-nums ${palette.value}`}>{stat.value}</p>
+                <p className="mt-1 text-xs text-gray-600">{stat.subtitle}</p>
+              </div>
+              <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${palette.icon}`}>
+                <stat.icon className="h-6 w-6" />
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

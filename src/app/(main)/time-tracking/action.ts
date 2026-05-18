@@ -18,6 +18,11 @@ import {
   type UpdateTimeEntryValues,
   type TimeEntriesFilterValues,
 } from "@/lib/validation"
+import {
+  NO_PROJECT_SENTINEL_NAME,
+  getOrCreateNoProjectId,
+  getNoProjectIdOrNull,
+} from "@/lib/no-project"
 import type { TimeEntry, TaskStatus } from "@prisma/client"
 
 // DTOs for time entries
@@ -44,6 +49,7 @@ export interface TimeEntryDTO {
     title: string
     status: TaskStatus
   } | null
+  isPlaceholderProject: boolean
 }
 
 export interface TimeEntryWithUserDTO extends TimeEntryDTO {
@@ -108,7 +114,7 @@ type RawTimeEntryWithUser = RawTimeEntry & {
   }
 }
 
-function toTimeEntryDTO(entry: RawTimeEntry): TimeEntryDTO {
+function toTimeEntryDTO(entry: RawTimeEntry, placeholderProjectId: number | null): TimeEntryDTO {
   return {
     id: entry.id,
     userId: entry.userId,
@@ -130,12 +136,17 @@ function toTimeEntryDTO(entry: RawTimeEntry): TimeEntryDTO {
     task: entry.task
       ? { id: entry.task.id, title: entry.task.title, status: entry.task.status }
       : null,
+    isPlaceholderProject:
+      placeholderProjectId !== null && entry.projectId === placeholderProjectId,
   }
 }
 
-function toTimeEntryWithUserDTO(entry: RawTimeEntryWithUser): TimeEntryWithUserDTO {
+function toTimeEntryWithUserDTO(
+  entry: RawTimeEntryWithUser,
+  placeholderProjectId: number | null
+): TimeEntryWithUserDTO {
   return {
-    ...toTimeEntryDTO(entry),
+    ...toTimeEntryDTO(entry, placeholderProjectId),
     user: {
       id: entry.user.id,
       firstName: entry.user.firstName,
@@ -208,14 +219,17 @@ export async function fetchAllUserTimeEntries(
   rangeStart.setDate(rangeStart.getDate() - rangeDays)
   rangeStart.setHours(0, 0, 0, 0)
 
-  const entries = await prisma.timeEntry.findMany({
-    where: { startTime: { gte: rangeStart } },
-    take: limit,
-    include: timeEntryWithUserInclude,
-    orderBy: { startTime: "desc" },
-  })
+  const [entries, placeholderProjectId] = await Promise.all([
+    prisma.timeEntry.findMany({
+      where: { startTime: { gte: rangeStart } },
+      take: limit,
+      include: timeEntryWithUserInclude,
+      orderBy: { startTime: "desc" },
+    }),
+    getNoProjectIdOrNull(),
+  ])
 
-  return entries.map(toTimeEntryWithUserDTO)
+  return entries.map((e) => toTimeEntryWithUserDTO(e, placeholderProjectId))
 }
 
 export async function fetchAllUsers() {
@@ -262,6 +276,7 @@ export async function fetchAllProjects() {
   }
   
   const projects = await prisma.project.findMany({
+    where: { NOT: { name: NO_PROJECT_SENTINEL_NAME } },
     select: {
       id: true,
       name: true,
@@ -279,7 +294,7 @@ export async function fetchAllProjects() {
       created_at: "desc"
     }
   })
-  
+
   return projects
 }
 
@@ -304,17 +319,20 @@ export async function fetchUserTimeEntries(
   rangeStart.setDate(rangeStart.getDate() - rangeDays)
   rangeStart.setHours(0, 0, 0, 0)
 
-  const entries = await prisma.timeEntry.findMany({
-    where: {
-      userId: dbUser.id,
-      startTime: { gte: rangeStart },
-    },
-    take: limit,
-    include: timeEntryInclude,
-    orderBy: { startTime: "desc" },
-  })
+  const [entries, placeholderProjectId] = await Promise.all([
+    prisma.timeEntry.findMany({
+      where: {
+        userId: dbUser.id,
+        startTime: { gte: rangeStart },
+      },
+      take: limit,
+      include: timeEntryInclude,
+      orderBy: { startTime: "desc" },
+    }),
+    getNoProjectIdOrNull(),
+  ])
 
-  return entries.map(toTimeEntryDTO)
+  return entries.map((e) => toTimeEntryDTO(e, placeholderProjectId))
 }
 
 export async function fetchUserProjects(supabaseId: string) {
@@ -340,6 +358,7 @@ export async function fetchUserProjects(supabaseId: string) {
   if (targetUserIsAdmin) {
     // Admins can see all projects
     const projects = await prisma.project.findMany({
+      where: { NOT: { name: NO_PROJECT_SENTINEL_NAME } },
       select: {
         id: true,
         name: true,
@@ -357,18 +376,19 @@ export async function fetchUserProjects(supabaseId: string) {
         created_at: "desc"
       }
     })
-    
+
     return projects
   }
-  
+
   // Non-admins: only show projects they have permissions for
   const userPermissions = await prisma.projectPermission.findMany({
-    where: { 
-      userId: supabaseId, 
+    where: {
+      userId: supabaseId,
       OR: [
         { isOwner: true },
         { canView: true }
-      ]
+      ],
+      project: { NOT: { name: NO_PROJECT_SENTINEL_NAME } },
     },
     include: {
       project: {
@@ -393,7 +413,7 @@ export async function fetchUserProjects(supabaseId: string) {
       }
     }
   })
-  
+
   return userPermissions.map(permission => permission.project)
 }
 
@@ -430,7 +450,8 @@ export async function getActiveTimeEntry(): Promise<TimeEntryDTO | null> {
       return null
     }
 
-    return toTimeEntryDTO(activeEntry)
+    const placeholderProjectId = await getNoProjectIdOrNull()
+    return toTimeEntryDTO(activeEntry, placeholderProjectId)
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
@@ -473,13 +494,18 @@ export async function createTimeEntry(data: CreateTimeEntryValues): Promise<Time
       throw new Error("User already has an active time entry")
     }
 
-    // Verify project exists
-    const project = await prisma.project.findUnique({
-      where: { id: validatedData.projectId },
-    })
-
-    if (!project) {
-      throw new Error("Project not found")
+    // Resolve project: if none provided, fall back to the "No project" placeholder.
+    let resolvedProjectId: number
+    if (validatedData.projectId === undefined) {
+      resolvedProjectId = await getOrCreateNoProjectId()
+    } else {
+      const project = await prisma.project.findUnique({
+        where: { id: validatedData.projectId },
+      })
+      if (!project) {
+        throw new Error("Project not found")
+      }
+      resolvedProjectId = validatedData.projectId
     }
 
     // If a task is provided, ensure it belongs to the same project
@@ -491,7 +517,7 @@ export async function createTimeEntry(data: CreateTimeEntryValues): Promise<Time
       if (!task) {
         throw new Error("Task not found")
       }
-      if (task.projectId !== validatedData.projectId) {
+      if (task.projectId !== resolvedProjectId) {
         throw new Error("Task does not belong to the selected project")
       }
     }
@@ -499,7 +525,7 @@ export async function createTimeEntry(data: CreateTimeEntryValues): Promise<Time
     const timeEntry = await prisma.timeEntry.create({
       data: {
         userId: dbUser.id,
-        projectId: validatedData.projectId,
+        projectId: resolvedProjectId,
         taskId: validatedData.taskId,
         startTime: validatedData.startTime,
         endTime: validatedData.endTime,
@@ -513,7 +539,8 @@ export async function createTimeEntry(data: CreateTimeEntryValues): Promise<Time
 
     revalidatePath("/time-tracking")
 
-    return toTimeEntryDTO(timeEntry)
+    const placeholderProjectId = await getNoProjectIdOrNull()
+    return toTimeEntryDTO(timeEntry, placeholderProjectId)
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
@@ -564,7 +591,8 @@ export async function updateTimeEntry(id: number, data: UpdateTimeEntryValues): 
 
     revalidatePath("/time-tracking")
 
-    return toTimeEntryDTO(timeEntry)
+    const placeholderProjectId = await getNoProjectIdOrNull()
+    return toTimeEntryDTO(timeEntry, placeholderProjectId)
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
@@ -602,15 +630,24 @@ export async function updateTimeEntryDescription(
       throw new Error("Active time entry not found")
     }
 
+    const placeholderProjectId = await getNoProjectIdOrNull()
+    if (
+      placeholderProjectId !== null &&
+      existingEntry.projectId === placeholderProjectId &&
+      validated.description.length === 0
+    ) {
+      throw new Error("Description is required when no project is selected")
+    }
+
     const timeEntry = await prisma.timeEntry.update({
       where: { id: validated.id },
-      data: { description: validated.description },
+      data: { description: validated.description || null },
       include: timeEntryInclude,
     })
 
     revalidatePath("/time-tracking")
 
-    return toTimeEntryDTO(timeEntry)
+    return toTimeEntryDTO(timeEntry, placeholderProjectId)
   } catch (error: unknown) {
     if (error && typeof error === "object" && "digest" in error && typeof error.digest === "string" && error.digest.startsWith("NEXT_REDIRECT")) {
       throw error
@@ -649,6 +686,15 @@ export async function pauseTimeEntry(id: number, duration: number): Promise<Time
       throw new Error("Active time entry not found")
     }
 
+    const placeholderProjectId = await getNoProjectIdOrNull()
+    if (
+      placeholderProjectId !== null &&
+      existingEntry.projectId === placeholderProjectId &&
+      !existingEntry.description?.trim()
+    ) {
+      throw new Error("Description is required to pause a timer started without a project")
+    }
+
     const timeEntry = await prisma.timeEntry.update({
       where: { id: validatedData.id },
       data: {
@@ -660,7 +706,7 @@ export async function pauseTimeEntry(id: number, duration: number): Promise<Time
 
     revalidatePath("/time-tracking")
 
-    return toTimeEntryDTO(timeEntry)
+    return toTimeEntryDTO(timeEntry, placeholderProjectId)
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
@@ -711,7 +757,8 @@ export async function resumeTimeEntry(id: number): Promise<TimeEntryDTO> {
 
     revalidatePath("/time-tracking")
 
-    return toTimeEntryDTO(timeEntry)
+    const placeholderProjectId = await getNoProjectIdOrNull()
+    return toTimeEntryDTO(timeEntry, placeholderProjectId)
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
@@ -750,6 +797,15 @@ export async function stopTimeEntry(id: number, duration: number): Promise<TimeE
       throw new Error("Active time entry not found")
     }
 
+    const placeholderProjectId = await getNoProjectIdOrNull()
+    if (
+      placeholderProjectId !== null &&
+      existingEntry.projectId === placeholderProjectId &&
+      !existingEntry.description?.trim()
+    ) {
+      throw new Error("Description is required to stop a timer started without a project")
+    }
+
     const endTime = new Date()
 
     const timeEntry = await prisma.timeEntry.update({
@@ -765,7 +821,7 @@ export async function stopTimeEntry(id: number, duration: number): Promise<TimeE
 
     revalidatePath("/time-tracking")
 
-    return toTimeEntryDTO(timeEntry)
+    return toTimeEntryDTO(timeEntry, placeholderProjectId)
   } catch (error: unknown) {
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
       throw error
@@ -794,18 +850,21 @@ export async function getTimeEntries(): Promise<TimeEntryDTO[]> {
       throw new Error("User not found")
     }
 
-    const timeEntries = await prisma.timeEntry.findMany({
-      where: {
-        userId: dbUser.id,
-        isActive: true,
-      },
-      include: timeEntryInclude,
-      orderBy: {
-        createdAt: "desc",
-      },
-    })
+    const [timeEntries, placeholderProjectId] = await Promise.all([
+      prisma.timeEntry.findMany({
+        where: {
+          userId: dbUser.id,
+          isActive: true,
+        },
+        include: timeEntryInclude,
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+      getNoProjectIdOrNull(),
+    ])
 
-    return timeEntries.map(toTimeEntryDTO)
+    return timeEntries.map((e) => toTimeEntryDTO(e, placeholderProjectId))
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
@@ -833,17 +892,20 @@ export async function getAllUserTimeEntries(): Promise<TimeEntryDTO[]> {
       throw new Error("User not found")
     }
 
-    const timeEntries = await prisma.timeEntry.findMany({
-      where: {
-        userId: dbUser.id,
-      },
-      include: timeEntryInclude,
-      orderBy: {
-        startTime: "desc",
-      },
-    })
+    const [timeEntries, placeholderProjectId] = await Promise.all([
+      prisma.timeEntry.findMany({
+        where: {
+          userId: dbUser.id,
+        },
+        include: timeEntryInclude,
+        orderBy: {
+          startTime: "desc",
+        },
+      }),
+      getNoProjectIdOrNull(),
+    ])
 
-    return timeEntries.map(toTimeEntryDTO)
+    return timeEntries.map((e) => toTimeEntryDTO(e, placeholderProjectId))
   } catch (error: unknown) {
     // Handle redirect errors
     if (error && typeof error === 'object' && 'digest' in error && typeof error.digest === 'string' && error.digest.startsWith('NEXT_REDIRECT')) {
@@ -922,7 +984,7 @@ export async function fetchAllTimeEntriesFiltered(
   if (validated.userId) where.userId = validated.userId
   if (validated.projectId) where.projectId = validated.projectId
 
-  const [total, entries] = await Promise.all([
+  const [total, entries, placeholderProjectId] = await Promise.all([
     prisma.timeEntry.count({ where }),
     prisma.timeEntry.findMany({
       where,
@@ -931,12 +993,13 @@ export async function fetchAllTimeEntriesFiltered(
       take: pageSize,
       skip: (page - 1) * pageSize,
     }),
+    getNoProjectIdOrNull(),
   ])
 
   return {
-    entries: entries.map(toTimeEntryWithUserDTO),
+    entries: entries.map((e) => toTimeEntryWithUserDTO(e, placeholderProjectId)),
     total,
     page,
     pageSize,
   }
-} 
+}

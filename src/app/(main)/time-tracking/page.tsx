@@ -11,20 +11,25 @@ import { isRedirectError } from "next/dist/client/components/redirect-error"
 export default async function TimeTrackingPage() {
   try {
     const { user, isAdmin } = await getUserWithRole()
-    
+
     if (isAdmin) {
-      // Load admin data
-      const [timeEntries, projects, users] = await Promise.all([
+      // Load admin data + admin's own timer data
+      const [timeEntries, projects, users, timerEntries, timerProjects] = await Promise.all([
         fetchAllUserTimeEntries(),
         fetchAllProjects(),
         fetchAllUsers(),
+        fetchUserTimeEntries(user.supabase_id),
+        fetchUserProjects(user.supabase_id),
       ])
-      
+
       return (
         <AdminTimeTracking
           initialTimeEntries={timeEntries}
           initialProjects={projects}
           initialUsers={users}
+          timerEntries={timerEntries}
+          timerProjects={timerProjects}
+          userId={user.supabase_id}
         />
       )
     } else {
