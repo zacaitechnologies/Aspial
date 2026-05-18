@@ -2269,6 +2269,7 @@ export async function rejectCustomService(
 // Admin: hard-delete a custom service from a quotation. If it was APPROVED, mirror the
 // totalPrice decrement that `updateCustomServiceStatus` would have incremented. The
 // linked QuotationService row (if any) cascade-deletes via schema.prisma:312.
+// Refuses to delete if it would leave the quotation with zero services + custom services.
 export async function deleteCustomServiceAdmin(customServiceId: string) {
   unstable_noStore()
   const user = await getCachedUser()
@@ -2290,6 +2291,18 @@ export async function deleteCustomServiceAdmin(customServiceId: string) {
       throw new Error("Custom service not found")
     }
 
+    const [standardCount, otherCustomCount] = await Promise.all([
+      tx.quotationService.count({
+        where: { quotationId: cs.quotationId, serviceId: { not: null } },
+      }),
+      tx.customService.count({
+        where: { quotationId: cs.quotationId, id: { not: customServiceId } },
+      }),
+    ])
+    if (standardCount + otherCustomCount === 0) {
+      throw new Error("A quotation must have at least one service")
+    }
+
     await tx.customService.delete({ where: { id: customServiceId } })
 
     if (cs.status === "APPROVED") {
@@ -2304,6 +2317,91 @@ export async function deleteCustomServiceAdmin(customServiceId: string) {
 
   await invalidateQuotationsCache(result.quotationId)
   return result
+}
+
+// Admin: remove a single standard-service line from a quotation. Recomputes
+// `totalPrice` from the surviving lines (discounted) + APPROVED custom services.
+// Refuses to delete if it would leave the quotation with zero services + custom services.
+export async function deleteQuotationServiceAdmin(quotationServiceId: number) {
+  unstable_noStore()
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to remove a service")
+  }
+
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) {
+    throw new Error("Only admins can remove services")
+  }
+
+  const quotationId = await prisma.$transaction(async (tx) => {
+    const row = await tx.quotationService.findUnique({
+      where: { id: quotationServiceId },
+      select: { quotationId: true, serviceId: true, customServiceId: true },
+    })
+    if (!row) {
+      throw new Error("Service line not found")
+    }
+    if (row.customServiceId) {
+      throw new Error("Use deleteCustomServiceAdmin to remove a custom service")
+    }
+
+    const [otherStandardCount, customCount] = await Promise.all([
+      tx.quotationService.count({
+        where: {
+          quotationId: row.quotationId,
+          id: { not: quotationServiceId },
+          serviceId: { not: null },
+        },
+      }),
+      tx.customService.count({ where: { quotationId: row.quotationId } }),
+    ])
+    if (otherStandardCount + customCount === 0) {
+      throw new Error("A quotation must have at least one service")
+    }
+
+    await tx.quotationService.delete({ where: { id: quotationServiceId } })
+
+    const quotation = await tx.quotation.findUnique({
+      where: { id: row.quotationId },
+      select: { discountValue: true, discountType: true },
+    })
+
+    const remainingStandard = await tx.quotationService.findMany({
+      where: { quotationId: row.quotationId, serviceId: { not: null } },
+      select: { price: true, quantity: true },
+    })
+    const standardTotal = remainingStandard.reduce(
+      (sum, r) => sum + r.price * r.quantity,
+      0,
+    )
+
+    let discountedStandard = standardTotal
+    if (quotation?.discountValue && quotation.discountValue > 0) {
+      if (quotation.discountType === "percentage") {
+        const pct = Math.min(quotation.discountValue, 100)
+        discountedStandard = standardTotal * (1 - pct / 100)
+      } else {
+        discountedStandard = Math.max(0, standardTotal - quotation.discountValue)
+      }
+    }
+
+    const approved = await tx.customService.findMany({
+      where: { quotationId: row.quotationId, status: "APPROVED" },
+      select: { price: true },
+    })
+    const approvedTotal = approved.reduce((sum, c) => sum + c.price, 0)
+
+    await tx.quotation.update({
+      where: { id: row.quotationId },
+      data: { totalPrice: discountedStandard + approvedTotal },
+    })
+
+    return row.quotationId
+  })
+
+  await invalidateQuotationsCache(quotationId)
+  return { quotationId }
 }
 
 /**

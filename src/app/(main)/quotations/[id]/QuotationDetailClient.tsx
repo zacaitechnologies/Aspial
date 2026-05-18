@@ -37,7 +37,12 @@ import SendQuotationDialog from "../components/SendQuotationDialog"
 import EmailHistoryDialog from "../components/EmailHistoryDialog"
 import CreateInvoiceForm from "../../invoices/components/CreateInvoiceForm"
 import { updateInvoiceAdmin, invalidateInvoicesCache } from "../../invoices/action"
-import { invalidateQuotationsCache, reactivateQuotationCascade } from "../action"
+import {
+	invalidateQuotationsCache,
+	reactivateQuotationCascade,
+	deleteCustomServiceAdmin,
+	deleteQuotationServiceAdmin,
+} from "../action"
 import { formatNumber } from "@/lib/format-number"
 import { FormattedDescription } from "@/components/FormattedDescription"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
@@ -72,7 +77,16 @@ export default function QuotationDetailClient({
 	const [reactivateInvoices, setReactivateInvoices] = useState(false)
 	const [reactivateReceipts, setReactivateReceipts] = useState(false)
 	const [isReactivating, setIsReactivating] = useState(false)
+	type PendingRemove =
+		| { kind: "service"; quotationServiceId: number; name: string }
+		| { kind: "customService"; id: string; name: string }
+	const [pendingRemove, setPendingRemove] = useState<PendingRemove | null>(null)
+	const [isRemoving, setIsRemoving] = useState(false)
 	const isCancelled = quotation.workflowStatus === "cancelled"
+	const hasLinkedInvoices = initialInvoices.some((inv) => inv.status === "active")
+	const standardServices = (quotation.services ?? []).filter((qs) => !qs.customServiceId)
+	const customServices = quotation.customServices ?? []
+	const itemCount = standardServices.length + customServices.length
 
 	// Memoize badge functions
 	const getWorkflowStatusBadge = useCallback((status: string) => {
@@ -313,56 +327,102 @@ export default function QuotationDetailClient({
 									<Package className="w-5 h-5" />
 									Services
 								</CardTitle>
+								{isAdmin && hasLinkedInvoices && (
+									<CardDescription className="text-amber-700 bg-amber-50 p-2 rounded mt-2">
+										⚠️ This quotation has linked invoices/receipts. Removing services will <strong>not</strong> update existing invoice/receipt amounts — update them manually if needed.
+									</CardDescription>
+								)}
 							</CardHeader>
 							<CardContent>
 								<div className="space-y-3">
-									{quotation.services
-										.filter((qs) => !qs.customServiceId)
-										.map((qs) => (
-											<div
-												key={qs.id}
-												className="flex justify-between items-start p-3 border rounded-lg"
-											>
-												<div className="flex-1">
-													<p className="font-medium">{qs.service?.name ?? ""}</p>
-													<FormattedDescription
-														text={qs.descriptionOverride ?? qs.service?.description ?? ""}
-														className="text-sm text-muted-foreground"
-													/>
-												</div>
-												<div className="ml-4 text-right">
-										<div className="text-xs text-muted-foreground">RM{formatNumber(qs.price)} × {qs.quantity}</div>
-										<Badge variant="outline">RM{formatNumber(qs.price * qs.quantity)}</Badge>
-									</div>
+									{standardServices.map((qs) => (
+										<div
+											key={qs.id}
+											className="flex justify-between items-start p-3 border rounded-lg"
+										>
+											<div className="flex-1">
+												<p className="font-medium">{qs.service?.name ?? ""}</p>
+												<FormattedDescription
+													text={qs.descriptionOverride ?? qs.service?.description ?? ""}
+													className="text-sm text-muted-foreground"
+												/>
 											</div>
-										))}
-									{quotation.customServices && quotation.customServices
-										.map((cs) => (
-											<div
-												key={cs.id}
-												className={`flex justify-between items-start p-3 border rounded-lg ${
-													cs.status === "APPROVED"
-														? "bg-primary/10"
-														: cs.status === "REJECTED"
-															? "bg-muted/50"
-															: "bg-muted/30"
-												}`}
-											>
-												<div className="flex-1">
-													<p className="font-medium">{cs.name}</p>
-													<FormattedDescription
-														text={cs.description}
-														className="text-sm text-muted-foreground"
-													/>
-													<div className="mt-1">
-														{getCustomServiceStatusBadge(cs.status)}
-													</div>
-												</div>
-												<Badge variant="outline" className="ml-4">
-													RM{formatNumber(cs.price)}
-												</Badge>
+											<div className="ml-4 text-right">
+												<div className="text-xs text-muted-foreground">RM{formatNumber(qs.price)} × {qs.quantity}</div>
+												<Badge variant="outline">RM{formatNumber(qs.price * qs.quantity)}</Badge>
 											</div>
-										))}
+											{isAdmin && (
+												<Button
+													variant="ghost"
+													size="sm"
+													className="ml-2 h-8 w-8 p-0 text-destructive"
+													aria-label="Remove service"
+													disabled={isRemoving}
+													onClick={() => {
+														if (itemCount <= 1) {
+															toast({
+																title: "Cannot remove",
+																description: "A quotation must have at least one service.",
+																variant: "destructive",
+															})
+															return
+														}
+														setPendingRemove({
+															kind: "service",
+															quotationServiceId: qs.id,
+															name: qs.service?.name ?? "this service",
+														})
+													}}
+												>×</Button>
+											)}
+										</div>
+									))}
+									{customServices.map((cs) => (
+										<div
+											key={cs.id}
+											className={`flex justify-between items-start p-3 border rounded-lg ${
+												cs.status === "APPROVED"
+													? "bg-primary/10"
+													: cs.status === "REJECTED"
+														? "bg-muted/50"
+														: "bg-muted/30"
+											}`}
+										>
+											<div className="flex-1">
+												<p className="font-medium">{cs.name}</p>
+												<FormattedDescription
+													text={cs.description}
+													className="text-sm text-muted-foreground"
+												/>
+												<div className="mt-1">
+													{getCustomServiceStatusBadge(cs.status)}
+												</div>
+											</div>
+											<Badge variant="outline" className="ml-4">
+												RM{formatNumber(cs.price)}
+											</Badge>
+											{isAdmin && (
+												<Button
+													variant="ghost"
+													size="sm"
+													className="ml-2 h-8 w-8 p-0 text-destructive"
+													aria-label="Remove custom service"
+													disabled={isRemoving}
+													onClick={() => {
+														if (itemCount <= 1) {
+															toast({
+																title: "Cannot remove",
+																description: "A quotation must have at least one service.",
+																variant: "destructive",
+															})
+															return
+														}
+														setPendingRemove({ kind: "customService", id: cs.id, name: cs.name })
+													}}
+												>×</Button>
+											)}
+										</div>
+									))}
 								</div>
 							</CardContent>
 						</Card>
@@ -655,6 +715,53 @@ export default function QuotationDetailClient({
 				cancelText="Cancel"
 				variant="default"
 				isLoading={isReactivating}
+			/>
+
+			{/* Remove Service / Custom Service Confirmation */}
+			<ConfirmationDialog
+				isOpen={pendingRemove !== null}
+				onClose={() => {
+					if (!isRemoving) setPendingRemove(null)
+				}}
+				onConfirm={async () => {
+					if (!pendingRemove) return
+					setIsRemoving(true)
+					try {
+						if (pendingRemove.kind === "service") {
+							await deleteQuotationServiceAdmin(pendingRemove.quotationServiceId)
+						} else {
+							await deleteCustomServiceAdmin(pendingRemove.id)
+						}
+						toast({ title: "Removed", description: "Service removed from quotation." })
+						setPendingRemove(null)
+						await handleRefresh()
+					} catch (error: unknown) {
+						if (process.env.NODE_ENV === "development") {
+							console.error("Error removing service:", error)
+						}
+						toast({
+							title: "Error",
+							description: error instanceof Error ? error.message : "Failed to remove service.",
+							variant: "destructive",
+						})
+					} finally {
+						setIsRemoving(false)
+					}
+				}}
+				title={pendingRemove?.kind === "customService" ? "Remove Custom Service" : "Remove Service"}
+				description={
+					<>
+						Remove <strong>{pendingRemove?.name}</strong> from this quotation?
+						<br />
+						<span className="text-amber-700">
+							Existing invoice/receipt amounts will <strong>not</strong> be updated automatically.
+						</span>
+					</>
+				}
+				confirmText="Remove"
+				cancelText="Cancel"
+				variant="warning"
+				isLoading={isRemoving}
 			/>
 
 			{/* Email History Dialog */}

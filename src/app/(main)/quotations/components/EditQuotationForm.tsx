@@ -1289,6 +1289,14 @@ export default function EditQuotationForm({
                             size="sm"
                             variant="ghost"
                             onClick={() => {
+                              if (editSelectedServices.length + customServices.length <= 1) {
+                                toast({
+                                  title: "Cannot remove",
+                                  description: "A quotation must have at least one service.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
                               if (hasLinkedInvoices) {
                                 setPendingRemove({ kind: "service", serviceId: s.serviceId, name: s.name });
                               } else {
@@ -1418,7 +1426,17 @@ export default function EditQuotationForm({
                         size="sm"
                         variant="ghost"
                         className="h-8 w-8 p-0 text-destructive"
-                        onClick={() => setPendingRemove({ kind: "customService", id: cs.id, name: cs.name })}
+                        onClick={() => {
+                          if (editSelectedServices.length + customServices.length <= 1) {
+                            toast({
+                              title: "Cannot remove",
+                              description: "A quotation must have at least one service.",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          setPendingRemove({ kind: "customService", id: cs.id, name: cs.name });
+                        }}
                         aria-label="Remove custom service"
                       >×</Button>
                     )}
