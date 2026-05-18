@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 import { revalidateTag } from "next/cache"
 
 export async function isUserAdmin(userSupabaseId: string) {
@@ -85,6 +86,7 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
 
   if (isAdmin) {
     const projects = await prisma.project.findMany({
+      where: excludeNoProjectSentinelWhere,
       include: {
         quotations: {
           include: {
@@ -111,12 +113,10 @@ export async function getVisibleProjectsForUser(userSupabaseId: string) {
   }
 
   const userPermissions = await prisma.projectPermission.findMany({
-    where: { 
-      userId: userSupabaseId, 
-      OR: [
-        { isOwner: true },
-        { canView: true }
-      ]
+    where: {
+      userId: userSupabaseId,
+      OR: [{ isOwner: true }, { canView: true }],
+      project: excludeNoProjectSentinelWhere,
     },
     include: {
       project: {

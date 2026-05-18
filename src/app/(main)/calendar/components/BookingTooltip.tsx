@@ -28,8 +28,20 @@ export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
       className="fixed !z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg p-4 !w-60"
       style={{ top: 'var(--tooltip-top)', left: 'var(--tooltip-left)' }}
     >
-      <div className="text-sm font-medium text-gray-900 mb-2">{booking.title}</div>
-      <div className="space-y-1 text-xs text-gray-600">
+      <div className="mb-2 text-sm font-medium text-foreground">
+        {booking.type === "appointment" && booking.creatorName ? (
+          <>
+            <p className="text-foreground">
+              <span className="text-muted-foreground">Booked by: </span>
+              <span className="font-bold">{booking.creatorName}</span>
+            </p>
+            <div className="text-muted-foreground">{booking.bookingName ?? booking.title}</div>
+          </>
+        ) : (
+          booking.title
+        )}
+      </div>
+      <div className="space-y-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
           <Calendar className="w-3 h-3" />
           {formatDateStringDirect(booking.date)}
@@ -47,9 +59,11 @@ export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
           {booking.attendees} attendees
         </div>
       </div>
-      <div className="mt-2 pt-2 border-t border-gray-100">
-        <div className="text-xs text-gray-500">{booking.description}</div>
-      </div>
+      {booking.description ? (
+        <div className="mt-2 border-t border-border pt-2">
+          <div className="text-xs text-muted-foreground">{booking.description}</div>
+        </div>
+      ) : null}
     </div>
   )
 

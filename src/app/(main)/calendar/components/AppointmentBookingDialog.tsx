@@ -348,7 +348,7 @@ export function AppointmentBookingDialog({
 		}
 		const validEmails = clientEmails.filter((e) => e.trim())
 		if (validEmails.length === 0) {
-			setError("At least one email address is required")
+			setError("At least one client email address is required")
 			return
 		}
 		if (reminders.length === 0) {
@@ -757,11 +757,12 @@ export function AppointmentBookingDialog({
 								/>
 							</div>
 
-							{/* Emails */}
+							{/* Client emails */}
 							<EmailListInput
 								emails={clientEmails}
 								onChange={setClientEmails}
 								required
+								label="Client Email Address"
 							/>
 
 							{/* Reminders */}

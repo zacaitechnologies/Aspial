@@ -37,6 +37,8 @@ export interface CalendarBooking {
 	projectName?: string | null
 	clientName?: string | null
 	creatorName?: string | null
+	/** For appointments: booker's email (stored in bookedBy); shown once in details UI. */
+	creatorEmail?: string | null
 	assigneeName?: string | null
 	taskStartDate?: string | null
 	taskDueDate?: string | null
@@ -300,11 +302,9 @@ async function _fetchLeaveBookings(
 	return results
 }
 
-/** Fetch appointment bookings, filtered by range and user permissions. */
+/** Fetch all active appointment bookings in range (visible to every user on the calendar). */
 async function _fetchAppointmentBookings(
-	userId: string,
 	userName: string,
-	isAdmin: boolean,
 	userProjectIds: number[],
 	safeRange?: { start: Date; end: Date }
 ): Promise<CalendarBooking[]> {
@@ -338,14 +338,20 @@ async function _fetchAppointmentBookings(
 
 	const results: CalendarBooking[] = []
 
+	const bookerEmails = [...new Set(appointmentBookings.map((b) => b.bookedBy))]
+	const bookerUsers =
+		bookerEmails.length > 0
+			? await prisma.user.findMany({
+					where: { email: { in: bookerEmails } },
+					select: { email: true, firstName: true, lastName: true },
+				})
+			: []
+	const displayNameByEmail = new Map(
+		bookerUsers.map((u) => [u.email, formatLeaveApplicantName(u)]),
+	)
+
 	appointmentBookings.forEach((booking) => {
 		const bookingWithProject = booking as Record<string, unknown> & typeof booking
-		if (!isAdmin) {
-			const isUserBooking = booking.bookedBy === userName
-			const isProjectBooking = bookingWithProject.project &&
-				userProjectIds.includes((bookingWithProject.project as { id: number }).id)
-			if (!isUserBooking && !isProjectBooking) return
-		}
 
 		const startDate = new Date(booking.startDate)
 		const endDate = new Date(booking.endDate)
@@ -356,12 +362,14 @@ async function _fetchAppointmentBookings(
 		const appointmentType = (booking.appointmentType as AppointmentType) || "OTHERS"
 		const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS
 
-		let title = `Appointment - ${booking.bookedBy}`
-		let location = "Unspecified"
-		if (booking.appointment) {
-			title = `${booking.appointment.name} - ${booking.bookedBy}`
-			location = booking.appointment.location || booking.appointment.brand || "Appointment"
-		}
+		const resolvedName = displayNameByEmail.get(booking.bookedBy)
+		const bookerIsEmail = booking.bookedBy.includes("@")
+		const creatorName = resolvedName ?? booking.bookedBy
+		const creatorEmail = resolvedName && bookerIsEmail ? booking.bookedBy : null
+		const title = booking.appointment?.name ?? "Appointment"
+		const location = booking.appointment
+			? booking.appointment.location || booking.appointment.brand || "Appointment"
+			: "Unspecified"
 
 		const startParts = toBusinessTZParts(startDate)
 		const endParts = toBusinessTZParts(endDate)
@@ -370,7 +378,7 @@ async function _fetchAppointmentBookings(
 			id: `appointment-${booking.id}`,
 			title,
 			bookingName: booking.appointment?.name ?? null,
-			description: booking.purpose || `Appointment by ${booking.bookedBy}`,
+			description: booking.purpose?.trim() ?? "",
 			date: startParts.dateStr,
 			startTime: startParts.timeStr,
 			endTime: endParts.timeStr,
@@ -382,7 +390,8 @@ async function _fetchAppointmentBookings(
 			projectId: projId ?? null,
 			projectName: (bookingWithProject.project as { name?: string } | null)?.name || null,
 			clientName: (bookingWithProject.project as { clientName?: string | null } | null)?.clientName || null,
-			creatorName: booking.bookedBy || null,
+			creatorName,
+			creatorEmail,
 			assigneeName: null,
 			taskStartDate: null,
 			taskDueDate: null,
@@ -760,7 +769,7 @@ export async function updateAppointmentBooking(
 	}
 }
 
-// Fetch all bookings with permission filtering. Runs appointments, tasks, and leave in parallel.
+// Fetch all calendar bookings. Appointments are org-wide; leave/tasks use their own rules. Runs in parallel.
 export async function fetchAllBookings(
 	userId: string,
 	userName: string,
@@ -773,13 +782,10 @@ export async function fetchAllBookings(
 		: undefined
 
 	try {
-		const [isAdmin, userProjectIds] = await Promise.all([
-			checkIsAdmin(userId),
-			getUserProjectIds(userId),
-		])
+		const userProjectIds = await getUserProjectIds(userId)
 
 		const [appointments, tasks, leave, blockers] = await Promise.allSettled([
-			_fetchAppointmentBookings(userId, userName, isAdmin, userProjectIds, safeRange),
+			_fetchAppointmentBookings(userName, userProjectIds, safeRange),
 			_fetchTaskBookings(userId, safeRange),
 			_fetchLeaveBookings(userId, safeRange),
 			_fetchCalendarBlockers(safeRange),

@@ -6,7 +6,7 @@ import { CALENDAR_EVENT_TYPES } from "@/app/(main)/calendar/constants"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, MapPin, User, UserCircle, Users, Pencil, Trash2, ShieldAlert, Loader2 } from "lucide-react"
+import { Calendar, Clock, MapPin, User, UserCircle, Users, Pencil, Trash2, ShieldAlert, Loader2, Mail } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 interface BookingDetailsDialogProps {
@@ -135,21 +135,39 @@ export function BookingDetailsDialog({
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium text-foreground">Booking name:</span>
-              <span className="text-muted-foreground">{booking.bookingName ?? booking.title}</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg">{booking.title}</h3>
-              <p className="text-sm text-muted-foreground mt-1">{booking.description}</p>
-            </div>
+            {isAppointment ? (
+              <>
+                {booking.bookingName && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium text-foreground">Booking name:</span>
+                    <span className="text-muted-foreground">{booking.bookingName}</span>
+                  </div>
+                )}
+                {booking.creatorName && (
+                  <p className="text-lg text-foreground">
+                    <span className="font-medium text-muted-foreground">Booked by: </span>
+                    <span className="font-bold">{booking.creatorName}</span>
+                  </p>
+                )}
+                {booking.description ? (
+                  <p className="text-sm text-muted-foreground">{booking.description}</p>
+                ) : null}
+              </>
+            ) : (
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">{booking.title}</h3>
+                {booking.description ? (
+                  <p className="mt-1 text-sm text-muted-foreground">{booking.description}</p>
+                ) : null}
+              </div>
+            )}
 
             <div className="space-y-2">
-              {booking.type === "appointment" && booking.creatorName && (
+              {booking.type === "appointment" && booking.creatorEmail && (
                 <div className="flex items-center gap-2 text-sm">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Booked by:</span>
-                  <span>{booking.creatorName}</span>
+                  <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="text-muted-foreground">Email:</span>
+                  <span className="truncate">{booking.creatorEmail}</span>
                 </div>
               )}
               {booking.type === "leave" && booking.creatorName && (

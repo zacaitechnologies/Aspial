@@ -97,23 +97,32 @@ export function DateEventsDialog({
                 className="border rounded-lg p-4 cursor-pointer"
                 onClick={() => onEventClick(event)}
               >
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Badge 
-                      variant="secondary" 
-                      className={eventTypeColors[event.type]}
-                    >
-                      {eventTypeLabels[event.type]}
-                    </Badge>
-                    <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className={eventTypeColors[event.type]}>
+                        {eventTypeLabels[event.type]}
+                      </Badge>
+                      <h3 className="truncate font-semibold text-foreground">
+                        {event.bookingName ?? event.title}
+                      </h3>
+                    </div>
+                    {event.type === "appointment" && event.creatorName && (
+                      <p className="text-sm text-foreground">
+                        <span className="text-muted-foreground">Booked by: </span>
+                        <span className="font-bold">{event.creatorName}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
-                
-                <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                  {event.description}
-                </p>
-                
-                <div className="flex items-center gap-4 text-sm text-gray-500">
+
+                {event.description ? (
+                  <p className="mb-3 line-clamp-2 text-sm text-muted-foreground">
+                    {event.description}
+                  </p>
+                ) : null}
+
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Clock className="w-4 h-4" />
                     <span>{formatEventTimeRange(event)}</span>

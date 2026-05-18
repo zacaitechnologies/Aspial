@@ -6,6 +6,7 @@ import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from 
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import {
@@ -1787,6 +1788,7 @@ export async function getProjectsForQuotationOptimized(userId: string) {
     if (isAdmin) {
       // Admin can see all projects
       projects = await prisma.project.findMany({
+        where: excludeNoProjectSentinelWhere,
         select: {
           id: true,
           name: true,
@@ -1813,6 +1815,7 @@ export async function getProjectsForQuotationOptimized(userId: string) {
             { isOwner: true },
             { canView: true },
           ],
+          project: excludeNoProjectSentinelWhere,
         },
         select: {
           projectId: true,
@@ -1828,6 +1831,7 @@ export async function getProjectsForQuotationOptimized(userId: string) {
       projects = await prisma.project.findMany({
         where: {
           id: { in: projectIds },
+          ...excludeNoProjectSentinelWhere,
         },
         select: {
           id: true,

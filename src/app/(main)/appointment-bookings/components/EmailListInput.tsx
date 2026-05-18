@@ -13,6 +13,8 @@ interface EmailListInputProps {
 	required?: boolean
 	disabled?: boolean
 	className?: string
+	/** Field label shown above the email inputs. */
+	label?: string
 }
 
 export function EmailListInput({
@@ -21,6 +23,7 @@ export function EmailListInput({
 	required = false,
 	disabled = false,
 	className,
+	label = "Email Addresses",
 }: EmailListInputProps) {
 	const [emailErrors, setEmailErrors] = useState<Record<number, string>>({})
 
@@ -83,7 +86,7 @@ export function EmailListInput({
 	return (
 		<div className={cn("space-y-2", className)}>
 			<Label>
-				Email Addresses {required && <span className="text-destructive">*</span>}
+				{label} {required && <span className="text-destructive">*</span>}
 			</Label>
 			<div className="space-y-2">
 				{emails.map((email, index) => (

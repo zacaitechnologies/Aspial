@@ -7,6 +7,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache } from "next/cache"
 import { revalidateTag } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 
 export async function getAllProjects(userId?: string) {
   if (!userId) {
@@ -32,6 +33,7 @@ export async function getAllProjectsOptimized(userId?: string) {
   if (isAdmin) {
     // For admins: load only essential data for list view
     const projects = await prisma.project.findMany({
+      where: excludeNoProjectSentinelWhere,
       select: {
         id: true,
         name: true,
@@ -94,12 +96,10 @@ export async function getAllProjectsOptimized(userId?: string) {
 
   // For non-admins: load projects with permissions in single query
   const userPermissions = await prisma.projectPermission.findMany({
-    where: { 
-      userId, 
-      OR: [
-        { isOwner: true },
-        { canView: true }
-      ]
+    where: {
+      userId,
+      OR: [{ isOwner: true }, { canView: true }],
+      project: excludeNoProjectSentinelWhere,
     },
     include: {
       project: {
@@ -164,30 +164,32 @@ async function _getProjectsPaginatedInternal(
   const skip = (page - 1) * pageSize
   const isAdmin = await getCachedIsUserAdmin(userId)
 
-  // Build where clause for filtering
+  // Build where clause for filtering (always excludes internal __NO_PROJECT__ sentinel)
   const buildWhereClause = () => {
-    const where: any = {}
-    
+    const conditions: Record<string, unknown>[] = [excludeNoProjectSentinelWhere]
+
     if (searchQuery) {
-      where.OR = [
-        { name: { contains: searchQuery, mode: 'insensitive' } },
-        { description: { contains: searchQuery, mode: 'insensitive' } },
-        { 
-          createdByUser: { 
-            OR: [
-              { firstName: { contains: searchQuery, mode: 'insensitive' } },
-              { lastName: { contains: searchQuery, mode: 'insensitive' } }
-            ]
-          } 
-        }
-      ]
+      conditions.push({
+        OR: [
+          { name: { contains: searchQuery, mode: "insensitive" } },
+          { description: { contains: searchQuery, mode: "insensitive" } },
+          {
+            createdByUser: {
+              OR: [
+                { firstName: { contains: searchQuery, mode: "insensitive" } },
+                { lastName: { contains: searchQuery, mode: "insensitive" } },
+              ],
+            },
+          },
+        ],
+      })
     }
 
-    if (statusFilter && statusFilter !== 'all') {
-      where.status = statusFilter
+    if (statusFilter && statusFilter !== "all") {
+      conditions.push({ status: statusFilter })
     }
 
-    return where
+    return conditions.length === 1 ? conditions[0] : { AND: conditions }
   }
 
   if (isAdmin) {

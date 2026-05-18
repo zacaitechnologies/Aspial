@@ -1,6 +1,12 @@
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 
 export const NO_PROJECT_SENTINEL_NAME = "__NO_PROJECT__"
+
+/** Exclude the internal time-tracking placeholder from user-facing project lists. */
+export const excludeNoProjectSentinelWhere: Prisma.ProjectWhereInput = {
+  name: { not: NO_PROJECT_SENTINEL_NAME },
+}
 const SYSTEM_CLIENT_NAME = "__SYSTEM__"
 const SYSTEM_CLIENT_EMAIL = "system@aspial.local"
 

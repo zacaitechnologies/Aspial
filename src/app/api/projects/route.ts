@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/utils/supabase/server"
 import { prisma } from "@/lib/prisma"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
 
     const projects = await prisma.project.findMany({
       where: {
+        ...excludeNoProjectSentinelWhere,
         status: {
           in: ["planning", "in_progress"],
         },

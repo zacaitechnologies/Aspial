@@ -97,10 +97,10 @@ export function WeekView({
 					)}
 				>
 					{/* Day names row */}
-					<div className={cn("flex items-stretch border-b-2 border-border", stickyBg)}>
+					<div className={cn("relative z-10 flex items-stretch border-b-2 border-border", stickyBg)}>
 						{/* Top-left corner — sticky on both axes; matches row height */}
 						<div
-							className={cn(gutterClass, stickyCorner, "self-stretch min-h-[3.25rem] sm:min-h-[3.75rem]")}
+							className={cn(gutterClass, stickyCorner, "self-stretch min-h-[3.5rem] sm:min-h-[3.75rem]")}
 							aria-hidden
 						/>
 						<div className="flex-1 grid grid-cols-7">
@@ -111,26 +111,24 @@ export function WeekView({
 									<div
 										key={dateString}
 										className={cn(
-											"p-1 sm:p-2 text-center border-r border-border last:border-r-0 cursor-pointer select-none transition-colors",
-											stickyBg,
-											today ? "bg-accent" : "hover:bg-muted"
+											"flex min-h-[3.5rem] flex-col items-center justify-center p-1 sm:min-h-[3.75rem] sm:p-2",
+											"border-r border-border last:border-r-0 cursor-pointer select-none transition-colors",
+											today ? "bg-primary" : "hover:bg-muted",
 										)}
 										onClick={() => onDateClick(dateString)}
 									>
-										<div
-											className={`text-[10px] sm:text-xs font-medium ${
-												today ? "text-(--color-primary)]" : "text-(--color-muted-foreground)]"
-											}`}
+										<span
+											className="text-[10px] sm:text-xs font-medium"
+											style={{ color: today ? "var(--primary-foreground)" : "var(--muted-foreground)" }}
 										>
 											{dayNames[index]}
-										</div>
-										<div
-											className={`text-sm sm:text-base md:text-lg font-semibold mt-0.5 ${
-												today ? "text-(--color-primary)]" : "text-(--color-foreground)]"
-											}`}
+										</span>
+										<span
+											className="mt-0.5 block text-sm font-bold tabular-nums sm:text-base md:text-lg"
+											style={{ color: today ? "var(--primary-foreground)" : "var(--foreground)" }}
 										>
 											{date.getDate()}
-										</div>
+										</span>
 									</div>
 								)
 							})}
@@ -179,7 +177,7 @@ export function WeekView({
 												</div>
 											))}
 											{allDayEvents.length > 3 && (
-												<div className="text-[9px] sm:text-[10px] text-(--color-muted-foreground)] px-1">
+												<div className="text-[9px] sm:text-[10px] text-muted-foreground px-1">
 													+{allDayEvents.length - 3} more
 												</div>
 											)}
