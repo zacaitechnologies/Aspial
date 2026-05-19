@@ -21,9 +21,9 @@ import { cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/acti
 import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { Download, ShieldAlert } from "lucide-react"
-import { parseLocalDateString, formatDateStringDirect } from "@/lib/date-utils"
-import { CalendarView, getWeekDays, formatDate } from "../utils/calendar-utils"
+import { Download, ShieldAlert, Sun, CalendarRange } from "lucide-react"
+import { parseLocalDateString, formatDateStringDirect, formatLocalDate } from "@/lib/date-utils"
+import { CalendarView, getWeekDays, formatDate, getWeekStart, getWeekEnd } from "../utils/calendar-utils"
 
 interface AvailableAppointment {
 	id: number
@@ -55,6 +55,17 @@ const getBorderColorClass = (appointmentType: CalendarEventType): string => {
 		BLOCKER: "border-l-calendar-blocker",
 	}
 	return borderColorMap[appointmentType] || "border-l-calendar-others"
+}
+
+// Map appointment type to its CSS color variable (used for inline dot/badge backgrounds)
+const TYPE_CSS_VAR: Record<CalendarEventType, string> = {
+	PHOTO_SHOOT: "var(--calendar-photo-shoot)",
+	VIDEO_SHOOT: "var(--calendar-video-shoot)",
+	CONSULTATION: "var(--calendar-consultation)",
+	PHOTO_SELECTION: "var(--calendar-photo-selection)",
+	OTHERS: "var(--calendar-others)",
+	LEAVE: "var(--calendar-leave)",
+	BLOCKER: "var(--calendar-blocker)",
 }
 
 // Map appointment type to badge classes using calendar theme tokens
@@ -300,8 +311,34 @@ export default function CalendarClient({
 		return bookingsByDate.get(date) || []
 	}
 
+	// Today's bookings — for the "Today" stat card
+	const todaysBookings = useMemo(() => {
+		const todayKey = formatLocalDate(new Date())
+		return filteredBookings
+			.filter((b) => b.date === todayKey)
+			.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
+	}, [filteredBookings])
+
+	// This week's bookings + range (Sun–Sat) — for the "This week" stat card
+	const weekInfo = useMemo(() => {
+		const now = new Date()
+		const start = getWeekStart(now)
+		const end = getWeekEnd(now)
+		const startKey = formatLocalDate(start)
+		const endKey = formatLocalDate(end)
+		const items = filteredBookings.filter((b) => b.date >= startKey && b.date <= endKey)
+		const rangeLabel = `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+		return { count: items.length, rangeLabel }
+	}, [filteredBookings])
+
 	const handleDateChange = (newDate: Date) => {
 		setCurrentDate(newDate)
+	}
+
+	// Month-cell click: switch directly to day view (per redesign)
+	const handleMonthDayClick = (dateString: string) => {
+		setCurrentDate(parseLocalDateString(dateString))
+		setViewMode("day")
 	}
 
 	const handleViewChange = (newView: CalendarView) => {
@@ -443,7 +480,7 @@ export default function CalendarClient({
 					dateString={dateString}
 					dayBookings={dayBookings}
 					isToday={isToday}
-					onDateClick={handleDateClick}
+					onDateClick={handleMonthDayClick}
 					onBookingClick={handleBookingClick}
 				/>
 			)
@@ -546,34 +583,106 @@ export default function CalendarClient({
 						</div>
 					</div>
 
-					{/* Compact legend + counts (single row on wide screens) */}
-					<div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3">
-						<p className="text-xs font-medium text-muted-foreground mb-2 sm:mb-2.5">
-							Counts in this period
-						</p>
-						<div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-							{Object.entries(CALENDAR_EVENT_TYPES).map(([appointmentKey, config]) => {
-								const count = statsCounts[appointmentKey] || 0
-								return (
-									<div
-										key={appointmentKey}
-										className="flex items-center gap-2 min-w-0 rounded-md bg-card/80 px-2 py-1.5 border border-border/60"
-									>
-										<span
-											className={`h-2 w-2 shrink-0 rounded-full ring-1 ring-border/50 ${config.color}`}
-											aria-hidden
-										/>
-										<div className="min-w-0 flex-1">
-											<p className="text-[11px] leading-tight text-muted-foreground truncate sm:text-xs">
+					{/* Stats row — Today / This week / Type legend (replaces sidebar in Studio sample) */}
+					<div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+						{/* Today */}
+						<div className="cal-stat-card rounded-lg border border-border bg-card p-4">
+							<div className="flex items-center gap-2 mb-2">
+								<Sun className="w-4 h-4 text-muted-foreground" aria-hidden />
+								<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+									Today
+								</p>
+							</div>
+							<div className="flex items-baseline gap-2">
+								<span className="text-3xl font-bold tabular-nums text-foreground leading-none">
+									{todaysBookings.length}
+								</span>
+								<span className="text-xs text-muted-foreground">
+									{todaysBookings.length === 1 ? "appointment" : "appointments"}
+								</span>
+							</div>
+							{todaysBookings.length === 0 ? (
+								<p className="mt-3 text-xs text-muted-foreground">No appointments today</p>
+							) : (
+								<div className="mt-3 space-y-1.5">
+									{todaysBookings.slice(0, 4).map((b) => (
+										<button
+											key={b.id}
+											type="button"
+											onClick={() => handleBookingClick(b)}
+											className="cal-today-row w-full text-left flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5 border border-border/40"
+										>
+											<span
+												className="h-2 w-2 shrink-0 rounded-full ring-1 ring-border/40"
+												style={{ backgroundColor: TYPE_CSS_VAR[b.appointmentType] }}
+												aria-hidden
+											/>
+											<div className="min-w-0 flex-1">
+												<p className="text-[12px] font-medium text-foreground truncate leading-tight">
+													{b.title}
+													{b.clientName ? ` · ${b.clientName}` : ""}
+												</p>
+												<p className="text-[11px] text-muted-foreground leading-tight">
+													{b.type !== "task" && b.startTime
+														? `${b.startTime}${b.endTime ? ` – ${b.endTime}` : ""}`
+														: CALENDAR_EVENT_TYPES[b.appointmentType]?.label}
+												</p>
+											</div>
+										</button>
+									))}
+									{todaysBookings.length > 4 && (
+										<p className="text-[11px] text-muted-foreground pl-2">
+											+{todaysBookings.length - 4} more
+										</p>
+									)}
+								</div>
+							)}
+						</div>
+
+						{/* This week */}
+						<div className="cal-stat-card rounded-lg border border-border bg-card p-4">
+							<div className="flex items-center gap-2 mb-2">
+								<CalendarRange className="w-4 h-4 text-muted-foreground" aria-hidden />
+								<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+									This week
+								</p>
+							</div>
+							<div className="flex items-baseline gap-2">
+								<span className="text-3xl font-bold tabular-nums text-foreground leading-none">
+									{weekInfo.count}
+								</span>
+								<span className="text-xs text-muted-foreground">
+									{weekInfo.count === 1 ? "appointment" : "appointments"}
+								</span>
+							</div>
+							<p className="mt-3 text-xs text-muted-foreground">{weekInfo.rangeLabel}</p>
+						</div>
+
+						{/* Type legend (with counts for current view period) */}
+						<div className="cal-stat-card rounded-lg border border-border bg-card p-4">
+							<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+								Type legend
+							</p>
+							<div className="grid grid-cols-1 gap-y-1">
+								{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => {
+									const count = statsCounts[key] || 0
+									return (
+										<div key={key} className="flex items-center gap-2 text-[12px]">
+											<span
+												className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border/40"
+												style={{ backgroundColor: TYPE_CSS_VAR[key as CalendarEventType] }}
+												aria-hidden
+											/>
+											<span className="flex-1 text-foreground/80 truncate">
 												{config.label}
-											</p>
-											<p className="text-sm font-semibold tabular-nums text-foreground leading-none mt-0.5">
+											</span>
+											<span className="tabular-nums font-semibold text-foreground">
 												{count}
-											</p>
+											</span>
 										</div>
-									</div>
-								)
-							})}
+									)
+								})}
+							</div>
 						</div>
 					</div>
 				</div>
@@ -621,46 +730,48 @@ export default function CalendarClient({
 						</div>
 					</CardHeader>
 					<CardContent>
-						{viewMode === 'month' && (
-							<>
-								{/* Calendar Header */}
-								<div className="grid grid-cols-7 gap-0 mb-2">
-									{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-										<div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground border-b border-border">
-											{day}
-										</div>
-									))}
-								</div>
+						<div key={viewMode} className="cal-view-enter">
+							{viewMode === 'month' && (
+								<>
+									{/* Calendar Header */}
+									<div className="grid grid-cols-7 gap-0 mb-2">
+										{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+											<div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground border-b border-border">
+												{day}
+											</div>
+										))}
+									</div>
 
-								{/* Calendar Grid */}
-								<div className="grid grid-cols-7 gap-0 border-l border-t border-border relative">
-									{renderCalendarDays()}
-								</div>
-							</>
-						)}
-						
-					{viewMode === 'week' && (
-						<div className="h-[calc(100vh-360px)] min-h-[600px] overflow-hidden">
-							<WeekView
-									currentDate={currentDate}
-									bookings={bookingsInDateRange}
-									onEventClick={handleBookingClick}
-									onDateClick={handleDateClick}
-									onTimeSlotClick={handleTimeSlotClick}
-								/>
-							</div>
-						)}
+									{/* Calendar Grid */}
+									<div className="grid grid-cols-7 gap-0 border-l border-t border-border relative">
+										{renderCalendarDays()}
+									</div>
+								</>
+							)}
 
-						{viewMode === 'day' && (
-							<div className="h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
-								<DayView
-									currentDate={currentDate}
-									bookings={bookingsInDateRange}
-									onEventClick={handleBookingClick}
-									onTimeSlotClick={handleTimeSlotClick}
-								/>
-							</div>
-						)}
+							{viewMode === 'week' && (
+								<div className="h-[calc(100vh-360px)] min-h-[600px] overflow-hidden">
+									<WeekView
+										currentDate={currentDate}
+										bookings={bookingsInDateRange}
+										onEventClick={handleBookingClick}
+										onDateClick={handleDateClick}
+										onTimeSlotClick={handleTimeSlotClick}
+									/>
+								</div>
+							)}
+
+							{viewMode === 'day' && (
+								<div className="h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
+									<DayView
+										currentDate={currentDate}
+										bookings={bookingsInDateRange}
+										onEventClick={handleBookingClick}
+										onTimeSlotClick={handleTimeSlotClick}
+									/>
+								</div>
+							)}
+						</div>
 					</CardContent>
 				</Card>
 

@@ -579,6 +579,49 @@
   animation: none !important;
 }
 
+/* Calendar-page intentional animations (opt-in, override the blanket disable above) */
+@keyframes cal-fade-slide {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.calendar-page .cal-view-enter {
+  animation: cal-fade-slide 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.calendar-page .cal-stat-card {
+  animation: cal-fade-slide 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.calendar-page .cal-day-cell {
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease !important;
+}
+
+.calendar-page .cal-day-cell:hover {
+  background-color: color-mix(in srgb, var(--primary) 6%, var(--card)) !important;
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border)) !important;
+  transform: translateY(-1px) !important;
+}
+
+.calendar-page .cal-today-row {
+  transition: background-color 140ms ease, transform 140ms ease !important;
+}
+.calendar-page .cal-today-row:hover {
+  background-color: color-mix(in srgb, var(--primary) 8%, var(--card)) !important;
+  transform: translateX(2px) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page .cal-view-enter,
+  .calendar-page .cal-stat-card {
+    animation: none !important;
+  }
+  .calendar-page .cal-day-cell:hover,
+  .calendar-page .cal-today-row:hover {
+    transform: none !important;
+  }
+}
+
 /* Override Card hover effects specifically - disable transforms and shadows only */
 .calendar-page .card:hover {
   transform: none !important;
