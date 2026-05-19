@@ -21,6 +21,7 @@ import {
 } from "@/lib/validation"
 import { z } from "zod"
 import type { Prisma } from "@prisma/client"
+import { excludeSystemClientWhere, SYSTEM_CLIENT_EMAIL, SYSTEM_CLIENT_NAME, withExcludedSystemClient } from "@/lib/no-project"
 
 // Authentication functions
 export async function getCurrentUser() {
@@ -131,12 +132,16 @@ export async function getAllClients() {
     const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
 
     // Non-admin: see clients they created OR are advisor on
-    const whereClause = isAdmin ? undefined : dbUser ? {
-      OR: [
-        { createdById: dbUser.id },
-        { advisors: { some: { userId: dbUser.id } } },
-      ]
-    } : undefined
+    const whereClause = isAdmin
+      ? excludeSystemClientWhere
+      : dbUser
+        ? withExcludedSystemClient({
+            OR: [
+              { createdById: dbUser.id },
+              { advisors: { some: { userId: dbUser.id } } },
+            ],
+          })
+        : excludeSystemClientWhere
 
     const clients = await prisma.client.findMany({
       where: whereClause,
@@ -253,16 +258,16 @@ async function _getClientsPaginatedInternal(
   } = filters
 
   // Build where clause (Brand Advisors see clients they created or are advisor on; Admin sees all)
-  const where: any = {}
+  const clientWhere: Prisma.ClientWhereInput = {}
   if (advisorUserId !== undefined) {
-    where.OR = [
+    clientWhere.OR = [
       { createdById: advisorUserId },
       { advisors: { some: { userId: advisorUserId } } },
     ]
   }
 
   if (searchTerm) {
-    where.OR = [
+    clientWhere.OR = [
       { name: { contains: searchTerm, mode: 'insensitive' } },
       { email: { contains: searchTerm, mode: 'insensitive' } },
       { company: { contains: searchTerm, mode: 'insensitive' } },
@@ -270,12 +275,14 @@ async function _getClientsPaginatedInternal(
   }
 
   if (industry && industry !== 'all') {
-    where.industry = industry
+    clientWhere.industry = industry
   }
 
   if (membershipType && membershipType !== 'all') {
-    where.membershipType = membershipType
+    clientWhere.membershipType = membershipType
   }
+
+  const where = withExcludedSystemClient(clientWhere)
 
   const clientInclude = {
     quotations: { select: { id: true } },
@@ -502,13 +509,13 @@ export async function getClientsDashboardTotals(): Promise<ClientsDashboardTotal
       const dbUser = await prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } })
       clientIdFilter = dbUser
         ? (await prisma.client.findMany({
-            where: {
+            where: withExcludedSystemClient({
               OR: [
                 { createdById: dbUser.id },
                 { advisors: { some: { userId: dbUser.id } } },
-              ]
-            },
-            select: { id: true }
+              ],
+            }),
+            select: { id: true },
           })).map((r) => r.id)
         : []
     }
@@ -638,6 +645,10 @@ export async function getClientById(id: string) {
     })
 
     if (!client) {
+      throw new Error("Client not found")
+    }
+
+    if (client.name === SYSTEM_CLIENT_NAME && client.email === SYSTEM_CLIENT_EMAIL) {
       throw new Error("Client not found")
     }
 

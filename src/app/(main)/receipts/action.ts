@@ -6,6 +6,7 @@ import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from 
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime, parseDocumentDateInputOrNow } from "@/lib/date-utils"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
+import { withExcludedSystemClient } from "@/lib/no-project"
 import { Prisma, type PaymentMethod } from "@prisma/client"
 import { receiptListFiltersSchema, type ReceiptListFilters } from "@/lib/validation"
 
@@ -941,7 +942,7 @@ export async function searchClientsForReceipt(searchTerm: string) {
 	unstable_noStore()
 
 	const clients = await prisma.client.findMany({
-		where:
+		where: withExcludedSystemClient(
 			searchTerm && searchTerm.trim().length > 0
 				? {
 						OR: [
@@ -950,8 +951,9 @@ export async function searchClientsForReceipt(searchTerm: string) {
 							{ email: { contains: searchTerm, mode: "insensitive" } },
 							{ ic: { contains: searchTerm, mode: "insensitive" } },
 						],
-				  }
-				: undefined,
+					}
+				: {}
+		),
 		select: {
 			id: true,
 			name: true,

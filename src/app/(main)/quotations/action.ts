@@ -6,7 +6,7 @@ import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from 
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
-import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
+import { excludeNoProjectSentinelWhere, excludeSystemClientWhere } from "@/lib/no-project"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import {
@@ -1733,6 +1733,7 @@ export async function getClientsForQuotationOptimized() {
   unstable_noStore()
   try {
     const clients = await prisma.client.findMany({
+      where: excludeSystemClientWhere,
       select: {
         id: true,
         name: true,

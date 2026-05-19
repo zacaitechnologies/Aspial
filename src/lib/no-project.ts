@@ -7,8 +7,25 @@ export const NO_PROJECT_SENTINEL_NAME = "__NO_PROJECT__"
 export const excludeNoProjectSentinelWhere: Prisma.ProjectWhereInput = {
   name: { not: NO_PROJECT_SENTINEL_NAME },
 }
-const SYSTEM_CLIENT_NAME = "__SYSTEM__"
-const SYSTEM_CLIENT_EMAIL = "system@aspial.local"
+/** Internal client record required by Project.clientId for the No-Project placeholder. */
+export const SYSTEM_CLIENT_NAME = "__SYSTEM__"
+export const SYSTEM_CLIENT_EMAIL = "system@aspial.local"
+
+/** Exclude the internal system client from user-facing client lists and selectors. */
+export const excludeSystemClientWhere: Prisma.ClientWhereInput = {
+  NOT: {
+    name: SYSTEM_CLIENT_NAME,
+    email: SYSTEM_CLIENT_EMAIL,
+  },
+}
+
+/** Merge user-facing client filters with the system-client exclusion. */
+export function withExcludedSystemClient(
+  where: Prisma.ClientWhereInput = {}
+): Prisma.ClientWhereInput {
+  if (Object.keys(where).length === 0) return excludeSystemClientWhere
+  return { AND: [excludeSystemClientWhere, where] }
+}
 
 let cachedNoProjectId: number | null = null
 

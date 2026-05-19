@@ -20,7 +20,7 @@ import {
   type DeliveryOrderListFilters,
 } from "@/lib/validation"
 import { computeSubtotal, computeFinalAmount } from "./utils/totals"
-import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
+import { excludeNoProjectSentinelWhere, excludeSystemClientWhere } from "@/lib/no-project"
 import { ProjectStatus } from "@prisma/client"
 
 // ==================== Listing ====================
@@ -591,6 +591,7 @@ export async function getDeliveryOrderEmailHistory(deliveryOrderId: unknown) {
 export async function getClientsForSelect() {
   unstable_noStore()
   return prisma.client.findMany({
+    where: excludeSystemClientWhere,
     select: {
       id: true,
       name: true,
