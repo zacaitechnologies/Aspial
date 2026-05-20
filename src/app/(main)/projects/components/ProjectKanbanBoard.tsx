@@ -26,6 +26,7 @@ import {
   getProjectCollaborators,
 } from "../task-actions";
 import { getProjectMilestones } from "../milestone-actions";
+import { applyMilestoneUpdateToTask } from "@/lib/milestone-colors";
 import { TaskForm } from "./TaskForm";
 import { TaskCard } from "./TaskCard";
 import { MilestoneCard } from "./MilestoneCard";
@@ -228,13 +229,16 @@ const KanbanBoardComponent = memo(function KanbanBoard({
     setMilestones((prev) => [...prev, newMilestone]);
   };
 
-  const handleMilestoneUpdated = (updatedMilestone: Milestone) => {
+  const handleMilestoneUpdated = useCallback((updatedMilestone: Milestone) => {
     setMilestones((prev) =>
       prev.map((milestone) =>
         milestone.id === updatedMilestone.id ? updatedMilestone : milestone
       )
     );
-  };
+    setTasks((prev) =>
+      prev.map((task) => applyMilestoneUpdateToTask(task, updatedMilestone))
+    );
+  }, []);
 
   const handleMilestoneDeleted = (milestoneId: number) => {
     setMilestones((prev) =>

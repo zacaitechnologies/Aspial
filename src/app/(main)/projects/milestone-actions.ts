@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { resolveMilestoneColor } from "@/lib/milestone-colors"
 import { CreateMilestoneData, UpdateMilestoneData, Milestone, TaskPriority, MilestoneStatus } from "./types"
 
 // Get all milestones for a project
@@ -86,10 +87,19 @@ export async function createMilestone(data: CreateMilestoneData): Promise<Milest
 
   const newOrder = (maxOrder?.order ?? -1) + 1
 
-  const milestoneData: CreateMilestoneData & { order: number; dueDate: Date } = {
+  if (!data.title?.trim()) {
+    throw new Error("Title is required")
+  }
+  if (!data.dueDate) {
+    throw new Error("Due date is required")
+  }
+
+  const milestoneData: CreateMilestoneData & { order: number; dueDate: Date; color: string } = {
     ...data,
+    title: data.title.trim(),
     order: newOrder,
-    dueDate: data.dueDate ?? new Date(),
+    dueDate: data.dueDate,
+    color: resolveMilestoneColor(data.color),
   }
 
   return await prisma.milestone.create({
@@ -131,16 +141,24 @@ export async function updateMilestone(milestoneId: number, data: UpdateMilestone
     title?: string;
     description?: string | null;
     serviceId?: number;
+    color?: string;
     dueDate?: Date;
     priority?: TaskPriority;
     status?: MilestoneStatus;
     order?: number;
   } = {}
   
-  if (data.title !== undefined) updateData.title = data.title
+  if (data.title !== undefined) {
+    if (!data.title.trim()) throw new Error("Title is required")
+    updateData.title = data.title.trim()
+  }
   if (data.description !== undefined) updateData.description = data.description
   if (data.serviceId !== undefined && data.serviceId !== null) updateData.serviceId = data.serviceId
-  if (data.dueDate !== undefined && data.dueDate !== null) updateData.dueDate = data.dueDate
+  if (data.color !== undefined) updateData.color = resolveMilestoneColor(data.color)
+  if (data.dueDate !== undefined) {
+    if (data.dueDate === null) throw new Error("Due date is required")
+    updateData.dueDate = data.dueDate
+  }
   if (data.priority !== undefined) updateData.priority = data.priority
   if (data.status !== undefined) updateData.status = data.status
   if (data.order !== undefined) updateData.order = data.order

@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { User, Building2, Mail } from "lucide-react";
+import { Building2, Mail, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { getClientsForQuotationOptimized } from "../action";
 
 interface Client {
@@ -38,20 +39,28 @@ interface NewClientData {
 
 interface ClientSelectionProps {
   selectedClientId?: string;
+  selectedClientName?: string;
   newClientData?: NewClientData;
   onClientSelect: (clientId: string, clientName: string) => void;
+  /** Called when the user clears an existing-client selection (only when optional). */
+  onClientClear?: () => void;
   onNewClientDataChange: (data: NewClientData) => void;
   onModeChange: (mode: "existing" | "new") => void;
   mode: "existing" | "new";
+  /** When true, client is not required (e.g. project creation without a customer). */
+  optional?: boolean;
 }
 
 export default function ClientSelection({
   selectedClientId,
+  selectedClientName,
   newClientData,
   onClientSelect,
+  onClientClear,
   onNewClientDataChange,
   onModeChange,
   mode,
+  optional = false,
 }: ClientSelectionProps) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,8 +108,16 @@ export default function ClientSelection({
   };
 
   return (
-    <div>
-      <Label className="text-base font-semibold">Client Information</Label>
+    <div className="min-w-0 space-y-2">
+      <p className="text-base font-semibold text-foreground">
+        <span>Client Information</span>
+        {optional && (
+          <>
+            {" "}
+            <span className="text-sm font-normal text-muted-foreground">(optional)</span>
+          </>
+        )}
+      </p>
 
       <Tabs
         value={mode}
@@ -114,6 +131,27 @@ export default function ClientSelection({
         <TabsContent value="existing" className="space-y-4">
           <div className="border rounded-lg p-6">
             <div className="space-y-4">
+              {optional && selectedClientId && onClientClear && (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-primary bg-primary/5 px-3 py-2">
+                  <p className="min-w-0 truncate text-sm font-medium text-foreground">
+                    {selectedClientName ||
+                      clients.find((c) => c.id === selectedClientId)?.name ||
+                      "Selected client"}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 h-8 px-2 text-muted-foreground hover:text-foreground"
+                    onClick={onClientClear}
+                    aria-label="Clear client selection"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Clear selection</span>
+                  </Button>
+                </div>
+              )}
+
               <div>
                 <Input
                   id="client-search"
@@ -146,7 +184,17 @@ export default function ClientSelection({
                             ? "border-primary bg-primary/5"
                             : "border-border hover:border-primary/50"
                         }`}
-                        onClick={() => onClientSelect(client.id, client.name)}
+                        onClick={() => {
+                          if (
+                            optional &&
+                            selectedClientId === client.id &&
+                            onClientClear
+                          ) {
+                            onClientClear();
+                          } else {
+                            onClientSelect(client.id, client.name);
+                          }
+                        }}
                       >
                         <div className="flex items-start justify-between">
                           <div className="space-y-1">

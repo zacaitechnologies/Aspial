@@ -2,6 +2,12 @@
 
 import { prisma } from "@/lib/prisma"
 import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
+import {
+  assertInvitationRecipient,
+  getAuthenticatedActor,
+  NotificationAccessError,
+  requireNotificationAdmin,
+} from "@/lib/notification-access"
 import { revalidateTag } from "next/cache"
 
 export async function isUserAdmin(userSupabaseId: string) {
@@ -567,69 +573,73 @@ export async function createProjectInvitation(
 	})
 }
 
-// Regular user function - Get their own invitations (all statuses for history)
-export async function getUserInvitations(userId: string) {
-  return await prisma.projectInvitation.findMany({
-    where: { 
-      invitedUser: userId,
-    },
+const projectInvitationNotificationInclude = {
+  project: {
     include: {
-      project: {
-        include: {
-          quotations: true,
-          createdByUser: true,
-        },
-      },
-      inviter: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
+      quotations: true,
+      createdByUser: true,
     },
+  },
+  inviter: {
+    select: {
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  },
+  invitee: {
+    select: {
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  },
+} as const
+
+/**
+ * Invitations the user sent or received. Strict admins use getAllInvitationsForAdmin for all.
+ */
+export async function getUserInvitations(requestedUserId?: string) {
+  const actor = await getAuthenticatedActor()
+
+  if (requestedUserId && requestedUserId !== actor.userId) {
+    return []
+  }
+
+  return await prisma.projectInvitation.findMany({
+    where: {
+      OR: [{ invitedUser: actor.userId }, { invitedBy: actor.userId }],
+    },
+    include: projectInvitationNotificationInclude,
     orderBy: { createdAt: "desc" },
   })
 }
 
 // Admin function - Get all invitations for all users (including accepted/declined)
 export async function getAllInvitationsForAdmin() {
+  await requireNotificationAdmin()
+
   return await prisma.projectInvitation.findMany({
-    include: {
-      project: {
-        include: {
-          quotations: true,
-          createdByUser: true,
-        },
-      },
-      inviter: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      invitee: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-    },
+    include: projectInvitationNotificationInclude,
     orderBy: { createdAt: "desc" },
   })
 }
 
 export async function acceptProjectInvitation(invitationId: number) {
-  const invitation = await prisma.projectInvitation.findUnique({
-    where: { id: invitationId },
+  const actor = await getAuthenticatedActor()
+
+  const invitation = await prisma.projectInvitation.findFirst({
+    where: actor.isAdmin
+      ? { id: invitationId }
+      : { id: invitationId, invitedUser: actor.userId },
     include: { project: true },
   })
 
   if (!invitation) {
-    throw new Error("Invitation not found")
+    throw new NotificationAccessError("Invitation not found or access denied.")
   }
+
+  assertInvitationRecipient(invitation, actor, "accept")
 
   if (invitation.status !== "pending") {
     throw new Error("Invitation is no longer pending")
@@ -668,8 +678,23 @@ export async function acceptProjectInvitation(invitationId: number) {
 }
 
 export async function declineProjectInvitation(invitationId: number) {
+  const actor = await getAuthenticatedActor()
+
+  const invitation = await prisma.projectInvitation.findFirst({
+    where: actor.isAdmin
+      ? { id: invitationId }
+      : { id: invitationId, invitedUser: actor.userId },
+    select: { id: true, invitedUser: true, status: true },
+  })
+
+  if (!invitation) {
+    throw new NotificationAccessError("Invitation not found or access denied.")
+  }
+
+  assertInvitationRecipient(invitation, actor, "decline")
+
   return await prisma.projectInvitation.update({
-    where: { id: invitationId },
+    where: { id: invitation.id },
     data: { status: "declined" },
   })
 }
@@ -701,6 +726,8 @@ export async function getProjectInvitations(projectId: number) {
 
 // Admin-specific can see all invitations and help accept/decline
 export async function getAllPendingInvitations() {
+  await requireNotificationAdmin()
+
   return await prisma.projectInvitation.findMany({
     where: { status: "pending" },
     include: {
@@ -732,6 +759,8 @@ export async function getAllPendingInvitations() {
 }
 
 export async function getAllInvitations() {
+  await requireNotificationAdmin()
+
   return await prisma.projectInvitation.findMany({
     include: {
       project: {

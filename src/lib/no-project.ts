@@ -49,6 +49,13 @@ async function pickBootstrapUser(): Promise<BootstrapUser> {
   return anyUser
 }
 
+/** Internal client used when a project has no customer assigned (same record as the No-Project placeholder). */
+export async function getOrCreateSystemClient(): Promise<{ id: string; name: string }> {
+  const bootstrapUser = await pickBootstrapUser()
+  const id = await getOrCreateSystemClientId(bootstrapUser.id)
+  return { id, name: SYSTEM_CLIENT_NAME }
+}
+
 async function getOrCreateSystemClientId(createdByUserId: string): Promise<string> {
   const existing = await prisma.client.findFirst({
     where: { name: SYSTEM_CLIENT_NAME, email: SYSTEM_CLIENT_EMAIL },

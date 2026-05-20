@@ -23,6 +23,7 @@ import CustomServiceNotifications from "./CustomServiceNotifications"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { toast } from "@/components/ui/use-toast"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { PENDING_INVITATIONS_UPDATED_EVENT } from "../constants"
 
 type ProjectInvitation = {
 	id: number
@@ -55,25 +56,49 @@ type ProjectInvitation = {
 		lastName: string
 		email: string
 	}
-	invitee: {
+	invitee?: {
 		firstName: string
 		lastName: string
 		email: string
 	}
 }
 
+type NotificationCustomService = {
+	id: string
+	name: string
+	description: string
+	price: number
+	status: string
+	createdAt: Date
+	createdBy: { firstName: string; lastName: string; email: string }
+	reviewedBy: { firstName: string; lastName: string } | null
+	quotation: {
+		id: number
+		name: string
+		Client: { name: string; company: string | null } | null
+	}
+	approvalComment: string | null
+	rejectionComment: string | null
+}
+
 interface NotificationPageClientProps {
 	initialInvitations: ProjectInvitation[]
 	initialAllInvitations: ProjectInvitation[]
 	initialPendingInvitations: ProjectInvitation[]
+	initialCustomServices: NotificationCustomService[]
 	isAdmin: boolean
+	canReviewCustomServices: boolean
+	canManageAllInvitations: boolean
 }
 
 export default function NotificationPageClient({
 	initialInvitations,
 	initialAllInvitations,
 	initialPendingInvitations,
+	initialCustomServices,
 	isAdmin,
+	canReviewCustomServices,
+	canManageAllInvitations,
 }: NotificationPageClientProps) {
 	const { enhancedUser } = useSession()
 	const [invitations, setInvitations] = useState(initialInvitations)
@@ -84,6 +109,14 @@ export default function NotificationPageClient({
 	const [errorMessage, setErrorMessage] = useState<string>("")
 	const [processingInvitationId, setProcessingInvitationId] = useState<number | null>(null)
 	const [processingAction, setProcessingAction] = useState<"accept" | "decline" | null>(null)
+
+	const myInvitations = invitations
+
+	const notifyPendingInvitationsUpdated = useCallback(() => {
+		if (typeof window !== "undefined") {
+			window.dispatchEvent(new Event(PENDING_INVITATIONS_UPDATED_EVENT))
+		}
+	}, [])
 
 	// Refresh invitations via direct callback (not useEffect)
 	const handleRefreshInvitations = useCallback(async () => {
@@ -96,13 +129,14 @@ export default function NotificationPageClient({
 			const data = await getUserInvitations(enhancedUser.id)
 			setInvitations(data as unknown as ProjectInvitation[])
 
-			if (isAdmin) {
+			if (canManageAllInvitations) {
 				const allData = await getAllInvitationsForAdmin()
 				setAllInvitations(allData as ProjectInvitation[])
-				const pendingData = (allData as ProjectInvitation[]).filter(
-					inv => inv.status === "pending"
+				setPendingInvitations(
+					(allData as ProjectInvitation[]).filter((inv) => inv.status === "pending")
 				)
-				setPendingInvitations(pendingData)
+			} else if (isAdmin) {
+				setAllInvitations(data as unknown as ProjectInvitation[])
 			}
 		} catch (error) {
 			if (process.env.NODE_ENV === 'development') {
@@ -110,7 +144,7 @@ export default function NotificationPageClient({
 			}
 			setInvitations([])
 		}
-	}, [enhancedUser?.id, isAdmin])
+	}, [enhancedUser?.id, isAdmin, canManageAllInvitations])
 
 	const handleAcceptInvitation = useCallback(async (invitationId: number) => {
 		setSuccessMessage("")
@@ -121,6 +155,7 @@ export default function NotificationPageClient({
 		try {
 			await acceptProjectInvitation(invitationId)
 			await handleRefreshInvitations()
+			notifyPendingInvitationsUpdated()
 			setSuccessMessage("Invitation accepted! You can now access the project.")
 			setTimeout(() => {
 				setSuccessMessage("")
@@ -129,12 +164,14 @@ export default function NotificationPageClient({
 			if (process.env.NODE_ENV === 'development') {
 				console.error("Error accepting invitation:", error)
 			}
-			setErrorMessage("Failed to accept invitation. Please try again.")
+			setErrorMessage(
+				error instanceof Error ? error.message : "Failed to accept invitation. Please try again."
+			)
 		} finally {
 			setProcessingInvitationId(null)
 			setProcessingAction(null)
 		}
-	}, [handleRefreshInvitations])
+	}, [handleRefreshInvitations, notifyPendingInvitationsUpdated])
 
 	const handleDeclineInvitation = useCallback(async (invitationId: number) => {
 		setSuccessMessage("")
@@ -145,6 +182,7 @@ export default function NotificationPageClient({
 		try {
 			await declineProjectInvitation(invitationId)
 			await handleRefreshInvitations()
+			notifyPendingInvitationsUpdated()
 			setSuccessMessage("Invitation declined.")
 			setTimeout(() => {
 				setSuccessMessage("")
@@ -153,12 +191,14 @@ export default function NotificationPageClient({
 			if (process.env.NODE_ENV === 'development') {
 				console.error("Error declining invitation:", error)
 			}
-			setErrorMessage("Failed to decline invitation. Please try again.")
+			setErrorMessage(
+				error instanceof Error ? error.message : "Failed to decline invitation. Please try again."
+			)
 		} finally {
 			setProcessingInvitationId(null)
 			setProcessingAction(null)
 		}
-	}, [handleRefreshInvitations])
+	}, [handleRefreshInvitations, notifyPendingInvitationsUpdated])
 
 	const handleAdminAcceptInvitation = useCallback(async (invitationId: number) => {
 		setSuccessMessage("")
@@ -169,6 +209,7 @@ export default function NotificationPageClient({
 		try {
 			await acceptProjectInvitation(invitationId)
 			await handleRefreshInvitations()
+			notifyPendingInvitationsUpdated()
 			setSuccessMessage("Invitation accepted by admin!")
 			setTimeout(() => {
 				setSuccessMessage("")
@@ -182,7 +223,7 @@ export default function NotificationPageClient({
 			setProcessingInvitationId(null)
 			setProcessingAction(null)
 		}
-	}, [handleRefreshInvitations])
+	}, [handleRefreshInvitations, notifyPendingInvitationsUpdated])
 
 	const handleAdminDeclineInvitation = useCallback(async (invitationId: number) => {
 		setSuccessMessage("")
@@ -193,6 +234,7 @@ export default function NotificationPageClient({
 		try {
 			await declineProjectInvitation(invitationId)
 			await handleRefreshInvitations()
+			notifyPendingInvitationsUpdated()
 			setSuccessMessage("Invitation declined by admin!")
 			setTimeout(() => {
 				setSuccessMessage("")
@@ -206,7 +248,7 @@ export default function NotificationPageClient({
 			setProcessingInvitationId(null)
 			setProcessingAction(null)
 		}
-	}, [handleRefreshInvitations])
+	}, [handleRefreshInvitations, notifyPendingInvitationsUpdated])
 
 	const handleAdminDeleteInvitation = useCallback((invitationId: number) => {
 		setSuccessMessage("")
@@ -221,6 +263,7 @@ export default function NotificationPageClient({
 			await declineProjectInvitation(deleteInvitationId)
 			setDeleteInvitationId(null)
 			await handleRefreshInvitations()
+			notifyPendingInvitationsUpdated()
 			toast({
 				title: "Success",
 				description: "Invitation deleted successfully.",
@@ -235,7 +278,7 @@ export default function NotificationPageClient({
 				variant: "destructive",
 			})
 		}
-	}, [deleteInvitationId, handleRefreshInvitations])
+	}, [deleteInvitationId, handleRefreshInvitations, notifyPendingInvitationsUpdated])
 
 	const getStatusBadge = (status: string) => {
 		switch (status) {
@@ -270,7 +313,9 @@ export default function NotificationPageClient({
 					Notifications
 				</h1>
 				<p className="text-muted-foreground mt-2">
-					{isAdmin ? "Manage project invitations and custom service requests" : "View your project invitations"}
+					{canManageAllInvitations
+						? "Manage project invitations and custom service requests"
+						: "View your project invitations and custom service requests"}
 				</p>
 			</div>
 
@@ -290,7 +335,7 @@ export default function NotificationPageClient({
 				</Alert>
 			)}
 
-			{isAdmin ? (
+			{canManageAllInvitations ? (
 				<Tabs defaultValue="invitations" className="w-full">
 					<TabsList className="grid w-full grid-cols-2">
 						<TabsTrigger value="invitations">Project Invitations</TabsTrigger>
@@ -418,7 +463,11 @@ export default function NotificationPageClient({
 					</TabsContent>
 
 					<TabsContent value="custom-services" className="space-y-4">
-						<CustomServiceNotifications userId={enhancedUser?.id || ""} isAdmin={true} />
+						<CustomServiceNotifications
+							userId={enhancedUser?.id || ""}
+							initialServices={initialCustomServices}
+							canReviewCustomServices={canReviewCustomServices}
+						/>
 					</TabsContent>
 				</Tabs>
 			) : (
@@ -432,25 +481,49 @@ export default function NotificationPageClient({
 						<div className="flex items-center gap-2 mb-4">
 							<Users className="w-5 h-5" />
 							<h2 className="text-xl font-semibold">My Project Invitations</h2>
-							<Badge variant="secondary">{invitations.length}</Badge>
+							<Badge variant="secondary">{myInvitations.length}</Badge>
 						</div>
 						
-						{invitations.length === 0 ? (
+						{myInvitations.length === 0 ? (
 							<Card>
 								<CardContent className="p-6 text-center">
 									<Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
-									<p className="text-muted-foreground">You don't have any pending invitations.</p>
+									<p className="text-muted-foreground">
+										You don&apos;t have any project invitations sent to you or by you.
+									</p>
 								</CardContent>
 							</Card>
 						) : (
-							invitations.map((invitation) => (
+							myInvitations.map((invitation) => {
+								const isIncoming =
+									enhancedUser?.id != null &&
+									invitation.invitedUser === enhancedUser.id
+								const isOutgoing =
+									enhancedUser?.id != null &&
+									invitation.invitedBy === enhancedUser.id
+
+								return (
 								<Card key={invitation.id} className="p-4">
 									<CardHeader className="pb-3">
 										<div className="flex justify-between items-start">
 											<div>
 												<CardTitle className="text-lg">{invitation.project.name}</CardTitle>
 												<CardDescription>
-													Invited by {invitation.inviter.firstName} {invitation.inviter.lastName}
+													{isIncoming && !isOutgoing && (
+														<>
+															Received — invited by {invitation.inviter.firstName}{" "}
+															{invitation.inviter.lastName}
+														</>
+													)}
+													{isOutgoing && !isIncoming && invitation.invitee && (
+														<>
+															Sent — invited {invitation.invitee.firstName}{" "}
+															{invitation.invitee.lastName}
+														</>
+													)}
+													{isIncoming && isOutgoing && (
+														<>Project invitation</>
+													)}
 												</CardDescription>
 											</div>
 											{getStatusBadge(invitation.status)}
@@ -492,7 +565,7 @@ export default function NotificationPageClient({
 											</div>
 										</div>
 
-										{invitation.status === "removed" && (
+										{invitation.status === "removed" && isIncoming && (
 											<div className="border-t pt-4 mt-4">
 												<Alert variant="destructive">
 													<AlertCircle className="h-4 w-4" />
@@ -505,7 +578,14 @@ export default function NotificationPageClient({
 											</div>
 										)}
 
-										{invitation.status === "pending" && (
+										{invitation.status === "pending" && isOutgoing && !isIncoming && (
+											<p className="text-sm text-muted-foreground border-t pt-4">
+												Waiting for {invitation.invitee?.firstName}{" "}
+												{invitation.invitee?.lastName} to respond.
+											</p>
+										)}
+
+										{invitation.status === "pending" && isIncoming && (
 											<div className="flex gap-2">
 												<Button
 													onClick={() => handleAcceptInvitation(invitation.id)}
@@ -536,12 +616,16 @@ export default function NotificationPageClient({
 										)}
 									</CardContent>
 								</Card>
-							))
+							)})
 						)}
 					</TabsContent>
 
 					<TabsContent value="custom-services" className="space-y-4">
-						<CustomServiceNotifications userId={enhancedUser?.id || ""} isAdmin={false} />
+						<CustomServiceNotifications
+							userId={enhancedUser?.id || ""}
+							initialServices={initialCustomServices}
+							canReviewCustomServices={canReviewCustomServices}
+						/>
 					</TabsContent>
 				</Tabs>
 			)}

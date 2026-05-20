@@ -7,7 +7,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache } from "next/cache"
 import { revalidateTag } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
-import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
+import { excludeNoProjectSentinelWhere, getOrCreateSystemClient } from "@/lib/no-project"
 
 export async function getAllProjects(userId?: string) {
   if (!userId) {
@@ -474,6 +474,15 @@ export async function canModifyProject(userId: string, projectId: number): Promi
 }
 
 export async function createProject(data: CreateProjectData) {
+  let clientId = data.clientId?.trim() ?? ""
+  let clientName = data.clientName?.trim() ?? ""
+
+  if (!clientId) {
+    const systemClient = await getOrCreateSystemClient()
+    clientId = systemClient.id
+    clientName = systemClient.name
+  }
+
   const project = await prisma.$transaction(async (tx) => {
     const created = await tx.project.create({
       data: {
@@ -482,8 +491,8 @@ export async function createProject(data: CreateProjectData) {
         createdBy: data.createdBy,
         startDate: data.startDate ?? new Date(),
         endDate: data.endDate ?? new Date(),
-        clientName: data.clientName ?? "",
-        clientId: data.clientId ?? "",
+        clientName,
+        clientId,
       },
     })
 

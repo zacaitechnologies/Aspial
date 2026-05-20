@@ -79,6 +79,7 @@ export default function CreateProjectDialog({
   const [newClientData, setNewClientData] = useState<NewClientData>(DEFAULT_NEW_CLIENT);
 
   const [selectedQuotationIds, setSelectedQuotationIds] = useState<number[]>([]);
+  const [skipClientAutoFill, setSkipClientAutoFill] = useState(false);
 
   const resetForm = () => {
     setName("");
@@ -91,6 +92,7 @@ export default function CreateProjectDialog({
     setSelectedClientName("");
     setNewClientData(DEFAULT_NEW_CLIENT);
     setSelectedQuotationIds([]);
+    setSkipClientAutoFill(false);
   };
 
   const handleClose = (open: boolean) => {
@@ -106,8 +108,12 @@ export default function CreateProjectDialog({
   ) => {
     setSelectedQuotationIds(ids);
 
+    if (ids.length === 0) {
+      setSkipClientAutoFill(false);
+    }
+
     // Auto-fill client from primary (first-selected) quotation when in existing mode
-    if (primaryClient && clientMode === "existing") {
+    if (primaryClient && clientMode === "existing" && !skipClientAutoFill) {
       if (selectedClientId !== primaryClient.id) {
         setSelectedClientId(primaryClient.id);
         setSelectedClientName(primaryClient.name);
@@ -118,9 +124,7 @@ export default function CreateProjectDialog({
   const validate = (): string | null => {
     if (!name.trim()) return "Project name is required.";
 
-    if (clientMode === "existing") {
-      if (!selectedClientId) return "Please select a client.";
-    } else {
+    if (clientMode === "new") {
       if (!newClientData.name?.trim()) return "Client name is required.";
       if (!newClientData.email?.trim()) return "Email is required.";
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newClientData.email.trim())) {
@@ -185,10 +189,6 @@ export default function CreateProjectDialog({
         clientName = created.name;
       }
 
-      if (!clientId) {
-        throw new Error("Client could not be resolved.");
-      }
-
       await createProject({
         name: name.trim(),
         description: description.trim() || undefined,
@@ -196,8 +196,7 @@ export default function CreateProjectDialog({
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
         priority,
-        clientId,
-        clientName,
+        ...(clientId ? { clientId, clientName } : {}),
         quotationIds: selectedQuotationIds.length > 0 ? selectedQuotationIds : undefined,
       });
 
@@ -318,12 +317,20 @@ export default function CreateProjectDialog({
           </div>
 
           <ClientSelection
+            optional
             selectedClientId={selectedClientId}
+            selectedClientName={selectedClientName}
             newClientData={newClientData}
             mode={clientMode}
             onClientSelect={(clientId, clientName) => {
+              setSkipClientAutoFill(false);
               setSelectedClientId(clientId);
               setSelectedClientName(clientName);
+            }}
+            onClientClear={() => {
+              setSkipClientAutoFill(true);
+              setSelectedClientId(undefined);
+              setSelectedClientName("");
             }}
             onNewClientDataChange={(data) => setNewClientData(data)}
             onModeChange={(mode) => setClientMode(mode)}

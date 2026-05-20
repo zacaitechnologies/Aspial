@@ -168,12 +168,23 @@ export type ProjectStats = {
 };
 
 // Milestone-related types
+export type MilestoneColorVariant =
+  | "pastel-blush"
+  | "pastel-peach"
+  | "pastel-lemon"
+  | "pastel-mint"
+  | "pastel-sky"
+  | "pastel-lavender"
+  | "pastel-coral"
+  | "pastel-sand";
+
 export type Milestone = {
   id: number;
   title: string;
   description: string | null;
   projectId: number;
   serviceId?: number | null;
+  color: MilestoneColorVariant | string;
   dueDate: Date;
   priority: TaskPriority;
   status: MilestoneStatus;
@@ -196,6 +207,7 @@ export type CreateMilestoneData = {
   description?: string;
   projectId: number;
   serviceId?: number | null;
+  color?: MilestoneColorVariant | string;
   dueDate?: Date;
   priority?: TaskPriority;
   order?: number;
@@ -205,6 +217,7 @@ export type UpdateMilestoneData = {
   title?: string;
   description?: string;
   serviceId?: number | null;
+  color?: MilestoneColorVariant | string;
   dueDate?: Date | null;
   priority?: TaskPriority;
   status?: MilestoneStatus;

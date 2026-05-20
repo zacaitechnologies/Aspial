@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 import { useForm, UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -40,14 +40,25 @@ import {
 } from "../types";
 import { createMilestone, updateMilestone, getProjectServices } from "../milestone-actions";
 import { formatLocalDate } from "@/lib/date-utils";
+import {
+  DEFAULT_MILESTONE_COLOR,
+  MILESTONE_COLOR_OPTIONS,
+  MILESTONE_COLOR_VALUES,
+} from "@/lib/milestone-colors";
+import { cn } from "@/lib/utils";
 
 const milestoneSchema = z.object({
-  title: z.string().min(1, "Title is required"),
+  title: z.string().trim().min(1, "Title is required"),
   description: z.string().optional(),
   serviceId: z.string().optional(),
-  priority: z.enum(["low", "medium", "high"]),
+  color: z.enum(MILESTONE_COLOR_VALUES as [string, ...string[]], {
+    required_error: "Color is required",
+  }),
+  priority: z.enum(["low", "medium", "high"], {
+    required_error: "Priority is required",
+  }),
   status: z.enum(["not_started", "in_progress", "completed"]),
-  dueDate: z.string().optional(),
+  dueDate: z.string().min(1, "Due date is required"),
 });
 
 type MilestoneFormData = z.infer<typeof milestoneSchema>;
@@ -104,8 +115,8 @@ const PriorityField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => 
     name="priority"
     render={({ field }) => (
       <FormItem>
-        <FormLabel>Priority</FormLabel>
-        <Select onValueChange={field.onChange} defaultValue={field.value}>
+        <FormLabel>Priority *</FormLabel>
+        <Select onValueChange={field.onChange} value={field.value}>
           <FormControl>
             <SelectTrigger>
               <SelectValue placeholder="Select priority" />
@@ -132,7 +143,7 @@ const StatusField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
     render={({ field }) => (
       <FormItem>
         <FormLabel>Status</FormLabel>
-        <Select onValueChange={field.onChange} defaultValue={field.value}>
+        <Select onValueChange={field.onChange} value={field.value}>
           <FormControl>
             <SelectTrigger>
               <SelectValue placeholder="Select status" />
@@ -152,13 +163,58 @@ const StatusField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
   />
 );
 
+const ColorField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
+  <FormField
+    control={form.control}
+    name="color"
+    render={({ field }) => (
+      <FormItem>
+        <FormLabel>Color *</FormLabel>
+        <FormControl>
+          <div
+            className="flex flex-wrap gap-2"
+            role="radiogroup"
+            aria-label="Milestone color"
+          >
+            {MILESTONE_COLOR_OPTIONS.map((option) => {
+              const isSelected = field.value === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-label={option.label}
+                  title={option.label}
+                  onClick={() => field.onChange(option.value)}
+                  className={cn(
+                    "h-9 w-9 rounded-full border-2 border-border transition-all",
+                    option.dotClass,
+                    isSelected
+                      ? cn("ring-2 ring-offset-2 ring-offset-background", option.selectedRingClass)
+                      : "opacity-80 hover:opacity-100"
+                  )}
+                />
+              );
+            })}
+          </div>
+        </FormControl>
+        <p className="text-xs text-muted-foreground">
+          Pick a color to tell milestones apart on the board.
+        </p>
+        <FormMessage />
+      </FormItem>
+    )}
+  />
+);
+
 const DueDateField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
   <FormField
     control={form.control}
     name="dueDate"
     render={({ field }) => (
       <FormItem>
-        <FormLabel>Due Date</FormLabel>
+        <FormLabel>Due Date *</FormLabel>
         <FormControl>
           <Input
             type="date"
@@ -229,6 +285,7 @@ export function MilestoneForm({
       title: milestone?.title || "",
       description: milestone?.description || "",
       serviceId: milestone?.serviceId?.toString() || "none",
+      color: milestone?.color ? (milestone.color as MilestoneFormData["color"]) : DEFAULT_MILESTONE_COLOR,
       priority: milestone?.priority || "low",
       status: milestone?.status || "not_started",
       dueDate: milestone?.dueDate 
@@ -262,7 +319,7 @@ export function MilestoneForm({
       const milestoneData = {
         ...data,
         serviceId: data.serviceId && data.serviceId !== "none" ? parseInt(data.serviceId) : null,
-        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        dueDate: new Date(data.dueDate),
       };
 
       if (milestone) {
@@ -281,7 +338,15 @@ export function MilestoneForm({
       setIsOpen(false);
       form.reset();
     } catch (error) {
-      console.error("Error saving milestone:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error saving milestone:", error);
+      }
+      toast({
+        title: "Could not save milestone",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -299,7 +364,8 @@ export function MilestoneForm({
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <TitleField form={form} />
         <DescriptionField form={form} />
-        
+        <ColorField form={form} />
+
         <ServiceField 
           form={form} 
           availableServices={availableServices}
@@ -361,14 +427,6 @@ export function MilestoneForm({
     );
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          {milestone ? "Edit Milestone" : "Create New Milestone"}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{formContent}</CardContent>
-    </Card>
-  );
+  // Embedded in a parent dialog (e.g. edit from milestone card) — no nested card/title
+  return formContent;
 }

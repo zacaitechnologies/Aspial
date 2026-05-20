@@ -54,10 +54,7 @@ export const TERMS_AND_CONDITIONS: ReadonlyArray<string> = [
 
 // --- Company / footer content (shown in 4-column block + corporate row) ----
 export const COMPANY_FOOTER = {
-  corporateNames: [
-    "ASPIAL PRODUCTION SDN BHD (202001019933 (1376253-A))",
-    "ASPIAL WEDDING COLLECTION (KL) SDN BHD (823308-K)",
-  ],
+  corporateName: "ASPIAL PRODUCTION SDN BHD (202001019933 (1376253-A))",
   payment: {
     bank: "Public Bank Berhad",
     accountNo: "321-9794-528",

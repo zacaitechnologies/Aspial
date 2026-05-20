@@ -689,6 +689,8 @@ model Milestone {
   description String?
   projectId   Int
   serviceId   Int?
+  /// Pastel color key (e.g. pastel-sky, pastel-mint) for UI differentiation
+  color       String          @default("pastel-sky")
   dueDate     DateTime
   priority    TaskPriority    @default(low)
   status      MilestoneStatus @default(in_progress)

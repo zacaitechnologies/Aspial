@@ -43,6 +43,8 @@ import {
 import { createTask, updateTask } from "../task-actions";
 import { useSession } from "../../contexts/SessionProvider";
 import { formatLocalDate } from "@/lib/date-utils";
+import { getMilestoneColorOption } from "@/lib/milestone-colors";
+import { cn } from "@/lib/utils";
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -106,11 +108,20 @@ const MilestoneField = ({ form, availableMilestones }: { form: UseFormReturn<Tas
           </FormControl>
           <SelectContent>
             <SelectItem value="none">No milestone</SelectItem>
-            {availableMilestones?.map((milestone) => (
-              <SelectItem key={milestone.id} value={milestone.id.toString()}>
-                {milestone.title}
-              </SelectItem>
-            ))}
+            {availableMilestones?.map((milestone) => {
+              const colorOption = getMilestoneColorOption(milestone.color);
+              return (
+                <SelectItem key={milestone.id} value={milestone.id.toString()}>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={cn("h-2.5 w-2.5 shrink-0 rounded-full", colorOption.dotClass)}
+                      aria-hidden
+                    />
+                    {milestone.title}
+                  </span>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
         <FormMessage />

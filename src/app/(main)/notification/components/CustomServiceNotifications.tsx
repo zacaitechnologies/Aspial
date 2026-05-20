@@ -23,8 +23,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Bell, Check, X, Package, Loader2 } from "lucide-react";
 import {
-  getAllCustomServices,
-  getUserCustomServices,
+  getNotificationCustomServices,
   approveCustomService,
   rejectCustomService,
 } from "../../quotations/action";
@@ -61,16 +60,21 @@ type CustomServiceRequest = {
 
 interface CustomServiceNotificationsProps {
   userId: string;
-  isAdmin?: boolean;
+  initialServices?: CustomServiceRequest[];
+  /** Strict admin only — can approve/reject and sees all requests in the list. */
+  canReviewCustomServices?: boolean;
 }
 
 export default function CustomServiceNotifications({
   userId,
-  isAdmin = false,
+  initialServices = [],
+  canReviewCustomServices = false,
 }: CustomServiceNotificationsProps) {
   const router = useRouter();
-  const [pendingServices, setPendingServices] = useState<CustomServiceRequest[]>([]);
-  const [allServices, setAllServices] = useState<CustomServiceRequest[]>([]);
+  const [pendingServices, setPendingServices] = useState<CustomServiceRequest[]>(() =>
+    initialServices.filter((service) => service.status === "PENDING")
+  );
+  const [allServices, setAllServices] = useState<CustomServiceRequest[]>(initialServices);
   const [loading, setLoading] = useState(true);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
@@ -83,23 +87,13 @@ export default function CustomServiceNotifications({
   const fetchCustomServices = async () => {
     try {
       setLoading(true);
-      if (isAdmin) {
-        // Admin: fetch all services from all users
-        const all = await getAllCustomServices();
-        setAllServices(all);
-        // Filter pending from all data (client-side filtering)
-        const pending = all.filter(service => service.status === "PENDING");
-        setPendingServices(pending);
-      } else {
-        // Regular user: fetch only their own services
-        const all = await getUserCustomServices(userId);
-        setAllServices(all);
-        // Filter pending from all data (client-side filtering)
-        const pending = all.filter(service => service.status === "PENDING");
-        setPendingServices(pending);
-      }
+      const all = await getNotificationCustomServices();
+      setAllServices(all);
+      setPendingServices(all.filter((service) => service.status === "PENDING"));
     } catch (error) {
-      console.error("Failed to fetch custom services:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.error("Failed to fetch custom services:", error);
+      }
       setPendingServices([]);
       setAllServices([]);
     } finally {
@@ -109,7 +103,7 @@ export default function CustomServiceNotifications({
 
   useEffect(() => {
     fetchCustomServices();
-  }, [isAdmin, userId]);
+  }, [userId]);
 
   const handleApprove = (service: CustomServiceRequest) => {
     setSelectedService(service);
@@ -124,7 +118,7 @@ export default function CustomServiceNotifications({
   };
 
   const confirmApprove = async () => {
-    if (!selectedService) return;
+    if (!selectedService || !canReviewCustomServices) return;
 
     setIsApproving(true);
     try {
@@ -158,7 +152,9 @@ export default function CustomServiceNotifications({
   };
 
   const confirmReject = async () => {
-    if (!selectedService || !rejectionComment.trim()) {
+    if (!selectedService || !canReviewCustomServices) return;
+
+    if (!rejectionComment.trim()) {
       toast({
         title: "Validation Error",
         description: "Rejection reason is required!",
@@ -231,7 +227,9 @@ export default function CustomServiceNotifications({
         <div className="flex items-center gap-2 mb-4">
           <Package className="w-5 h-5" />
           <h2 className="text-xl font-semibold">
-            {isAdmin ? "All Custom Service Requests" : "My Custom Service Requests"}
+            {canReviewCustomServices
+              ? "All Custom Service Requests"
+              : "My Custom Service Requests"}
           </h2>
           <Badge variant="secondary">{allServices.length}</Badge>
           <Badge variant="default" className="ml-2">
@@ -244,7 +242,7 @@ export default function CustomServiceNotifications({
             <CardContent className="p-6 text-center">
               <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-muted-foreground">
-                {isAdmin 
+                {canReviewCustomServices
                   ? "No custom service requests in the system."
                   : "You haven't submitted any custom service requests yet."}
               </p>
@@ -309,7 +307,7 @@ export default function CustomServiceNotifications({
                   </div>
                 </div>
 
-                {service.status === "PENDING" && isAdmin && (
+                {service.status === "PENDING" && canReviewCustomServices && (
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleApprove(service)}
@@ -330,14 +328,18 @@ export default function CustomServiceNotifications({
                 )}
                 
                 {/* Show approval/rejection comments for non-admin users */}
-                {!isAdmin && service.status === "APPROVED" && service.approvalComment && (
+                {!canReviewCustomServices &&
+                  service.status === "APPROVED" &&
+                  service.approvalComment && (
                   <div className="border-t pt-3">
                     <p className="text-sm">
                       <strong>Admin Comment:</strong> {service.approvalComment}
                     </p>
                   </div>
                 )}
-                {!isAdmin && service.status === "REJECTED" && service.rejectionComment && (
+                {!canReviewCustomServices &&
+                  service.status === "REJECTED" &&
+                  service.rejectionComment && (
                   <div className="border-t pt-3">
                     <p className="text-sm text-red-600">
                       <strong>Rejection Reason:</strong> {service.rejectionComment}

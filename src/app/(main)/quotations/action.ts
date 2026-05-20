@@ -7,6 +7,10 @@ import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { excludeNoProjectSentinelWhere, excludeSystemClientWhere } from "@/lib/no-project"
+import {
+  getAuthenticatedActor,
+  requireNotificationAdmin,
+} from "@/lib/notification-access"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import {
@@ -2042,77 +2046,75 @@ export async function getCustomServicesByQuotationId(quotationId: number) {
   })
 }
 
-// Get all custom services (for admin)
-export async function getAllCustomServices() {
-  unstable_noStore()
-  return await prisma.customService.findMany({
-    include: {
-      createdBy: {
+const customServiceNotificationInclude = {
+  createdBy: {
+    select: {
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  },
+  reviewedBy: {
+    select: {
+      firstName: true,
+      lastName: true,
+      email: true,
+    },
+  },
+  quotation: {
+    select: {
+      id: true,
+      name: true,
+      Client: {
         select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      reviewedBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      quotation: {
-        select: {
-          id: true,
           name: true,
-          Client: {
-            select: {
-              name: true,
-              company: true,
-            },
-          },
+          company: true,
         },
       },
     },
+  },
+} as const
+
+/**
+ * Notification page: admins see all requests; everyone else sees only their own submissions.
+ * Uses strict admin (not brand-advisor) so elevated roles still see their own requests.
+ */
+export async function getNotificationCustomServices() {
+  unstable_noStore()
+  const user = await getCachedUser()
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+
+  return await prisma.customService.findMany({
+    where: isAdmin ? undefined : { createdById: user.id },
+    include: customServiceNotificationInclude,
     orderBy: { createdAt: "desc" },
   })
 }
 
-// Get custom services for a specific user
-export async function getUserCustomServices(userId: string) {
+// Get all custom services (admin only). Non-admins receive an empty list (no error).
+export async function getAllCustomServices() {
   unstable_noStore()
+  const actor = await getAuthenticatedActor()
+  if (!actor.isAdmin) {
+    return []
+  }
+
+  return await prisma.customService.findMany({
+    include: customServiceNotificationInclude,
+    orderBy: { createdAt: "desc" },
+  })
+}
+
+// Custom services submitted by the authenticated user only.
+export async function getUserCustomServices(_requestedUserId?: string) {
+  unstable_noStore()
+  const user = await getCachedUser()
+
   return await prisma.customService.findMany({
     where: {
-      createdById: userId,
+      createdById: user.id,
     },
-    include: {
-      createdBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      reviewedBy: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      quotation: {
-        select: {
-          id: true,
-          name: true,
-          Client: {
-            select: {
-              name: true,
-              company: true,
-            },
-          },
-        },
-      },
-    },
+    include: customServiceNotificationInclude,
     orderBy: { createdAt: "desc" },
   })
 }
@@ -2272,21 +2274,23 @@ export async function updateCustomServiceStatus(
   return updated
 }
 
-// Approve custom service
+// Approve custom service (admin only — enforced in updateCustomServiceStatus)
 export async function approveCustomService(
   customServiceId: string,
-  userId: string,
+  _userId: string,
   comment?: string
 ) {
+  await requireNotificationAdmin()
   return await updateCustomServiceStatus(customServiceId, "APPROVED", comment)
 }
 
-// Reject custom service
+// Reject custom service (admin only — enforced in updateCustomServiceStatus)
 export async function rejectCustomService(
   customServiceId: string,
-  userId: string,
+  _userId: string,
   comment: string
 ) {
+  await requireNotificationAdmin()
   return await updateCustomServiceStatus(customServiceId, "REJECTED", comment)
 }
 

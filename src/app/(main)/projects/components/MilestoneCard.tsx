@@ -22,14 +22,16 @@ import {
   Calendar,
   Flag,
   MoreHorizontal,
-  Target,
   Edit,
   Trash2,
   CheckCircle,
   Clock,
+  Target,
   Package,
 } from "lucide-react";
 import { Milestone } from "../types";
+import { getMilestoneColorOption } from "@/lib/milestone-colors";
+import { cn } from "@/lib/utils";
 import { MilestoneForm } from "./MilestoneForm";
 import { deleteMilestone } from "../milestone-actions";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
@@ -102,14 +104,24 @@ export function MilestoneCard({
   const completedTasks = milestone.tasks?.filter(task => task.status === 'done').length || 0;
   const totalTasks = milestone.tasks?.length || 0;
   const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  const colorOption = getMilestoneColorOption(milestone.color);
 
   return (
-    <Card className="bg-card border-border hover:shadow-md transition-shadow mb-4">
+    <Card
+      className={cn(
+        "border border-border hover:shadow-md transition-shadow mb-4 border-l-4",
+        colorOption.stripeClass,
+        colorOption.cardTintClass
+      )}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-yellow-600" />
+              <span
+                className={cn("h-3 w-3 shrink-0 rounded-full", colorOption.dotClass)}
+                aria-hidden
+              />
               <h4 className="font-medium text-card-foreground">{milestone.title}</h4>
             </div>
             {milestone.description && (
@@ -192,7 +204,10 @@ export function MilestoneCard({
               {completedTasks}/{totalTasks} tasks completed
             </span>
           </div>
-          <Progress value={progressPercentage} className="h-2" />
+          <Progress
+            value={progressPercentage}
+            className={cn("h-2", colorOption.progressClass)}
+          />
           <div className="text-xs text-muted-foreground">
             {Math.round(progressPercentage)}% complete
           </div>

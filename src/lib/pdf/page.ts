@@ -199,15 +199,8 @@ export function addFooter(doc: jsPDF): void {
   doc.setFont("helvetica", "normal")
   doc.setFontSize(8)
   doc.setTextColor(BLACK[0], BLACK[1], BLACK[2])
-  const [companyA, companyB] = COMPANY_FOOTER.corporateNames
   const corporateY = footerTop + 5
-  const corpAW = doc.getTextWidth(companyA)
-  const corpBW = doc.getTextWidth(companyB)
-  const gap = 14
-  const totalCorpW = corpAW + gap + corpBW
-  const corpStartX = (pageWidth - totalCorpW) / 2
-  doc.text(companyA, corpStartX, corporateY)
-  doc.text(companyB, corpStartX + corpAW + gap, corporateY)
+  doc.text(COMPANY_FOOTER.corporateName, pageWidth / 2, corporateY, { align: "center" })
 
   // 2. Decorative divider below the corporate names
   drawAccentDivider(doc, pageWidth, corporateY + 3)

@@ -4,6 +4,8 @@
 
 /* Safelist calendar category colors so dynamic booking.color classes are not purged */
 @source inline("bg-calendar-photo-shoot bg-calendar-video-shoot bg-calendar-photo-selection bg-calendar-consultation bg-calendar-others bg-calendar-leave bg-calendar-leave-pending bg-calendar-blocker text-calendar-blocker-foreground border-l-calendar-photo-shoot border-l-calendar-video-shoot border-l-calendar-photo-selection border-l-calendar-consultation border-l-calendar-others border-l-calendar-leave border-l-calendar-leave-pending border-l-calendar-blocker border-calendar-leave/70 border-calendar-leave-pending");
+/* Milestone pastel palette (dynamic classes from milestone-colors.ts) */
+@source inline("bg-milestone-pastel-blush bg-milestone-pastel-peach bg-milestone-pastel-lemon bg-milestone-pastel-mint bg-milestone-pastel-sky bg-milestone-pastel-lavender bg-milestone-pastel-coral bg-milestone-pastel-sand bg-milestone-pastel-blush-tint bg-milestone-pastel-peach-tint bg-milestone-pastel-lemon-tint bg-milestone-pastel-mint-tint bg-milestone-pastel-sky-tint bg-milestone-pastel-lavender-tint bg-milestone-pastel-coral-tint bg-milestone-pastel-sand-tint text-milestone-pastel-blush text-milestone-pastel-peach text-milestone-pastel-lemon text-milestone-pastel-mint text-milestone-pastel-sky text-milestone-pastel-lavender text-milestone-pastel-coral text-milestone-pastel-sand border-l-milestone-pastel-blush border-l-milestone-pastel-peach border-l-milestone-pastel-lemon border-l-milestone-pastel-mint border-l-milestone-pastel-sky border-l-milestone-pastel-lavender border-l-milestone-pastel-coral border-l-milestone-pastel-sand border-milestone-pastel-blush/50 border-milestone-pastel-peach/50 border-milestone-pastel-lemon/50 border-milestone-pastel-mint/50 border-milestone-pastel-sky/50 border-milestone-pastel-lavender/50 border-milestone-pastel-coral/50 border-milestone-pastel-sand/50 ring-milestone-pastel-blush ring-milestone-pastel-peach ring-milestone-pastel-lemon ring-milestone-pastel-mint ring-milestone-pastel-sky ring-milestone-pastel-lavender ring-milestone-pastel-coral ring-milestone-pastel-sand bg-milestone-pastel-blush-tint/50 bg-milestone-pastel-peach-tint/50 bg-milestone-pastel-lemon-tint/50 bg-milestone-pastel-mint-tint/50 bg-milestone-pastel-sky-tint/50 bg-milestone-pastel-lavender-tint/50 bg-milestone-pastel-coral-tint/50 bg-milestone-pastel-sand-tint/50 bg-milestone-pastel-blush/25 [&_[data-slot=progress-indicator]]:bg-milestone-pastel-blush [&_[data-slot=progress-indicator]]:bg-milestone-pastel-peach [&_[data-slot=progress-indicator]]:bg-milestone-pastel-lemon [&_[data-slot=progress-indicator]]:bg-milestone-pastel-mint [&_[data-slot=progress-indicator]]:bg-milestone-pastel-sky [&_[data-slot=progress-indicator]]:bg-milestone-pastel-lavender [&_[data-slot=progress-indicator]]:bg-milestone-pastel-coral [&_[data-slot=progress-indicator]]:bg-milestone-pastel-sand");
 
 @custom-variant dark (&:is(.dark *));
 
@@ -60,6 +62,23 @@
   --color-calendar-leave-pending: var(--calendar-leave-pending);
   --color-calendar-blocker: var(--calendar-blocker);
   --color-calendar-blocker-foreground: var(--calendar-blocker-foreground);
+  /* Milestone pastel — highlight (stripe/dot/icon) vs tint (card wash) */
+  --color-milestone-pastel-blush: var(--milestone-pastel-blush-highlight);
+  --color-milestone-pastel-peach: var(--milestone-pastel-peach-highlight);
+  --color-milestone-pastel-lemon: var(--milestone-pastel-lemon-highlight);
+  --color-milestone-pastel-mint: var(--milestone-pastel-mint-highlight);
+  --color-milestone-pastel-sky: var(--milestone-pastel-sky-highlight);
+  --color-milestone-pastel-lavender: var(--milestone-pastel-lavender-highlight);
+  --color-milestone-pastel-coral: var(--milestone-pastel-coral-highlight);
+  --color-milestone-pastel-sand: var(--milestone-pastel-sand-highlight);
+  --color-milestone-pastel-blush-tint: var(--milestone-pastel-blush-tint);
+  --color-milestone-pastel-peach-tint: var(--milestone-pastel-peach-tint);
+  --color-milestone-pastel-lemon-tint: var(--milestone-pastel-lemon-tint);
+  --color-milestone-pastel-mint-tint: var(--milestone-pastel-mint-tint);
+  --color-milestone-pastel-sky-tint: var(--milestone-pastel-sky-tint);
+  --color-milestone-pastel-lavender-tint: var(--milestone-pastel-lavender-tint);
+  --color-milestone-pastel-coral-tint: var(--milestone-pastel-coral-tint);
+  --color-milestone-pastel-sand-tint: var(--milestone-pastel-sand-tint);
 }
 
 :root {
@@ -102,6 +121,23 @@
   /* Distinct from cream/white UI — was amber-500 (#F59E0B), which read as pale/white in the legend */
   --calendar-blocker: #c2410c;
   --calendar-blocker-foreground: #fff7ed;
+  /* Milestone pastels: highlight = stronger contrast; tint = soft card wash */
+  --milestone-pastel-blush-highlight: #c94d7f;
+  --milestone-pastel-blush-tint: #f8d4e4;
+  --milestone-pastel-peach-highlight: #d4693f;
+  --milestone-pastel-peach-tint: #fde2cf;
+  --milestone-pastel-lemon-highlight: #b8921f;
+  --milestone-pastel-lemon-tint: #f8edc4;
+  --milestone-pastel-mint-highlight: #3a8f5c;
+  --milestone-pastel-mint-tint: #d4f0de;
+  --milestone-pastel-sky-highlight: #3a7fb5;
+  --milestone-pastel-sky-tint: #d4ebfa;
+  --milestone-pastel-lavender-highlight: #7352b0;
+  --milestone-pastel-lavender-tint: #e4d8f7;
+  --milestone-pastel-coral-highlight: #c94848;
+  --milestone-pastel-coral-tint: #fad4d4;
+  --milestone-pastel-sand-highlight: #9a6f45;
+  --milestone-pastel-sand-tint: #efe4d2;
   --sidebar: #f0e8d8; /* Cream for sidebar background */
   --sidebar-foreground: #202f21; /* Dark Green for sidebar text */
   --sidebar-primary: #bdc4a5; /* Sage for primary sidebar elements */
@@ -159,6 +195,22 @@
   --calendar-leave-pending: #C8DDE3;
   --calendar-blocker: #c2410c;
   --calendar-blocker-foreground: #fff7ed;
+  --milestone-pastel-blush-highlight: #e07aab;
+  --milestone-pastel-blush-tint: #4a2a38;
+  --milestone-pastel-peach-highlight: #e88a5a;
+  --milestone-pastel-peach-tint: #4a3528;
+  --milestone-pastel-lemon-highlight: #d4b04a;
+  --milestone-pastel-lemon-tint: #454028;
+  --milestone-pastel-mint-highlight: #5aad78;
+  --milestone-pastel-mint-tint: #283a30;
+  --milestone-pastel-sky-highlight: #5a9fd4;
+  --milestone-pastel-sky-tint: #283848;
+  --milestone-pastel-lavender-highlight: #9b7ad8;
+  --milestone-pastel-lavender-tint: #352e48;
+  --milestone-pastel-coral-highlight: #e07070;
+  --milestone-pastel-coral-tint: #4a2c2c;
+  --milestone-pastel-sand-highlight: #c4a06a;
+  --milestone-pastel-sand-tint: #3d3428;
   --sidebar: oklch(0.216 0.006 56.043);
   --sidebar-foreground: oklch(0.985 0.001 106.423);
   --sidebar-primary: oklch(0.488 0.243 264.376);

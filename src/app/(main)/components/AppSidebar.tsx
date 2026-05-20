@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "../contexts/SessionProvider";
 import {
   Settings,
@@ -28,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { getAllPendingInvitations, getUserInvitations } from "../projects/permissions";
 import { checkIsAdmin, checkIsOperationUser } from "../actions/admin-actions";
+import { PENDING_INVITATIONS_UPDATED_EVENT } from "../notification/constants";
 
 import {
   Sidebar,
@@ -98,42 +99,61 @@ export function AppSidebar() {
     pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts") || pathname.includes("/delivery-orders")
   );
 
-  useEffect(() => {
-    const fetchPendingInvitations = async () => {
-      if (!enhancedUser?.id) return;
+  const fetchPendingInvitations = useCallback(async () => {
+    if (!enhancedUser?.id) {
+      setPendingInvitationsCount(0);
+      return;
+    }
 
-      try {
-        const [adminStatus, operationUserStatus] = await Promise.all([
-          checkIsAdmin(enhancedUser.id),
-          checkIsOperationUser(enhancedUser.id)
-        ]);
-        
-        setIsAdmin(adminStatus);
-        setIsOperationUser(operationUserStatus);
+    try {
+      const [adminStatus, operationUserStatus] = await Promise.all([
+        checkIsAdmin(enhancedUser.id),
+        checkIsOperationUser(enhancedUser.id)
+      ]);
 
-        if (adminStatus) {
-          // For admins: get all pending invitations
-          const pendingInvitations = await getAllPendingInvitations();
-          setPendingInvitationsCount(pendingInvitations.length);
-        } else {
-          // For regular users: get their own pending invitations
-          const userInvitations = await getUserInvitations(enhancedUser.id);
-          const pendingCount = userInvitations.filter(inv => inv.status === "pending").length;
-          setPendingInvitationsCount(pendingCount);
-        }
-      } catch (error) {
-        console.error("Failed to fetch pending invitations:", error);
-        setPendingInvitationsCount(0);
+      setIsAdmin(adminStatus);
+      setIsOperationUser(operationUserStatus);
+
+      if (adminStatus) {
+        const pendingInvitations = await getAllPendingInvitations();
+        setPendingInvitationsCount(pendingInvitations.length);
+      } else {
+        const userInvitations = await getUserInvitations(enhancedUser.id);
+        const pendingCount = userInvitations.filter(
+          (inv) =>
+            inv.status === "pending" && inv.invitedUser === enhancedUser.id
+        ).length;
+        setPendingInvitationsCount(pendingCount);
       }
+    } catch (error) {
+      console.error("Failed to fetch pending invitations:", error);
+      setPendingInvitationsCount(0);
+    }
+  }, [enhancedUser?.id]);
+
+  useEffect(() => {
+    fetchPendingInvitations();
+
+    const handlePendingInvitationsUpdated = () => {
+      fetchPendingInvitations();
     };
 
-    fetchPendingInvitations();
+    window.addEventListener(
+      PENDING_INVITATIONS_UPDATED_EVENT,
+      handlePendingInvitationsUpdated
+    );
     
     // Refresh count periodically (every 30 seconds)
     const interval = setInterval(fetchPendingInvitations, 30000);
     
-    return () => clearInterval(interval);
-  }, [enhancedUser?.id]);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(
+        PENDING_INVITATIONS_UPDATED_EVENT,
+        handlePendingInvitationsUpdated
+      );
+    };
+  }, [fetchPendingInvitations]);
 
   return (
     <Sidebar className="border-r border-(--color-sidebar-border) bg-[#f0e8d8]">

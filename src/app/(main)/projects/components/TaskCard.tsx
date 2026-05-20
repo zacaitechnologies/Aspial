@@ -33,6 +33,7 @@ import { deleteTask } from "../task-actions";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { getTaskMilestoneColorOption } from "@/lib/milestone-colors";
 
 interface TaskCardProps {
   task: TaskWithAssignee;
@@ -65,6 +66,8 @@ export const TaskCard = memo(function TaskCard({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
+  const milestoneColor = getTaskMilestoneColorOption(task, availableMilestones);
+
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
@@ -92,7 +95,11 @@ export const TaskCard = memo(function TaskCard({
       className={cn(
         "mb-3 gap-2 border-2 border-foreground/20 bg-card shadow-sm transition-shadow hover:shadow-md",
         isSelected && "ring-2 ring-primary",
-        task.milestone && "border-l-4 border-l-yellow-400 bg-yellow-50/30"
+        milestoneColor && [
+          "border-l-4",
+          milestoneColor.stripeClass,
+          milestoneColor.cardTintClass,
+        ]
       )}
     >
       <CardHeader className="pb-0">
@@ -110,8 +117,10 @@ export const TaskCard = memo(function TaskCard({
             )}
             <div className="space-y-1.5 flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                {task.milestone && (
-                  <Target className="h-4 w-4 text-yellow-600 shrink-0" />
+                {milestoneColor && (
+                  <Target
+                    className={cn("h-4 w-4 shrink-0", milestoneColor.iconClass)}
+                  />
                 )}
                 <h4 className="font-medium text-card-foreground break-words">
                   {task.title}
@@ -119,7 +128,7 @@ export const TaskCard = memo(function TaskCard({
               </div>
               {task.description && (
                 <p
-                  className="text-sm text-muted-foreground break-words line-clamp-3"
+                  className="min-w-0 overflow-hidden text-sm text-muted-foreground break-all line-clamp-2"
                   title={task.description}
                 >
                   {task.description}
@@ -185,13 +194,22 @@ export const TaskCard = memo(function TaskCard({
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
         {/* Milestone Badge */}
-        {task.milestone && (
+        {task.milestone && milestoneColor && (
           <div>
             <Badge
               variant="outline"
-              className="text-xs bg-yellow-50 text-yellow-700 border-yellow-300 flex items-center gap-1 w-fit"
+              className={cn(
+                "text-xs flex items-center gap-1.5 w-fit bg-card text-foreground border",
+                milestoneColor.badgeBorderClass
+              )}
             >
-              <Target className="w-3 h-3" />
+              <span
+                className={cn(
+                  "h-2 w-2 shrink-0 rounded-full",
+                  milestoneColor.dotClass
+                )}
+                aria-hidden
+              />
               {task.milestone.title}
             </Badge>
           </div>
