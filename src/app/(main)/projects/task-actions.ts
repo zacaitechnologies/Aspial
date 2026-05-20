@@ -6,9 +6,15 @@ import { CreateTaskData, UpdateTaskData, TaskWithAssignee, TaskStatus } from "./
 import { updateMilestoneStatus } from "./milestone-actions"
 
 const taskStatusSchema = z.enum(["todo", "in_progress", "done"])
+const moveTaskDirectionSchema = z.enum(["up", "down"])
 const bulkUpdateTaskStatusSchema = z.object({
   taskIds: z.array(z.number().int().positive()).min(1, "Select at least one task"),
   status: taskStatusSchema,
+})
+
+const moveTaskOrderSchema = z.object({
+  taskId: z.number().int().positive(),
+  direction: moveTaskDirectionSchema,
 })
 
 // Get all tasks for a project
@@ -319,6 +325,66 @@ export async function reorderTasks(taskIds: number[]): Promise<void> {
   await prisma.$transaction(
     updates.map(update => prisma.task.update(update))
   )
+}
+
+export async function moveTaskOrder(taskId: number, direction: "up" | "down"): Promise<void> {
+  const parsed = moveTaskOrderSchema.parse({ taskId, direction })
+
+  const currentTask = await prisma.task.findUnique({
+    where: { id: parsed.taskId },
+    select: { id: true, projectId: true, status: true, order: true, createdAt: true },
+  })
+
+  if (!currentTask) {
+    throw new Error("Task not found")
+  }
+
+  const neighbor = parsed.direction === "up"
+    ? await prisma.task.findFirst({
+        where: {
+          projectId: currentTask.projectId,
+          status: currentTask.status,
+          OR: [
+            { order: { lt: currentTask.order } },
+            {
+              order: currentTask.order,
+              createdAt: { lt: currentTask.createdAt },
+            },
+          ],
+        },
+        orderBy: [{ order: "desc" }, { createdAt: "desc" }],
+        select: { id: true, order: true },
+      })
+    : await prisma.task.findFirst({
+        where: {
+          projectId: currentTask.projectId,
+          status: currentTask.status,
+          OR: [
+            { order: { gt: currentTask.order } },
+            {
+              order: currentTask.order,
+              createdAt: { gt: currentTask.createdAt },
+            },
+          ],
+        },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        select: { id: true, order: true },
+      })
+
+  if (!neighbor) {
+    return
+  }
+
+  await prisma.$transaction([
+    prisma.task.update({
+      where: { id: currentTask.id },
+      data: { order: neighbor.order },
+    }),
+    prisma.task.update({
+      where: { id: neighbor.id },
+      data: { order: currentTask.order },
+    }),
+  ])
 }
 
 // Get tasks by status for a project

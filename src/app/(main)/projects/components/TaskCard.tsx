@@ -26,6 +26,8 @@ import {
   Target,
   Edit,
   Trash2,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { TaskWithAssignee, Milestone } from "../types";
 import { TaskForm } from "./TaskForm";
@@ -47,6 +49,11 @@ interface TaskCardProps {
   availableMilestones?: Milestone[];
   onTaskUpdated?: (task: TaskWithAssignee) => void;
   onTaskDeleted?: (taskId: number) => void;
+  onMoveUp?: (taskId: number) => void;
+  onMoveDown?: (taskId: number) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  isMoving?: boolean;
   isSelected?: boolean;
   onSelectChange?: (taskId: number, selected: boolean) => void;
   isProjectCancelled?: boolean;
@@ -58,6 +65,11 @@ export const TaskCard = memo(function TaskCard({
   availableMilestones,
   onTaskUpdated,
   onTaskDeleted,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
+  isMoving = false,
   isSelected = false,
   onSelectChange,
   isProjectCancelled = false,
@@ -138,6 +150,28 @@ export const TaskCard = memo(function TaskCard({
           </div>
           {!isProjectCancelled ? (
             <div className="flex items-center gap-1 shrink-0">
+              {onMoveUp && onMoveDown && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onMoveUp(task.id)}
+                    disabled={!canMoveUp || isMoving}
+                    aria-label={`Move task ${task.title} up`}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onMoveDown(task.id)}
+                    disabled={!canMoveDown || isMoving}
+                    aria-label={`Move task ${task.title} down`}
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm">

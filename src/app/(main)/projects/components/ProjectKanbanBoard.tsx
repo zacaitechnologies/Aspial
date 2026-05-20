@@ -24,6 +24,7 @@ import {
   bulkUpdateTaskStatus,
   getProjectTasks,
   getProjectCollaborators,
+  moveTaskOrder,
 } from "../task-actions";
 import { getProjectMilestones } from "../milestone-actions";
 import { applyMilestoneUpdateToTask } from "@/lib/milestone-colors";
@@ -91,6 +92,7 @@ const KanbanBoardComponent = memo(function KanbanBoard({
     () => new Set()
   );
   const [isBulkMoving, setIsBulkMoving] = useState(false);
+  const [movingTaskId, setMovingTaskId] = useState<number | null>(null);
 
   // Use ref to store onTasksUpdated callback to avoid dependency issues
   const onTasksUpdatedRef = useRef(onTasksUpdated);
@@ -182,9 +184,12 @@ const KanbanBoardComponent = memo(function KanbanBoard({
             comparison = aDueDate - bDueDate;
             break;
           case "createDate":
-            const aCreateDate = new Date(a.createdAt).getTime();
-            const bCreateDate = new Date(b.createdAt).getTime();
-            comparison = aCreateDate - bCreateDate;
+            comparison = a.order - b.order;
+            if (comparison === 0) {
+              const aCreateDate = new Date(a.createdAt).getTime();
+              const bCreateDate = new Date(b.createdAt).getTime();
+              comparison = aCreateDate - bCreateDate;
+            }
             break;
           case "priority":
             const aPriority =
@@ -335,6 +340,30 @@ const KanbanBoardComponent = memo(function KanbanBoard({
     [selectedTaskIds, isBulkMoving, refreshData]
   );
 
+  const handleMoveTask = useCallback(
+    async (taskId: number, direction: "up" | "down") => {
+      if (movingTaskId !== null) return;
+      setMovingTaskId(taskId);
+      try {
+        await moveTaskOrder(taskId, direction);
+        await refreshData();
+        onTasksUpdatedRef.current?.();
+      } catch (error) {
+        if (process.env.NODE_ENV === "development") {
+          console.error("Error moving task:", error);
+        }
+        toast({
+          title: "Error",
+          description: "Failed to move task order. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setMovingTaskId(null);
+      }
+    },
+    [movingTaskId, refreshData]
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -348,7 +377,7 @@ const KanbanBoardComponent = memo(function KanbanBoard({
       case "dueDate":
         return "Due Date";
       case "createDate":
-        return "Create Date";
+        return "Manual Order";
       case "priority":
         return "Priority";
       default:
@@ -455,7 +484,7 @@ const KanbanBoardComponent = memo(function KanbanBoard({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onSortByChange?.("createDate")}>
-                Create Date
+                Manual Order
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onSortByChange?.("dueDate")}>
                 Due Date
@@ -568,7 +597,7 @@ const KanbanBoardComponent = memo(function KanbanBoard({
               </div>
 
               {columnTasks.length > 0 ? (
-                columnTasks.map((task) => (
+                columnTasks.map((task, index) => (
                   <TaskCard
                     key={task.id}
                     task={task}
@@ -576,6 +605,23 @@ const KanbanBoardComponent = memo(function KanbanBoard({
                     availableMilestones={milestones}
                     onTaskUpdated={handleTaskUpdated}
                     onTaskDeleted={handleTaskDeleted}
+                    onMoveUp={
+                      sortBy === "createDate"
+                        ? (taskId) => {
+                            void handleMoveTask(taskId, "up");
+                          }
+                        : undefined
+                    }
+                    onMoveDown={
+                      sortBy === "createDate"
+                        ? (taskId) => {
+                            void handleMoveTask(taskId, "down");
+                          }
+                        : undefined
+                    }
+                    canMoveUp={index > 0}
+                    canMoveDown={index < columnTasks.length - 1}
+                    isMoving={movingTaskId === task.id}
                     isSelected={selectedTaskIds.has(task.id)}
                     onSelectChange={handleSelectChange}
                     isProjectCancelled={isProjectCancelled}
