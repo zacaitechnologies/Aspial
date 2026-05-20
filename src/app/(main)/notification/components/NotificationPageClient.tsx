@@ -367,7 +367,7 @@ export default function NotificationPageClient({
 											<div>
 												<CardTitle className="text-lg">{invitation.project.name}</CardTitle>
 												<CardDescription>
-													{invitation.inviter.firstName} {invitation.inviter.lastName} invited {invitation.invitee.firstName} {invitation.invitee.lastName}
+													{invitation.inviter.firstName} {invitation.inviter.lastName} invited {invitation.invitee?.firstName} {invitation.invitee?.lastName}
 												</CardDescription>
 											</div>
 											{getStatusBadge(invitation.status)}
@@ -389,7 +389,7 @@ export default function NotificationPageClient({
 														<strong>Inviter:</strong> {invitation.inviter.firstName} {invitation.inviter.lastName}
 													</p>
 													<p>
-														<strong>Invitee:</strong> {invitation.invitee.firstName} {invitation.invitee.lastName}
+														<strong>Invitee:</strong> {invitation.invitee?.firstName} {invitation.invitee?.lastName}
 													</p>
 												</div>
 											</div>
@@ -413,7 +413,7 @@ export default function NotificationPageClient({
 													<AlertCircle className="h-4 w-4" />
 													<AlertTitle>User Removed from Project</AlertTitle>
 													<AlertDescription>
-														{invitation.invitee.firstName} {invitation.invitee.lastName} was removed from this project by {invitation.inviter.firstName} {invitation.inviter.lastName}.
+														{invitation.invitee?.firstName} {invitation.invitee?.lastName} was removed from this project by {invitation.inviter.firstName} {invitation.inviter.lastName}.
 													</AlertDescription>
 												</Alert>
 											</div>
