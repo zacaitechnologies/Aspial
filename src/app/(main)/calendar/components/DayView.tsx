@@ -7,14 +7,19 @@ import {
 	parseTime,
 	isCalendarAllDayRowEvent,
 	isToday,
-	getLocalTime,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Clock, MapPin, Users } from "lucide-react"
-import { useMemo, useRef, useEffect } from "react"
+import { useMemo, useRef } from "react"
 import { CurrentTimeLine } from "./CurrentTimeLine"
+import { useScrollToCurrentTime } from "../hooks/useScrollToCurrentTime"
+import {
+	calendarEventBadgeClass,
+	calendarEventMetaClass,
+	calendarEventSurfaceClass,
+} from "../utils/event-surface-styles"
 
 interface DayViewProps {
 	currentDate: Date
@@ -31,7 +36,7 @@ const bookingTypeLabels: Record<CalendarBooking["type"], string> = {
 }
 
 const eventCardClassName =
-	"cursor-pointer rounded-lg border border-border/50 shadow-sm transition-all hover:opacity-95 hover:shadow-md"
+	"cursor-pointer rounded-md shadow-sm transition-all hover:shadow-md hover:brightness-[0.98]"
 
 export function DayView({
 	currentDate,
@@ -45,14 +50,7 @@ export function DayView({
 	const HALF_HOUR_HEIGHT = 60
 	const HOUR_HEIGHT = HALF_HOUR_HEIGHT * 2
 
-	useEffect(() => {
-		const raf = requestAnimationFrame(() => {
-			if (!scrollRef.current) return
-			const { hours } = getLocalTime()
-			scrollRef.current.scrollTop = Math.max(0, (hours - 1) * HOUR_HEIGHT)
-		})
-		return () => cancelAnimationFrame(raf)
-	}, [HOUR_HEIGHT])
+	useScrollToCurrentTime(scrollRef, HOUR_HEIGHT, today)
 
 	// Get events for the day
 	const dayEvents = useMemo(
@@ -90,7 +88,7 @@ export function DayView({
 	return (
 		<div className="flex flex-col h-full">
 			{/* Day Header */}
-			<div className={`p-3 sm:p-4 border-b border-(--color-border)] ${today ? 'bg-(--color-primary)]/5' : ''}`}>
+			<div className={`px-3 py-2 sm:px-4 border-b border-border ${today ? "bg-primary/5" : ""}`}>
 				<div className="flex items-center justify-between gap-2">
 					<div className="min-w-0">
 						<h3 className={`text-lg sm:text-2xl font-bold truncate ${today ? 'text-(--color-primary)]' : 'text-(--color-foreground)]'}`}>
@@ -121,24 +119,25 @@ export function DayView({
 						{allDayEvents.map(event => (
 							<div
 								key={event.id}
-								className={cn("p-3", eventCardClassName, event.color)}
+								className={cn(
+									"p-3",
+									eventCardClassName,
+									calendarEventSurfaceClass(event.appointmentType)
+								)}
 								onClick={() => onEventClick(event)}
 							>
 								<div className="flex items-start justify-between">
 									<div className="flex-1 min-w-0">
 										<div className="flex items-center gap-2 mb-2 flex-wrap">
-											<Badge
-												variant="outline"
-												className="shrink-0 border-border/50 bg-background/70 text-xs font-medium"
-											>
+											<Badge variant="outline" className={cn(calendarEventBadgeClass, "text-xs")}>
 												{bookingTypeLabels[event.type]}
 											</Badge>
 											<h4 className="font-semibold truncate">
 												{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, '')}
 											</h4>
 										</div>
-										<p className="text-sm opacity-90">{event.description}</p>
-										<div className="flex items-center gap-4 mt-2 text-xs opacity-80">
+										<p className={cn("text-sm", calendarEventMetaClass)}>{event.description}</p>
+										<div className={cn("mt-2 flex items-center gap-4", calendarEventMetaClass)}>
 											{event.projectName && (
 												<div className="flex items-center gap-1">
 													<MapPin className="w-3 h-3" />
@@ -182,7 +181,7 @@ export function DayView({
 					{/* Day column */}
 					<div className="flex-1 relative">
 						{today && (
-							<div className="absolute inset-0 z-20 pointer-events-none">
+							<div className="absolute inset-0 z-[35] pointer-events-none">
 								<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
 							</div>
 						)}
@@ -216,7 +215,7 @@ export function DayView({
 									className={cn(
 										"absolute z-10 overflow-hidden p-2",
 										eventCardClassName,
-										event.color
+										calendarEventSurfaceClass(event.appointmentType)
 									)}
 									style={{
 										top,
@@ -232,7 +231,7 @@ export function DayView({
 									<div className="flex items-center gap-1.5 mb-1 min-w-0">
 										<Badge
 											variant="outline"
-											className="shrink-0 border-border/50 bg-background/70 px-1.5 py-0 text-[10px] font-medium leading-tight"
+											className={cn(calendarEventBadgeClass, "px-1.5 py-0")}
 										>
 											{bookingTypeLabels[event.type]}
 										</Badge>
@@ -240,9 +239,9 @@ export function DayView({
 											{event.title}
 										</h4>
 									</div>
-									<div className="flex items-center gap-3 text-[11px] opacity-90 flex-wrap">
+									<div className={cn("flex flex-wrap items-center gap-3", calendarEventMetaClass)}>
 										<div className="flex items-center gap-1">
-											<Clock className="w-3 h-3" />
+											<Clock className="w-3 h-3 shrink-0" />
 											{event.startTime} - {event.endTime}
 										</div>
 										{event.location && (

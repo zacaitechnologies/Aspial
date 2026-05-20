@@ -8,12 +8,13 @@ import {
 	parseTime,
 	isCalendarAllDayRowEvent,
 	isToday,
-	getLocalTime,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
-import { useMemo, useRef, useEffect } from "react"
+import { useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { CurrentTimeLine } from "./CurrentTimeLine"
+import { useScrollToCurrentTime } from "../hooks/useScrollToCurrentTime"
+import { calendarEventMetaClass, calendarEventSurfaceClass } from "../utils/event-surface-styles"
 
 interface WeekViewProps {
 	currentDate: Date
@@ -37,16 +38,9 @@ export function WeekView({
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const HOUR_HEIGHT = 60
 
-	useEffect(() => {
-		const raf = requestAnimationFrame(() => {
-			if (!scrollRef.current) return
-			const { hours } = getLocalTime()
-			scrollRef.current.scrollTop = Math.max(0, (hours - 1) * HOUR_HEIGHT)
-		})
-		return () => cancelAnimationFrame(raf)
-	}, [HOUR_HEIGHT])
-
 	const hasToday = useMemo(() => weekDays.some(isToday), [weekDays])
+
+	useScrollToCurrentTime(scrollRef, HOUR_HEIGHT, hasToday)
 
 	const weekEvents = useMemo(() => {
 		const weekStartStr = formatDate(weekDays[0])
@@ -165,7 +159,10 @@ export function WeekView({
 											{allDayEvents.slice(0, 3).map((event) => (
 												<div
 													key={event.id}
-													className={`text-[10px] sm:text-xs px-1 py-0.5 rounded cursor-pointer ${event.color} hover:opacity-90 transition-opacity truncate leading-tight`}
+													className={cn(
+														"text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md cursor-pointer truncate leading-tight font-medium transition-shadow hover:shadow-sm",
+														calendarEventSurfaceClass(event.appointmentType)
+													)}
 													onClick={(e) => {
 														e.stopPropagation()
 														onEventClick(event)
@@ -212,12 +209,6 @@ export function WeekView({
 
 					{/* Day columns */}
 					<div className="flex-1 grid grid-cols-7 relative">
-						{hasToday && (
-							<div className="absolute z-20 pointer-events-none inset-0">
-								<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
-							</div>
-						)}
-
 						{weekDays.map((date) => {
 							const dateString = formatDate(date)
 							const today = isToday(date)
@@ -228,17 +219,23 @@ export function WeekView({
 							return (
 								<div
 									key={dateString}
-									className={`relative border-r border-(--color-border)] last:border-r-0 ${
-										today ? "bg-(--color-primary)]/[0.06]" : ""
-									}`}
+									className={cn(
+										"relative border-r border-border last:border-r-0",
+										today && "bg-primary/5",
+									)}
 								>
+									{today && (
+										<div className="absolute inset-0 z-[35] pointer-events-none">
+											<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
+										</div>
+									)}
 									{/* Click-to-create grid lines */}
 									{timeSlots.map((slot) => {
 										const slotHour = parseTime(slot)
 										return (
 											<div
 												key={slot}
-												className="border-b border-(--color-border)] cursor-pointer transition-colors hover:bg-(--color-primary)]/10"
+												className="border-b border-border cursor-pointer transition-colors hover:bg-primary/10"
 												style={{ height: HOUR_HEIGHT }}
 												onClick={() => onTimeSlotClick?.(dateString, slotHour)}
 											/>
@@ -256,7 +253,10 @@ export function WeekView({
 										return (
 											<div
 												key={event.id}
-												className={`absolute z-10 overflow-hidden rounded px-1.5 py-1 text-xs cursor-pointer ${event.color} hover:opacity-90 transition-opacity shadow-sm`}
+												className={cn(
+													"absolute z-10 overflow-hidden rounded-md px-1.5 py-1 text-xs cursor-pointer shadow-sm transition-shadow hover:shadow-md hover:brightness-[0.98]",
+													calendarEventSurfaceClass(event.appointmentType)
+												)}
 												style={{
 													top,
 													height,
@@ -268,8 +268,8 @@ export function WeekView({
 													onEventClick(event)
 												}}
 											>
-												<div className="font-medium truncate leading-tight">{event.title}</div>
-												<div className="text-[10px] truncate opacity-80">
+												<div className="font-semibold truncate leading-tight">{event.title}</div>
+												<div className={cn(calendarEventMetaClass, "truncate text-[10px]")}>
 													{event.startTime} – {event.endTime}
 												</div>
 											</div>

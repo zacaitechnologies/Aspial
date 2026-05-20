@@ -104,9 +104,15 @@ export function DateEventsDialog({
                         {eventTypeLabels[event.type]}
                       </Badge>
                       <h3 className="truncate font-semibold text-foreground">
-                        {event.bookingName ?? event.title}
+                        {event.bookingName ?? event.appointmentName ?? event.title}
                       </h3>
                     </div>
+                    {event.type === "appointment" && event.appointmentName && event.bookingName && (
+                      <p className="text-sm text-foreground">
+                        <span className="text-muted-foreground">Appointment: </span>
+                        <span className="font-medium">{event.appointmentName}</span>
+                      </p>
+                    )}
                     {event.type === "appointment" && event.creatorName && (
                       <p className="text-sm text-foreground">
                         <span className="text-muted-foreground">Booked by: </span>

@@ -140,7 +140,13 @@ export function BookingDetailsDialog({
                 {booking.bookingName && (
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-medium text-foreground">Booking name:</span>
-                    <span className="text-muted-foreground">{booking.bookingName}</span>
+                    <span className="font-medium">{booking.bookingName}</span>
+                  </div>
+                )}
+                {booking.appointmentName && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium text-foreground">Appointment:</span>
+                    <span className="font-medium">{booking.appointmentName}</span>
                   </div>
                 )}
                 {booking.creatorName && (

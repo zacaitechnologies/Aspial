@@ -579,6 +579,61 @@
   animation: none !important;
 }
 
+/* Calendar main card: compact toolbar (no default card py-6 / card-header grid gap) */
+.calendar-page .cal-toolbar-card {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  gap: 0 !important;
+}
+
+/* Week/day event blocks: pastel fill + legend hue for text & icons */
+.calendar-page .cal-event-surface {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.calendar-page .cal-event-surface--photo-shoot {
+  background-color: color-mix(in srgb, var(--calendar-photo-shoot) 14%, var(--card));
+  color: var(--calendar-photo-shoot);
+  border-color: color-mix(in srgb, var(--calendar-photo-shoot) 28%, var(--border));
+}
+
+.calendar-page .cal-event-surface--video-shoot {
+  background-color: color-mix(in srgb, var(--calendar-video-shoot) 16%, var(--card));
+  color: var(--calendar-video-shoot);
+  border-color: color-mix(in srgb, var(--calendar-video-shoot) 30%, var(--border));
+}
+
+.calendar-page .cal-event-surface--consultation {
+  background-color: color-mix(in srgb, var(--calendar-consultation) 14%, var(--card));
+  color: var(--calendar-consultation);
+  border-color: color-mix(in srgb, var(--calendar-consultation) 28%, var(--border));
+}
+
+.calendar-page .cal-event-surface--photo-selection {
+  background-color: color-mix(in srgb, var(--calendar-photo-selection) 22%, var(--card));
+  color: color-mix(in srgb, var(--calendar-photo-selection) 55%, var(--foreground));
+  border-color: color-mix(in srgb, var(--calendar-photo-selection) 35%, var(--border));
+}
+
+.calendar-page .cal-event-surface--others {
+  background-color: color-mix(in srgb, var(--calendar-others) 28%, var(--card));
+  color: color-mix(in srgb, var(--calendar-others) 72%, var(--foreground));
+  border-color: color-mix(in srgb, var(--calendar-others) 40%, var(--border));
+}
+
+.calendar-page .cal-event-surface--leave {
+  background-color: color-mix(in srgb, var(--calendar-leave) 14%, var(--card));
+  color: var(--calendar-leave);
+  border-color: color-mix(in srgb, var(--calendar-leave) 28%, var(--border));
+}
+
+.calendar-page .cal-event-surface--blocker {
+  background-color: color-mix(in srgb, var(--calendar-blocker) 12%, var(--card));
+  color: var(--calendar-blocker);
+  border-color: color-mix(in srgb, var(--calendar-blocker) 26%, var(--border));
+}
+
 /* Calendar-page intentional animations (opt-in, override the blanket disable above) */
 @keyframes cal-fade-slide {
   from { opacity: 0; transform: translateY(6px); }

@@ -11,6 +11,7 @@ import {
 	type AppointmentType,
 	type CalendarEventType,
 } from "./constants"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 
 /** Server Actions may deserialize `Date` props as ISO strings — normalize before using Date APIs. */
 function coerceToDate(value: Date | string): Date {
@@ -21,8 +22,10 @@ function coerceToDate(value: Date | string): Date {
 export interface CalendarBooking {
 	id: string
 	title: string
-	/** Display name for the booking (appointment name or task name). */
+	/** Contact / client booking name from appointment_bookings.bookingName. */
 	bookingName?: string | null
+	/** Booked equipment or appointment resource name. */
+	appointmentName?: string | null
 	description: string
 	date: string
 	startTime: string
@@ -114,6 +117,7 @@ async function getUserProjectIds(userId: string): Promise<number[]> {
 		const createdProjects = await prisma.project.findMany({
 			where: {
 				createdBy: userId,
+				...excludeNoProjectSentinelWhere,
 			},
 			select: {
 				id: true,
@@ -123,6 +127,7 @@ async function getUserProjectIds(userId: string): Promise<number[]> {
 		// Get projects where user has permissions
 		const permittedProjects = await prisma.project.findMany({
 			where: {
+				...excludeNoProjectSentinelWhere,
 				permissions: {
 					some: {
 						userId: userId,
@@ -154,6 +159,7 @@ export async function getUserProjects(userId: string): Promise<{ id: number; nam
 		const createdProjects = await prisma.project.findMany({
 			where: {
 				createdBy: userId,
+				...excludeNoProjectSentinelWhere,
 			},
 			select: {
 				id: true,
@@ -164,6 +170,7 @@ export async function getUserProjects(userId: string): Promise<{ id: number; nam
 		// Get projects where user has permissions
 		const permittedProjects = await prisma.project.findMany({
 			where: {
+				...excludeNoProjectSentinelWhere,
 				permissions: {
 					some: {
 						userId: userId,
@@ -401,7 +408,8 @@ async function _fetchAppointmentBookings(
 		results.push({
 			id: `appointment-${booking.id}`,
 			title,
-			bookingName: booking.appointment?.name ?? null,
+			bookingName: booking.bookingName?.trim() || null,
+			appointmentName: booking.appointment?.name ?? null,
 			description: booking.purpose?.trim() ?? "",
 			date: startParts.dateStr,
 			startTime: startParts.timeStr,

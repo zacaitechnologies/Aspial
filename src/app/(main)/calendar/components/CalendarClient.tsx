@@ -508,17 +508,8 @@ export default function CalendarClient({
 	return (
 		<div className="calendar-page min-h-screen bg-background px-4 py-5 sm:px-6 sm:py-6">
 			<div className="max-w-7xl mx-auto">
-				{/* Page intro + filters */}
+				{/* Filters + stats */}
 				<div className="mb-5 sm:mb-6 space-y-4">
-					<div>
-						<h1 className="text-lg font-semibold text-foreground tracking-tight sm:text-xl">
-							Calendar
-						</h1>
-						<p className="text-sm text-muted-foreground mt-0.5">
-							Manage your team&apos;s bookings and events
-						</p>
-					</div>
-
 					<div className="rounded-lg border border-border bg-card p-3 sm:p-4">
 						<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2.5">
 							Filters
@@ -583,8 +574,9 @@ export default function CalendarClient({
 						</div>
 					</div>
 
-					{/* Stats row — Today / This week / Type legend (replaces sidebar in Studio sample) */}
-					<div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+					{/* Stats — Today / This week + horizontal type legend cards */}
+					<div className="space-y-3">
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 						{/* Today */}
 						<div className="cal-stat-card rounded-lg border border-border bg-card p-4">
 							<div className="flex items-center gap-2 mb-2">
@@ -657,40 +649,41 @@ export default function CalendarClient({
 							</div>
 							<p className="mt-3 text-xs text-muted-foreground">{weekInfo.rangeLabel}</p>
 						</div>
+					</div>
 
-						{/* Type legend (with counts for current view period) */}
-						<div className="cal-stat-card rounded-lg border border-border bg-card p-4">
-							<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-								Type legend
-							</p>
-							<div className="grid grid-cols-1 gap-y-1">
-								{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => {
-									const count = statsCounts[key] || 0
-									return (
-										<div key={key} className="flex items-center gap-2 text-[12px]">
-											<span
-												className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border/40"
-												style={{ backgroundColor: TYPE_CSS_VAR[key as CalendarEventType] }}
-												aria-hidden
-											/>
-											<span className="flex-1 text-foreground/80 truncate">
-												{config.label}
-											</span>
-											<span className="tabular-nums font-semibold text-foreground">
-												{count}
-											</span>
-										</div>
-									)
-								})}
-							</div>
-						</div>
+					{/* Type legend — one card per type, horizontal row */}
+					<div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0 lg:grid-cols-7">
+						{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => {
+							const count = statsCounts[key] || 0
+							const typeKey = key as CalendarEventType
+							return (
+								<div
+									key={key}
+									className="cal-stat-card flex min-w-[6.75rem] shrink-0 flex-col rounded-lg border border-border bg-card p-3 sm:min-w-0"
+								>
+									<div className="mb-2 flex items-center gap-1.5 min-w-0">
+										<span
+											className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border/40"
+											style={{ backgroundColor: TYPE_CSS_VAR[typeKey] }}
+											aria-hidden
+										/>
+										<p className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+											{config.label}
+										</p>
+									</div>
+									<span className="text-2xl font-bold tabular-nums leading-none text-foreground">
+										{count}
+									</span>
+								</div>
+							)
+						})}
+					</div>
 					</div>
 				</div>
 
 				{/* Calendar */}
-				<Card className="bg-card border-border overflow-hidden">
-					<CardHeader className="space-y-0 pb-4 pt-4 px-4 sm:px-6 sm:pt-5">
-						<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+				<Card className="cal-toolbar-card bg-card border-border overflow-hidden !gap-0 !py-0 shadow-sm">
+					<div className="flex flex-col gap-2 border-b border-border px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
 							<div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:flex-1 lg:min-w-0 lg:justify-end lg:order-2">
 								<ViewSwitcher
 									currentView={viewMode}
@@ -727,9 +720,8 @@ export default function CalendarClient({
 									viewMode={viewMode}
 								/>
 							</div>
-						</div>
-					</CardHeader>
-					<CardContent>
+					</div>
+					<CardContent className="!pt-0 px-4 sm:px-6">
 						<div key={viewMode} className="cal-view-enter">
 							{viewMode === 'month' && (
 								<>

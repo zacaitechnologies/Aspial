@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
 import type { AppointmentType } from "@/app/(main)/calendar/constants"
 import { formatLocalDateTime, parseDateInBusinessTZ } from "@/lib/date-utils"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 
 // Project Actions
 export async function getUserProjects(userId: string) {
@@ -13,6 +14,7 @@ export async function getUserProjects(userId: string) {
 		const createdProjects = await prisma.project.findMany({
 			where: {
 				createdBy: userId,
+				...excludeNoProjectSentinelWhere,
 			},
 			select: {
 				id: true,
@@ -37,6 +39,7 @@ export async function getUserProjects(userId: string) {
 		// Get projects where user has permissions
 		const permittedProjects = await prisma.project.findMany({
 			where: {
+				...excludeNoProjectSentinelWhere,
 				permissions: {
 					some: {
 						userId: userId,

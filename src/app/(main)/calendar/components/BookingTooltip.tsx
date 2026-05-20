@@ -41,7 +41,18 @@ export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
                 <span className="font-medium">{booking.clientName}</span>
               </p>
             ) : null}
-            <div className="text-muted-foreground">{booking.bookingName ?? booking.title}</div>
+            {booking.bookingName ? (
+              <p className="text-foreground">
+                <span className="text-muted-foreground">Booking name: </span>
+                <span className="font-medium">{booking.bookingName}</span>
+              </p>
+            ) : null}
+            {booking.appointmentName ? (
+              <p className="text-foreground">
+                <span className="text-muted-foreground">Appointment: </span>
+                <span className="font-medium">{booking.appointmentName}</span>
+              </p>
+            ) : null}
           </>
         ) : (
           booking.title
