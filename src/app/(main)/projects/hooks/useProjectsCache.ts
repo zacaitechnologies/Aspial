@@ -33,7 +33,8 @@ export function useProjectsPaginated(
   initialPage: number = 1,
   initialPageSize: number = 10,
   searchQuery?: string,
-  statusFilter?: string
+  statusFilter?: string,
+  creatorFilter?: string
 ): UseProjectsPaginatedReturn {
   const [projects, setProjects] = useState<ProjectsPaginatedResult['projects']>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -43,20 +44,20 @@ export function useProjectsPaginated(
   const [totalPages, setTotalPages] = useState(0)
   
   // Use ref to store latest values for loadProjects to avoid recreating callback
-  const paramsRef = useRef({ userId, page, pageSize, searchQuery, statusFilter })
+  const paramsRef = useRef({ userId, page, pageSize, searchQuery, statusFilter, creatorFilter })
   useEffect(() => {
-    paramsRef.current = { userId, page, pageSize, searchQuery, statusFilter }
-  }, [userId, page, pageSize, searchQuery, statusFilter])
+    paramsRef.current = { userId, page, pageSize, searchQuery, statusFilter, creatorFilter }
+  }, [userId, page, pageSize, searchQuery, statusFilter, creatorFilter])
   
   const loadProjects = useCallback(async (forceRefresh = false) => {
-    const { userId, page, pageSize, searchQuery, statusFilter } = paramsRef.current
+    const { userId, page, pageSize, searchQuery, statusFilter, creatorFilter } = paramsRef.current
     
     if (!userId) {
       setIsLoading(false)
       return
     }
 
-    const cacheKey = `${userId}_${page}_${pageSize}_${searchQuery || ''}_${statusFilter || 'all'}`
+    const cacheKey = `${userId}_${page}_${pageSize}_${searchQuery || ''}_${statusFilter || 'all'}_${creatorFilter || 'all'}`
     const now = Date.now()
     
     // Check if cache is still valid
@@ -90,7 +91,8 @@ export function useProjectsPaginated(
         page,
         pageSize,
         searchQuery,
-        statusFilter
+        statusFilter,
+        creatorFilter
       )
       
       // Update cache
@@ -133,7 +135,7 @@ export function useProjectsPaginated(
 
   useEffect(() => {
     loadProjects()
-  }, [userId, page, pageSize, searchQuery, statusFilter, loadProjects])
+  }, [userId, page, pageSize, searchQuery, statusFilter, creatorFilter, loadProjects])
 
   return {
     projects,

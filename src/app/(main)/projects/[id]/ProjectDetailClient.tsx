@@ -36,6 +36,9 @@ import {
   Calendar,
   User,
   CheckSquare,
+  ListTodo,
+  Clock,
+  CheckCircle2,
   Plus,
   Edit,
   Target,
@@ -510,45 +513,19 @@ export default function ProjectDetailClient({
 							</Card>
 						</div>
 
-						{/* Task Statistics Card */}
-						{taskStats && (
-							<Card className="mb-6">
-								<CardHeader>
-									<CardTitle className="flex items-center gap-2">
-										<CheckSquare className="w-5 h-5" />
-										Task Overview
-									</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-										<div className="text-center">
-											<div className="text-2xl font-bold text-blue-600">
-												{taskStats.total}
-											</div>
-											<div className="text-sm text-gray-600">Total Tasks</div>
-										</div>
-										<div className="text-center">
-											<div className="text-2xl font-bold text-blue-600">
-												{taskStats.todo}
-											</div>
-											<div className="text-sm text-gray-600">To Do</div>
-										</div>
-										<div className="text-center">
-											<div className="text-2xl font-bold text-yellow-600">
-												{taskStats.inProgress}
-											</div>
-											<div className="text-sm text-gray-600">In Progress</div>
-										</div>
-										<div className="text-center">
-											<div className="text-2xl font-bold text-green-600">
-												{taskStats.done}
-											</div>
-											<div className="text-sm text-gray-600">Done</div>
-										</div>
-									</div>
-								</CardContent>
-							</Card>
-						)}
+						{/* Project description — full width for long text */}
+						<Card className="mb-6 bg-card border-border">
+							<CardHeader>
+								<CardTitle className="text-card-foreground">Description</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+									{project.description?.trim()
+										? project.description
+										: "No description provided."}
+								</p>
+							</CardContent>
+						</Card>
 
 						{/* Services Card */}
 						{((project.quotations && project.quotations.length > 0) ||
@@ -789,6 +766,62 @@ export default function ProjectDetailClient({
 
 				{activeTab === "tasks" && (
 					<>
+						{taskStats && (
+							<div className="mb-4">
+								<p className="text-sm font-semibold text-foreground flex items-center gap-1.5 mb-2">
+									<CheckSquare className="w-4 h-4" />
+									Task Overview
+								</p>
+								<div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+									<Card className="card gap-0 py-0 shadow-sm bg-blue-50 border-blue-200">
+										<CardContent className="flex items-center gap-2.5 p-3 sm:p-3.5">
+											<CheckSquare className="h-5 w-5 shrink-0 text-blue-600" />
+											<div className="min-w-0">
+												<p className="text-xs font-medium text-blue-600 leading-none">Total</p>
+												<p className="text-xl font-bold text-blue-900 leading-tight mt-0.5">
+													{taskStats.total}
+												</p>
+											</div>
+										</CardContent>
+									</Card>
+									<Card className="card gap-0 py-0 shadow-sm bg-purple-50 border-purple-200">
+										<CardContent className="flex items-center gap-2.5 p-3 sm:p-3.5">
+											<ListTodo className="h-5 w-5 shrink-0 text-purple-600" />
+											<div className="min-w-0">
+												<p className="text-xs font-medium text-purple-600 leading-none">To Do</p>
+												<p className="text-xl font-bold text-purple-900 leading-tight mt-0.5">
+													{taskStats.todo}
+												</p>
+											</div>
+										</CardContent>
+									</Card>
+									<Card className="card gap-0 py-0 shadow-sm bg-yellow-50 border-yellow-200">
+										<CardContent className="flex items-center gap-2.5 p-3 sm:p-3.5">
+											<Clock className="h-5 w-5 shrink-0 text-yellow-600" />
+											<div className="min-w-0">
+												<p className="text-xs font-medium text-yellow-600 leading-none">
+													In Progress
+												</p>
+												<p className="text-xl font-bold text-yellow-900 leading-tight mt-0.5">
+													{taskStats.inProgress}
+												</p>
+											</div>
+										</CardContent>
+									</Card>
+									<Card className="card gap-0 py-0 shadow-sm bg-green-50 border-green-200">
+										<CardContent className="flex items-center gap-2.5 p-3 sm:p-3.5">
+											<CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+											<div className="min-w-0">
+												<p className="text-xs font-medium text-green-600 leading-none">Done</p>
+												<p className="text-xl font-bold text-green-900 leading-tight mt-0.5">
+													{taskStats.done}
+												</p>
+											</div>
+										</CardContent>
+									</Card>
+								</div>
+							</div>
+						)}
 						<KanbanBoard
 							projectId={params.id as string}
 							sortBy={sortBy}

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { getCachedUser } from "@/lib/auth-cache";
 import { getCachedIsUserAdmin, getCachedUserRole } from "@/lib/admin-cache";
-import { getProjectsPaginated } from "./action";
+import { getProjectsPaginated, getProjectCreatorFilterOptions } from "./action";
 import ProjectsClient from "./components/ProjectsClient";
 
 // Force dynamic rendering since we use cookies for auth
@@ -17,10 +17,11 @@ export default async function ProjectsPage() {
   }
 
   // Fetch initial data and role info in parallel on server (all cached, fast)
-  const [initialData, isAdmin, userRole] = await Promise.all([
+  const [initialData, isAdmin, userRole, creatorFilterOptions] = await Promise.all([
     getProjectsPaginated(user.id, 1, 10),
     getCachedIsUserAdmin(user.id),
-    getCachedUserRole(user.id)
+    getCachedUserRole(user.id),
+    getProjectCreatorFilterOptions(),
   ]);
 
   return (
@@ -37,6 +38,7 @@ export default async function ProjectsPage() {
         userId={user.id} 
         initialIsAdmin={isAdmin}
         initialUserRole={userRole}
+        creatorFilterOptions={creatorFilterOptions}
       />
     </Suspense>
   );

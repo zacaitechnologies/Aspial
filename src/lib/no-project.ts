@@ -10,6 +10,24 @@ export const excludeNoProjectSentinelWhere: Prisma.ProjectWhereInput = {
 /** Internal client record required by Project.clientId for the No-Project placeholder. */
 export const SYSTEM_CLIENT_NAME = "__SYSTEM__"
 export const SYSTEM_CLIENT_EMAIL = "system@aspial.local"
+/** User-facing label for the internal system client placeholder. */
+export const SYSTEM_CLIENT_DISPLAY_LABEL = "NO CLIENT"
+
+export function formatProjectClientLabel(
+	clientName: string | null | undefined
+): string | null {
+	if (!clientName) return null
+	if (clientName === SYSTEM_CLIENT_NAME) return SYSTEM_CLIENT_DISPLAY_LABEL
+	return clientName
+}
+
+export function formatProjectOptionLabel(
+	projectName: string,
+	clientName: string | null | undefined
+): string {
+	const displayClient = formatProjectClientLabel(clientName)
+	return displayClient ? `${projectName} (${displayClient})` : projectName
+}
 
 /** Exclude the internal system client from user-facing client lists and selectors. */
 export const excludeSystemClientWhere: Prisma.ClientWhereInput = {

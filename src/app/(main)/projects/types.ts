@@ -63,6 +63,11 @@ export const projectStatusFilterOptions: ProjectStatusOption[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+export type ProjectCreatorFilterOption = {
+  id: string;
+  label: string;
+};
+
 // Project form types
 export type ProjectFormData = {
   name: string;

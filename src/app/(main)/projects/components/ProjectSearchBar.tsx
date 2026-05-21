@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Filter } from "lucide-react";
-import { projectStatusFilterOptions } from "../types";
+import { projectStatusFilterOptions, type ProjectCreatorFilterOption } from "../types";
 import { useState, useEffect } from "react";
 
 interface ProjectSearchBarProps {
@@ -18,6 +18,9 @@ interface ProjectSearchBarProps {
   onSearchChange: (query: string) => void;
   statusFilter: string;
   onStatusFilterChange: (status: string) => void;
+  creatorFilter: string;
+  onCreatorFilterChange: (creatorId: string) => void;
+  creatorOptions: ProjectCreatorFilterOption[];
 }
 
 export default function ProjectSearchBar({
@@ -25,6 +28,9 @@ export default function ProjectSearchBar({
   onSearchChange,
   statusFilter,
   onStatusFilterChange,
+  creatorFilter,
+  onCreatorFilterChange,
+  creatorOptions,
 }: ProjectSearchBarProps) {
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
 
@@ -60,19 +66,31 @@ export default function ProjectSearchBar({
         </div>
       </div>
       
-      <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-gray-500" />
-        <Select
-          value={statusFilter}
-          onValueChange={onStatusFilterChange}
-        >
-          <SelectTrigger className="w-48 bg-background border-2 border-border">
-            <SelectValue placeholder="Filter by status" />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+          <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+            <SelectTrigger className="w-full sm:w-44 bg-background border-2 border-border">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              {projectStatusFilterOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Select value={creatorFilter} onValueChange={onCreatorFilterChange}>
+          <SelectTrigger className="w-full sm:w-48 bg-background border-2 border-border">
+            <SelectValue placeholder="Filter by creator" />
           </SelectTrigger>
           <SelectContent>
-            {projectStatusFilterOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
+            <SelectItem value="all">All creators</SelectItem>
+            {creatorOptions.map((creator) => (
+              <SelectItem key={creator.id} value={creator.id}>
+                {creator.label}
               </SelectItem>
             ))}
           </SelectContent>

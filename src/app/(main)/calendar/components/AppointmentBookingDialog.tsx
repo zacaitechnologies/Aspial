@@ -1,12 +1,14 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 import { subMinutes, format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -20,9 +22,10 @@ import {
 	AlertTriangle,
 	Search,
 	XCircle,
+	ChevronDown,
+	Check,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { useSession } from "@/app/(main)/contexts/SessionProvider"
 import { getActiveBlockers } from "@/app/(main)/calendar/actions"
 import {
 	groupConsecutiveHourSlots,
@@ -30,11 +33,16 @@ import {
 } from "@/app/(main)/calendar/utils/calendar-utils"
 import {
 	createAppointmentBooking,
-	getUserProjects,
+	getBookingFormProjects,
 	getAppointmentBookings,
 	getProjectUsersEmails,
 } from "@/app/(main)/appointment-bookings/actions"
 import { parseDateInBusinessTZ, toBusinessTZParts } from "@/lib/date-utils"
+import {
+	formatProjectClientLabel,
+	formatProjectOptionLabel,
+	SYSTEM_CLIENT_DISPLAY_LABEL,
+} from "@/lib/no-project"
 import { EmailListInput } from "@/app/(main)/appointment-bookings/components/EmailListInput"
 import { FieldOverwriteDialog } from "@/app/(main)/appointment-bookings/components/FieldOverwriteDialog"
 import { APPOINTMENT_TYPES, type AppointmentType } from "../constants"
@@ -142,7 +150,6 @@ export function AppointmentBookingDialog({
 	onSuccess,
 }: AppointmentBookingDialogProps) {
 	const { toast } = useToast()
-	const { enhancedUser } = useSession()
 	const [step, setStep] = useState<DialogStep>("select-appointment")
 	const [selectedAppointment, setSelectedAppointment] = useState<AvailableAppointment | null>(null)
 	const [appointmentSearch, setAppointmentSearch] = useState("")
@@ -158,6 +165,8 @@ export function AppointmentBookingDialog({
 	const [attendees, setAttendees] = useState("")
 	const [projects, setProjects] = useState<ProjectWithClient[]>([])
 	const [selectedProject, setSelectedProject] = useState("none")
+	const [projectSearch, setProjectSearch] = useState("")
+	const [projectPopoverOpen, setProjectPopoverOpen] = useState(false)
 	const [isLoadingProjects, setIsLoadingProjects] = useState(true)
 	const [bookingName, setBookingName] = useState("")
 	const [companyName, setCompanyName] = useState("")
@@ -189,6 +198,8 @@ export function AppointmentBookingDialog({
 			setPurpose("")
 			setAttendees("")
 			setSelectedProject("none")
+			setProjectSearch("")
+			setProjectPopoverOpen(false)
 			setBookingName("")
 			setCompanyName("")
 			setContactNumber("")
@@ -201,21 +212,17 @@ export function AppointmentBookingDialog({
 		}
 	}, [isOpen, initialTime])
 
-	// Fetch projects
+	// Fetch projects (admin: all; non-admin: involved only — enforced server-side)
 	useEffect(() => {
 		if (!isOpen) return
 		const fetchProjects = async () => {
-			if (enhancedUser?.id) {
-				setIsLoadingProjects(true)
-				const userProjects = await getUserProjects(enhancedUser.id)
-				setProjects(userProjects)
-				setIsLoadingProjects(false)
-			} else {
-				setIsLoadingProjects(false)
-			}
+			setIsLoadingProjects(true)
+			const bookingProjects = await getBookingFormProjects()
+			setProjects(bookingProjects)
+			setIsLoadingProjects(false)
 		}
-		fetchProjects()
-	}, [isOpen, enhancedUser?.id])
+		void fetchProjects()
+	}, [isOpen])
 
 	// Fetch availability when appointment is selected
 	useEffect(() => {
@@ -485,6 +492,35 @@ export function AppointmentBookingDialog({
 			})
 		: ""
 
+	const normalizedProjectSearch = projectSearch.trim().toLowerCase()
+	const filteredProjects = useMemo(() => {
+		if (!normalizedProjectSearch) return projects
+		return projects.filter((p) => {
+			const haystack = [
+				p.name,
+				p.clientName,
+				formatProjectClientLabel(p.clientName),
+				p.Client?.name,
+				formatProjectClientLabel(p.Client?.name),
+				p.Client?.company,
+				SYSTEM_CLIENT_DISPLAY_LABEL,
+			]
+				.filter(Boolean)
+				.join(" ")
+				.toLowerCase()
+			return haystack.includes(normalizedProjectSearch)
+		})
+	}, [projects, normalizedProjectSearch])
+
+	const selectedProjectLabel =
+		selectedProject === "none"
+			? "No project"
+			: (() => {
+					const p = projects.find((proj) => String(proj.id) === selectedProject)
+					if (!p) return "Select project"
+					return formatProjectOptionLabel(p.name, p.clientName)
+				})()
+
 	const normalizedAppointmentSearch = appointmentSearch.trim().toLowerCase()
 	const filteredAppointments = appointments.filter((apt) => {
 		if (!normalizedAppointmentSearch) return true
@@ -731,23 +767,109 @@ export function AppointmentBookingDialog({
 							{/* Project Selection */}
 							<div>
 								<Label>Project (Optional)</Label>
-								<Select
-									value={selectedProject}
-									onValueChange={handleProjectChange}
-									disabled={isLoadingProjects}
+								<Popover
+									open={projectPopoverOpen}
+									onOpenChange={(open) => {
+										setProjectPopoverOpen(open)
+										if (!open) setProjectSearch("")
+									}}
 								>
-									<SelectTrigger>
-										<SelectValue placeholder={isLoadingProjects ? "Loading projects..." : "No project"} />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="none">No project</SelectItem>
-										{projects.map((p) => (
-											<SelectItem key={p.id} value={String(p.id)}>
-												{p.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									<PopoverTrigger asChild>
+										<Button
+											variant="outline"
+											role="combobox"
+											aria-expanded={projectPopoverOpen}
+											disabled={isLoadingProjects}
+											className={cn(
+												"w-full justify-between font-normal",
+												selectedProject === "none" && "text-muted-foreground"
+											)}
+										>
+											<span className="truncate">
+												{isLoadingProjects ? "Loading projects..." : selectedProjectLabel}
+											</span>
+											<ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										className="z-[60] flex w-[var(--radix-popover-trigger-width)] max-h-[min(20rem,calc(100vh-8rem))] flex-col overflow-hidden p-0"
+										align="start"
+										onWheel={(e) => e.stopPropagation()}
+									>
+										<div className="relative shrink-0 border-b p-2">
+											<Search className="absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+											<Input
+												placeholder="Search projects..."
+												value={projectSearch}
+												onChange={(e) => setProjectSearch(e.target.value)}
+												className="h-8 pl-8 text-sm"
+												aria-label="Search projects"
+											/>
+										</div>
+										<div
+											className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 space-y-0.5"
+											onWheel={(e) => e.stopPropagation()}
+											onTouchMove={(e) => e.stopPropagation()}
+										>
+											<button
+												type="button"
+												className={cn(
+													"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent",
+													selectedProject === "none" && "bg-accent"
+												)}
+												onClick={() => {
+													handleProjectChange("none")
+													setProjectPopoverOpen(false)
+												}}
+											>
+												<Check
+													className={cn(
+														"h-4 w-4 shrink-0",
+														selectedProject === "none" ? "opacity-100" : "opacity-0"
+													)}
+												/>
+												<span>No project</span>
+											</button>
+											{filteredProjects.map((p) => {
+												const value = String(p.id)
+												const label = formatProjectOptionLabel(p.name, p.clientName)
+												const isSelected = selectedProject === value
+												return (
+													<button
+														key={p.id}
+														type="button"
+														className={cn(
+															"flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent text-left",
+															isSelected && "bg-accent"
+														)}
+														onClick={() => {
+															void handleProjectChange(value)
+															setProjectPopoverOpen(false)
+														}}
+													>
+														<Check
+															className={cn(
+																"h-4 w-4 shrink-0",
+																isSelected ? "opacity-100" : "opacity-0"
+															)}
+														/>
+														<span className="truncate">{label}</span>
+													</button>
+												)
+											})}
+											{!isLoadingProjects && projects.length === 0 && (
+												<p className="text-sm text-muted-foreground text-center py-2">
+													No projects available
+												</p>
+											)}
+											{projects.length > 0 && filteredProjects.length === 0 && (
+												<p className="text-sm text-muted-foreground text-center py-2">
+													No matching projects
+												</p>
+											)}
+										</div>
+									</PopoverContent>
+								</Popover>
 							</div>
 
 							{/* Contact Details */}

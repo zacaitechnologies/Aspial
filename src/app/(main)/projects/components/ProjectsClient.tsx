@@ -13,7 +13,11 @@ import CreateProjectDialog from "./CreateProjectDialog";
 import ProjectSearchBar from "./ProjectSearchBar";
 import ProjectCollaboratorsDialog from "./ProjectCollaboratorsDialog";
 import { useSession } from "../../contexts/SessionProvider";
-import { projectStatusOptions, ProjectsPaginatedResult } from "../types";
+import {
+  projectStatusOptions,
+  ProjectsPaginatedResult,
+  type ProjectCreatorFilterOption,
+} from "../types";
 import Link from "next/link";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { ProjectPagination } from "./ProjectPagination";
@@ -24,17 +28,20 @@ interface ProjectsClientProps {
   userId?: string;
   initialIsAdmin?: boolean;
   initialUserRole?: string | null;
+  creatorFilterOptions: ProjectCreatorFilterOption[];
 }
 
 export default function ProjectsClient({ 
   initialData, 
   userId, 
   initialIsAdmin = false,
-  initialUserRole = null 
+  initialUserRole = null,
+  creatorFilterOptions,
 }: ProjectsClientProps) {
   const { enhancedUser } = useSession();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [creatorFilter, setCreatorFilter] = useState("all");
   const [projects, setProjects] = useState<ProjectsPaginatedResult['projects']>(initialData.projects);
   const [page, setPage] = useState(initialData.page);
   const [pageSize, setPageSizeState] = useState(initialData.pageSize);
@@ -57,6 +64,9 @@ export default function ProjectsClient({
   const isInitialMount = useRef(true);
   // Track if we have valid initial data
   const hasInitialData = useRef(initialData.projects.length > 0 || initialData.total === 0);
+  const hasSeededInitialCache = useRef(false);
+  const initialDataForSeedRef = useRef(initialData);
+  initialDataForSeedRef.current = initialData;
 
   // Gate date display behind mount so we use local time (correct for Malaysia); avoids hydration mismatch
   const [isMounted, setIsMounted] = useState(false);
@@ -82,31 +92,42 @@ export default function ProjectsClient({
   }, []);
 
   const buildCacheKey = useCallback(
-    (currentUserId: string, keyPage: number, keyPageSize: number, keySearch: string, keyStatus: string) => {
-      return `${currentUserId}:${keyPage}:${keyPageSize}:${keySearch}:${keyStatus}`;
+    (
+      currentUserId: string,
+      keyPage: number,
+      keyPageSize: number,
+      keySearch: string,
+      keyStatus: string,
+      keyCreator: string
+    ) => {
+      return `${currentUserId}:${keyPage}:${keyPageSize}:${keySearch}:${keyStatus}:${keyCreator}`;
     },
     []
   );
 
-  // Seed cache with initial server data
+  // Seed cache once with unfiltered server data (only for the initial page-load key)
   useEffect(() => {
     const currentUserId = userId || enhancedUser?.id;
-    if (!currentUserId) return;
+    if (!currentUserId || hasSeededInitialCache.current) return;
+    hasSeededInitialCache.current = true;
+    const data = initialDataForSeedRef.current;
     const key = buildCacheKey(
       currentUserId,
-      initialData.page,
-      initialData.pageSize,
-      searchQuery || "",
-      statusFilter || "all"
+      data.page,
+      data.pageSize,
+      "",
+      "all",
+      "all"
     );
-    pageCacheRef.current.set(key, initialData);
-  }, [buildCacheKey, enhancedUser?.id, initialData, searchQuery, statusFilter, userId]);
+    pageCacheRef.current.set(key, data);
+  }, [buildCacheKey, userId, enhancedUser?.id]);
 
   type FetchOptions = {
     targetPage?: number;
     targetPageSize?: number;
     targetSearch?: string;
     targetStatus?: string;
+    targetCreator?: string;
     populateOnly?: boolean;
     force?: boolean;
   };
@@ -120,14 +141,17 @@ export default function ProjectsClient({
     const effectivePageSize = options.targetPageSize ?? pageSize;
     const effectiveSearch = options.targetSearch ?? searchQuery;
     const effectiveStatus = options.targetStatus ?? statusFilter;
+    const effectiveCreator = options.targetCreator ?? creatorFilter;
     const normalizedSearch = effectiveSearch || "";
     const normalizedStatus = effectiveStatus || "all";
+    const normalizedCreator = effectiveCreator || "all";
     const cacheKey = buildCacheKey(
       currentUserId,
       effectivePage,
       effectivePageSize,
       normalizedSearch,
-      normalizedStatus
+      normalizedStatus,
+      normalizedCreator
     );
 
     if (!options.force) {
@@ -146,7 +170,8 @@ export default function ProjectsClient({
         effectivePage,
         effectivePageSize,
         normalizedSearch || undefined,
-        normalizedStatus !== "all" ? normalizedStatus : undefined
+        normalizedStatus !== "all" ? normalizedStatus : undefined,
+        normalizedCreator !== "all" ? normalizedCreator : undefined
       );
       pageCacheRef.current.set(cacheKey, result);
       if (!options.populateOnly) {
@@ -156,7 +181,22 @@ export default function ProjectsClient({
     } catch (error) {
       // Silent fail - data will remain stale but UI won't break
     }
-  }, [applyResult, buildCacheKey, enhancedUser?.id, page, pageSize, searchQuery, statusFilter, userId]);
+  }, [applyResult, buildCacheKey, enhancedUser?.id, page, pageSize, searchQuery, statusFilter, creatorFilter, userId]);
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    setPage(1);
+  }, []);
+
+  const handleStatusFilterChange = useCallback((status: string) => {
+    setStatusFilter(status);
+    setPage(1);
+  }, []);
+
+  const handleCreatorFilterChange = useCallback((creator: string) => {
+    setCreatorFilter(creator);
+    setPage(1);
+  }, []);
 
   // Fetch when filters/pagination change (skip initial if we have server data)
   useEffect(() => {
@@ -171,7 +211,7 @@ export default function ProjectsClient({
     startTransition(() => {
       void fetchProjects();
     });
-  }, [page, pageSize, searchQuery, statusFilter, fetchProjects]);
+  }, [page, pageSize, searchQuery, statusFilter, creatorFilter, fetchProjects]);
 
   // Prefetch next page to keep pagination snappy
   useEffect(() => {
@@ -185,14 +225,15 @@ export default function ProjectsClient({
       nextPage,
       pageSize,
       searchQuery || "",
-      statusFilter || "all"
+      statusFilter || "all",
+      creatorFilter || "all"
     );
 
     if (lastPrefetchKeyRef.current === key) return;
     lastPrefetchKeyRef.current = key;
 
     void fetchProjects({ targetPage: nextPage, populateOnly: true });
-  }, [buildCacheKey, enhancedUser?.id, fetchProjects, page, pageSize, searchQuery, statusFilter, totalPages, userId]);
+  }, [buildCacheKey, enhancedUser?.id, fetchProjects, page, pageSize, searchQuery, statusFilter, creatorFilter, totalPages, userId]);
 
   // Listen for cache invalidation events
   useEffect(() => {
@@ -390,9 +431,12 @@ export default function ProjectsClient({
           <div className="flex items-center gap-4">
             <ProjectSearchBar
               searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
+              onSearchChange={handleSearchChange}
               statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
+              onStatusFilterChange={handleStatusFilterChange}
+              creatorFilter={creatorFilter}
+              onCreatorFilterChange={handleCreatorFilterChange}
+              creatorOptions={creatorFilterOptions}
             />
             <Button onClick={() => setIsCreateOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
@@ -488,7 +532,7 @@ export default function ProjectsClient({
           </div>
         )}
 
-        {!loading && total === 0 && !searchQuery && statusFilter === "all" && (
+        {!loading && total === 0 && !searchQuery && statusFilter === "all" && creatorFilter === "all" && (
           <div className="text-center py-12">
             <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground">No projects available.</p>

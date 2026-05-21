@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getVisibleProjectsForUser, isUserAdmin } from "./permissions"
-import { CreateProjectData, UpdateProjectData } from "./types"
+import { CreateProjectData, UpdateProjectData, type ProjectCreatorFilterOption } from "./types"
 import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache } from "next/cache"
 import { revalidateTag } from "next/cache"
@@ -143,13 +143,84 @@ export async function getAllProjectsOptimized(userId?: string) {
   }));
 }
 
+function formatProjectCreatorLabel(user: {
+  firstName: string
+  lastName: string
+  email: string
+}): string {
+  const name = `${user.firstName} ${user.lastName}`.trim()
+  return name || user.email
+}
+
+/** Distinct project creators visible to the current user (for filter dropdown). */
+export async function getProjectCreatorFilterOptions(): Promise<ProjectCreatorFilterOption[]> {
+  const user = await getCachedUser()
+  if (!user) return []
+
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  const creatorMap = new Map<string, ProjectCreatorFilterOption>()
+
+  const addCreator = (createdBy: string, createdByUser: {
+    firstName: string
+    lastName: string
+    email: string
+  }) => {
+    if (!creatorMap.has(createdBy)) {
+      creatorMap.set(createdBy, {
+        id: createdBy,
+        label: formatProjectCreatorLabel(createdByUser),
+      })
+    }
+  }
+
+  if (isAdmin) {
+    const projects = await prisma.project.findMany({
+      where: excludeNoProjectSentinelWhere,
+      distinct: ["createdBy"],
+      select: {
+        createdBy: true,
+        createdByUser: {
+          select: { firstName: true, lastName: true, email: true },
+        },
+      },
+    })
+    projects.forEach((p) => addCreator(p.createdBy, p.createdByUser))
+  } else {
+    const permissions = await prisma.projectPermission.findMany({
+      where: {
+        userId: user.id,
+        OR: [{ isOwner: true }, { canView: true }],
+        project: excludeNoProjectSentinelWhere,
+      },
+      select: {
+        project: {
+          select: {
+            createdBy: true,
+            createdByUser: {
+              select: { firstName: true, lastName: true, email: true },
+            },
+          },
+        },
+      },
+    })
+    permissions.forEach((perm) =>
+      addCreator(perm.project.createdBy, perm.project.createdByUser)
+    )
+  }
+
+  return Array.from(creatorMap.values()).sort((a, b) =>
+    a.label.localeCompare(b.label)
+  )
+}
+
 // Internal function - not cached, used by cached version
 async function _getProjectsPaginatedInternal(
   userId: string,
   page: number = 1,
   pageSize: number = 10,
   searchQuery?: string,
-  statusFilter?: string
+  statusFilter?: string,
+  creatorFilter?: string
 ) {
   if (!userId) {
     return {
@@ -187,6 +258,10 @@ async function _getProjectsPaginatedInternal(
 
     if (statusFilter && statusFilter !== "all") {
       conditions.push({ status: statusFilter })
+    }
+
+    if (creatorFilter && creatorFilter !== "all") {
+      conditions.push({ createdBy: creatorFilter })
     }
 
     return conditions.length === 1 ? conditions[0] : { AND: conditions }
@@ -353,13 +428,21 @@ function getCachedProjectsPaginated(
   page: number,
   pageSize: number,
   searchQuery: string,
-  statusFilter: string
+  statusFilter: string,
+  creatorFilter: string
 ) {
   return unstable_cache(
     async () => {
-      return await _getProjectsPaginatedInternal(userId, page, pageSize, searchQuery || undefined, statusFilter || undefined)
+      return await _getProjectsPaginatedInternal(
+        userId,
+        page,
+        pageSize,
+        searchQuery || undefined,
+        statusFilter || undefined,
+        creatorFilter || undefined
+      )
     },
-    ["projects-paginated", userId, String(page), String(pageSize), searchQuery, statusFilter],
+    ["projects-paginated", userId, String(page), String(pageSize), searchQuery, statusFilter, creatorFilter],
     { revalidate: 30, tags: ["projects"] }
   )()
 }
@@ -369,7 +452,8 @@ export async function getProjectsPaginated(
   page: number = 1,
   pageSize: number = 10,
   searchQuery?: string,
-  statusFilter?: string
+  statusFilter?: string,
+  creatorFilter?: string
 ) {
   if (!userId) {
     return {
@@ -390,7 +474,8 @@ export async function getProjectsPaginated(
     page, 
     pageSize, 
     searchQuery || "", 
-    statusFilter || "all"
+    statusFilter || "all",
+    creatorFilter || "all"
   )
 }
 
@@ -400,7 +485,8 @@ export async function getProjectsPaginatedFresh(
   page: number = 1,
   pageSize: number = 10,
   searchQuery?: string,
-  statusFilter?: string
+  statusFilter?: string,
+  creatorFilter?: string
 ) {
   unstable_noStore()
   
@@ -414,7 +500,14 @@ export async function getProjectsPaginatedFresh(
     }
   }
 
-  return await _getProjectsPaginatedInternal(userId, page, pageSize, searchQuery, statusFilter)
+  return await _getProjectsPaginatedInternal(
+    userId,
+    page,
+    pageSize,
+    searchQuery,
+    statusFilter,
+    creatorFilter
+  )
 }
 
 // Invalidate projects cache after mutations

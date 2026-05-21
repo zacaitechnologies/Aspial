@@ -116,16 +116,19 @@ export function MilestoneCard({
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <div className="space-y-2 flex-1">
+          <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center gap-2">
               <span
                 className={cn("h-3 w-3 shrink-0 rounded-full", colorOption.dotClass)}
                 aria-hidden
               />
-              <h4 className="font-medium text-card-foreground">{milestone.title}</h4>
+              <h4 className="font-medium text-card-foreground break-words">{milestone.title}</h4>
             </div>
             {milestone.description && (
-              <p className="text-sm text-muted-foreground">
+              <p
+                className="min-w-0 overflow-hidden text-sm text-muted-foreground break-all line-clamp-2"
+                title={milestone.description}
+              >
                 {milestone.description}
               </p>
             )}

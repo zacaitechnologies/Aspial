@@ -3,8 +3,87 @@
 import { revalidatePath, revalidateTag } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { getCachedUser } from "@/lib/auth-cache"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 import type { AppointmentType } from "@/app/(main)/calendar/constants"
 import { formatLocalDateTime, parseDateInBusinessTZ } from "@/lib/date-utils"
+import type { ProjectWithClient } from "@/app/(main)/appointment-bookings/types"
+
+const bookingProjectSelect = {
+	id: true,
+	name: true,
+	clientName: true,
+	status: true,
+	Client: {
+		select: {
+			id: true,
+			name: true,
+			email: true,
+			phone: true,
+			company: true,
+		},
+	},
+} as const
+
+const activeProjectWhere = {
+	...excludeNoProjectSentinelWhere,
+	status: { not: "cancelled" as const },
+}
+
+/** Projects for appointment booking forms — admins see all; others only involved projects. */
+export async function getBookingFormProjects(): Promise<ProjectWithClient[]> {
+	const user = await getCachedUser()
+	if (!user) return []
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+
+	if (isAdmin) {
+		return prisma.project.findMany({
+			where: activeProjectWhere,
+			select: bookingProjectSelect,
+			orderBy: { name: "asc" },
+		})
+	}
+
+	const [createdProjects, permittedProjects] = await Promise.all([
+		prisma.project.findMany({
+			where: { ...activeProjectWhere, createdBy: user.id },
+			select: bookingProjectSelect,
+		}),
+		prisma.project.findMany({
+			where: {
+				...activeProjectWhere,
+				permissions: { some: { userId: user.id } },
+			},
+			select: bookingProjectSelect,
+		}),
+	])
+
+	const uniqueProjects = Array.from(
+		new Map([...createdProjects, ...permittedProjects].map((p) => [p.id, p])).values()
+	)
+	return uniqueProjects.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+async function userCanAccessProject(
+	userId: string,
+	projectId: number
+): Promise<boolean> {
+	if (await getCachedIsUserAdmin(userId)) return true
+
+	const project = await prisma.project.findFirst({
+		where: {
+			id: projectId,
+			...activeProjectWhere,
+			OR: [
+				{ createdBy: userId },
+				{ permissions: { some: { userId } } },
+			],
+		},
+		select: { id: true },
+	})
+	return project !== null
+}
 
 // Project Actions
 export async function getUserProjects(userId: string) {
@@ -236,6 +315,13 @@ export async function createAppointmentBooking(formData: FormData) {
 	const reminderList = Array.isArray(reminderOffsetsParsed) ? reminderOffsetsParsed : []
 
 	try {
+		if (projectId && userId) {
+			const allowed = await userCanAccessProject(userId, projectId)
+			if (!allowed) {
+				return { success: false, error: "You do not have access to the selected project." }
+			}
+		}
+
 		// Validation: If no project, require bookingName, companyName, contactNumber
 		if (!projectId) {
 			if (!bookingName || !bookingName.trim()) {
