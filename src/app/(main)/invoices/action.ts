@@ -5,6 +5,8 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime, parseDocumentDateInputOrNow } from "@/lib/date-utils"
+import { parseEmailSendResponse } from "@/lib/email-api"
+import { recalcQuotationPaymentStatus } from "@/lib/quotation-payment-status"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { Prisma } from "@prisma/client"
 import {
@@ -839,11 +841,21 @@ export async function updateInvoiceAdmin(
 		return invoice
 	}, { timeout: 15000 }) // Increased timeout for production network latency
 
+	// Recompute quotation payment status after invoice cancel/reactivate
+	if (existingInvoice.quotationId) {
+		await recalcQuotationPaymentStatus(existingInvoice.quotationId)
+	}
+
 	revalidateTag("invoices", { expire: 0 })
 	revalidateTag("receipts", { expire: 0 })
+	revalidateTag("quotations", { expire: 0 })
 	revalidatePath("/invoices")
 	revalidatePath(`/invoices/${validatedInvoiceId}`)
 	revalidatePath("/receipts")
+	revalidatePath("/quotations")
+	if (existingInvoice.quotationId) {
+		revalidatePath(`/quotations/${existingInvoice.quotationId}`)
+	}
 
 	return result
 }
@@ -954,6 +966,11 @@ export async function reactivateInvoiceWithReceipts(
 		return invoice
 	}, { timeout: 15000 }) // Increased timeout for production network latency
 
+	// Recompute quotation payment status after reactivation
+	if (existingInvoice.quotationId) {
+		await recalcQuotationPaymentStatus(existingInvoice.quotationId)
+	}
+
 	revalidateTag("invoices", { expire: 0 })
 	revalidateTag("receipts", { expire: 0 })
 	revalidateTag("quotations", { expire: 0 })
@@ -1027,12 +1044,12 @@ export async function sendInvoiceEmail(
 			}),
 		})
 
-		if (!response.ok) {
-			const errorData = await response.text()
+		const sendResult = await parseEmailSendResponse(response)
+		if (!sendResult.success) {
 			if (process.env.NODE_ENV === "development") {
-				console.error("Error sending email:", errorData)
+				console.error("Error sending email:", sendResult.error)
 			}
-			return { success: false, error: "Failed to send email. Please try again." }
+			return { success: false, error: sendResult.error ?? "Failed to send email. Please try again." }
 		}
 
 		// Record the email in database (sentById references User.supabase_id)

@@ -322,6 +322,7 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 			// Create bookings for each group of consecutive slots
 			let totalEmailSentCount = 0
 			let totalEmailFailedCount = 0
+			let lastEmailError: string | null = null
 			let uniqueRecipientCount = validEmails.length // Will be updated from first result
 
 			for (const group of slotGroups) {
@@ -373,6 +374,9 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				if (result.emailFailedCount) {
 					totalEmailFailedCount += result.emailFailedCount
 				}
+				if (result.emailError) {
+					lastEmailError = result.emailError
+				}
 
 				// Get unique recipient count from first result (accounts for project users added server-side)
 				if (result.uniqueRecipientCount && uniqueRecipientCount === validEmails.length) {
@@ -388,9 +392,10 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 				})
 				setShowResultDialog(true)
 			} else if (totalEmailFailedCount > 0) {
+				const failureDetails = lastEmailError ? ` ${lastEmailError}` : ""
 				setEmailResult({
 					success: false,
-					message: `Failed to send confirmation emails to ${totalEmailFailedCount} recipient${totalEmailFailedCount !== 1 ? 's' : ''}. ${totalEmailSentCount > 0 ? `${uniqueRecipientCount} email${uniqueRecipientCount !== 1 ? 's' : ''} sent successfully.` : ''}`,
+					message: `Failed to send confirmation emails to ${totalEmailFailedCount} recipient${totalEmailFailedCount !== 1 ? 's' : ''}.${failureDetails}${totalEmailSentCount > 0 ? ` ${uniqueRecipientCount} email${uniqueRecipientCount !== 1 ? 's' : ''} sent successfully.` : ''}`,
 				})
 				setShowResultDialog(true)
 			} else {

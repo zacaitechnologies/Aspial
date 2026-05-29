@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors";
-import { Plus, Briefcase, ChevronDown, ChevronRight } from "lucide-react";
+import { Briefcase, ChevronDown, ChevronRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -37,48 +37,7 @@ import ProjectSelection from "./ProjectSelection";
 import { toast } from "@/components/ui/use-toast";
 import { formatLocalDate } from "@/lib/date-utils";
 import { formatNumber } from "@/lib/format-number";
-
-function QuotationServiceSearchItem({ service, onAdd, defaultExpanded }: { service: Services; onAdd: () => void; defaultExpanded?: boolean }) {
-  const [open, setOpen] = useState(defaultExpanded ?? false);
-
-  useEffect(() => {
-    setOpen(defaultExpanded ?? false);
-  }, [defaultExpanded]);
-
-  return (
-    <div className="border rounded p-2 hover:bg-muted/50">
-      <div className="flex items-center justify-between">
-        <div
-          className="flex-1 min-w-0 cursor-pointer"
-          onClick={() => setOpen((v) => !v)}
-        >
-          <p className="font-medium text-sm">{service.name}</p>
-          <p className="text-sm font-medium text-foreground tabular-nums">
-            RM{formatNumber(service.basePrice)}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => setOpen((v) => !v)}
-            className="h-7 w-7 p-0"
-            aria-label={open ? "Hide description" : "Show description"}
-          >
-            {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={onAdd} className="h-7 w-7 p-0">
-            <Plus className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-      {open && service.description && (
-        <p className="text-sm text-foreground mt-1 whitespace-pre-line">{service.description}</p>
-      )}
-    </div>
-  );
-}
+import { QuotationServiceSearchItem } from "./QuotationServiceSearchItem";
 
 interface CreateQuotationFormProps {
   isOpen: boolean;
@@ -744,28 +703,40 @@ export default function CreateQuotationForm({
               </div>
               <div className="flex gap-2">
                 <Input
-                  placeholder="Search services..."
+                  placeholder="Filter services..."
                   value={serviceSearchQuery}
                   onChange={(e) => setServiceSearchQuery(e.target.value)}
                 />
               </div>
               <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-background">
-                {services
-                  .filter(
+                {(() => {
+                  const availableServices = services.filter(
                     (service) =>
                       !selectedServices.some((s) => s.serviceId === service.id.toString()) &&
                       (!serviceSearchQuery.trim() ||
                         service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ||
                         (service.description ?? "").toLowerCase().includes(serviceSearchQuery.toLowerCase()))
-                  )
-                    .map((service) => (
-                      <QuotationServiceSearchItem
-                        key={service.id}
-                        service={service}
-                        defaultExpanded={expandAllDescriptions}
-                        onAdd={() => { handleAddService(service.id.toString()); setServiceSearchQuery(""); }}
-                      />
-                    ))}
+                  );
+                  if (availableServices.length === 0) {
+                    return (
+                      <p className="text-center py-4 text-muted-foreground text-sm">
+                        {services.length === 0
+                          ? "Loading services..."
+                          : selectedServices.length === services.length
+                            ? "All services have been added."
+                            : "No services match your filter."}
+                      </p>
+                    );
+                  }
+                  return availableServices.map((service) => (
+                    <QuotationServiceSearchItem
+                      key={service.id}
+                      service={service}
+                      defaultExpanded={expandAllDescriptions}
+                      onAdd={() => { handleAddService(service.id.toString()); setServiceSearchQuery(""); }}
+                    />
+                  ));
+                })()}
               </div>
               {selectedServices.length > 0 && (
                 <div className="space-y-2">
@@ -861,7 +832,7 @@ export default function CreateQuotationForm({
               )}
               {selectedServices.length === 0 && (
                 <div className="text-center py-4 text-muted-foreground text-sm">
-                  Search and add services above
+                  Add at least one service from the list above
                 </div>
               )}
             </div>

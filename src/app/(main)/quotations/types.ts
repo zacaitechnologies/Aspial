@@ -133,7 +133,7 @@ export type EditFormData = {
   description: string;
   totalPrice: string;
   workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled";
-  paymentStatus: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid";
+  paymentStatus: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"; // deposit_paid kept for legacy data; not selectable in UI
   discountValue: string;
   discountType: "percentage" | "fixed";
   duration: string;
@@ -172,10 +172,14 @@ export const workflowStatusOptions = [
   { value: "cancelled", label: "Cancelled", color: "destructive" as const },
 ] as const;
 
+/**
+ * Payment status options shown in selection UIs.
+ * deposit_paid is intentionally omitted — it is auto-derived from receipts
+ * and kept only as a legacy DB value.
+ */
 export const paymentStatusOptions = [
   { value: "unpaid", label: "Unpaid", color: "destructive" as const },
   { value: "partially_paid", label: "Partially Paid", color: "secondary" as const },
-  { value: "deposit_paid", label: "Deposit Paid", color: "default" as const },
   { value: "fully_paid", label: "Fully Paid", color: "default" as const },
 ] as const;
 

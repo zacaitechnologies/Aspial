@@ -5,10 +5,13 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime, parseDocumentDateInputOrNow } from "@/lib/date-utils"
+import { parseEmailSendResponse } from "@/lib/email-api"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { withExcludedSystemClient } from "@/lib/no-project"
 import { Prisma, type PaymentMethod } from "@prisma/client"
-import { receiptListFiltersSchema, type ReceiptListFilters } from "@/lib/validation"
+import { receiptListFiltersSchema, type ReceiptListFilters, type ReceiptServiceItem } from "@/lib/validation"
+import { z } from "zod"
+import { recalcQuotationPaymentStatus } from "@/lib/quotation-payment-status"
 
 // Internal function - not cached, used by cached version
 async function _getReceiptsPaginatedInternal(
@@ -533,6 +536,12 @@ export async function getReceiptFullById(id: string) {
 					},
 				},
 			},
+			services: {
+				include: {
+					service: true,
+				},
+				orderBy: { sortOrder: 'asc' },
+			},
 		},
 	})
 
@@ -584,11 +593,25 @@ export async function createReceipt(data: {
 	receiptDate?: string
 	/** Payment method used for this receipt */
 	paymentMethod?: "cash" | "bank_transfer" | "mydebit" | "visa" | "mastercard" | "qr"
+	/** Internal note — not shown on the PDF. */
+	remarks?: string
+	/** Optional service line items (standalone receipts only; informational). */
+	services?: ReceiptServiceItem[]
 }) {
-	// Validate amount
-	if (data.amount <= 0) {
-		throw new Error("Receipt amount must be greater than 0")
-	}
+	const amount = (() => {
+		try {
+			return z
+				.number({ message: "Receipt amount must be greater than 0" })
+				.finite("Receipt amount must be greater than 0")
+				.positive("Receipt amount must be greater than 0")
+				.parse(data.amount)
+		} catch (error) {
+			if (error instanceof z.ZodError) {
+				throw new Error(error.issues[0]?.message ?? "Receipt amount must be greater than 0")
+			}
+			throw error
+		}
+	})()
 
 	const isInvoiceLinked = Boolean(data.invoiceId)
 	const isStandalone = Boolean(data.clientId)
@@ -689,8 +712,8 @@ export async function createReceipt(data: {
 	if (isInvoiceLinked && invoice) {
 		const totalReceipted = existingReceipts.reduce((sum, r) => sum + r.amount, 0)
 		const remaining = invoice.amount - totalReceipted
-		if (data.amount > remaining && process.env.NODE_ENV === "development") {
-			console.warn(`Receipt amount (${data.amount}) exceeds remaining invoice amount (${remaining})`)
+		if (amount > remaining && process.env.NODE_ENV === "development") {
+			console.warn(`Receipt amount (${amount}) exceeds remaining invoice amount (${remaining})`)
 		}
 	}
 
@@ -719,14 +742,27 @@ export async function createReceipt(data: {
 						receiptNumber,
 						invoiceId: isInvoiceLinked ? data.invoiceId! : null,
 						clientId: isStandalone ? data.clientId! : null,
-						amount: data.amount,
+						amount: amount,
 						paymentMethod: data.paymentMethod || "bank_transfer",
 						createdById: finalCreatedById,
 						status: "active",
 						receiptDate: receiptDateForDb,
+						remarks: data.remarks?.trim() || null,
 						advisors: {
 							create: finalAdvisorIds.map((userId) => ({ userId })),
 						},
+						services:
+							data.services && data.services.length > 0
+								? {
+										create: data.services.map((svc, idx) => ({
+											serviceId: svc.serviceId,
+											descriptionOverride: svc.descriptionOverride,
+											price: svc.price,
+											quantity: svc.quantity,
+											sortOrder: svc.sortOrder ?? idx,
+										})),
+									}
+								: undefined,
 					},
 					select: {
 						id: true,
@@ -794,6 +830,14 @@ export async function createReceipt(data: {
 				maxWait: 5000,
 				timeout: 10000,
 			})
+
+			// Recompute quotation payment status for invoice-linked receipts
+			if (receipt.invoice?.quotation?.id) {
+				await recalcQuotationPaymentStatus(receipt.invoice.quotation.id)
+				revalidateTag("quotations", { expire: 0 })
+				revalidatePath("/quotations")
+				revalidatePath(`/quotations/${receipt.invoice.quotation.id}`)
+			}
 
 			await invalidateReceiptsCache()
 			revalidatePath("/receipts")
@@ -986,6 +1030,29 @@ export async function searchClientsForReceipt(searchTerm: string) {
 }
 
 /**
+ * Fetch advisors linked to a client (used when selecting via ClientSelection).
+ */
+export async function getClientAdvisorsForReceipt(clientId: string) {
+	unstable_noStore()
+
+	const rows = await prisma.clientAdvisor.findMany({
+		where: { clientId },
+		include: {
+			user: {
+				select: {
+					id: true,
+					firstName: true,
+					lastName: true,
+					email: true,
+				},
+			},
+		},
+	})
+
+	return rows.map((row) => row.user)
+}
+
+/**
  * Update receipt (change advisors or status)
  * - Admins can update any receipt and change advisors
  * - Non-admins can only update their own receipts and only change status
@@ -1154,6 +1221,11 @@ export async function updateReceiptAdmin(
 		}
 	}
 
+	// Recompute quotation payment status when receipt status changes (cancel/reactivate)
+	if (data.status !== undefined && existingReceipt.invoice?.quotationId) {
+		await recalcQuotationPaymentStatus(existingReceipt.invoice.quotationId)
+	}
+
 	revalidateTag("receipts", { expire: 0 })
 	revalidateTag("invoices", { expire: 0 })
 	revalidateTag("quotations", { expire: 0 })
@@ -1164,6 +1236,9 @@ export async function updateReceiptAdmin(
 		revalidatePath(`/invoices/${existingReceipt.invoiceId}`)
 	}
 	revalidatePath("/quotations")
+	if (existingReceipt.invoice?.quotationId) {
+		revalidatePath(`/quotations/${existingReceipt.invoice.quotationId}`)
+	}
 
 	return receipt
 }
@@ -1186,6 +1261,10 @@ export async function sendReceiptEmail(
 
 		if (!receipt) {
 			return { success: false, error: "Receipt not found" }
+		}
+
+		if (!receipt.invoice && !receipt.client) {
+			return { success: false, error: "Receipt is missing client information required for email" }
 		}
 
 		// Generate PDF as base64 (use FromFull to avoid duplicate getReceiptFullById)
@@ -1213,13 +1292,13 @@ export async function sendReceiptEmail(
 				receiptNumber: receipt.receiptNumber,
 				invoiceNumber: receipt.invoice?.invoiceNumber ?? "",
 				customerName:
-					receipt.invoice?.quotation.Client?.name ||
-					(receipt as { client?: { name?: string } | null }).client?.name ||
+					receipt.invoice?.quotation.Client?.name ??
+					receipt.client?.name ??
 					"Valued Customer",
 				customerEmail: recipientEmail,
 				clientCompany:
-					receipt.invoice?.quotation.Client?.company ||
-					(receipt as { client?: { company?: string | null } | null }).client?.company ||
+					receipt.invoice?.quotation.Client?.company ??
+					receipt.client?.company ??
 					"",
 				amount: receipt.amount,
 				pdfBase64: pdfBase64,
@@ -1227,12 +1306,13 @@ export async function sendReceiptEmail(
 			}),
 		})
 
-		if (!response.ok) {
-			const errorData = await response.text()
+		const sendResult = await parseEmailSendResponse(response)
+		if (!sendResult.success) {
 			if (process.env.NODE_ENV === "development") {
-				console.error("Error sending email:", errorData)
+				// eslint-disable-next-line no-console
+				console.error("Error sending email:", sendResult.error)
 			}
-			return { success: false, error: "Failed to send email. Please try again." }
+			return { success: false, error: sendResult.error ?? "Failed to send email. Please try again." }
 		}
 
 		// Record the email in database (sentById references User.supabase_id)

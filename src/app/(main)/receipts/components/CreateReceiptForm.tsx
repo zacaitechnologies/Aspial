@@ -2,6 +2,8 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
 	Dialog,
 	DialogContent,
@@ -11,13 +13,13 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Search, Loader2, AlertTriangle, CheckCircle } from "lucide-react"
+import { Search, Loader2, AlertTriangle, CheckCircle, ChevronDown, ChevronRight } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import {
 	createReceipt,
 	searchInvoicesForReceipt,
-	searchClientsForReceipt,
 	getInvoiceReceiptSummary,
+	getClientAdvisorsForReceipt,
 } from "../action"
 import { ReceiptFormData, PaymentMethodType, PAYMENT_METHOD_LABELS } from "../types"
 import { useSession } from "../../contexts/SessionProvider"
@@ -28,7 +30,12 @@ import { formatNumber } from "@/lib/format-number"
 import { formatLocalDate } from "@/lib/date-utils"
 import { getInvoiceById } from "../../invoices/action"
 import { getAllUsers } from "../../quotations/action"
+import { getAllServices } from "../../services/action"
+import { createCustomerClient } from "../../clients/action"
 import { checkIsAdmin } from "../../actions/admin-actions"
+import ClientSelection from "../../quotations/components/ClientSelection"
+import { QuotationServiceSearchItem } from "../../quotations/components/QuotationServiceSearchItem"
+import type { Services } from "@prisma/client"
 import {
 	Select,
 	SelectContent,
@@ -38,15 +45,38 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors"
+import type { ReceiptServiceItem } from "@/lib/validation"
+
+type SelectedService = {
+	serviceId: string
+	name: string
+	baseDescription: string
+	description: string
+	price: number
+	quantity: number
+	expanded: boolean
+}
 
 type ReceiptMode = "invoice" | "standalone"
 
-interface ClientSearchResult {
-	id: string
-	name: string
-	email: string
-	company: string | null
-	advisors: Array<{ id: string; firstName: string; lastName: string; email: string }>
+const EMPTY_NEW_CLIENT = {
+	name: "",
+	email: "",
+	ic: "",
+	phone: "",
+	company: "",
+	companyRegistrationNumber: "",
+	address: "",
+	notes: "",
+	industry: "",
+	yearlyRevenue: "",
+	membershipType: "NON_MEMBER",
+}
+
+function parsePositiveReceiptAmount(raw: string): number | null {
+	const amount = parseFloat(raw)
+	if (!Number.isFinite(amount) || amount <= 0) return null
+	return amount
 }
 
 interface CreateReceiptFormProps {
@@ -78,10 +108,11 @@ export default function CreateReceiptForm({
 	const [isSaving, setIsSaving] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [searchResults, setSearchResults] = useState<any[]>([])
-	const [clientSearchResults, setClientSearchResults] = useState<ClientSearchResult[]>([])
 	const [isSearching, setIsSearching] = useState(false)
 	const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null)
-	const [selectedClient, setSelectedClient] = useState<ClientSearchResult | null>(null)
+	const [clientMode, setClientMode] = useState<"existing" | "new">("existing")
+	const [selectedClientName, setSelectedClientName] = useState("")
+	const [newClientData, setNewClientData] = useState(EMPTY_NEW_CLIENT)
 	const [invoiceAmount, setInvoiceAmount] = useState<number>(0)
 	const [totalReceipted, setTotalReceipted] = useState<number>(0)
 	const [remaining, setRemaining] = useState<number>(0)
@@ -91,8 +122,13 @@ export default function CreateReceiptForm({
 	const [selectedAdvisorIds, setSelectedAdvisorIds] = useState<string[]>([])
 	const [currentDbUserId, setCurrentDbUserId] = useState<string>("")
 	const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethodType>("bank_transfer")
+	const [services, setServices] = useState<Services[]>([])
+	const [selectedServices, setSelectedServices] = useState<SelectedService[]>([])
+	const [serviceSearchQuery, setServiceSearchQuery] = useState("")
+	const [expandAllDescriptions, setExpandAllDescriptions] = useState(false)
+	const [remarks, setRemarks] = useState("")
 
-	// Load users, current user id, and admin status (affects whether self can be removed from advisors)
+	// Load users, current user id, admin status, and services catalog
 	useEffect(() => {
 		if (!isOpen || !enhancedUser?.id) return
 		const run = async () => {
@@ -113,6 +149,9 @@ export default function CreateReceiptForm({
 				const me = all.find((u) => u.supabase_id === enhancedUser.id)
 				if (me) setCurrentDbUserId(me.id)
 			})
+			.catch(() => {})
+		void getAllServices()
+			.then((svcs) => setServices(svcs))
 			.catch(() => {})
 	}, [isOpen, enhancedUser?.id, isAdminProp])
 
@@ -137,17 +176,40 @@ export default function CreateReceiptForm({
 
 	// Sync advisors when the selected invoice or client changes. Non-admins must include self.
 	useEffect(() => {
-		const sourceAdvisors =
-			mode === "invoice" ? selectedInvoice?.advisors : selectedClient?.advisors
-		let ids: string[] = []
-		if (sourceAdvisors && sourceAdvisors.length > 0) {
-			ids = sourceAdvisors.map((a: any) => a.id).filter(Boolean) as string[]
+		if (mode === "invoice") {
+			const sourceAdvisors = selectedInvoice?.advisors
+			let ids: string[] = []
+			if (sourceAdvisors && sourceAdvisors.length > 0) {
+				ids = sourceAdvisors.map((a: { id: string }) => a.id).filter(Boolean)
+			}
+			if (!isAdmin && currentDbUserId && !ids.includes(currentDbUserId)) {
+				ids = [...ids, currentDbUserId]
+			}
+			setSelectedAdvisorIds(ids)
+			return
 		}
-		if (!isAdmin && currentDbUserId && !ids.includes(currentDbUserId)) {
-			ids = [...ids, currentDbUserId]
+
+		if (mode === "standalone" && clientMode === "existing" && receiptForm.clientId) {
+			void getClientAdvisorsForReceipt(receiptForm.clientId)
+				.then((advisors) => {
+					let ids = advisors.map((a) => a.id).filter(Boolean)
+					if (!isAdmin && currentDbUserId && !ids.includes(currentDbUserId)) {
+						ids = [...ids, currentDbUserId]
+					}
+					setSelectedAdvisorIds(ids)
+				})
+				.catch(() => {
+					if (!isAdmin && currentDbUserId) {
+						setSelectedAdvisorIds([currentDbUserId])
+					}
+				})
+			return
 		}
-		setSelectedAdvisorIds(ids)
-	}, [mode, selectedInvoice?.id, selectedInvoice?.advisors, selectedClient?.id, selectedClient?.advisors, isAdmin, currentDbUserId])
+
+		if (mode === "standalone" && clientMode === "new" && !isAdmin && currentDbUserId) {
+			setSelectedAdvisorIds([currentDbUserId])
+		}
+	}, [mode, clientMode, receiptForm.clientId, selectedInvoice?.id, selectedInvoice?.advisors, isAdmin, currentDbUserId])
 
 	// Load receipt summary when invoice is selected
 	useEffect(() => {
@@ -172,42 +234,36 @@ export default function CreateReceiptForm({
 		loadSummary()
 	}, [mode, selectedInvoice?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Validate amount when it changes (invoice mode only — standalone has no remaining cap)
+	// Validate amount in both invoice and standalone modes
 	useEffect(() => {
-		if (mode !== "invoice") {
+		if (!receiptForm.amount) {
 			setAmountWarning("")
 			return
 		}
-		if (receiptForm.amount && remaining >= 0) {
-			const amount = parseFloat(receiptForm.amount)
-			if (isNaN(amount) || amount <= 0) {
-				setAmountWarning("Amount must be greater than 0")
-			} else if (amount > remaining) {
-				setAmountWarning(`Warning: Receipt amount (RM${formatNumber(amount)}) exceeds remaining invoice amount (RM${formatNumber(remaining)})`)
-			} else {
-				setAmountWarning("")
-			}
-		} else {
-			setAmountWarning("")
+		const amount = parsePositiveReceiptAmount(receiptForm.amount)
+		if (amount === null) {
+			setAmountWarning("Receipt amount must be greater than 0")
+			return
 		}
+		if (mode === "invoice" && amount > remaining) {
+			setAmountWarning(
+				`Warning: Receipt amount (RM${formatNumber(amount)}) exceeds remaining invoice amount (RM${formatNumber(remaining)})`,
+			)
+			return
+		}
+		setAmountWarning("")
 	}, [mode, receiptForm.amount, remaining])
 
 	const handleSearch = useCallback(async () => {
-		if (!searchQuery.trim()) {
+		if (mode !== "invoice" || !searchQuery.trim()) {
 			setSearchResults([])
-			setClientSearchResults([])
 			return
 		}
 
 		setIsSearching(true)
 		try {
-			if (mode === "invoice") {
-				const results = await searchInvoicesForReceipt(searchQuery)
-				setSearchResults(results)
-			} else {
-				const results = await searchClientsForReceipt(searchQuery)
-				setClientSearchResults(results)
-			}
+			const results = await searchInvoicesForReceipt(searchQuery)
+			setSearchResults(results)
 		} catch (error) {
 			if (process.env.NODE_ENV === "development") {
 				console.error("Error searching:", error)
@@ -222,25 +278,19 @@ export default function CreateReceiptForm({
 		}
 	}, [searchQuery, mode])
 
-	// Debounce search
+	// Debounce invoice search
 	useEffect(() => {
+		if (mode !== "invoice") return
 		const timer = setTimeout(() => {
 			if (searchQuery.trim()) {
 				handleSearch()
 			} else {
 				setSearchResults([])
-				if (mode === "standalone" && !selectedClient) {
-					void searchClientsForReceipt("")
-						.then((results) => setClientSearchResults(results))
-						.catch(() => setClientSearchResults([]))
-				} else {
-					setClientSearchResults([])
-				}
 			}
 		}, 300)
 
 		return () => clearTimeout(timer)
-	}, [searchQuery, handleSearch, mode, selectedClient])
+	}, [searchQuery, handleSearch, mode])
 
 	const handleInvoiceSelect = async (invoiceId: string) => {
 		// Find invoice in search results first
@@ -283,26 +333,71 @@ export default function CreateReceiptForm({
 		}
 	}
 
-	const handleClientSelect = (client: ClientSearchResult) => {
-		setSelectedClient(client)
-		setReceiptForm(prev => ({ ...prev, clientId: client.id, invoiceId: undefined }))
-		setSearchQuery("")
-		setClientSearchResults([])
-	}
-
 	const handleModeChange = (next: string) => {
 		const nextMode = next as ReceiptMode
 		setMode(nextMode)
 		setSelectedInvoice(null)
-		setSelectedClient(null)
+		setClientMode("existing")
+		setSelectedClientName("")
+		setNewClientData(EMPTY_NEW_CLIENT)
 		setSearchQuery("")
 		setSearchResults([])
-		setClientSearchResults([])
 		setTotalReceipted(0)
 		setRemaining(0)
 		setInvoiceAmount(0)
 		setAmountWarning("")
+		setSelectedServices([])
+		setServiceSearchQuery("")
+		setExpandAllDescriptions(false)
 		setReceiptForm(prev => ({ ...prev, invoiceId: undefined, clientId: undefined, amount: "" }))
+	}
+
+	const handleAddService = (serviceId: string) => {
+		const service = services.find((s) => s.id.toString() === serviceId)
+		if (!service) return
+		if (selectedServices.some((s) => s.serviceId === serviceId)) return
+		setSelectedServices((prev) => [
+			...prev,
+			{
+				serviceId,
+				name: service.name,
+				baseDescription: service.description ?? "",
+				description: service.description ?? "",
+				price: service.basePrice,
+				quantity: 1,
+				expanded: expandAllDescriptions,
+			},
+		])
+	}
+
+	const handleServiceDescriptionChange = (serviceId: string, description: string) => {
+		setSelectedServices((prev) =>
+			prev.map((s) => (s.serviceId === serviceId ? { ...s, description } : s)),
+		)
+	}
+
+	const handleResetServiceDescription = (serviceId: string) => {
+		setSelectedServices((prev) =>
+			prev.map((s) =>
+				s.serviceId === serviceId ? { ...s, description: s.baseDescription } : s,
+			),
+		)
+	}
+
+	const handleRemoveService = (serviceId: string) => {
+		setSelectedServices((prev) => prev.filter((s) => s.serviceId !== serviceId))
+	}
+
+	const handleServicePriceChange = (serviceId: string, price: number) => {
+		setSelectedServices((prev) =>
+			prev.map((s) => (s.serviceId === serviceId ? { ...s, price } : s)),
+		)
+	}
+
+	const handleServiceQuantityChange = (serviceId: string, quantity: number) => {
+		setSelectedServices((prev) =>
+			prev.map((s) => (s.serviceId === serviceId ? { ...s, quantity } : s)),
+		)
 	}
 
 	const resetForm = () => {
@@ -313,25 +408,35 @@ export default function CreateReceiptForm({
 			receiptDate: formatLocalDate(new Date()),
 		})
 		setSelectedInvoice(null)
-		setSelectedClient(null)
+		setClientMode("existing")
+		setSelectedClientName("")
+		setNewClientData(EMPTY_NEW_CLIENT)
 		setSelectedAdvisorIds([])
 		setSelectedPaymentMethod("bank_transfer")
 		setSearchQuery("")
 		setSearchResults([])
-		setClientSearchResults([])
 		setAmountWarning("")
 		setTotalReceipted(0)
 		setRemaining(0)
 		setMode("invoice")
+		setSelectedServices([])
+		setServiceSearchQuery("")
+		setExpandAllDescriptions(false)
+		setRemarks("")
 	}
 
 	const isInvoiceMode = mode === "invoice"
-	const target = isInvoiceMode ? selectedInvoice : selectedClient
+	const hasStandaloneClient =
+		clientMode === "existing"
+			? Boolean(receiptForm.clientId)
+			: Boolean(newClientData.name && newClientData.email && newClientData.ic)
+	const target = isInvoiceMode ? selectedInvoice : hasStandaloneClient ? true : null
+	const parsedReceiptAmount = parsePositiveReceiptAmount(receiptForm.amount)
 	const submitDisabled =
 		isSaving ||
 		!target ||
-		!receiptForm.amount ||
-		parseFloat(receiptForm.amount) <= 0 ||
+		parsedReceiptAmount === null ||
+		(amountWarning.length > 0 && !amountWarning.includes("Warning")) ||
 		selectedAdvisorIds.length === 0
 
 	const handleCreateReceipt = async () => {
@@ -339,12 +444,27 @@ export default function CreateReceiptForm({
 			toast({ title: "Validation Error", description: "Please select an invoice.", variant: "destructive" })
 			return
 		}
-		if (!isInvoiceMode && !receiptForm.clientId) {
-			toast({ title: "Validation Error", description: "Please select a client.", variant: "destructive" })
-			return
+		if (!isInvoiceMode) {
+			if (clientMode === "existing" && !receiptForm.clientId) {
+				toast({ title: "Validation Error", description: "Please select a client.", variant: "destructive" })
+				return
+			}
+			if (clientMode === "new" && (!newClientData.name || !newClientData.email || !newClientData.ic)) {
+				toast({
+					title: "Validation Error",
+					description: "Please fill in the required client information (name, email, and IC).",
+					variant: "destructive",
+				})
+				return
+			}
 		}
-		if (!receiptForm.amount || parseFloat(receiptForm.amount) <= 0) {
-			toast({ title: "Validation Error", description: "Please enter a valid receipt amount.", variant: "destructive" })
+		const amount = parsePositiveReceiptAmount(receiptForm.amount)
+		if (amount === null) {
+			toast({
+				title: "Validation Error",
+				description: "Receipt amount must be greater than 0",
+				variant: "destructive",
+			})
 			return
 		}
 		if (!enhancedUser?.id) {
@@ -358,13 +478,46 @@ export default function CreateReceiptForm({
 
 		setIsSaving(true)
 		try {
+			let finalClientId = receiptForm.clientId
+
+			if (!isInvoiceMode && clientMode === "new") {
+				const newClient = await createCustomerClient({
+					name: newClientData.name,
+					email: newClientData.email,
+					ic: newClientData.ic,
+					phone: newClientData.phone,
+					company: newClientData.company,
+					companyRegistrationNumber: newClientData.companyRegistrationNumber,
+					address: newClientData.address,
+					notes: newClientData.notes,
+					industry: newClientData.industry,
+					yearlyRevenue: newClientData.yearlyRevenue
+						? parseFloat(newClientData.yearlyRevenue)
+						: undefined,
+					membershipType: (newClientData.membershipType as "MEMBER" | "NON_MEMBER") || "NON_MEMBER",
+				})
+				finalClientId = newClient.id
+			}
+
+			const servicePayload: ReceiptServiceItem[] = !isInvoiceMode
+				? selectedServices.map((s, idx) => ({
+						serviceId: parseInt(s.serviceId, 10),
+						descriptionOverride: s.description,
+						price: s.price,
+						quantity: s.quantity,
+						sortOrder: idx,
+					}))
+				: []
+
 			await createReceipt({
 				invoiceId: isInvoiceMode ? receiptForm.invoiceId : undefined,
-				clientId: !isInvoiceMode ? receiptForm.clientId : undefined,
-				amount: parseFloat(receiptForm.amount),
+				clientId: !isInvoiceMode ? finalClientId : undefined,
+				amount,
 				advisorIds: selectedAdvisorIds,
 				receiptDate: receiptForm.receiptDate || undefined,
 				paymentMethod: selectedPaymentMethod,
+				remarks: remarks.trim() || undefined,
+				services: servicePayload.length > 0 ? servicePayload : undefined,
 			})
 
 			toast({ title: "Success", description: "Receipt created successfully." })
@@ -387,14 +540,14 @@ export default function CreateReceiptForm({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0 gap-0">
+			<DialogContent className="w-[85vw]! max-w-[85vw]! sm:max-w-[85vw]! max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
 				<DialogHeader className="shrink-0 px-6 pt-6 pb-2 pr-12">
 					<DialogTitle>Create New Receipt</DialogTitle>
 					<DialogDescription>
 						Link the receipt to an invoice, or record a standalone cash sale against a client.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="space-y-4 py-4 px-6 overflow-y-auto min-h-0 flex-1">
+				<div className="space-y-4 py-4 px-6 overflow-y-auto min-h-0 flex-1 custom-scrollbar">
 					{/* Mode toggle */}
 					<Tabs value={mode} onValueChange={handleModeChange} className="w-full">
 						<TabsList className="grid w-full grid-cols-2">
@@ -503,74 +656,240 @@ export default function CreateReceiptForm({
 							)}
 						</TabsContent>
 
-						<TabsContent value="standalone" className="space-y-2 mt-4">
-							<Label htmlFor="client-search">Select Client <span className="text-red-500">*</span></Label>
-							<div className="relative">
-								<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-								<Input
-									id="client-search"
-									type="text"
-									value={searchQuery}
-									onChange={(e) => setSearchQuery(e.target.value)}
-									placeholder="Search by client name, company, email or IC..."
-									className="pl-10"
-									disabled={!!selectedClient || isSaving}
+						<TabsContent value="standalone" className="space-y-4 mt-4">
+							<div className="grid gap-2">
+								<Label>
+									Client <span className="text-red-500">*</span>
+								</Label>
+								<ClientSelection
+									selectedClientId={receiptForm.clientId}
+									selectedClientName={selectedClientName}
+									newClientData={newClientData}
+									onClientSelect={(clientId, clientName) => {
+										setReceiptForm((prev) => ({
+											...prev,
+											clientId,
+											invoiceId: undefined,
+										}))
+										setSelectedClientName(clientName)
+									}}
+									onNewClientDataChange={(data) =>
+										setNewClientData({
+											name: data.name ?? "",
+											email: data.email ?? "",
+											ic: data.ic ?? "",
+											phone: data.phone ?? "",
+											company: data.company ?? "",
+											companyRegistrationNumber: data.companyRegistrationNumber ?? "",
+											address: data.address ?? "",
+											notes: data.notes ?? "",
+											industry: data.industry ?? "",
+											yearlyRevenue: data.yearlyRevenue ?? "",
+											membershipType: data.membershipType ?? "NON_MEMBER",
+										})
+									}
+									onModeChange={setClientMode}
+									mode={clientMode}
 								/>
-								{isSearching && !isInvoiceMode && (
-									<Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
-								)}
 							</div>
 
-							{clientSearchResults.length > 0 && !selectedClient && (
-								<div className="border rounded-lg max-h-60 overflow-y-auto">
-									{clientSearchResults.map((client) => (
-										<div
-											key={client.id}
-											className="cursor-pointer border-b last:border-b-0 px-3 py-1.5 hover:bg-muted/40"
-											onClick={() => handleClientSelect(client)}
+							<div className="grid border-black border-2 rounded-2xl p-4 gap-4 mt-4">
+								<div className="flex items-center justify-between">
+									<div className="flex flex-col">
+										<Label className="font-semibold">
+											Services{" "}
+											<span className="text-xs font-normal text-muted-foreground">
+												(optional — informational line items)
+											</span>
+										</Label>
+									</div>
+									<div className="flex items-center gap-2 shrink-0">
+										<Checkbox
+											id="receipt-expand-all-desc"
+											checked={expandAllDescriptions}
+											onCheckedChange={(checked) => setExpandAllDescriptions(checked === true)}
+											disabled={isSaving}
+										/>
+										<Label
+											htmlFor="receipt-expand-all-desc"
+											className="text-xs font-normal cursor-pointer whitespace-nowrap"
 										>
-											<p className="text-sm font-semibold leading-tight">{client.name}</p>
-											{client.company && (
-												<p className="text-xs text-muted-foreground leading-tight">{client.company}</p>
-											)}
-											<p className="text-xs text-muted-foreground leading-tight">{client.email}</p>
-										</div>
-									))}
+											Show all descriptions
+										</Label>
+									</div>
 								</div>
-							)}
-
-							{selectedClient && (
-								<Card className="bg-green-50 border-green-200">
-									<CardContent className="p-3">
-										<div className="flex justify-between items-start">
-											<div>
-												<div className="flex items-center gap-2 mb-1">
-													<CheckCircle className="w-4 h-4 text-green-600" />
-													<p className="font-semibold text-green-900">{selectedClient.name}</p>
-													<Badge variant="outline" className="bg-white">Standalone</Badge>
-												</div>
-												{selectedClient.company && (
-													<p className="text-sm text-green-700">{selectedClient.company}</p>
-												)}
-												<p className="text-xs text-green-600 mt-1">{selectedClient.email}</p>
-											</div>
+								<div className="flex gap-2">
+									<Input
+										placeholder="Filter services..."
+										value={serviceSearchQuery}
+										onChange={(e) => setServiceSearchQuery(e.target.value)}
+										disabled={isSaving}
+									/>
+								</div>
+								<div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-background">
+									{(() => {
+										const availableServices = services.filter(
+											(service) =>
+												!selectedServices.some((s) => s.serviceId === service.id.toString()) &&
+												(!serviceSearchQuery.trim() ||
+													service.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()) ||
+													(service.description ?? "")
+														.toLowerCase()
+														.includes(serviceSearchQuery.toLowerCase())),
+										)
+										if (availableServices.length === 0) {
+											return (
+												<p className="text-center py-4 text-muted-foreground text-sm">
+													{services.length === 0
+														? "Loading services..."
+														: selectedServices.length === services.length
+															? "All services have been added."
+															: "No services match your filter."}
+												</p>
+											)
+										}
+										return availableServices.map((service) => (
+											<QuotationServiceSearchItem
+												key={service.id}
+												service={service}
+												defaultExpanded={expandAllDescriptions}
+												onAdd={() => {
+													handleAddService(service.id.toString())
+													setServiceSearchQuery("")
+												}}
+											/>
+										))
+									})()}
+								</div>
+								{selectedServices.length > 0 && (
+									<div className="space-y-2">
+										<div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
+											<span className="col-span-1" />
+											<span className="col-span-3">Service</span>
+											<span className="col-span-3">Price (RM)</span>
+											<span className="col-span-2">Qty</span>
+											<span className="col-span-2 text-right">Total</span>
+											<span className="col-span-1" />
 										</div>
-										<Button
-											variant="ghost"
-											size="sm"
-											className="mt-2 text-green-700 hover:text-green-900"
-											onClick={() => {
-												setSelectedClient(null)
-												setReceiptForm(prev => ({ ...prev, clientId: undefined }))
-											}}
-										>
-											Change Client
-										</Button>
-									</CardContent>
-								</Card>
-							)}
+										{selectedServices.map((s) => (
+											<div key={s.serviceId} className="border rounded-lg overflow-hidden">
+												<div className="grid grid-cols-12 gap-2 items-center p-2">
+													<div className="col-span-1">
+														<Button
+															type="button"
+															size="sm"
+															variant="ghost"
+															onClick={() => {
+																setSelectedServices((prev) =>
+																	prev.map((svc) =>
+																		svc.serviceId === s.serviceId
+																			? { ...svc, expanded: !svc.expanded }
+																			: svc,
+																	),
+																)
+															}}
+															className="h-8 w-8 p-0"
+															aria-label={s.expanded ? "Hide description" : "Show description"}
+														>
+															{s.expanded ? (
+																<ChevronDown className="w-4 h-4" />
+															) : (
+																<ChevronRight className="w-4 h-4" />
+															)}
+														</Button>
+													</div>
+													<div className="col-span-3">
+														<p className="font-medium text-sm">{s.name}</p>
+													</div>
+													<div className="col-span-3">
+														<Input
+															type="number"
+															min="0"
+															step="0.01"
+															value={s.price}
+															onChange={(e) =>
+																handleServicePriceChange(
+																	s.serviceId,
+																	parseFloat(e.target.value) || 0,
+																)
+															}
+															onWheel={(e) => e.currentTarget.blur()}
+															className="h-8 text-sm"
+															disabled={isSaving}
+														/>
+													</div>
+													<div className="col-span-2">
+														<Input
+															type="number"
+															min="1"
+															step="1"
+															value={s.quantity}
+															onChange={(e) =>
+																handleServiceQuantityChange(
+																	s.serviceId,
+																	parseInt(e.target.value, 10) || 1,
+																)
+															}
+															onWheel={(e) => e.currentTarget.blur()}
+															className="h-8 text-sm"
+															disabled={isSaving}
+														/>
+													</div>
+													<div className="col-span-2 text-right text-sm font-medium">
+														RM{formatNumber(s.price * s.quantity)}
+													</div>
+													<div className="col-span-1 flex justify-end">
+														<Button
+															type="button"
+															size="sm"
+															variant="ghost"
+															onClick={() => handleRemoveService(s.serviceId)}
+															className="h-8 w-8 p-0 text-destructive"
+															disabled={isSaving}
+														>
+															×
+														</Button>
+													</div>
+												</div>
+												{s.expanded && (
+													<div className="border-t bg-muted/40 p-3 space-y-2">
+														<div className="flex items-center justify-between gap-2">
+															<Label className="text-xs">
+																Description (this receipt only — won&apos;t change the catalog)
+															</Label>
+															<Button
+																type="button"
+																size="sm"
+																variant="link"
+																className="h-auto p-0 text-xs"
+																onClick={() => handleResetServiceDescription(s.serviceId)}
+															>
+																Reset to default
+															</Button>
+														</div>
+														<Textarea
+															value={s.description}
+															onChange={(e) =>
+																handleServiceDescriptionChange(s.serviceId, e.target.value)
+															}
+															rows={4}
+															className="text-sm"
+															disabled={isSaving}
+														/>
+													</div>
+												)}
+											</div>
+										))}
+									</div>
+								)}
+								{selectedServices.length === 0 && (
+									<div className="text-center py-4 text-muted-foreground text-sm">
+										Add optional service line items from the list above
+									</div>
+								)}
+							</div>
 						</TabsContent>
-					</Tabs>
+				</Tabs>
 
 					{/* Receipt Amount */}
 					<div className="space-y-2">
@@ -579,7 +898,7 @@ export default function CreateReceiptForm({
 							id="receipt-amount"
 							type="number"
 							step="0.01"
-							min="0"
+							min="0.01"
 							value={receiptForm.amount}
 							onChange={(e) =>
 								setReceiptForm(prev => ({ ...prev, amount: e.target.value }))
@@ -597,7 +916,7 @@ export default function CreateReceiptForm({
 								<p className="text-sm">{amountWarning}</p>
 							</div>
 						)}
-						{target && !amountWarning && receiptForm.amount && (
+						{target && !amountWarning && parsedReceiptAmount !== null && (
 							<div className="flex items-center gap-2 p-2 rounded-md bg-green-50 border border-green-200 text-green-800">
 								<CheckCircle className="w-4 h-4" />
 								<p className="text-sm">Amount is valid</p>
@@ -667,6 +986,23 @@ export default function CreateReceiptForm({
 								? " You can add or remove advisors."
 								: " You can add others, but you cannot remove yourself as an advisor."}
 						</p>
+					</div>
+
+					{/* Internal remarks — not shown on the PDF */}
+					<div className="space-y-2">
+						<Label htmlFor="receipt-remarks">
+							Remarks <span className="text-xs font-normal text-muted-foreground">(internal note, not on PDF)</span>
+						</Label>
+						<Textarea
+							id="receipt-remarks"
+							value={remarks}
+							onChange={(e) => setRemarks(e.target.value)}
+							placeholder="Add any internal notes about this receipt..."
+							rows={3}
+							maxLength={2000}
+							disabled={!target || isSaving}
+							className="resize-none"
+						/>
 					</div>
 				</div>
 				<DialogFooter className="shrink-0 px-6 pb-6 pt-2 border-t">

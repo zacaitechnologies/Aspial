@@ -9,6 +9,19 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethodType, string> = {
 	qr: "QR",
 }
 
+export interface ReceiptServiceSnapshot {
+	id: number
+	serviceId: number
+	descriptionOverride: string
+	price: number
+	quantity: number
+	sortOrder: number
+	service: {
+		id: number
+		name: string
+	}
+}
+
 export interface ReceiptWithInvoice {
 	id: string
 	receiptNumber: string
@@ -70,6 +83,10 @@ export interface ReceiptWithInvoice {
 		lastName: string
 		email: string
 	}>
+	/** Internal note — not shown on the PDF. */
+	remarks?: string | null
+	/** Optional service line items (standalone receipts only). */
+	services?: ReceiptServiceSnapshot[]
 }
 
 export interface ReceiptFormData {

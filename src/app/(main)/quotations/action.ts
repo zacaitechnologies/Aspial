@@ -5,6 +5,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from "next/cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime } from "@/lib/date-utils"
+import { parseEmailSendResponse } from "@/lib/email-api"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { excludeNoProjectSentinelWhere, excludeSystemClientWhere } from "@/lib/no-project"
 import {
@@ -2492,14 +2493,13 @@ export async function sendQuotationEmail(
       }),
     })
 
-    if (!response.ok) {
-      const errorData = await response.text()
-      // Gate logging by environment
+    const sendResult = await parseEmailSendResponse(response)
+    if (!sendResult.success) {
       if (process.env.NODE_ENV === 'development') {
         // eslint-disable-next-line no-console
-        console.error("Error sending email:", errorData)
+        console.error("Error sending email:", sendResult.error)
       }
-      return { success: false, error: "Failed to send email. Please try again." }
+      return { success: false, error: sendResult.error ?? "Failed to send email. Please try again." }
     }
 
     // Record the email in database (sentById references User.supabase_id)

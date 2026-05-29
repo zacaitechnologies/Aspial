@@ -43,6 +43,7 @@ import { getInvoicesForQuotation } from "../action";
 import { getReceiptsForInvoice } from "../../receipts/action";
 import { formatLocalDate } from "@/lib/date-utils";
 import { FormattedDescription } from "@/components/FormattedDescription";
+import { QuotationServiceSearchItem } from "./QuotationServiceSearchItem";
 
 interface EditQuotationFormProps {
   isOpen: boolean;
@@ -907,7 +908,7 @@ export default function EditQuotationForm({
               <div className="grid gap-2">
                 <Label htmlFor="edit-paymentStatus">Payment Status</Label>
                 <Select
-                  value={editForm.paymentStatus}
+                  value={editForm.paymentStatus === "deposit_paid" ? "partially_paid" : editForm.paymentStatus}
                   onValueChange={(value) =>
                     setEditForm((prev) => ({ ...prev, paymentStatus: value as "unpaid" | "partially_paid" | "fully_paid" }))
                   }
@@ -923,6 +924,9 @@ export default function EditQuotationForm({
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Status is automatically updated when receipts are added or cancelled.
+                </p>
               </div>
               {canCancel && (
                 <div className="grid gap-2">
@@ -1209,35 +1213,41 @@ export default function EditQuotationForm({
               </div>
               <div className="flex gap-2">
                 <Input
-                  placeholder="Search services to add..."
+                  placeholder="Filter services..."
                   value={editServiceSearchQuery}
                   onChange={(e) => setEditServiceSearchQuery(e.target.value)}
                 />
               </div>
-              {editServiceSearchQuery && (
-                <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-background">
-                  {services
-                    .filter(
-                      (service) =>
-                        !editSelectedServices.some((s) => s.serviceId === service.id.toString()) &&
-                        (service.name.toLowerCase().includes(editServiceSearchQuery.toLowerCase()) ||
-                          service.description.toLowerCase().includes(editServiceSearchQuery.toLowerCase()))
-                    )
-                    .map((service) => (
-                      <div
-                        key={service.id}
-                        className="flex items-center justify-between p-2 hover:bg-muted rounded cursor-pointer"
-                        onClick={() => { handleAddEditService(service.id.toString()); setEditServiceSearchQuery(""); }}
-                      >
-                        <div>
-                          <p className="font-medium text-sm">{service.name}</p>
-                          <p className="text-xs text-muted-foreground">RM{formatNumber(service.basePrice)}</p>
-                        </div>
-                        <Button type="button" size="sm" variant="ghost"><Plus className="w-4 h-4" /></Button>
-                      </div>
-                    ))}
-                </div>
-              )}
+              <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 bg-background">
+                {(() => {
+                  const availableServices = services.filter(
+                    (service) =>
+                      !editSelectedServices.some((s) => s.serviceId === service.id.toString()) &&
+                      (!editServiceSearchQuery.trim() ||
+                        service.name.toLowerCase().includes(editServiceSearchQuery.toLowerCase()) ||
+                        (service.description ?? "").toLowerCase().includes(editServiceSearchQuery.toLowerCase()))
+                  );
+                  if (availableServices.length === 0) {
+                    return (
+                      <p className="text-center py-4 text-muted-foreground text-sm">
+                        {services.length === 0
+                          ? "Loading services..."
+                          : editSelectedServices.length === services.length
+                            ? "All services have been added."
+                            : "No services match your filter."}
+                      </p>
+                    );
+                  }
+                  return availableServices.map((service) => (
+                    <QuotationServiceSearchItem
+                      key={service.id}
+                      service={service}
+                      defaultExpanded={editExpandAllDescriptions}
+                      onAdd={() => { handleAddEditService(service.id.toString()); setEditServiceSearchQuery(""); }}
+                    />
+                  ));
+                })()}
+              </div>
               {editSelectedServices.length > 0 && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
@@ -1350,7 +1360,7 @@ export default function EditQuotationForm({
               )}
               {editSelectedServices.length === 0 && (
                 <div className="text-center py-4 text-muted-foreground text-sm">
-                  Search and add services above
+                  Add at least one service from the list above
                 </div>
               )}
             </div>
@@ -1504,9 +1514,9 @@ export default function EditQuotationForm({
             <div className="grid gap-2">
               <Label htmlFor="edit-paymentStatus">Payment Status</Label>
               <Select
-                value={editForm.paymentStatus}
+                value={editForm.paymentStatus === "deposit_paid" ? "partially_paid" : editForm.paymentStatus}
                 onValueChange={(value) =>
-                  setEditForm((prev) => ({ ...prev, paymentStatus: value as "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid" }))
+                  setEditForm((prev) => ({ ...prev, paymentStatus: value as "unpaid" | "partially_paid" | "fully_paid" }))
                 }
               >
                 <SelectTrigger>
@@ -1520,6 +1530,9 @@ export default function EditQuotationForm({
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Status is automatically updated when receipts are added or cancelled.
+              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-discount">Discount</Label>

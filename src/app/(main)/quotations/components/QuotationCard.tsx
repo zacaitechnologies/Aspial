@@ -132,14 +132,11 @@ export default function QuotationCard({
   }, []);
 
   const getPaymentStatusBadge = useCallback((status: string) => {
-    const statusConfig = paymentStatusOptions.find((opt) => opt.value === status);
-    return (
-      <Badge
-        variant={statusConfig?.color || "secondary"}
-      >
-        {statusConfig?.label || status}
-      </Badge>
-    );
+    const statusConfig = paymentStatusOptions.find((opt) => opt.value === status)
+    // Safe fallback for legacy "deposit_paid" rows not yet backfilled
+    const label = statusConfig?.label ?? (status === "deposit_paid" ? "Deposit Paid" : status)
+    const variant = statusConfig?.color ?? "default"
+    return <Badge variant={variant}>{label}</Badge>
   }, []);
 
   // Grand total: totalPrice is stored when creating/editing and already includes

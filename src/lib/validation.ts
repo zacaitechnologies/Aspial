@@ -586,6 +586,16 @@ export const bulkUpsertLeaveBalancesSchema = z.object({
 
 export type BulkUpsertLeaveBalancesValues = z.infer<typeof bulkUpsertLeaveBalancesSchema>;
 
+export const receiptServiceItemSchema = z.object({
+  serviceId: z.number().int().positive(),
+  descriptionOverride: z.string().min(1, "Description is required").max(2000),
+  price: z.number().min(0, "Price must be 0 or more"),
+  quantity: z.number().int().min(1, "Quantity must be at least 1"),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+export type ReceiptServiceItem = z.infer<typeof receiptServiceItemSchema>;
+
 // Receipt validation schema — invoiceId XOR clientId.
 export const createReceiptSchema = z
   .object({
@@ -595,6 +605,8 @@ export const createReceiptSchema = z
     paymentMethod: z.enum(["cash", "bank_transfer", "mydebit", "visa", "mastercard", "qr"]),
     receiptDate: z.string().optional(),
     advisorIds: z.array(z.string()).min(1, "At least one advisor is required"),
+    remarks: z.string().max(2000).optional(),
+    services: z.array(receiptServiceItemSchema).optional(),
   })
   .refine((d) => Boolean(d.invoiceId) !== Boolean(d.clientId), {
     message: "Provide exactly one of invoiceId or clientId",

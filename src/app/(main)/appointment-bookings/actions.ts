@@ -7,6 +7,7 @@ import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 import type { AppointmentType } from "@/app/(main)/calendar/constants"
 import { formatLocalDateTime, parseDateInBusinessTZ } from "@/lib/date-utils"
+import { parseEmailSendResponse } from "@/lib/email-api"
 import type { ProjectWithClient } from "@/app/(main)/appointment-bookings/types"
 
 const bookingProjectSelect = {
@@ -473,10 +474,13 @@ export async function createAppointmentBooking(formData: FormData) {
 							}),
 						})
 
-						if (!response.ok) {
-							const errorData = await response.json()
-							emailError = errorData.error || "Failed to send email"
-							console.error(`Failed to send appointment confirmation email to ${recipientEmail}:`, errorData)
+						const sendResult = await parseEmailSendResponse(response)
+
+						if (!sendResult.success) {
+							emailError = sendResult.error ?? "Failed to send email"
+							if (process.env.NODE_ENV === "development") {
+								console.error(`Failed to send appointment confirmation email to ${recipientEmail}:`, sendResult.error)
+							}
 							emailFailedCount++
 						} else {
 							emailSentCount++
@@ -1099,9 +1103,9 @@ export async function sendAppointmentReminder(
 			}),
 		})
 
-		if (!response.ok) {
-			const errorData = await response.json()
-			return { success: false, error: errorData.error || "Failed to send email" }
+		const sendResult = await parseEmailSendResponse(response)
+		if (!sendResult.success) {
+			return { success: false, error: sendResult.error ?? "Failed to send email" }
 		}
 
 		// Save email history

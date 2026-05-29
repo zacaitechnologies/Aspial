@@ -111,10 +111,11 @@ model Services {
   hidden       Boolean            @default(false)
   created_at   DateTime           @default(now())
   updated_at   DateTime           @default(now())
-  ServiceToTag ServiceToTag[]
-  milestones   Milestone[]
-  quotations   QuotationService[]
-  deliveryOrders DeliveryOrderService[]
+  ServiceToTag    ServiceToTag[]
+  milestones      Milestone[]
+  quotations      QuotationService[]
+  deliveryOrders  DeliveryOrderService[]
+  receiptServices ReceiptService[]
 
   @@index([hidden])
 }
@@ -246,7 +247,10 @@ model Receipt {
   created_at    DateTime         @default(now())
   updated_at    DateTime         @default(now())
   paymentMethod PaymentMethod    @default(bank_transfer)
+  /// Internal note — not shown on the PDF.
+  remarks       String?
   advisors      ReceiptAdvisor[]
+  services      ReceiptService[]
   invoice       Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   client        Client?          @relation("ClientReceipts", fields: [clientId], references: [id], onDelete: Restrict)
   createdBy     User             @relation("ReceiptCreator", fields: [createdById], references: [supabase_id])
@@ -257,6 +261,23 @@ model Receipt {
   @@index([created_at])
   @@index([status])
   @@map("receipts")
+}
+
+model ReceiptService {
+  id                  Int      @id @default(autoincrement())
+  receiptId           String
+  serviceId           Int
+  /// Per-receipt description override; snapshotted from Services.description at creation,
+  /// editable on this receipt only, never written back to Services.
+  descriptionOverride String
+  price               Float    @default(0)
+  quantity            Int      @default(1)
+  sortOrder           Int      @default(0)
+  receipt             Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  service             Services @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@index([receiptId])
+  @@map("receipt_services")
 }
 
 model ReceiptEmail {

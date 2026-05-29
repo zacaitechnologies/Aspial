@@ -77,7 +77,184 @@ function buildInfoOptsBuilder(
   })
 }
 
-async function buildReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
+function getReceiptAdvisorName(receipt: ReceiptFull): string {
+  if (receipt.advisors.length > 0) {
+    return receipt.advisors
+      .map((advisor) => `${advisor.firstName || ""} ${advisor.lastName || ""}`.trim())
+      .filter(Boolean)
+      .join(", ")
+  }
+
+  if (receipt.createdBy) {
+    return `${receipt.createdBy.firstName || ""} ${receipt.createdBy.lastName || ""}`.trim()
+  }
+
+  return "ADMIN"
+}
+
+function getReceiptPaymentMethodLabel(receipt: ReceiptFull): string | undefined {
+  const paymentMethod = receipt.paymentMethod as PaymentMethodType | null | undefined
+  return PAYMENT_METHOD_LABELS[paymentMethod as PaymentMethodType] || paymentMethod || undefined
+}
+
+function getReceiptPdfFileName(receipt: ReceiptFull): string {
+  const companyName =
+    receipt.invoice?.quotation?.Client?.company?.replace(/\s+/g, "-") ||
+    receipt.client?.company?.replace(/\s+/g, "-") ||
+    receipt.client?.name?.replace(/\s+/g, "-") ||
+    "client"
+
+  return `receipt-${receipt.receiptNumber}-${companyName}.pdf`
+}
+
+async function buildStandaloneReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
+  const client = receipt.client
+  if (!client) {
+    throw new Error("Standalone receipt is missing client information")
+  }
+
+  const doc = new jsPDF()
+  const logoBase64 = await getLogoBase64()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const receiptAmount = receipt.amount
+  const receiptDate = formatDate(new Date(receipt.receiptDate))
+  const advisorName = getReceiptAdvisorName(receipt)
+  const paymentMethodLabel = getReceiptPaymentMethodLabel(receipt)
+
+  const clientInfo: ClientInfoPdf = {
+    name: client.name || "",
+    company: client.company || "",
+    phone: client.phone || "",
+    email: client.email || "",
+    companyRegistrationNumber: client.companyRegistrationNumber ?? undefined,
+    ic: client.ic ?? undefined,
+  }
+
+  const buildInfoOpts = buildInfoOptsBuilder(
+    receipt.receiptNumber,
+    receiptDate,
+    advisorName,
+    clientInfo,
+    paymentMethodLabel,
+  )
+
+  addPageChrome(doc, logoBase64, buildInfoOpts(1, 1))
+
+  let currentY = CONTENT_AFTER_INFO_BOX_Y
+
+  const hasServices = receipt.services && receipt.services.length > 0
+  const tableBody: (string | number)[][] = hasServices
+    ? receipt.services!.map((svc, idx) => [
+        String(idx + 1),
+        sanitizePdfText(svc.descriptionOverride || svc.service.name),
+        String(svc.quantity),
+        formatNumber(svc.price),
+        formatNumber(svc.price * svc.quantity),
+      ])
+    : [["1", "Payment Received", "1.00", formatNumber(receiptAmount), formatNumber(receiptAmount)]]
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [["No", "Description", "Package", "Price/Package", "Total"]],
+    body: tableBody,
+    theme: "grid",
+    headStyles: {
+      fillColor: PRIMARY_DARK_GREEN,
+      textColor: WHITE,
+      fontSize: 9,
+      fontStyle: "bold",
+      lineWidth: 0.1,
+    },
+    bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1 },
+    columnStyles: {
+      0: { cellWidth: ((pageWidth - 2 * MARGIN) / 15) * 1, halign: "center" },
+      1: { cellWidth: ((pageWidth - 2 * MARGIN) / 15) * 7 },
+      2: { cellWidth: ((pageWidth - 2 * MARGIN) / 15) * 2, halign: "right" },
+      3: { cellWidth: ((pageWidth - 2 * MARGIN) / 15) * 3, halign: "right" },
+      4: { cellWidth: ((pageWidth - 2 * MARGIN) / 15) * 2, halign: "right" },
+    },
+    margin: {
+      left: MARGIN,
+      right: MARGIN,
+      top: CONTENT_AFTER_INFO_BOX_Y,
+      bottom: FOOTER_HEIGHT + 4,
+    },
+    styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: "linebreak" },
+    didDrawPage: (data: { pageNumber: number }) => {
+      addPageChrome(doc, logoBase64, buildInfoOpts(data.pageNumber, doc.getNumberOfPages()))
+    },
+  })
+
+  currentY = (doc.lastAutoTable?.finalY ?? currentY) + 10
+
+  const contentMaxY = getContentMaxY(doc)
+  if (currentY > contentMaxY - 45) {
+    doc.addPage()
+    addPageChrome(doc, logoBase64, buildInfoOpts(doc.getNumberOfPages(), doc.getNumberOfPages()))
+    currentY = CONTENT_AFTER_INFO_BOX_Y
+  }
+
+  doc.setFontSize(10)
+  doc.setFont("helvetica", "normal")
+  doc.text("TOTAL ORIGINAL PRICE:", MARGIN, currentY)
+  doc.text(`RM${formatNumber(receiptAmount)}`, pageWidth - MARGIN, currentY, { align: "right" })
+  currentY += 7
+
+  doc.text("AFTER DISCOUNT PRICE:", MARGIN, currentY)
+  doc.text(`RM${formatNumber(receiptAmount)}`, pageWidth - MARGIN, currentY, { align: "right" })
+  currentY += 7
+
+  const wordsLines = doc.splitTextToSize(
+    `RINGGIT MALAYSIA : ${numberToWords(receiptAmount)} ONLY`,
+    pageWidth - 2 * MARGIN - 12,
+  )
+  for (const line of wordsLines) {
+    if (currentY > contentMaxY) {
+      doc.addPage()
+      addPageChrome(doc, logoBase64, buildInfoOpts(doc.getNumberOfPages(), doc.getNumberOfPages()))
+      currentY = CONTENT_AFTER_INFO_BOX_Y
+    }
+    doc.text(line, MARGIN, currentY)
+    currentY += 5
+  }
+  currentY += 5
+
+  if (currentY > contentMaxY - 25) {
+    doc.addPage()
+    addPageChrome(doc, logoBase64, buildInfoOpts(doc.getNumberOfPages(), doc.getNumberOfPages()))
+    currentY = CONTENT_AFTER_INFO_BOX_Y
+  }
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [["Amount Received"]],
+    body: [[`RM${formatNumber(receiptAmount)}`]],
+    theme: "grid",
+    headStyles: {
+      fillColor: PRIMARY_DARK_GREEN,
+      textColor: WHITE,
+      fontSize: 9,
+      fontStyle: "bold",
+      lineWidth: 0.1,
+    },
+    bodyStyles: { fontSize: 9, textColor: BLACK, lineWidth: 0.1, halign: "center" },
+    margin: { left: MARGIN, right: MARGIN, bottom: FOOTER_HEIGHT + 4 },
+    styles: { cellPadding: 5, lineWidth: 0.1, lineColor: [0, 0, 0] },
+    didDrawPage: (data: { pageNumber: number }) => {
+      addPageChrome(doc, logoBase64, buildInfoOpts(data.pageNumber, doc.getNumberOfPages()))
+    },
+  })
+
+  const finalTotalPages = doc.getNumberOfPages()
+  for (let i = 1; i <= finalTotalPages; i++) {
+    doc.setPage(i)
+    addPageChrome(doc, logoBase64, buildInfoOpts(i, finalTotalPages))
+  }
+
+  return doc
+}
+
+async function buildInvoiceLinkedReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
   const doc = new jsPDF()
   const logoBase64 = await getLogoBase64()
   const invoice = receipt.invoice
@@ -430,26 +607,26 @@ async function buildReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
   return doc
 }
 
+async function buildReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
+  if (!receipt.invoice) {
+    return buildStandaloneReceiptPdf(receipt)
+  }
+
+  return buildInvoiceLinkedReceiptPdf(receipt)
+}
+
 export async function generateReceiptPDFWithFetch(receiptId: string): Promise<void> {
   const fullReceipt = await getReceiptFullById(receiptId)
   if (!fullReceipt) throw new Error("Receipt not found")
   const doc = await buildReceiptPdf(fullReceipt)
-  const quotation = fullReceipt.invoice?.quotation as unknown as QuotationWithServices | undefined
-  const fileName = `receipt-${fullReceipt.receiptNumber}-${
-    quotation?.Client?.company?.replace(/\s+/g, "-") || "client"
-  }.pdf`
-  doc.save(fileName)
+  doc.save(getReceiptPdfFileName(fullReceipt))
 }
 
 export async function generateReceiptPDF(receipt: { id: string }): Promise<void> {
   const fullReceipt = await getReceiptFullById(receipt.id)
   if (!fullReceipt) throw new Error("Receipt not found")
   const doc = await buildReceiptPdf(fullReceipt)
-  const quotation = fullReceipt.invoice?.quotation as unknown as QuotationWithServices | undefined
-  const fileName = `receipt-${fullReceipt.receiptNumber}-${
-    quotation?.Client?.company?.replace(/\s+/g, "-") || "client"
-  }.pdf`
-  doc.save(fileName)
+  doc.save(getReceiptPdfFileName(fullReceipt))
 }
 
 export async function generateReceiptPDFBase64(receipt: { id: string }): Promise<string> {

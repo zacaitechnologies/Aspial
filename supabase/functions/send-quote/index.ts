@@ -1,4 +1,5 @@
 import { Resend } from 'npm:resend'
+import { handleResendSendResult } from '../_shared/resend-response.ts'
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
 
@@ -111,7 +112,7 @@ Deno.serve(async (req) => {
     `
 
     // Send the email via Resend
-    const data = await resend.emails.send({
+    const result = await resend.emails.send({
       from: 'Aspial Production <quotes@aspialwork.com>',
       to: [customerEmail],
       cc: ['admin@aspialwork.com'],
@@ -127,9 +128,7 @@ Deno.serve(async (req) => {
       ],
     })
 
-    return new Response(JSON.stringify({ success: true, data }), { 
-      headers: { 'Content-Type': 'application/json' } 
-    })
+    return handleResendSendResult(result)
   } catch (error) {
     console.error('Error sending quotation email:', error)
     return new Response(

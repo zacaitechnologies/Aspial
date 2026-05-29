@@ -326,7 +326,7 @@ export default function ReceiptCard({
 				isOpen={isSendReceiptDialogOpen}
 				onOpenChange={setIsSendReceiptDialogOpen}
 				receiptId={receipt.id}
-				clientEmail={receipt.Client?.email || receipt.invoice?.quotation?.Client?.email || ""}
+				clientEmail={receipt.Client?.email ?? receipt.invoice?.quotation?.Client?.email ?? ""}
 				onSuccess={() => {
 					if (onRefresh) {
 						onRefresh()

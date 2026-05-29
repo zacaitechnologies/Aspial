@@ -347,62 +347,120 @@ export default function ReceiptDetailClient({
 						</Card>
 					)}
 
-					{/* Services from Quotation */}
-					{receipt.invoice?.quotation?.services && receipt.invoice.quotation.services.length > 0 && (
-						<Card>
-							<CardHeader>
-								<CardTitle className="flex items-center gap-2">
-									<Package className="w-5 h-5" />
-									Services
-								</CardTitle>
-								<CardDescription>
-									Services from referenced quotation
-								</CardDescription>
-							</CardHeader>
-							<CardContent>
-								<div className="space-y-3">
-									{receipt.invoice.quotation.services
-										.filter((qs) => !qs.customServiceId)
-										.map((qs) => (
-											<div
-												key={qs.id}
-												className="flex justify-between items-start p-3 border rounded-lg"
-											>
-												<div className="flex-1">
-													<p className="font-medium">{qs.service?.name ?? ""}</p>
-													<FormattedDescription
-														text={qs.service?.description ?? ""}
-														className="text-sm text-muted-foreground"
-													/>
-												</div>
-												<Badge variant="outline" className="ml-4">
-													RM{formatNumber(qs.service?.basePrice ?? 0)}
-												</Badge>
+				{/* Services from Quotation (invoice-linked receipts) */}
+				{receipt.invoice?.quotation?.services && receipt.invoice.quotation.services.length > 0 && (
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<Package className="w-5 h-5" />
+								Services
+							</CardTitle>
+							<CardDescription>
+								Services from referenced quotation
+							</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-3">
+								{receipt.invoice.quotation.services
+									.filter((qs) => !qs.customServiceId)
+									.map((qs) => (
+										<div
+											key={qs.id}
+											className="flex justify-between items-start p-3 border rounded-lg"
+										>
+											<div className="flex-1">
+												<p className="font-medium">{qs.service?.name ?? ""}</p>
+												<FormattedDescription
+													text={qs.service?.description ?? ""}
+													className="text-sm text-muted-foreground"
+												/>
 											</div>
-										))}
-									{receipt.invoice.quotation.customServices && receipt.invoice.quotation.customServices
-										.filter((cs) => cs.status === "APPROVED")
-										.map((cs) => (
-											<div
-												key={cs.id}
-												className="flex justify-between items-start p-3 border rounded-lg bg-blue-50"
-											>
-												<div className="flex-1">
-													<p className="font-medium">{cs.name}</p>
-													<FormattedDescription
-														text={cs.description}
-														className="text-sm text-muted-foreground"
-													/>
-												</div>
-												<Badge variant="outline" className="ml-4">
-													RM{formatNumber(cs.price)}
-												</Badge>
+											<Badge variant="outline" className="ml-4">
+												RM{formatNumber(qs.service?.basePrice ?? 0)}
+											</Badge>
+										</div>
+									))}
+								{receipt.invoice.quotation.customServices && receipt.invoice.quotation.customServices
+									.filter((cs) => cs.status === "APPROVED")
+									.map((cs) => (
+										<div
+											key={cs.id}
+											className="flex justify-between items-start p-3 border rounded-lg bg-blue-50"
+										>
+											<div className="flex-1">
+												<p className="font-medium">{cs.name}</p>
+												<FormattedDescription
+													text={cs.description}
+													className="text-sm text-muted-foreground"
+												/>
 											</div>
+											<Badge variant="outline" className="ml-4">
+												RM{formatNumber(cs.price)}
+											</Badge>
+										</div>
+									))}
+							</div>
+						</CardContent>
+					</Card>
+				)}
+
+				{/* Services (standalone receipts — snapshotted line items) */}
+				{!receipt.invoice && receipt.services && receipt.services.length > 0 && (
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<Package className="w-5 h-5" />
+								Services
+							</CardTitle>
+							<CardDescription>Informational line items on this receipt</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="overflow-x-auto">
+								<table className="w-full text-sm">
+									<thead>
+										<tr className="border-b text-muted-foreground">
+											<th className="text-left py-2 pr-4 font-medium">Description</th>
+											<th className="text-right py-2 px-2 font-medium">Qty</th>
+											<th className="text-right py-2 px-2 font-medium">Price (RM)</th>
+											<th className="text-right py-2 pl-2 font-medium">Total (RM)</th>
+										</tr>
+									</thead>
+									<tbody>
+										{receipt.services.map((svc) => (
+											<tr key={svc.id} className="border-b last:border-0">
+												<td className="py-2 pr-4">
+													<p className="font-medium">{svc.service.name}</p>
+													{svc.descriptionOverride && svc.descriptionOverride !== svc.service.name && (
+														<p className="text-muted-foreground mt-0.5 whitespace-pre-wrap">{svc.descriptionOverride}</p>
+													)}
+												</td>
+												<td className="text-right py-2 px-2">{svc.quantity}</td>
+												<td className="text-right py-2 px-2">{formatNumber(svc.price)}</td>
+												<td className="text-right py-2 pl-2 font-medium">{formatNumber(svc.price * svc.quantity)}</td>
+											</tr>
 										))}
-								</div>
-							</CardContent>
-						</Card>
-					)}
+									</tbody>
+								</table>
+							</div>
+						</CardContent>
+					</Card>
+				)}
+
+				{/* Internal Remarks */}
+				{receipt.remarks && (
+					<Card>
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<FileText className="w-5 h-5" />
+								Internal Remarks
+							</CardTitle>
+							<CardDescription>Internal note — not shown on the PDF</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<p className="text-sm whitespace-pre-wrap">{receipt.remarks}</p>
+						</CardContent>
+					</Card>
+				)}
 				</div>
 
 				{/* Sidebar */}
@@ -521,8 +579,9 @@ export default function ReceiptDetailClient({
 				onOpenChange={setIsSendReceiptDialogOpen}
 				receiptId={receipt.id}
 				clientEmail={
+					receipt.client?.email ??
 					receipt.invoice?.quotation?.Client?.email ??
-					((receipt as { client?: { email?: string } }).client?.email ?? "")
+					""
 				}
 				onSuccess={handleRefresh}
 			/>
