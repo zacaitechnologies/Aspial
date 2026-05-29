@@ -58,11 +58,29 @@ function extractEmailSendResult(body: unknown, responseOk: boolean): { success: 
 			return { success: false, error: topLevelError }
 		}
 
-		const nestedResendError = payload.data?.error
-		if (nestedResendError) {
-			return {
-				success: false,
-				error: formatResendError(nestedResendError),
+		// Resend SDK shape nested under `data`: { data: { id }, error }
+		if (payload.data && typeof payload.data === "object") {
+			const nested = payload.data as {
+				id?: string
+				error?: ResendErrorPayload | null
+				data?: { id?: string } | null
+			}
+
+			const nestedResendError = nested.error
+			if (nestedResendError) {
+				return {
+					success: false,
+					error: formatResendError(nestedResendError),
+				}
+			}
+
+			const resendMessageId =
+				typeof nested.id === "string" ? nested.id : nested.data?.id
+			if (payload.success === true && payload.data !== undefined && !resendMessageId) {
+				return {
+					success: false,
+					error: "Failed to send email — no confirmation received from email provider.",
+				}
 			}
 		}
 	}

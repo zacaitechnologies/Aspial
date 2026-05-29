@@ -71,3 +71,16 @@ export function handleResendSendResult(result: ResendSendResult): Response {
 		headers: { "Content-Type": "application/json" },
 	})
 }
+
+/** Returns true only when Resend confirmed delivery (has message id, no error). */
+export function isResendSendSuccessful(result: ResendSendResult): boolean {
+	return !result.error && Boolean(result.data?.id)
+}
+
+/** Human-readable failure reason from a Resend send result, if any. */
+export function getResendSendFailureMessage(result: ResendSendResult): string {
+	if (result.error) {
+		return formatResendError(result.error)
+	}
+	return "Failed to send email — no confirmation received from email provider."
+}

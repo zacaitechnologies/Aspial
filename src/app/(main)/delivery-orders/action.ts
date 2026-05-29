@@ -7,6 +7,7 @@ import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from 
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { formatLocalDateTime, parseDocumentDateInputOrNow } from "@/lib/date-utils"
+import { parseEmailSendResponse } from "@/lib/email-api"
 import { Prisma } from "@prisma/client"
 import {
   createDeliveryOrderSchema,
@@ -543,12 +544,12 @@ export async function sendDeliveryOrderEmail(
       }),
     })
 
-    if (!response.ok) {
-      const text = await response.text()
+    const sendResult = await parseEmailSendResponse(response)
+    if (!sendResult.success) {
       if (process.env.NODE_ENV === "development") {
-        console.error("Error sending delivery order email:", text)
+        console.error("Error sending delivery order email:", sendResult.error)
       }
-      return { success: false, error: "Failed to send email. Please try again." }
+      return { success: false, error: sendResult.error ?? "Failed to send email. Please try again." }
     }
 
     await prisma.deliveryOrderEmail.create({
