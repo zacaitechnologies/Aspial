@@ -1,7 +1,8 @@
 /**
  * One-time backfill script: recomputes paymentStatus for every non-cancelled
- * quotation (fixes any legacy "deposit_paid" rows and aligns the column with
- * the new auto-derive logic).
+ * quotation and aligns the column with receipt-based auto-derive logic.
+ *
+ * Legacy rows still marked "deposit_paid" are skipped and left unchanged.
  *
  * Run with:
  *   npx tsx prisma/backfillPaymentStatus.ts
@@ -11,10 +12,21 @@ import { PrismaClient } from "@prisma/client"
 const prisma = new PrismaClient()
 
 async function main() {
-  const quotations = await prisma.quotation.findMany({
-    where: { workflowStatus: { not: "cancelled" } },
-    select: { id: true, totalPrice: true },
-  })
+  const [quotations, skippedDepositPaid] = await Promise.all([
+    prisma.quotation.findMany({
+      where: {
+        workflowStatus: { not: "cancelled" },
+        paymentStatus: { not: "deposit_paid" },
+      },
+      select: { id: true, totalPrice: true },
+    }),
+    prisma.quotation.count({
+      where: {
+        workflowStatus: { not: "cancelled" },
+        paymentStatus: "deposit_paid",
+      },
+    }),
+  ])
 
   let updated = 0
 
@@ -54,7 +66,9 @@ async function main() {
     }
   }
 
-  console.log(`Done. Updated ${updated} quotations.`)
+  console.log(
+    `Done. Updated ${updated} quotations. Skipped ${skippedDepositPaid} with deposit_paid.`,
+  )
 }
 
 main()
