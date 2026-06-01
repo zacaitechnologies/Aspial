@@ -228,6 +228,23 @@ export function isFuture(date: Date): boolean {
 	return compareDate > today
 }
 
+/** True when an event has fully ended (prior days, or earlier today for timed events). */
+export function isCalendarEventPast(
+	booking: CalendarBooking,
+	referenceDate: Date = new Date(),
+): boolean {
+	const todayStr = formatLocalDate(referenceDate)
+
+	if (booking.date < todayStr) return true
+	if (booking.date > todayStr) return false
+
+	if (isCalendarAllDayRowEvent(booking)) return false
+
+	const nowHour = referenceDate.getHours() + referenceDate.getMinutes() / 60
+	const endHour = parseTime(booking.endTime)
+	return endHour <= nowHour
+}
+
 /** Current local time as { hours, minutes } (0-23, 0-59). */
 export function getLocalTime(): { hours: number; minutes: number } {
 	const now = new Date()

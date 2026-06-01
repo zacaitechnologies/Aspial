@@ -1,6 +1,6 @@
 import { getCachedUser } from "@/lib/auth-cache"
 import { prisma } from "@/lib/prisma"
-import { fetchAllBookings, getUserProjects, checkIsAdmin, getAvailableAppointments } from "./actions"
+import { fetchAllBookings, checkIsAdmin, getAvailableAppointments } from "./actions"
 import CalendarClient from "./components/CalendarClient"
 
 // Force dynamic rendering since we use cookies for authentication
@@ -35,13 +35,10 @@ export default async function OrganizationCalendar() {
 		getAvailableAppointments(),
 	])
 
-	const projects = isAdmin ? [] : await getUserProjects(user.id)
-
 	return (
 		<CalendarClient
 			initialBookings={bookings}
 			initialIsAdmin={isAdmin}
-			initialProjects={projects}
 			initialAppointments={availableAppointments}
 			userId={user.id}
 			userName={userName}

@@ -93,6 +93,7 @@ export async function getUserProjects(userId: string) {
 		const createdProjects = await prisma.project.findMany({
 			where: {
 				createdBy: userId,
+				...excludeNoProjectSentinelWhere,
 			},
 			select: {
 				id: true,
@@ -117,6 +118,7 @@ export async function getUserProjects(userId: string) {
 		// Get projects where user has permissions
 		const permittedProjects = await prisma.project.findMany({
 			where: {
+				...excludeNoProjectSentinelWhere,
 				permissions: {
 					some: {
 						userId: userId,

@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Clock, MapPin, Users, Filter } from "lucide-react"
+import { Filter, Download, ShieldAlert, Sun, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from "lucide-react"
 import { CalendarDay } from "./CalendarDay"
 import { BookingDetailsDialog } from "./BookingDetailsDialog"
 import { DateEventsDialog } from "./DateEventsDialog"
@@ -21,9 +20,16 @@ import { cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/acti
 import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { Download, ShieldAlert } from "lucide-react"
-import { parseLocalDateString, formatDateStringDirect } from "@/lib/date-utils"
+import { parseLocalDateString, formatLocalDate } from "@/lib/date-utils"
 import { CalendarView, getWeekDays, formatDate } from "../utils/calendar-utils"
+import { calToolbarControlClass } from "../utils/calendar-toolbar-styles"
+import { cn } from "@/lib/utils"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { CalendarEventTooltip, CalendarEventTooltipProvider } from "./CalendarEventTooltip"
+import {
+	calendarEventMetaClass,
+	calendarEventSurfaceClass,
+} from "../utils/event-surface-styles"
 
 interface AvailableAppointment {
 	id: number
@@ -37,44 +43,25 @@ interface AvailableAppointment {
 interface CalendarClientProps {
 	initialBookings: CalendarBooking[]
 	initialIsAdmin: boolean
-	initialProjects: { id: number; name: string }[]
 	initialAppointments: AvailableAppointment[]
 	userId: string
 	userName: string
 }
 
-// Map appointment type to border color using calendar theme tokens
-const getBorderColorClass = (appointmentType: CalendarEventType): string => {
-	const borderColorMap: Record<CalendarEventType, string> = {
-		PHOTO_SHOOT: "border-l-calendar-photo-shoot",
-		VIDEO_SHOOT: "border-l-calendar-video-shoot",
-		CONSULTATION: "border-l-calendar-consultation",
-		PHOTO_SELECTION: "border-l-calendar-photo-selection",
-		OTHERS: "border-l-calendar-others",
-		LEAVE: "border-l-calendar-leave",
-		BLOCKER: "border-l-calendar-blocker",
-	}
-	return borderColorMap[appointmentType] || "border-l-calendar-others"
-}
-
-// Map appointment type to badge classes using calendar theme tokens
-const getBadgeClasses = (appointmentType: CalendarEventType): { variant: "default" | "secondary" | "destructive" | "outline"; className: string } => {
-	const badgeMap: Record<CalendarEventType, { variant: "default" | "secondary" | "destructive" | "outline"; className: string }> = {
-		PHOTO_SHOOT: { variant: "secondary", className: "bg-calendar-photo-shoot text-foreground" },
-		VIDEO_SHOOT: { variant: "secondary", className: "bg-calendar-video-shoot text-foreground" },
-		CONSULTATION: { variant: "secondary", className: "bg-calendar-consultation text-foreground" },
-		PHOTO_SELECTION: { variant: "secondary", className: "bg-calendar-photo-selection text-foreground" },
-		OTHERS: { variant: "secondary", className: "bg-calendar-others text-foreground" },
-		LEAVE: { variant: "secondary", className: "bg-calendar-leave text-foreground" },
-		BLOCKER: { variant: "secondary", className: "bg-calendar-blocker text-calendar-blocker-foreground" },
-	}
-	return badgeMap[appointmentType] || { variant: "secondary", className: "bg-calendar-others text-foreground" }
+// Map appointment type to its CSS color variable (legend dots)
+const TYPE_CSS_VAR: Record<CalendarEventType, string> = {
+	PHOTO_SHOOT: "var(--calendar-photo-shoot)",
+	VIDEO_SHOOT: "var(--calendar-video-shoot)",
+	CONSULTATION: "var(--calendar-consultation)",
+	PHOTO_SELECTION: "var(--calendar-photo-selection)",
+	OTHERS: "var(--calendar-others)",
+	LEAVE: "var(--calendar-leave)",
+	BLOCKER: "var(--calendar-blocker)",
 }
 
 export default function CalendarClient({
 	initialBookings,
 	initialIsAdmin,
-	initialProjects,
 	initialAppointments,
 	userId,
 	userName,
@@ -92,8 +79,8 @@ export default function CalendarClient({
 	const [viewMode, setViewMode] = useState<CalendarView>('month')
 	const [filterType, setFilterType] = useState<string>("all")
 	const [bookmarkScope, setBookmarkScope] = useState<string>("all")
-	const [selectedProject, setSelectedProject] = useState<string>("all")
-	const [taskOwnershipFilter, setTaskOwnershipFilter] = useState<string>("all")
+	const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+	const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false)
 	const [selectedBooking, setSelectedBooking] = useState<CalendarBooking | null>(null)
 	const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
 	const [selectedDate, setSelectedDate] = useState<string>("")
@@ -120,7 +107,6 @@ export default function CalendarClient({
 	const [editingBooking, setEditingBooking] = useState<CalendarBooking | null>(null)
 
 	const isAdmin = initialIsAdmin
-	const projects = initialProjects
 
 	function getRangeKey(start: Date, end: Date) {
 		return `${start.getTime()}_${end.getTime()}`
@@ -217,42 +203,15 @@ export default function CalendarClient({
 			// Filter by appointment type
 			if (filterType !== "all" && booking.appointmentType !== filterType) return false
 			
-			// Filter by bookmark scope (only for non-admin users)
-			if (!isAdmin) {
-				if (bookmarkScope === "own" && !booking.isUserBooking) return false
-				if (bookmarkScope === "team" && !booking.isTeamBooking) return false
+			// Filter by ownership: default shows everyone's appointments; "own" narrows to the user's bookings
+			if (bookmarkScope === "own") {
+				if (booking.type === "blocker") return true
+				if (!booking.isUserBooking) return false
 			}
-			
-			// Filter by project (only if a specific project is selected)
-			if (selectedProject !== "all") {
-				const projectId = parseInt(selectedProject)
-				if (booking.type !== "leave" && booking.projectId !== projectId) return false
-			}
-			
-			// Filter by task ownership (only for tasks mapped to OTHERS)
-			// This filter applies to both admin and non-admin users
-			if (booking.appointmentType === "OTHERS" && booking.type === "task" && taskOwnershipFilter !== "all") {
-				if (taskOwnershipFilter === "my") {
-					// Show only tasks where user is either assignee or creator
-					// Handle null/undefined assigneeId properly
-					const isAssignee = booking.assigneeId != null && booking.assigneeId === userId
-					const isCreator = booking.creatorId != null && booking.creatorId === userId
-					if (!isAssignee && !isCreator) {
-						return false
-					}
-				} else if (taskOwnershipFilter === "teammate") {
-					// Show only tasks where user is NOT assignee and NOT creator
-					const isAssignee = booking.assigneeId != null && booking.assigneeId === userId
-					const isCreator = booking.creatorId != null && booking.creatorId === userId
-					if (isAssignee || isCreator) {
-						return false
-					}
-				}
-			}
-			
+
 			return true
 		})
-	}, [bookings, filterType, bookmarkScope, selectedProject, taskOwnershipFilter, isAdmin, userId])
+	}, [bookings, filterType, bookmarkScope])
 
 	// Memoize bookings within current date range (parse YYYY-MM-DD as local to avoid timezone shift)
 	const bookingsInDateRange = useMemo(() => {
@@ -267,21 +226,6 @@ export default function CalendarClient({
 	const statsBookings = useMemo(() => {
 		return bookingsInDateRange
 	}, [bookingsInDateRange])
-
-	// Memoize upcoming bookings - use stable date calculation
-	const upcomingBookings = useMemo(() => {
-		// Use a stable "today" reference within the memo
-		const today = new Date()
-		today.setHours(0, 0, 0, 0)
-
-		return filteredBookings
-			.filter((booking) => {
-				const bookingDate = parseLocalDateString(booking.date)
-				bookingDate.setHours(0, 0, 0, 0)
-				return bookingDate >= today && bookingDate >= dateRange.start && bookingDate <= dateRange.end
-			})
-			.sort((a, b) => parseLocalDateString(a.date).getTime() - parseLocalDateString(b.date).getTime())
-	}, [filteredBookings, dateRange])
 
 	// Memoize bookings by date for calendar day view
 	const bookingsByDate = useMemo(() => {
@@ -300,8 +244,22 @@ export default function CalendarClient({
 		return bookingsByDate.get(date) || []
 	}
 
+	// Today's bookings — for the "Today" stat card
+	const todaysBookings = useMemo(() => {
+		const todayKey = formatLocalDate(new Date())
+		return filteredBookings
+			.filter((b) => b.date === todayKey)
+			.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
+	}, [filteredBookings])
+
 	const handleDateChange = (newDate: Date) => {
 		setCurrentDate(newDate)
+	}
+
+	// Month-cell click: switch directly to day view (per redesign)
+	const handleMonthDayClick = (dateString: string) => {
+		setCurrentDate(parseLocalDateString(dateString))
+		setViewMode("day")
 	}
 
 	const handleViewChange = (newView: CalendarView) => {
@@ -421,17 +379,10 @@ export default function CalendarClient({
 		const firstDay = getFirstDayOfMonth(currentDate)
 		const days = []
 
-		// Empty cells for days before the first day of the month
-		for (let i = 0; i < firstDay; i++) {
-			days.push(<div key={`empty-${i}`} className="h-24 border border-border"></div>)
-		}
-
-		// Days of the month - use stable date formatting
 		for (let day = 1; day <= daysInMonth; day++) {
 			const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
 			const dateString = formatDate(date)
 			const dayBookings = getBookingsForDate(dateString)
-			// Use stable date comparison - format both dates consistently
 			const todayString = formatDate(new Date())
 			const isToday = dateString === todayString
 
@@ -443,8 +394,8 @@ export default function CalendarClient({
 					dateString={dateString}
 					dayBookings={dayBookings}
 					isToday={isToday}
-					onDateClick={handleDateClick}
-					onBookingClick={handleBookingClick}
+					gridColumnStart={day === 1 ? firstDay + 1 : undefined}
+					onDateClick={handleMonthDayClick}
 				/>
 			)
 		}
@@ -468,180 +419,246 @@ export default function CalendarClient({
 		return counts
 	}, [statsBookings])
 
-	return (
-		<div className="calendar-page min-h-screen bg-background px-4 py-5 sm:px-6 sm:py-6">
-			<div className="max-w-7xl mx-auto">
-				{/* Page intro + filters */}
-				<div className="mb-5 sm:mb-6 space-y-4">
-					<div>
-						<h1 className="text-lg font-semibold text-foreground tracking-tight sm:text-xl">
-							Calendar
-						</h1>
-						<p className="text-sm text-muted-foreground mt-0.5">
-							Manage your team&apos;s bookings and events
+	const renderSidebarContent = (layout: "desktop" | "mobile") => (
+		<div className={cn("space-y-3", layout === "mobile" && "pb-4")}>
+			<div className="shrink-0 rounded-lg border border-border bg-card p-3">
+				<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2.5">
+					Filters
+				</p>
+				<div className="space-y-2.5">
+					<Select value={filterType} onValueChange={setFilterType}>
+						<SelectTrigger className="h-9 w-full border-border bg-background text-sm">
+							<Filter className="w-3.5 h-3.5 mr-1.5 shrink-0 opacity-70" />
+							<SelectValue placeholder="Type" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All types</SelectItem>
+							{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => (
+								<SelectItem key={key} value={key}>
+									{config.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+
+					<Select value={bookmarkScope} onValueChange={setBookmarkScope}>
+						<SelectTrigger className="h-9 w-full border-border bg-background text-sm">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All bookings</SelectItem>
+							<SelectItem value="own">My bookings</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+			</div>
+
+			<div className="cal-sidebar-today flex min-h-0 flex-col rounded-lg border border-border bg-card p-3">
+				<div className="flex shrink-0 items-center justify-between gap-2">
+					<div className="flex items-center gap-2">
+						<Sun className="w-4 h-4 text-muted-foreground" aria-hidden />
+						<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+							Today
 						</p>
 					</div>
-
-					<div className="rounded-lg border border-border bg-card p-3 sm:p-4">
-						<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2.5">
-							Filters
-						</p>
-						<div className="flex flex-wrap items-center gap-2 sm:gap-3">
-							<Select value={filterType} onValueChange={setFilterType}>
-								<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,11rem)] border-border bg-background text-sm">
-									<Filter className="w-3.5 h-3.5 mr-1.5 shrink-0 opacity-70" />
-									<SelectValue placeholder="Type" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All types</SelectItem>
-									{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => (
-										<SelectItem key={key} value={key}>
-											{config.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-
-							<Select value={taskOwnershipFilter} onValueChange={setTaskOwnershipFilter}>
-								<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,9.5rem)] border-border bg-background text-sm">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="all">All tasks</SelectItem>
-									<SelectItem value="my">My tasks</SelectItem>
-									<SelectItem value="teammate">Teammate tasks</SelectItem>
-								</SelectContent>
-							</Select>
-
-							{!isAdmin && (
-								<>
-									<Select value={bookmarkScope} onValueChange={setBookmarkScope}>
-										<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,9.5rem)] border-border bg-background text-sm">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All bookings</SelectItem>
-											<SelectItem value="own">My bookings</SelectItem>
-											<SelectItem value="team">Team bookings</SelectItem>
-										</SelectContent>
-									</Select>
-
-									{projects.length > 0 && (
-										<Select value={selectedProject} onValueChange={setSelectedProject}>
-											<SelectTrigger className="h-9 w-full min-w-0 sm:w-[min(100%,12rem)] border-border bg-background text-sm">
-												<SelectValue placeholder="Project" />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="all">All projects</SelectItem>
-												{projects.map((project) => (
-													<SelectItem key={project.id} value={String(project.id)}>
-														{project.name}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									)}
-								</>
-							)}
-						</div>
-					</div>
-
-					{/* Compact legend + counts (single row on wide screens) */}
-					<div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5 sm:px-4 sm:py-3">
-						<p className="text-xs font-medium text-muted-foreground mb-2 sm:mb-2.5">
-							Counts in this period
-						</p>
-						<div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-							{Object.entries(CALENDAR_EVENT_TYPES).map(([appointmentKey, config]) => {
-								const count = statsCounts[appointmentKey] || 0
-								return (
-									<div
-										key={appointmentKey}
-										className="flex items-center gap-2 min-w-0 rounded-md bg-card/80 px-2 py-1.5 border border-border/60"
-									>
-										<span
-											className={`h-2 w-2 shrink-0 rounded-full ring-1 ring-border/50 ${config.color}`}
-											aria-hidden
-										/>
-										<div className="min-w-0 flex-1">
-											<p className="text-[11px] leading-tight text-muted-foreground truncate sm:text-xs">
-												{config.label}
-											</p>
-											<p className="text-sm font-semibold tabular-nums text-foreground leading-none mt-0.5">
-												{count}
-											</p>
-										</div>
-									</div>
-								)
-							})}
-						</div>
-					</div>
+					<span className="text-xs font-semibold tabular-nums text-muted-foreground">
+						{todaysBookings.length}
+					</span>
 				</div>
 
-				{/* Calendar */}
-				<Card className="bg-card border-border overflow-hidden">
-					<CardHeader className="space-y-0 pb-4 pt-4 px-4 sm:px-6 sm:pt-5">
-						<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-							<div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:flex-1 lg:min-w-0 lg:justify-end lg:order-2">
-								<ViewSwitcher
-									currentView={viewMode}
-									onViewChange={handleViewChange}
-								/>
-								{isAdmin && (
-									<Button
-										size="sm"
-										variant="default"
-										onClick={() => {
-											setEditingBlocker(null)
-											setIsBlockerDialogOpen(true)
-										}}
-										className="shrink-0 gap-1.5 h-9"
-									>
-										<ShieldAlert className="w-3.5 h-3.5" />
-										Blocker
-									</Button>
-								)}
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => setIsExportDialogOpen(true)}
-									className="shrink-0 gap-1.5 h-9"
+				{todaysBookings.length === 0 ? (
+					<p className="mt-3 text-xs text-muted-foreground">No appointments today</p>
+				) : (
+					<div className="cal-sidebar-today-list hide-scrollbar mt-2 min-h-0 max-h-32 space-y-2 overflow-y-auto">
+						{todaysBookings.map((b) => (
+							<CalendarEventTooltip key={b.id} booking={b} side="right" align="start">
+								<button
+									type="button"
+									onClick={() => handleBookingClick(b)}
+									className={cn(
+										"cal-sidebar-event w-full text-left rounded-md px-2 py-1.5 shadow-sm transition-all hover:shadow-md hover:brightness-[0.98]",
+										calendarEventSurfaceClass(b.appointmentType)
+									)}
 								>
-									<Download className="w-3.5 h-3.5" />
-									Export
+									<div className="flex items-center gap-2 min-w-0">
+										<span
+											className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border/40"
+											style={{ backgroundColor: TYPE_CSS_VAR[b.appointmentType] }}
+											aria-hidden
+										/>
+										<h4 className="truncate text-sm font-semibold min-w-0 flex-1">{b.title}</h4>
+										{b.type !== "task" && b.startTime && (
+											<span className={cn("shrink-0 text-[11px] font-medium tabular-nums", calendarEventMetaClass)}>
+												{b.startTime}
+											</span>
+										)}
+									</div>
+								</button>
+							</CalendarEventTooltip>
+						))}
+					</div>
+				)}
+			</div>
+
+			<div className="cal-sidebar-legend shrink-0 rounded-lg border border-border bg-card p-3">
+				<p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+					Legend
+				</p>
+				<div className="space-y-1.5">
+					{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => {
+						const count = statsCounts[key] || 0
+						const typeKey = key as CalendarEventType
+						return (
+							<div
+								key={key}
+								className={cn(
+									"cal-sidebar-legend-item flex items-center justify-between rounded-md border px-2.5 py-1.5",
+									calendarEventSurfaceClass(typeKey)
+								)}
+							>
+								<div className="flex items-center gap-2 min-w-0">
+									<span
+										className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border/40"
+										style={{ backgroundColor: TYPE_CSS_VAR[typeKey] }}
+										aria-hidden
+									/>
+									<p className="truncate text-[11px] font-medium">{config.label}</p>
+								</div>
+								<span className="text-xs font-semibold tabular-nums">{count}</span>
+							</div>
+						)
+					})}
+				</div>
+			</div>
+		</div>
+	)
+
+	return (
+		<CalendarEventTooltipProvider>
+		<div className="calendar-page min-h-screen bg-background px-4 pt-[5px] pb-5 sm:px-6 sm:pb-6">
+			<div className="max-w-[92rem] mx-auto">
+				<div className="flex items-start gap-2 lg:gap-3">
+					<aside className="hidden lg:block shrink-0 sticky top-4 self-start">
+						{isSidebarOpen ? (
+							<div className="cal-sidebar-panel flex w-[21rem] flex-col">
+								<div className="cal-sidebar-header flex shrink-0 items-center justify-between gap-2 py-1.5">
+									<h2 className="text-sm font-semibold leading-none text-foreground">
+										Calendar Panel
+									</h2>
+									<Button
+										size="icon"
+										variant="ghost"
+										className="h-7 w-7"
+										onClick={() => setIsSidebarOpen(false)}
+										aria-label="Collapse sidebar"
+									>
+										<PanelLeftClose className="h-4 w-4" />
+									</Button>
+								</div>
+								<div className="cal-sidebar-body pt-2">
+									{renderSidebarContent("desktop")}
+								</div>
+							</div>
+						) : (
+							<div className="cal-sidebar-rail w-10">
+								<Button
+									size="icon"
+									variant="ghost"
+									className="h-9 w-9"
+									onClick={() => setIsSidebarOpen(true)}
+									aria-label="Expand sidebar"
+								>
+									<PanelLeftOpen className="h-4 w-4" />
 								</Button>
 							</div>
-							<div className="w-full min-w-0 lg:order-1 lg:max-w-md xl:max-w-lg">
-								<DatePicker
-									currentDate={currentDate}
-									onDateChange={handleDateChange}
-									viewMode={viewMode}
-								/>
+						)}
+					</aside>
+
+					<div className="min-w-0 flex-1">
+						{/* Calendar */}
+						<Card className="cal-toolbar-card overflow-hidden !gap-0 !border-0 !bg-transparent !py-0 !px-0 !shadow-none">
+							<div className="cal-toolbar border-b border-border px-0 py-3">
+								<div className="min-w-0 w-full">
+									<DatePicker
+										currentDate={currentDate}
+										onDateChange={handleDateChange}
+										viewMode={viewMode}
+									/>
+								</div>
+								<div className="cal-toolbar-actions mt-3 flex flex-wrap items-center gap-2 xl:mt-0 xl:justify-end">
+									<Sheet open={isMobileFiltersOpen} onOpenChange={setIsMobileFiltersOpen}>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => setIsMobileFiltersOpen(true)}
+											className={cn("lg:hidden shrink-0 gap-1.5", calToolbarControlClass)}
+										>
+											<SlidersHorizontal className="w-3.5 h-3.5" />
+											Panel
+										</Button>
+										<SheetContent side="left" className="w-[88vw] max-w-sm p-0">
+											<SheetHeader className="border-b border-border px-4 py-3">
+												<SheetTitle>Calendar Panel</SheetTitle>
+												<SheetDescription>
+													Filters, today snapshot, and event legend.
+												</SheetDescription>
+											</SheetHeader>
+											<div className="hide-scrollbar max-h-[calc(100vh-5rem)] overflow-y-auto px-4 pt-3">
+												{renderSidebarContent("mobile")}
+											</div>
+										</SheetContent>
+									</Sheet>
+									<ViewSwitcher
+										currentView={viewMode}
+										onViewChange={handleViewChange}
+									/>
+									{isAdmin && (
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => {
+												setEditingBlocker(null)
+												setIsBlockerDialogOpen(true)
+											}}
+											className={cn("shrink-0 gap-1.5", calToolbarControlClass)}
+										>
+											<ShieldAlert className="w-3.5 h-3.5" />
+											<span className="hidden sm:inline">Blocker</span>
+										</Button>
+									)}
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => setIsExportDialogOpen(true)}
+										className={cn("shrink-0 gap-1.5", calToolbarControlClass)}
+									>
+										<Download className="w-3.5 h-3.5" />
+										<span className="hidden sm:inline">Export</span>
+									</Button>
+								</div>
 							</div>
-						</div>
-					</CardHeader>
-					<CardContent>
+					<CardContent className="!p-0 !bg-transparent">
 						{viewMode === 'month' && (
 							<>
 								{/* Calendar Header */}
-								<div className="grid grid-cols-7 gap-0 mb-2">
+								<div className="grid grid-cols-7 gap-1 sm:gap-1.5 mb-2">
 									{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-										<div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground border-b border-border">
+										<div key={day} className="p-2 text-center text-sm font-bold text-primary">
 											{day}
 										</div>
 									))}
 								</div>
 
 								{/* Calendar Grid */}
-								<div className="grid grid-cols-7 gap-0 border-l border-t border-border relative">
+								<div className="cal-month-grid grid grid-cols-7 gap-1 sm:gap-1.5 relative">
 									{renderCalendarDays()}
 								</div>
 							</>
 						)}
-						
-					{viewMode === 'week' && (
-						<div className="h-[calc(100vh-360px)] min-h-[600px] overflow-hidden">
-							<WeekView
+
+						{viewMode === 'week' && (
+							<div className="cal-week-day-grid h-[calc(100vh-360px)] min-h-[600px] overflow-hidden">
+								<WeekView
 									currentDate={currentDate}
 									bookings={bookingsInDateRange}
 									onEventClick={handleBookingClick}
@@ -652,7 +669,7 @@ export default function CalendarClient({
 						)}
 
 						{viewMode === 'day' && (
-							<div className="h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
+							<div className="cal-week-day-grid h-[calc(100vh-400px)] min-h-[700px] overflow-hidden">
 								<DayView
 									currentDate={currentDate}
 									bookings={bookingsInDateRange}
@@ -663,81 +680,8 @@ export default function CalendarClient({
 						)}
 					</CardContent>
 				</Card>
-
-				{/* Upcoming Appointments */}
-				<Card className="mt-6 bg-card border-border">
-					<CardHeader>
-						<CardTitle className="flex items-center gap-2 text-foreground">
-							<Calendar className="w-5 h-5" />
-							Upcoming Appointments
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="space-y-3">
-							{upcomingBookings
-								.slice(0, 5)
-								.map((booking) => {
-									const borderColorClass = getBorderColorClass(booking.appointmentType)
-									const badgeConfig = getBadgeClasses(booking.appointmentType)
-									return (
-										<div
-											key={booking.id}
-											className={`p-3 sm:p-4 rounded-lg border-l-4 bg-muted border-border ${borderColorClass}`}
-										>
-											{/* Title row */}
-											<div className="flex items-start gap-2">
-												<div className="flex-1 min-w-0">
-													<h4 className="font-semibold text-foreground leading-snug break-words">
-														{booking.title}
-													</h4>
-													<p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">
-														{booking.description}
-													</p>
-												</div>
-												<Badge
-													variant={badgeConfig.variant}
-													className={`${badgeConfig.className} shrink-0 mt-0.5 text-[11px]`}
-												>
-													{CALENDAR_EVENT_TYPES[booking.appointmentType]?.label || "Others"}
-												</Badge>
-											</div>
-
-											{/* Meta row — wraps on small screens */}
-											<div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
-												<div className="flex items-center gap-1 shrink-0">
-													<Calendar className="w-3 h-3 shrink-0" />
-													<span>{formatDateStringDirect(booking.date)}</span>
-												</div>
-												{booking.type !== "task" && (
-													<div className="flex items-center gap-1 shrink-0">
-														<Clock className="w-3 h-3 shrink-0" />
-														<span>{booking.startTime} – {booking.endTime}</span>
-													</div>
-												)}
-												{booking.type === "appointment" && (
-													<div className="flex items-center gap-1 shrink-0">
-														<Users className="w-3 h-3 shrink-0" />
-														<span>{booking.attendees} attendee{booking.attendees !== 1 ? "s" : ""}</span>
-													</div>
-												)}
-												{booking.type !== "task" && booking.location && (
-													<div className="flex items-center gap-1 min-w-0">
-														<MapPin className="w-3 h-3 shrink-0" />
-														<span className="truncate">{booking.location}</span>
-													</div>
-												)}
-											</div>
-										</div>
-									)
-								})}
-							{upcomingBookings.length === 0 && (
-								<div className="text-center py-8 text-muted-foreground">
-									No upcoming appointments
-								</div>
-							)}
-						</div>
-					</CardContent>
-				</Card>
+					</div>
+				</div>
 
 				{/* Booking Details Dialog */}
 				<BookingDetailsDialog
@@ -821,5 +765,6 @@ export default function CalendarClient({
 				/>
 			</div>
 		</div>
+		</CalendarEventTooltipProvider>
 	)
 }
