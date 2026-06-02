@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { ClientInformationCard } from "@/components/client-information-card"
 import {
 	Card,
 	CardContent,
@@ -340,44 +341,7 @@ export default function InvoiceDetailClient({
 				<div className="lg:col-span-2 space-y-6">
 					{/* Client Information */}
 					{invoice.quotation?.Client && (
-						<Card>
-							<CardHeader>
-								<CardTitle className="flex items-center gap-2">
-									<User className="w-5 h-5" />
-									Client Information
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									<div>
-										<p className="text-sm font-medium text-muted-foreground">Name</p>
-										<p className="font-medium">{invoice.quotation.Client.name}</p>
-									</div>
-									{invoice.quotation.Client.company && (
-										<div>
-											<p className="text-sm font-medium text-muted-foreground">Company</p>
-											<p className="font-medium flex items-center gap-1">
-												<Building2 className="w-4 h-4" />
-												{invoice.quotation.Client.company}
-											</p>
-										</div>
-									)}
-									<div>
-										<p className="text-sm font-medium text-muted-foreground">Email</p>
-										<p className="font-medium flex items-center gap-1">
-											<Mail className="w-4 h-4" />
-											{invoice.quotation.Client.email}
-										</p>
-									</div>
-									{invoice.quotation.Client.phone && (
-										<div>
-											<p className="text-sm font-medium text-muted-foreground">Phone</p>
-											<p className="font-medium">{invoice.quotation.Client.phone}</p>
-										</div>
-									)}
-								</div>
-							</CardContent>
-						</Card>
+						<ClientInformationCard client={invoice.quotation.Client} />
 					)}
 
 					{/* Quotation Reference */}

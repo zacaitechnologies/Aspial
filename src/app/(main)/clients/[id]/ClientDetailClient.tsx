@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User, IdCard, Receipt, Eye, Wallet } from "lucide-react"
+import { ArrowLeft, Building2, Mail, Phone, Calendar, FileText, FolderOpen, Edit, User, IdCard, Receipt, Eye, Wallet, MapPin } from "lucide-react"
 import Link from "next/link"
 import { formatNumber } from "@/lib/format-number"
 import EditClientDialog from "../components/EditClientDialog"
@@ -190,6 +190,12 @@ export default function ClientDetailClient({
 										<div className="flex items-center gap-3 text-muted-foreground">
 											<Phone className="h-4 w-4" />
 											<span>{client.phone}</span>
+										</div>
+									)}
+									{client.address && (
+										<div className="flex items-start gap-3 text-muted-foreground">
+											<MapPin className="h-4 w-4 shrink-0 mt-0.5" />
+											<span className="whitespace-pre-line">{client.address}</span>
 										</div>
 									)}
 									<div className="flex items-center gap-3 text-muted-foreground">

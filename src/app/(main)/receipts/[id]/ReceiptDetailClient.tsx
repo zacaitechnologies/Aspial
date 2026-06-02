@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { ClientInformationCard } from "@/components/client-information-card"
 import {
 	Card,
 	CardContent,
@@ -254,61 +255,14 @@ export default function ReceiptDetailClient({
 			<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 				{/* Main Content */}
 				<div className="lg:col-span-2 space-y-6">
-					{/* Client Information — sourced from invoice's quotation, or directly from
-					    receipt.client when this is a standalone receipt. */}
-					{(receipt.invoice?.quotation?.Client ||
-						(receipt as { client?: { name: string } | null }).client) && (
-						<Card>
-							<CardHeader>
-								<CardTitle className="flex items-center gap-2">
-									<User className="w-5 h-5" />
-									Client Information
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="space-y-3">
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-									{(() => {
-										const c =
-											receipt.invoice?.quotation?.Client ??
-											((receipt as {
-												client?: { name: string; company?: string | null; email: string; phone?: string | null }
-											}).client ?? null)
-										if (!c) return null
-										return (
-											<>
-												<div>
-													<p className="text-sm font-medium text-muted-foreground">Name</p>
-													<p className="font-medium">{c.name}</p>
-												</div>
-												{c.company && (
-													<div>
-														<p className="text-sm font-medium text-muted-foreground">Company</p>
-														<p className="font-medium flex items-center gap-1">
-															<Building2 className="w-4 h-4" />
-															{c.company}
-														</p>
-													</div>
-												)}
-												<div>
-													<p className="text-sm font-medium text-muted-foreground">Email</p>
-													<p className="font-medium flex items-center gap-1">
-														<Mail className="w-4 h-4" />
-														{c.email}
-													</p>
-												</div>
-												{c.phone && (
-													<div>
-														<p className="text-sm font-medium text-muted-foreground">Phone</p>
-														<p className="font-medium">{c.phone}</p>
-													</div>
-												)}
-											</>
-										)
-									})()}
-								</div>
-							</CardContent>
-						</Card>
-					)}
+					{/* Client Information — invoice-linked or standalone receipt */}
+					{(() => {
+						const client =
+							receipt.invoice?.quotation?.Client ??
+							receipt.client ??
+							null
+						return client ? <ClientInformationCard client={client} /> : null
+					})()}
 
 					{/* Invoice Reference — only for invoice-linked receipts. */}
 					{receipt.invoice && (
