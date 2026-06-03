@@ -7,13 +7,21 @@ import {
 	getTimeSlots,
 	parseTime,
 	isCalendarAllDayRowEvent,
+	isCalendarEventPast,
 	isToday,
-	getLocalTime,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
-import { useMemo, useRef, useEffect } from "react"
+import { useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
 import { CurrentTimeLine } from "./CurrentTimeLine"
+import { useCurrentTime } from "../hooks/useCurrentTime"
+import { useScrollToCurrentTime } from "../hooks/useScrollToCurrentTime"
+import { CalendarEventTooltip } from "./CalendarEventTooltip"
+import {
+	calendarEventMetaClass,
+	calendarEventPastClass,
+	calendarEventSurfaceClass,
+} from "../utils/event-surface-styles"
 
 interface WeekViewProps {
 	currentDate: Date
@@ -36,17 +44,12 @@ export function WeekView({
 	// Single scroll ref — one container scrolls both axes
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const HOUR_HEIGHT = 60
-
-	useEffect(() => {
-		const raf = requestAnimationFrame(() => {
-			if (!scrollRef.current) return
-			const { hours } = getLocalTime()
-			scrollRef.current.scrollTop = Math.max(0, (hours - 1) * HOUR_HEIGHT)
-		})
-		return () => cancelAnimationFrame(raf)
-	}, [HOUR_HEIGHT])
+	const now = useCurrentTime()
 
 	const hasToday = useMemo(() => weekDays.some(isToday), [weekDays])
+	const weekStartStr = formatDate(weekDays[0])
+
+	useScrollToCurrentTime(scrollRef, HOUR_HEIGHT, hasToday, weekStartStr)
 
 	const weekEvents = useMemo(() => {
 		const weekStartStr = formatDate(weekDays[0])
@@ -69,11 +72,10 @@ export function WeekView({
 	const gutterClass = "w-10 sm:w-14 md:w-16 shrink-0"
 	/** Opaque surfaces so scrolled grid/events do not show through sticky layers */
 	const stickyBg = "bg-background"
-	const stickyMutedBg = "bg-muted"
-	const stickyCorner =
-		"sticky left-0 z-50 bg-background border-r border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+	const stickyCornerBase =
+		"sticky left-0 z-50 border-r border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
 	const stickyTimeGutter =
-		"sticky left-0 z-40 bg-background border-r border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+		"sticky left-0 z-40 cal-week-slot-bg border-r border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
 
 	return (
 		/**
@@ -99,7 +101,7 @@ export function WeekView({
 					<div className={cn("relative z-10 flex items-stretch border-b-2 border-border", stickyBg)}>
 						{/* Top-left corner — sticky on both axes; matches row height */}
 						<div
-							className={cn(gutterClass, stickyCorner, "self-stretch min-h-[3.5rem] sm:min-h-[3.75rem]")}
+							className={cn(gutterClass, stickyCornerBase, "cal-week-subtle-bg self-stretch min-h-[3.5rem] sm:min-h-[3.75rem]")}
 							aria-hidden
 						/>
 						<div className="flex-1 grid grid-cols-7">
@@ -108,24 +110,18 @@ export function WeekView({
 								const today = isToday(date)
 								return (
 									<div
-										key={dateString}
+										key={`header-${dateString}`}
 										className={cn(
 											"flex min-h-[3.5rem] flex-col items-center justify-center p-1 sm:min-h-[3.75rem] sm:p-2",
-											"border-r border-border last:border-r-0 cursor-pointer select-none transition-colors",
-											today ? "bg-primary" : "hover:bg-muted",
+											"border-r border-border last:border-r-0 cursor-pointer select-none",
+											today ? "cal-week-day-header--today" : "cal-week-subtle-bg cal-week-day-header-cell",
 										)}
 										onClick={() => onDateClick(dateString)}
 									>
-										<span
-											className="text-[10px] sm:text-xs font-medium"
-											style={{ color: today ? "var(--primary-foreground)" : "var(--muted-foreground)" }}
-										>
-											{dayNames[index]}
+										<span className="cal-week-day-header-label text-[10px] sm:text-xs font-medium">
+											{dayNames[date.getDay()]}
 										</span>
-										<span
-											className="mt-0.5 block text-sm font-bold tabular-nums sm:text-base md:text-lg"
-											style={{ color: today ? "var(--primary-foreground)" : "var(--foreground)" }}
-										>
+										<span className="cal-week-day-header-date mt-0.5 block text-sm font-bold tabular-nums sm:text-base md:text-lg">
 											{date.getDate()}
 										</span>
 									</div>
@@ -135,45 +131,48 @@ export function WeekView({
 					</div>
 
 					{/* All-day row */}
-					<div className={cn("flex border-b-2 border-border", stickyMutedBg)}>
+					<div className={cn("flex border-b-2 border-border cal-week-subtle-bg")}>
 						{/* All-day label — sticky left */}
 						<div
 							className={cn(
 								gutterClass,
-								stickyCorner,
-								stickyMutedBg,
+								stickyCornerBase,
+								"cal-week-subtle-bg",
 								"p-1 sm:p-2 text-[9px] sm:text-[10px] text-muted-foreground font-medium flex items-start pt-2 sm:pt-3 min-h-[52px]"
 							)}
 						>
 							All day
 						</div>
 						<div className="flex-1 grid grid-cols-7 min-h-[52px]">
-							{weekDays.map((date) => {
+							{weekDays.map((date, index) => {
 								const dateString = formatDate(date)
 								const today = isToday(date)
 								const allDayEvents = getEventsForDay(date).filter(isCalendarAllDayRowEvent)
 								return (
 									<div
-										key={`allday-${dateString}`}
+										key={`allday-${dateString}-${index}`}
 										className={cn(
 											"border-r border-border last:border-r-0 p-1",
-											stickyMutedBg,
-											today && "bg-accent"
+											today ? "cal-week-column--today" : "cal-week-grid-bg",
 										)}
 									>
 										<div className="space-y-0.5">
 											{allDayEvents.slice(0, 3).map((event) => (
-												<div
-													key={event.id}
-													className={`text-[10px] sm:text-xs px-1 py-0.5 rounded cursor-pointer ${event.color} hover:opacity-90 transition-opacity truncate leading-tight`}
-													onClick={(e) => {
-														e.stopPropagation()
-														onEventClick(event)
-													}}
-													title={event.title}
-												>
-													{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
-												</div>
+												<CalendarEventTooltip key={event.id} booking={event} side="top">
+													<div
+														className={cn(
+															"text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md cursor-pointer truncate leading-tight font-medium transition-shadow hover:shadow-sm",
+															calendarEventSurfaceClass(event.appointmentType),
+															isCalendarEventPast(event, now) && calendarEventPastClass,
+														)}
+														onClick={(e) => {
+															e.stopPropagation()
+															onEventClick(event)
+														}}
+													>
+														{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
+													</div>
+												</CalendarEventTooltip>
 											))}
 											{allDayEvents.length > 3 && (
 												<div className="text-[9px] sm:text-[10px] text-muted-foreground px-1">
@@ -200,8 +199,7 @@ export function WeekView({
 							<div
 								key={slot}
 								className={cn(
-									"border-b border-border p-1 sm:p-2 text-[10px] sm:text-xs text-muted-foreground font-medium",
-									stickyBg
+									"border-b border-border p-1 sm:p-2 text-[10px] sm:text-xs text-muted-foreground font-medium cal-week-slot-bg",
 								)}
 								style={{ height: HOUR_HEIGHT }}
 							>
@@ -212,13 +210,7 @@ export function WeekView({
 
 					{/* Day columns */}
 					<div className="flex-1 grid grid-cols-7 relative">
-						{hasToday && (
-							<div className="absolute z-20 pointer-events-none inset-0">
-								<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
-							</div>
-						)}
-
-						{weekDays.map((date) => {
+						{weekDays.map((date, index) => {
 							const dateString = formatDate(date)
 							const today = isToday(date)
 							const dayEvents = getEventsForDay(date)
@@ -227,18 +219,27 @@ export function WeekView({
 
 							return (
 								<div
-									key={dateString}
-									className={`relative border-r border-(--color-border)] last:border-r-0 ${
-										today ? "bg-(--color-primary)]/[0.06]" : ""
-									}`}
+									key={`col-${dateString}-${index}`}
+									className={cn(
+										"relative border-r border-border last:border-r-0",
+										today && "cal-week-column--today",
+									)}
 								>
+									{today && (
+										<div className="absolute inset-0 z-[35] pointer-events-none">
+											<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
+										</div>
+									)}
 									{/* Click-to-create grid lines */}
 									{timeSlots.map((slot) => {
 										const slotHour = parseTime(slot)
 										return (
 											<div
 												key={slot}
-												className="border-b border-(--color-border)] cursor-pointer transition-colors hover:bg-(--color-primary)]/10"
+												className={cn(
+													"border-b border-border cal-time-grid-slot",
+													today && "cal-time-grid-slot--today-col",
+												)}
 												style={{ height: HOUR_HEIGHT }}
 												onClick={() => onTimeSlotClick?.(dateString, slotHour)}
 											/>
@@ -254,25 +255,30 @@ export function WeekView({
 										const widthPct = 100 / totalColumns
 										const leftPct = column * widthPct
 										return (
-											<div
-												key={event.id}
-												className={`absolute z-10 overflow-hidden rounded px-1.5 py-1 text-xs cursor-pointer ${event.color} hover:opacity-90 transition-opacity shadow-sm`}
-												style={{
-													top,
-													height,
-													left: `calc(${leftPct}% + 1px)`,
-													width: `calc(${widthPct}% - 2px)`,
-												}}
-												onClick={(e) => {
-													e.stopPropagation()
-													onEventClick(event)
-												}}
-											>
-												<div className="font-medium truncate leading-tight">{event.title}</div>
-												<div className="text-[10px] truncate opacity-80">
-													{event.startTime} – {event.endTime}
+											<CalendarEventTooltip key={event.id} booking={event} side="top">
+												<div
+													className={cn(
+														"absolute z-10 overflow-hidden rounded-md px-1.5 py-1 text-xs cursor-pointer shadow-sm transition-shadow hover:shadow-md hover:brightness-[0.98]",
+														calendarEventSurfaceClass(event.appointmentType),
+														isCalendarEventPast(event, now) && calendarEventPastClass,
+													)}
+													style={{
+														top,
+														height,
+														left: `calc(${leftPct}% + 1px)`,
+														width: `calc(${widthPct}% - 2px)`,
+													}}
+													onClick={(e) => {
+														e.stopPropagation()
+														onEventClick(event)
+													}}
+												>
+													<div className="font-semibold truncate leading-tight">{event.title}</div>
+													<div className={cn(calendarEventMetaClass, "truncate text-[10px]")}>
+														{event.startTime} – {event.endTime}
+													</div>
 												</div>
-											</div>
+											</CalendarEventTooltip>
 										)
 									})}
 								</div>

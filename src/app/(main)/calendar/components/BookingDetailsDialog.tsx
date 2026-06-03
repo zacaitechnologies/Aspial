@@ -6,8 +6,9 @@ import { CALENDAR_EVENT_TYPES } from "@/app/(main)/calendar/constants"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, MapPin, User, UserCircle, Users, Pencil, Trash2, ShieldAlert, Loader2, Mail } from "lucide-react"
+import { Calendar, Clock, MapPin, User, UserCircle, Users, Pencil, Trash2, ShieldAlert, Loader2, Mail, CalendarPlus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { isCalendarAllDayRowEvent } from "../utils/calendar-utils"
 
 interface BookingDetailsDialogProps {
   booking: CalendarBooking | null
@@ -17,6 +18,7 @@ interface BookingDetailsDialogProps {
   onDelete?: (booking: CalendarBooking) => void
   onEditBooking?: (booking: CalendarBooking) => void
   onCancelBooking?: (booking: CalendarBooking) => void
+  onBookAtTime?: (booking: CalendarBooking) => void
   isAdmin?: boolean
 }
 
@@ -44,6 +46,7 @@ export function BookingDetailsDialog({
   onDelete,
   onEditBooking,
   onCancelBooking,
+  onBookAtTime,
   isAdmin = false,
 }: BookingDetailsDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
@@ -90,6 +93,17 @@ export function BookingDetailsDialog({
   // Merged events represent multiple booking rows — editing/cancelling one
   // would be misleading, so route the user to the appointment-bookings page.
   const canEditAppointment = isAppointment && !isMerged && (booking?.isUserBooking || isAdmin)
+  const canBookAtTime =
+    onBookAtTime &&
+    !isCalendarAllDayRowEvent(booking) &&
+    Boolean(booking.startTime)
+
+  const hasFooterActions =
+    canBookAtTime ||
+    (isBlocker && isAdmin && onEdit) ||
+    (isBlocker && isAdmin && onDelete) ||
+    (canEditAppointment && onEditBooking) ||
+    (canEditAppointment && onCancelBooking)
 
   // Extract additional details from originalData for appointments. Merged
   // events wrap the first booking's originalData under `first`.
@@ -140,7 +154,13 @@ export function BookingDetailsDialog({
                 {booking.bookingName && (
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-medium text-foreground">Booking name:</span>
-                    <span className="text-muted-foreground">{booking.bookingName}</span>
+                    <span className="font-medium">{booking.bookingName}</span>
+                  </div>
+                )}
+                {booking.appointmentName && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium text-foreground">Appointment:</span>
+                    <span className="font-medium">{booking.appointmentName}</span>
                   </div>
                 )}
                 {booking.creatorName && (
@@ -297,8 +317,18 @@ export function BookingDetailsDialog({
             </div>
           )}
 
-          <div className="flex justify-between pt-4 border-t">
-            <div className="flex gap-2">
+          {hasFooterActions && (
+            <div className="flex flex-wrap gap-2 pt-4 border-t">
+              {canBookAtTime && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => onBookAtTime(booking)}
+                >
+                  <CalendarPlus className="w-4 h-4 mr-1" />
+                  Book Appointment
+                </Button>
+              )}
               {isBlocker && isAdmin && onEdit && (
                 <Button variant="outline" size="sm" onClick={() => onEdit(booking)}>
                   <Pencil className="w-4 h-4 mr-1" />
@@ -324,10 +354,7 @@ export function BookingDetailsDialog({
                 </Button>
               )}
             </div>
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-          </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

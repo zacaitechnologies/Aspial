@@ -39,7 +39,7 @@ export function CurrentTimeLine({
 
 	return (
 		<div
-			className="pointer-events-none absolute left-0 right-0 z-20"
+			className="pointer-events-none absolute left-0 right-0 z-[35]"
 			style={{ top: pos.topPx }}
 		>
 			{showLabel && (

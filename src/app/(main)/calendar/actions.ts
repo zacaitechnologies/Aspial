@@ -21,8 +21,10 @@ function coerceToDate(value: Date | string): Date {
 export interface CalendarBooking {
 	id: string
 	title: string
-	/** Display name for the booking (appointment name or task name). */
+	/** Contact / client booking name from appointment_bookings.bookingName. */
 	bookingName?: string | null
+	/** Booked equipment or appointment resource name. */
+	appointmentName?: string | null
 	description: string
 	date: string
 	startTime: string
@@ -105,87 +107,6 @@ function leaveTimeRangeForDay(
 
 export async function checkIsAdmin(userId: string): Promise<boolean> {
 	return getCachedIsUserAdmin(userId)
-}
-
-// Get user's project IDs
-async function getUserProjectIds(userId: string): Promise<number[]> {
-	try {
-		// Get projects where user is the creator
-		const createdProjects = await prisma.project.findMany({
-			where: {
-				createdBy: userId,
-			},
-			select: {
-				id: true,
-			},
-		})
-
-		// Get projects where user has permissions
-		const permittedProjects = await prisma.project.findMany({
-			where: {
-				permissions: {
-					some: {
-						userId: userId,
-					},
-				},
-			},
-			select: {
-				id: true,
-			},
-		})
-
-		// Combine and deduplicate
-		const allProjects = [...createdProjects, ...permittedProjects]
-		const uniqueProjectIds = Array.from(
-			new Set(allProjects.map(p => p.id))
-		)
-
-		return uniqueProjectIds
-	} catch (error) {
-		console.error('Error fetching user project IDs:', error)
-		return []
-	}
-}
-
-// Get user's projects with details
-export async function getUserProjects(userId: string): Promise<{ id: number; name: string }[]> {
-	try {
-		// Get projects where user is the creator
-		const createdProjects = await prisma.project.findMany({
-			where: {
-				createdBy: userId,
-			},
-			select: {
-				id: true,
-				name: true,
-			},
-		})
-
-		// Get projects where user has permissions
-		const permittedProjects = await prisma.project.findMany({
-			where: {
-				permissions: {
-					some: {
-						userId: userId,
-					},
-				},
-			},
-			select: {
-				id: true,
-				name: true,
-			},
-		})
-
-		// Combine and deduplicate by ID
-		const projectMap = new Map<number, string>()
-		createdProjects.forEach(p => projectMap.set(p.id, p.name))
-		permittedProjects.forEach(p => projectMap.set(p.id, p.name))
-
-		return Array.from(projectMap, ([id, name]) => ({ id, name }))
-	} catch (error) {
-		console.error('Error fetching user projects:', error)
-		return []
-	}
 }
 
 function formatLeaveApplicantName(user: {
@@ -308,7 +229,6 @@ async function _fetchLeaveBookings(
 async function _fetchAppointmentBookings(
 	userId: string,
 	userName: string,
-	userProjectIds: number[],
 	safeRange?: { start: Date; end: Date }
 ): Promise<CalendarBooking[]> {
 	const appointmentWhere: { status: string; startDate?: { lte: Date }; endDate?: { gte: Date } } = {
@@ -360,7 +280,6 @@ async function _fetchAppointmentBookings(
 			? booking.userId === userId
 			: booking.bookedBy === userName
 		const projId = booking.project?.id
-		const isProjectBooking = projId != null && userProjectIds.includes(projId)
 
 		const startDate = new Date(booking.startDate)
 		const endDate = new Date(booking.endDate)
@@ -401,7 +320,8 @@ async function _fetchAppointmentBookings(
 		results.push({
 			id: `appointment-${booking.id}`,
 			title,
-			bookingName: booking.appointment?.name ?? null,
+			bookingName: booking.bookingName?.trim() || null,
+			appointmentName: booking.appointment?.name ?? null,
 			description: booking.purpose?.trim() ?? "",
 			date: startParts.dateStr,
 			startTime: startParts.timeStr,
@@ -422,7 +342,7 @@ async function _fetchAppointmentBookings(
 			taskStartDate: null,
 			taskDueDate: null,
 			isUserBooking,
-			isTeamBooking: isProjectBooking && !isUserBooking,
+			isTeamBooking: false,
 			originalData: {
 				...booking,
 				startDate: formatLocalDateTime(startDate),
@@ -811,10 +731,8 @@ export async function fetchAllBookings(
 		: undefined
 
 	try {
-		const userProjectIds = await getUserProjectIds(userId)
-
 		const [appointments, tasks, leave, blockers] = await Promise.allSettled([
-			_fetchAppointmentBookings(userId, userName, userProjectIds, safeRange),
+			_fetchAppointmentBookings(userId, userName, safeRange),
 			_fetchTaskBookings(userId, safeRange),
 			_fetchLeaveBookings(userId, safeRange),
 			_fetchCalendarBlockers(safeRange),

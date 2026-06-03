@@ -1,6 +1,9 @@
 "use client"
 
 import { CalendarBooking } from "@/app/(main)/calendar/actions"
+import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
+import { CalendarTooltip } from "./CalendarEventTooltip"
+import { DayTypeTooltipContent } from "./DayTypeTooltipContent"
 
 interface CalendarDayProps {
   day: number
@@ -9,47 +12,97 @@ interface CalendarDayProps {
   dayBookings: CalendarBooking[]
   isToday: boolean
   onDateClick: (dateString: string) => void
-  onBookingClick: (booking: CalendarBooking) => void
 }
+
+const TYPE_CSS_VAR: Record<CalendarEventType, string> = {
+  PHOTO_SHOOT: "var(--calendar-photo-shoot)",
+  VIDEO_SHOOT: "var(--calendar-video-shoot)",
+  CONSULTATION: "var(--calendar-consultation)",
+  PHOTO_SELECTION: "var(--calendar-photo-selection)",
+  OTHERS: "var(--calendar-others)",
+  LEAVE: "var(--calendar-leave)",
+  BLOCKER: "var(--calendar-blocker)",
+}
+
+const TYPE_FG: Record<CalendarEventType, string> = {
+  PHOTO_SHOOT: "#ffffff",
+  VIDEO_SHOOT: "#ffffff",
+  CONSULTATION: "#0f1e10",
+  PHOTO_SELECTION: "#0f1e10",
+  OTHERS: "#0f1e10",
+  LEAVE: "#ffffff",
+  BLOCKER: "var(--calendar-blocker-foreground)",
+}
+
+const TYPE_ORDER: CalendarEventType[] = [
+  "PHOTO_SHOOT",
+  "VIDEO_SHOOT",
+  "CONSULTATION",
+  "PHOTO_SELECTION",
+  "OTHERS",
+  "LEAVE",
+  "BLOCKER",
+]
 
 export function CalendarDay({
   day,
-  date,
   dateString,
   dayBookings,
   isToday,
   onDateClick,
-  onBookingClick
 }: CalendarDayProps) {
+  const typeCounts = dayBookings.reduce<Record<string, number>>((acc, b) => {
+    acc[b.appointmentType] = (acc[b.appointmentType] || 0) + 1
+    return acc
+  }, {})
+
+  const presentTypes = TYPE_ORDER.filter((t) => (typeCounts[t] || 0) > 0)
+
   return (
     <div
-      className={`calendar-day h-24 border border-border p-0.5 sm:p-1 cursor-pointer relative ${
-        isToday ? "bg-primary/10 border-primary/30" : ""
+      className={`cal-day-cell min-w-0 overflow-hidden p-1 sm:p-1.5 cursor-pointer relative ${
+        isToday ? "cal-day-cell--today" : ""
       }`}
       onClick={() => onDateClick(dateString)}
     >
-      <div className={`text-xs sm:text-sm font-medium mb-1 ${isToday ? "text-primary" : "text-foreground"}`}>
+      <div
+        className={`cal-day-number mb-1 inline-flex items-center justify-center ${
+          isToday
+            ? "cal-day-number--today w-8 h-8 text-base sm:text-lg font-extrabold text-foreground"
+            : "w-6 h-6 text-xs sm:text-sm font-semibold text-foreground"
+        }`}
+      >
         {day}
       </div>
-      <div className="space-y-1">
-        {dayBookings.slice(0, 2).map((booking) => (
-          <div
-            key={booking.id}
-            className={`text-xs px-1 py-0.5 rounded truncate ${booking.color} cursor-pointer`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onBookingClick(booking)
-            }}
-          >
-            {booking.title}
-          </div>
-        ))}
-        {dayBookings.length > 2 && (
-          <div className="text-xs text-muted-foreground px-1">
-            +{dayBookings.length - 2} more
-          </div>
-        )}
-      </div>
+      {presentTypes.length > 0 && (
+        <div className="mt-1 flex min-w-0 flex-wrap gap-1">
+          {presentTypes.map((t) => {
+            const count = typeCounts[t]
+            const label = CALENDAR_EVENT_TYPES[t].label
+            return (
+              <CalendarTooltip
+                key={t}
+                side="top"
+                align="start"
+                content={<DayTypeTooltipContent type={t} bookings={dayBookings} />}
+              >
+                <button
+                  type="button"
+                  aria-label={`${label}: ${count}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none shadow-sm ring-1 ring-border/40"
+                  style={{
+                    backgroundColor: TYPE_CSS_VAR[t],
+                    color: TYPE_FG[t],
+                  }}
+                >
+                  {count}
+                </button>
+              </CalendarTooltip>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

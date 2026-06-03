@@ -8,6 +8,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { unstable_cache } from "next/cache"
 import { redirect } from "next/navigation"
 import { isRedirectError } from "next/dist/client/components/redirect-error"
+import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 
 // Internal functions - not cached, used by cached versions
 async function _getAppointmentsInternal() {
@@ -49,6 +50,7 @@ async function _getUserProjectIdsInternal(userId: string) {
 		prisma.project.findMany({
 			where: {
 				createdBy: userId,
+				...excludeNoProjectSentinelWhere,
 			},
 			select: {
 				id: true,
@@ -56,6 +58,7 @@ async function _getUserProjectIdsInternal(userId: string) {
 		}),
 		prisma.project.findMany({
 			where: {
+				...excludeNoProjectSentinelWhere,
 				permissions: {
 					some: {
 						userId: userId,

@@ -121,6 +121,11 @@
   /* Distinct from cream/white UI — was amber-500 (#F59E0B), which read as pale/white in the legend */
   --calendar-blocker: #c2410c;
   --calendar-blocker-foreground: #fff7ed;
+  /* Week view: --muted matches --background here, so use explicit mixes for visible contrast */
+  --calendar-week-slot-bg: color-mix(in srgb, var(--border) 10%, var(--card));
+  --calendar-week-subtle-bg: var(--calendar-week-slot-bg);
+  --calendar-week-subtle-bg-hover: color-mix(in srgb, var(--border) 18%, var(--card));
+  --calendar-week-today-column-bg: color-mix(in srgb, var(--primary) 5%, var(--calendar-week-slot-bg));
   /* Milestone pastels: highlight = stronger contrast; tint = soft card wash */
   --milestone-pastel-blush-highlight: #c94d7f;
   --milestone-pastel-blush-tint: #f8d4e4;
@@ -195,6 +200,10 @@
   --calendar-leave-pending: #C8DDE3;
   --calendar-blocker: #c2410c;
   --calendar-blocker-foreground: #fff7ed;
+  --calendar-week-slot-bg: color-mix(in srgb, var(--muted-foreground) 12%, var(--card));
+  --calendar-week-subtle-bg: var(--calendar-week-slot-bg);
+  --calendar-week-subtle-bg-hover: color-mix(in srgb, var(--muted-foreground) 20%, var(--card));
+  --calendar-week-today-column-bg: color-mix(in srgb, var(--primary) 12%, var(--calendar-week-slot-bg));
   --milestone-pastel-blush-highlight: #e07aab;
   --milestone-pastel-blush-tint: #4a2a38;
   --milestone-pastel-peach-highlight: #e88a5a;
@@ -621,9 +630,7 @@
 .calendar-page button:hover,
 .calendar-page [role="button"]:hover,
 .calendar-page .badge:hover,
-.calendar-page [class*="Badge"]:hover,
-.calendar-page [class*="calendar"]:hover,
-.calendar-page [class*="calendar"] *:hover {
+.calendar-page [class*="Badge"]:hover {
   transition: none !important;
   transform: none !important;
   filter: none !important;
@@ -631,17 +638,339 @@
   animation: none !important;
 }
 
+/* Calendar main card: compact toolbar (no default card py-6 / card-header grid gap) */
+.calendar-page .cal-sidebar-panel {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.calendar-page .cal-sidebar-header {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.calendar-page .cal-sidebar-body {
+  padding: 0;
+  overflow: visible;
+}
+
+.calendar-page .cal-sidebar-today-list {
+  overflow-y: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.calendar-page .cal-sidebar-today-list::-webkit-scrollbar {
+  display: none;
+}
+
+.calendar-page .cal-event-tooltip {
+  background-color: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.calendar-page .cal-event-tooltip-arrow {
+  fill: var(--card) !important;
+}
+
+.calendar-page .cal-sidebar-event {
+  cursor: pointer;
+}
+
+.calendar-page .cal-sidebar-rail {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.calendar-page .cal-toolbar-card {
+  padding: 0 !important;
+  gap: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Card hover sheen sits at z-index 1 and can paint over calendar cells */
+.calendar-page .cal-toolbar-card::before,
+.calendar-page .cal-toolbar-card::after {
+  content: none !important;
+  display: none !important;
+}
+
+.calendar-page .cal-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+  .calendar-page .cal-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0.75rem;
+  }
+
+  .calendar-page .cal-toolbar-actions {
+    margin-top: 0 !important;
+    justify-self: end;
+  }
+}
+
+/* Week/day event blocks: pastel fill + legend hue for text & icons */
+.calendar-page .cal-event-surface {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.calendar-page .cal-event-surface--photo-shoot {
+  background-color: color-mix(in srgb, var(--calendar-photo-shoot) 14%, var(--card));
+  color: var(--calendar-photo-shoot);
+  border-color: color-mix(in srgb, var(--calendar-photo-shoot) 28%, var(--border));
+}
+
+.calendar-page .cal-event-surface--video-shoot {
+  background-color: color-mix(in srgb, var(--calendar-video-shoot) 16%, var(--card));
+  color: var(--calendar-video-shoot);
+  border-color: color-mix(in srgb, var(--calendar-video-shoot) 30%, var(--border));
+}
+
+.calendar-page .cal-event-surface--consultation {
+  background-color: color-mix(in srgb, var(--calendar-consultation) 14%, var(--card));
+  color: var(--calendar-consultation);
+  border-color: color-mix(in srgb, var(--calendar-consultation) 28%, var(--border));
+}
+
+.calendar-page .cal-event-surface--photo-selection {
+  background-color: color-mix(in srgb, var(--calendar-photo-selection) 22%, var(--card));
+  color: color-mix(in srgb, var(--calendar-photo-selection) 55%, var(--foreground));
+  border-color: color-mix(in srgb, var(--calendar-photo-selection) 35%, var(--border));
+}
+
+.calendar-page .cal-event-surface--others {
+  background-color: color-mix(in srgb, var(--calendar-others) 28%, var(--card));
+  color: color-mix(in srgb, var(--calendar-others) 72%, var(--foreground));
+  border-color: color-mix(in srgb, var(--calendar-others) 40%, var(--border));
+}
+
+.calendar-page .cal-event-surface--leave {
+  background-color: color-mix(in srgb, var(--calendar-leave) 14%, var(--card));
+  color: var(--calendar-leave);
+  border-color: color-mix(in srgb, var(--calendar-leave) 28%, var(--border));
+}
+
+.calendar-page .cal-event-surface--blocker {
+  background-color: color-mix(in srgb, var(--calendar-blocker) 12%, var(--card));
+  color: var(--calendar-blocker);
+  border-color: color-mix(in srgb, var(--calendar-blocker) 26%, var(--border));
+}
+
+.calendar-page .cal-event-surface--past {
+  opacity: 0.45;
+  transition: opacity 160ms ease;
+}
+
+.calendar-page .cal-event-surface--past:hover {
+  opacity: 0.65;
+}
+
+.calendar-page .cal-sidebar-event.cal-event-surface,
+.calendar-page .cal-sidebar-legend-item.cal-event-surface {
+  color: var(--foreground);
+  background-color: var(--card);
+  border-color: var(--border);
+}
+
+.calendar-page .cal-sidebar-event.cal-event-surface {
+  border: none;
+}
+
+/* Calendar-page intentional animations (opt-in, override the blanket disable above) */
+@keyframes cal-fade-slide {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.calendar-page .cal-view-enter {
+  animation: cal-fade-slide 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.calendar-page .cal-stat-card {
+  animation: cal-fade-slide 260ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.calendar-page .cal-month-grid {
+  grid-auto-rows: minmax(6rem, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 640px) {
+  .calendar-page .cal-month-grid {
+    grid-auto-rows: minmax(7rem, 1fr);
+  }
+}
+
+.calendar-page .cal-day-cell {
+  min-height: 6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background-color: var(--card);
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.calendar-page .cal-day-cell--empty {
+  background: transparent;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  .calendar-page .cal-day-cell {
+    min-height: 7rem;
+  }
+}
+
+.calendar-page .cal-day-cell--today {
+  position: relative;
+  z-index: 2;
+  background-color: color-mix(in srgb, var(--primary) 14%, var(--card));
+  border-color: var(--primary);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.calendar-page .cal-day-number--today {
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+.calendar-page .cal-day-cell:not(.cal-day-cell--empty):hover {
+  background-color: color-mix(in srgb, var(--primary) 9%, var(--card)) !important;
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--border)) !important;
+}
+
+.calendar-page .cal-day-cell--today:not(.cal-day-cell--empty):hover {
+  background-color: color-mix(in srgb, var(--primary) 20%, var(--card)) !important;
+  border-color: var(--primary) !important;
+}
+
+/* Week view surfaces — opaque tokens so headers/slots contrast on cream page background */
+
+/* Grey: day-name headers, all-day row, time gutter labels */
+.calendar-page .cal-week-subtle-bg {
+  background-color: var(--calendar-week-subtle-bg) !important;
+}
+/* Week view day-name cells only — not all subtle-bg surfaces */
+.calendar-page .cal-week-day-header-cell:hover {
+  background-color: var(--calendar-week-subtle-bg-hover) !important;
+}
+.calendar-page .cal-week-day-header-label {
+  color: color-mix(in srgb, var(--foreground) 72%, var(--border));
+}
+.calendar-page .cal-week-day-header-date {
+  color: var(--foreground);
+}
+.calendar-page .cal-week-day-header--today .cal-week-day-header-label,
+.calendar-page .cal-week-day-header--today .cal-week-day-header-date {
+  color: var(--primary-foreground);
+}
+.calendar-page .cal-week-slot-bg {
+  background-color: var(--calendar-week-slot-bg) !important;
+}
+
+/* White: event grid columns (static cells, e.g. all-day row) */
+.calendar-page .cal-week-grid-bg {
+  background-color: var(--card) !important;
+}
+
+/* Interactive time-slot cells in week/day views */
+.calendar-page .cal-time-grid-slot {
+  cursor: pointer;
+  transition: background-color 140ms ease !important;
+}
+.calendar-page .cal-time-grid-slot:not(.cal-time-grid-slot--today-col) {
+  background-color: var(--card) !important;
+}
+.calendar-page .cal-time-grid-slot:not(.cal-time-grid-slot--today-col):hover {
+  background-color: color-mix(in srgb, var(--primary) 10%, var(--card)) !important;
+  transition: background-color 140ms ease !important;
+}
+.calendar-page .cal-time-grid-slot--today-col:hover {
+  background-color: color-mix(in srgb, var(--primary) 12%, var(--card)) !important;
+  transition: background-color 140ms ease !important;
+}
+
+.calendar-page .cal-week-day-header--today {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+}
+
+/* Today event column: primary tint on white, not on grey */
+.calendar-page .cal-week-column--today {
+  background-color: color-mix(in srgb, var(--primary) 6%, var(--card)) !important;
+}
+
+.calendar-page .cal-today-row {
+  transition: background-color 140ms ease, transform 140ms ease !important;
+}
+.calendar-page .cal-today-row:hover {
+  background-color: color-mix(in srgb, var(--primary) 8%, var(--card)) !important;
+  transform: translateX(2px) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-page .cal-view-enter,
+  .calendar-page .cal-stat-card {
+    animation: none !important;
+  }
+  .calendar-page .cal-day-cell:not(.cal-day-cell--empty):hover,
+  .calendar-page .cal-day-cell--today:not(.cal-day-cell--empty):hover,
+  .calendar-page .cal-today-row:hover {
+    transform: none !important;
+  }
+}
+
+/* Main calendar card: disable hover lift/glow only — never opacity on the card itself */
+.calendar-page .cal-toolbar-card:hover,
+.calendar-page .cal-toolbar-card.card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.calendar-page .cal-toolbar-card:hover::before,
+.calendar-page .cal-toolbar-card:hover::after,
+.calendar-page .cal-toolbar-card.card:hover::before,
+.calendar-page .cal-toolbar-card.card:hover::after {
+  box-shadow: none !important;
+  opacity: 0 !important;
+}
+
+/* Week/day grid shell: no entrance animation or hover side-effects on the wrapper */
+.calendar-page .cal-week-day-grid,
+.calendar-page .cal-week-day-grid:hover {
+  animation: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
 /* Override Card hover effects specifically - disable transforms and shadows only */
-.calendar-page .card:hover {
+.calendar-page .card:not(.cal-toolbar-card):hover {
   transform: none !important;
   box-shadow: var(--card-shadow-rest) !important;
 }
 
-.calendar-page .card:hover::after {
+.calendar-page .card:not(.cal-toolbar-card):hover::after {
   opacity: 0 !important;
 }
 
-.calendar-page .card:hover::before {
+.calendar-page .card:not(.cal-toolbar-card):hover::before {
   box-shadow: var(--card-glow) !important;
 }
 

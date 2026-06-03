@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon, Plus } from "lucide-react"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { type CalendarBooking } from "../actions"
+import { CALENDAR_EVENT_TYPES } from "../constants"
 
 interface DateEventsDialogProps {
   isOpen: boolean
@@ -17,18 +18,8 @@ interface DateEventsDialogProps {
   onBookAppointment?: (date: string) => void
 }
 
-const eventTypeColors: Record<CalendarBooking["type"], string> = {
-  appointment: "bg-blue-500 text-primary-foreground",
-  task: "bg-red-500 text-primary-foreground",
-  leave: "bg-calendar-leave text-foreground",
-  blocker: "bg-calendar-blocker text-calendar-blocker-foreground",
-}
-
-const eventTypeLabels: Record<CalendarBooking["type"], string> = {
-  appointment: "Appointment",
-  task: "Task",
-  leave: "Leave",
-  blocker: "Blocker",
+function getEventLegendConfig(event: CalendarBooking) {
+  return CALENDAR_EVENT_TYPES[event.appointmentType] ?? CALENDAR_EVENT_TYPES.OTHERS
 }
 
 function formatEventTimeRange(event: CalendarBooking): string {
@@ -91,7 +82,9 @@ export function DateEventsDialog({
               <p className="text-sm">This day is free of any bookings or tasks.</p>
             </div>
           ) : (
-            events.map((event) => (
+            events.map((event) => {
+              const legend = getEventLegendConfig(event)
+              return (
               <div
                 key={event.id}
                 className="border rounded-lg p-4 cursor-pointer"
@@ -100,13 +93,19 @@ export function DateEventsDialog({
                 <div className="mb-2 flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className={eventTypeColors[event.type]}>
-                        {eventTypeLabels[event.type]}
+                      <Badge variant="secondary" className={event.color || legend.color}>
+                        {legend.label}
                       </Badge>
                       <h3 className="truncate font-semibold text-foreground">
-                        {event.bookingName ?? event.title}
+                        {event.bookingName ?? event.appointmentName ?? event.title}
                       </h3>
                     </div>
+                    {event.type === "appointment" && event.appointmentName && event.bookingName && (
+                      <p className="text-sm text-foreground">
+                        <span className="text-muted-foreground">Appointment: </span>
+                        <span className="font-medium">{event.appointmentName}</span>
+                      </p>
+                    )}
                     {event.type === "appointment" && event.creatorName && (
                       <p className="text-sm text-foreground">
                         <span className="text-muted-foreground">Booked by: </span>
@@ -149,7 +148,7 @@ export function DateEventsDialog({
                   )}
                 </div>
               </div>
-            ))
+            )})
           )}
         </div>
         

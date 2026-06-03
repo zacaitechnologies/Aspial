@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { CalendarView, getPreviousWeek, getNextWeek, getPreviousDay, getNextDay, formatDateRange, getWeekStart, getWeekEnd } from "../utils/calendar-utils"
+import { calToolbarControlClass } from "../utils/calendar-toolbar-styles"
+import { cn } from "@/lib/utils"
 import { useState } from "react"
 
 interface DatePickerProps {
@@ -102,7 +104,7 @@ export function DatePicker({ currentDate, onDateChange, viewMode = 'month' }: Da
         variant="outline"
         size="sm"
         onClick={() => navigate("prev")}
-        className="shrink-0 px-2 sm:px-3"
+        className={cn("shrink-0 px-2 sm:px-3", calToolbarControlClass)}
         aria-label="Previous"
       >
         <ChevronLeft className="h-4 w-4" />
@@ -114,7 +116,10 @@ export function DatePicker({ currentDate, onDateChange, viewMode = 'month' }: Da
             <Button
               variant="outline"
               size="sm"
-              className="h-9 w-full min-w-0 justify-start px-2 text-left font-normal sm:px-3"
+              className={cn(
+                "h-9 w-full min-w-0 justify-start px-2 text-left font-normal sm:px-3",
+                calToolbarControlClass
+              )}
             >
               <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0 sm:mr-2" />
               <span className="truncate">{getDisplayText()}</span>
@@ -135,7 +140,7 @@ export function DatePicker({ currentDate, onDateChange, viewMode = 'month' }: Da
         variant="outline"
         size="sm"
         onClick={goToToday}
-        className="shrink-0 px-2 text-xs sm:px-3 sm:text-sm"
+        className={cn("shrink-0 px-2 text-xs sm:px-3 sm:text-sm", calToolbarControlClass)}
       >
         Today
       </Button>
@@ -144,7 +149,7 @@ export function DatePicker({ currentDate, onDateChange, viewMode = 'month' }: Da
         variant="outline"
         size="sm"
         onClick={() => navigate("next")}
-        className="shrink-0 px-2 sm:px-3"
+        className={cn("shrink-0 px-2 sm:px-3", calToolbarControlClass)}
         aria-label="Next"
       >
         <ChevronRight className="h-4 w-4" />
