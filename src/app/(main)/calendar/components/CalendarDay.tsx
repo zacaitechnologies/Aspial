@@ -11,7 +11,6 @@ interface CalendarDayProps {
   dateString: string
   dayBookings: CalendarBooking[]
   isToday: boolean
-  gridColumnStart?: number
   onDateClick: (dateString: string) => void
 }
 
@@ -50,7 +49,6 @@ export function CalendarDay({
   dateString,
   dayBookings,
   isToday,
-  gridColumnStart,
   onDateClick,
 }: CalendarDayProps) {
   const typeCounts = dayBookings.reduce<Record<string, number>>((acc, b) => {
@@ -62,23 +60,22 @@ export function CalendarDay({
 
   return (
     <div
-      className={`cal-day-cell p-1 sm:p-1.5 cursor-pointer relative ${
+      className={`cal-day-cell min-w-0 overflow-hidden p-1 sm:p-1.5 cursor-pointer relative ${
         isToday ? "cal-day-cell--today" : ""
       }`}
-      style={gridColumnStart ? { gridColumnStart } : undefined}
       onClick={() => onDateClick(dateString)}
     >
       <div
         className={`cal-day-number mb-1 inline-flex items-center justify-center ${
           isToday
-            ? "cal-day-number--today w-8 h-8 text-base sm:text-lg font-extrabold"
+            ? "cal-day-number--today w-8 h-8 text-base sm:text-lg font-extrabold text-foreground"
             : "w-6 h-6 text-xs sm:text-sm font-semibold text-foreground"
         }`}
       >
         {day}
       </div>
       {presentTypes.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1">
+        <div className="mt-1 flex min-w-0 flex-wrap gap-1">
           {presentTypes.map((t) => {
             const count = typeCounts[t]
             const label = CALENDAR_EVENT_TYPES[t].label

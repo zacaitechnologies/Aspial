@@ -326,12 +326,19 @@ export default function CalendarClient({
 		setIsDateEventsDialogOpen(true)
 	}
 
-	const handleBookAppointment = (date: string, time?: string | null) => {
-		setBookingInitialDate(date)
-		setBookingInitialTime(time || null)
-		setIsDateEventsDialogOpen(false)
-		setIsBookingDialogOpen(true)
-	}
+  const handleBookAppointment = (date: string, time?: string | null) => {
+    setBookingInitialDate(date)
+    setBookingInitialTime(time || null)
+    setIsDateEventsDialogOpen(false)
+    setIsBookingDialogOpen(true)
+  }
+
+  const handleBookAtTimeFromDetails = (booking: CalendarBooking) => {
+    const time = booking.startTime.slice(0, 5)
+    handleBookAppointment(booking.date, time)
+    setIsDetailsDialogOpen(false)
+    setSelectedBooking(null)
+  }
 
 	const handleTimeSlotClick = (date: string, hourOrTime: number | string) => {
 		const time = typeof hourOrTime === "number"
@@ -379,6 +386,16 @@ export default function CalendarClient({
 		const firstDay = getFirstDayOfMonth(currentDate)
 		const days = []
 
+		for (let i = 0; i < firstDay; i++) {
+			days.push(
+				<div
+					key={`pad-${i}`}
+					className="cal-day-cell cal-day-cell--empty"
+					aria-hidden
+				/>
+			)
+		}
+
 		for (let day = 1; day <= daysInMonth; day++) {
 			const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
 			const dateString = formatDate(date)
@@ -388,13 +405,12 @@ export default function CalendarClient({
 
 			days.push(
 				<CalendarDay
-					key={day}
+					key={dateString}
 					day={day}
 					date={date}
 					dateString={dateString}
 					dayBookings={dayBookings}
 					isToday={isToday}
-					gridColumnStart={day === 1 ? firstDay + 1 : undefined}
 					onDateClick={handleMonthDayClick}
 				/>
 			)
@@ -695,6 +711,7 @@ export default function CalendarClient({
 					onDelete={handleBookingDelete}
 					onEditBooking={handleEditBooking}
 					onCancelBooking={handleCancelBooking}
+					onBookAtTime={handleBookAtTimeFromDetails}
 					isAdmin={isAdmin}
 				/>
 

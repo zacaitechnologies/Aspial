@@ -47,8 +47,9 @@ export function WeekView({
 	const now = useCurrentTime()
 
 	const hasToday = useMemo(() => weekDays.some(isToday), [weekDays])
+	const weekStartStr = formatDate(weekDays[0])
 
-	useScrollToCurrentTime(scrollRef, HOUR_HEIGHT, hasToday)
+	useScrollToCurrentTime(scrollRef, HOUR_HEIGHT, hasToday, weekStartStr)
 
 	const weekEvents = useMemo(() => {
 		const weekStartStr = formatDate(weekDays[0])
@@ -109,7 +110,7 @@ export function WeekView({
 								const today = isToday(date)
 								return (
 									<div
-										key={dateString}
+										key={`header-${dateString}`}
 										className={cn(
 											"flex min-h-[3.5rem] flex-col items-center justify-center p-1 sm:min-h-[3.75rem] sm:p-2",
 											"border-r border-border last:border-r-0 cursor-pointer select-none",
@@ -117,16 +118,10 @@ export function WeekView({
 										)}
 										onClick={() => onDateClick(dateString)}
 									>
-										<span
-											className="text-[10px] sm:text-xs font-medium"
-											style={{ color: today ? "var(--primary-foreground)" : "var(--muted-foreground)" }}
-										>
-											{dayNames[index]}
+										<span className="cal-week-day-header-label text-[10px] sm:text-xs font-medium">
+											{dayNames[date.getDay()]}
 										</span>
-										<span
-											className="mt-0.5 block text-sm font-bold tabular-nums sm:text-base md:text-lg"
-											style={{ color: today ? "var(--primary-foreground)" : "var(--foreground)" }}
-										>
+										<span className="cal-week-day-header-date mt-0.5 block text-sm font-bold tabular-nums sm:text-base md:text-lg">
 											{date.getDate()}
 										</span>
 									</div>
@@ -149,16 +144,16 @@ export function WeekView({
 							All day
 						</div>
 						<div className="flex-1 grid grid-cols-7 min-h-[52px]">
-							{weekDays.map((date) => {
+							{weekDays.map((date, index) => {
 								const dateString = formatDate(date)
 								const today = isToday(date)
 								const allDayEvents = getEventsForDay(date).filter(isCalendarAllDayRowEvent)
 								return (
 									<div
-										key={`allday-${dateString}`}
+										key={`allday-${dateString}-${index}`}
 										className={cn(
 											"border-r border-border last:border-r-0 p-1",
-											today ? "cal-week-allday--today" : "cal-week-grid-bg",
+											today ? "cal-week-column--today" : "cal-week-grid-bg",
 										)}
 									>
 										<div className="space-y-0.5">
@@ -215,7 +210,7 @@ export function WeekView({
 
 					{/* Day columns */}
 					<div className="flex-1 grid grid-cols-7 relative">
-						{weekDays.map((date) => {
+						{weekDays.map((date, index) => {
 							const dateString = formatDate(date)
 							const today = isToday(date)
 							const dayEvents = getEventsForDay(date)
@@ -224,7 +219,7 @@ export function WeekView({
 
 							return (
 								<div
-									key={dateString}
+									key={`col-${dateString}-${index}`}
 									className={cn(
 										"relative border-r border-border last:border-r-0",
 										today && "cal-week-column--today",

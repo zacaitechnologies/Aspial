@@ -55,7 +55,7 @@ export function DayView({
 	const HOUR_HEIGHT = HALF_HOUR_HEIGHT * 2
 	const now = useCurrentTime()
 
-	useScrollToCurrentTime(scrollRef, HOUR_HEIGHT, today)
+	useScrollToCurrentTime(scrollRef, HOUR_HEIGHT, today, dateString)
 
 	// Get events for the day
 	const dayEvents = useMemo(
@@ -115,10 +115,7 @@ export function DayView({
 							})}
 						</h3>
 						{today && (
-							<p
-								className="mt-1 text-xs sm:text-sm"
-								style={{ color: "var(--primary-foreground)", opacity: 0.85 }}
-							>
+							<p className="mt-1 text-xs sm:text-sm text-primary-foreground/85">
 								Today
 							</p>
 						)}
@@ -145,7 +142,7 @@ export function DayView({
 					<div
 						className={cn(
 							"flex-1 min-h-[52px] p-3 sm:p-4",
-							today ? "cal-week-allday--today" : "cal-week-grid-bg",
+							today ? "cal-week-column--today" : "cal-week-grid-bg",
 						)}
 					>
 					<div className="space-y-2">
