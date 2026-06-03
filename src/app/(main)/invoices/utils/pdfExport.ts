@@ -4,12 +4,12 @@ import { formatNumber } from "@/lib/format-number"
 import {
   addPageChrome,
   BLACK,
-  CONTENT_AFTER_INFO_BOX_Y,
   DESC_BLANK_LINE_GAP,
   DESC_LINE_HEIGHT,
   FOOTER_HEIGHT,
   formatDate,
   getContentMaxY,
+  getInfoBoxContentStartY,
   getLogoBase64,
   MARGIN,
   measureDescriptionHeight,
@@ -108,6 +108,7 @@ async function buildInvoicePdf(invoice: InvoiceWithQuotation): Promise<jsPDF> {
     company: client?.company || "",
     phone: client?.phone || "",
     email: client?.email || "",
+    address: client?.address ?? undefined,
     companyRegistrationNumber: client?.companyRegistrationNumber ?? undefined,
     ic: client && "ic" in client ? (client as { ic?: string | null }).ic ?? undefined : undefined,
   }
@@ -117,7 +118,8 @@ async function buildInvoicePdf(invoice: InvoiceWithQuotation): Promise<jsPDF> {
 
   addPageChrome(doc, logoBase64, buildInfoOpts(1, 1))
 
-  let currentY = CONTENT_AFTER_INFO_BOX_Y
+  const contentStartY = getInfoBoxContentStartY(doc, buildInfoOpts(1, 1))
+  let currentY = contentStartY
 
   const allServices = [
     ...regularServices.map((s) => {
@@ -206,7 +208,7 @@ async function buildInvoicePdf(invoice: InvoiceWithQuotation): Promise<jsPDF> {
       margin: {
         left: MARGIN,
         right: MARGIN,
-        top: CONTENT_AFTER_INFO_BOX_Y,
+        top: contentStartY,
         bottom: FOOTER_HEIGHT + 4,
       },
       styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: "linebreak" },
@@ -312,7 +314,7 @@ async function buildInvoicePdf(invoice: InvoiceWithQuotation): Promise<jsPDF> {
     doc.addPage()
     totalPages = doc.getNumberOfPages()
     addPageChrome(doc, logoBase64, buildInfoOpts(totalPages, totalPages))
-    return CONTENT_AFTER_INFO_BOX_Y
+    return contentStartY
   }
 
   const contentMaxY = getContentMaxY(doc)

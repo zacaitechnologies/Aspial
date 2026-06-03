@@ -17,7 +17,7 @@ import {
   BLACK,
   COMPANY_FOOTER,
   FOOTER_HEIGHT,
-  INFO_BOX_HEIGHT,
+  INFO_BOX_BOTTOM_PADDING,
   INFO_BOX_START_Y,
   LOGO_HEIGHT,
   LOGO_WIDTH,
@@ -63,6 +63,7 @@ export type ClientInfoPdf = {
   company: string
   phone: string
   email: string
+  address?: string
   companyRegistrationNumber?: string
   ic?: string
 }
@@ -105,13 +106,56 @@ export function addTopDecoration(doc: jsPDF, logoBase64: string | null): void {
 }
 
 // --- Info box --------------------------------------------------------------
+/** Width available to the left "Bill To" column before it would collide with the right column. */
+function billToColumnWidth(pageWidth: number): number {
+  return pageWidth / 2 - MARGIN - 4
+}
+
+/**
+ * Measure the Y of the info-box bottom divider for the given content. The box grows to fit
+ * its content (e.g. a long, wrapped client address) so it never overflows into the body.
+ * This mirrors the vertical advances in `addInfoBox` exactly so both stay in sync.
+ */
+function measureInfoBoxBottomY(doc: jsPDF, opts: InfoBoxOpts): number {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const ci = opts.clientInfo
+
+  // Left "Bill To" column — title block, then one line per present field.
+  let leftY = INFO_BOX_START_Y + 6 + 8
+  leftY += 4 // "Bill To" / company line (always shown)
+  if (ci.name) leftY += 4
+  if (ci.phone) leftY += 4
+  if (ci.email) leftY += 4
+  if (ci.address) {
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    const addressLines = doc.splitTextToSize(`ADDRESS: ${ci.address}`, billToColumnWidth(pageWidth))
+    leftY += 4 * addressLines.length
+  }
+  leftY += 4 // COMPANY REG. NO line; IC then sits on this baseline (no further advance)
+
+  // Right column — doc number, date, advisor, optional extras, page number.
+  let rightY = INFO_BOX_START_Y + 12
+  rightY += 5 * 3
+  if (opts.extras) rightY += 5 * opts.extras.length
+  rightY += 5
+
+  return Math.max(leftY, rightY) + INFO_BOX_BOTTOM_PADDING
+}
+
+/** Y at which body content (tables, totals, terms) should start, just below the info box. */
+export function getInfoBoxContentStartY(doc: jsPDF, opts: InfoBoxOpts): number {
+  return measureInfoBoxBottomY(doc, opts) + 6
+}
+
 export function addInfoBox(doc: jsPDF, opts: InfoBoxOpts): void {
   const pageWidth = doc.internal.pageSize.getWidth()
   const rightCol = pageWidth - MARGIN
+  const dividerY = measureInfoBoxBottomY(doc, opts)
 
-  // Clear the area first so repeated calls don't double-stamp.
+  // Clear the area first so repeated calls don't double-stamp (height grows with content).
   doc.setFillColor(WHITE[0], WHITE[1], WHITE[2])
-  doc.rect(MARGIN, INFO_BOX_START_Y, pageWidth - 2 * MARGIN, INFO_BOX_HEIGHT, "F")
+  doc.rect(MARGIN, INFO_BOX_START_Y, pageWidth - 2 * MARGIN, dividerY - INFO_BOX_START_Y + 2, "F")
 
   let leftY = INFO_BOX_START_Y + 6
 
@@ -138,18 +182,26 @@ export function addInfoBox(doc: jsPDF, opts: InfoBoxOpts): void {
 
   if (ci.name) {
     doc.text(`ATTN TO: ${ci.name}`, MARGIN + 1, leftY)
+    leftY += 4
   }
-  leftY += 4
 
   if (ci.phone) {
     doc.text(`TEL NO: ${ci.phone}`, MARGIN + 1, leftY)
+    leftY += 4
   }
-  leftY += 4
 
   if (ci.email) {
     doc.text(`EMAIL: ${ci.email}`, MARGIN + 1, leftY)
+    leftY += 4
   }
-  leftY += 4
+
+  if (ci.address) {
+    const addressLines = doc.splitTextToSize(`ADDRESS: ${ci.address}`, billToColumnWidth(pageWidth))
+    for (const line of addressLines) {
+      doc.text(line, MARGIN + 1, leftY)
+      leftY += 4
+    }
+  }
 
   doc.text(`COMPANY REG. NO: ${ci.companyRegistrationNumber || "N/A"}`, MARGIN + 1, leftY)
   leftY += 4
@@ -174,15 +226,10 @@ export function addInfoBox(doc: jsPDF, opts: InfoBoxOpts): void {
   }
   doc.text(`PAGE NO : ${opts.pageNumber} of ${opts.totalPages}`, rightCol - 1, rightY, { align: "right" })
 
-  // Black divider line at the bottom of the info-box
+  // Black divider line at the bottom of the info-box (position grows with content)
   doc.setDrawColor(BLACK[0], BLACK[1], BLACK[2])
   doc.setLineWidth(0.5)
-  doc.line(
-    MARGIN,
-    INFO_BOX_START_Y + INFO_BOX_HEIGHT,
-    pageWidth - MARGIN,
-    INFO_BOX_START_Y + INFO_BOX_HEIGHT,
-  )
+  doc.line(MARGIN, dividerY, pageWidth - MARGIN, dividerY)
 }
 
 // --- Footer ---------------------------------------------------------------

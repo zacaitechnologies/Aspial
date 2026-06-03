@@ -4,12 +4,12 @@ import { formatNumber } from "@/lib/format-number"
 import {
   addPageChrome,
   BLACK,
-  CONTENT_AFTER_INFO_BOX_Y,
   DESC_BLANK_LINE_GAP,
   DESC_LINE_HEIGHT,
   FOOTER_HEIGHT,
   formatDate,
   getContentMaxY,
+  getInfoBoxContentStartY,
   getLogoBase64,
   MARGIN,
   measureDescriptionHeight,
@@ -48,6 +48,7 @@ interface QuotationWithServices {
     company?: string
     phone?: string
     email?: string
+    address?: string | null
     companyRegistrationNumber?: string | null
     ic?: string | null
   } | null
@@ -126,6 +127,7 @@ async function buildStandaloneReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
     company: client.company || "",
     phone: client.phone || "",
     email: client.email || "",
+    address: client.address ?? undefined,
     companyRegistrationNumber: client.companyRegistrationNumber ?? undefined,
     ic: client.ic ?? undefined,
   }
@@ -140,7 +142,8 @@ async function buildStandaloneReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
 
   addPageChrome(doc, logoBase64, buildInfoOpts(1, 1))
 
-  let currentY = CONTENT_AFTER_INFO_BOX_Y
+  const contentStartY = getInfoBoxContentStartY(doc, buildInfoOpts(1, 1))
+  let currentY = contentStartY
 
   const hasServices = receipt.services && receipt.services.length > 0
   const tableBody: (string | number)[][] = hasServices
@@ -176,7 +179,7 @@ async function buildStandaloneReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
     margin: {
       left: MARGIN,
       right: MARGIN,
-      top: CONTENT_AFTER_INFO_BOX_Y,
+      top: contentStartY,
       bottom: FOOTER_HEIGHT + 4,
     },
     styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: "linebreak" },
@@ -191,7 +194,7 @@ async function buildStandaloneReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
   if (currentY > contentMaxY - 45) {
     doc.addPage()
     addPageChrome(doc, logoBase64, buildInfoOpts(doc.getNumberOfPages(), doc.getNumberOfPages()))
-    currentY = CONTENT_AFTER_INFO_BOX_Y
+    currentY = contentStartY
   }
 
   doc.setFontSize(10)
@@ -212,7 +215,7 @@ async function buildStandaloneReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
     if (currentY > contentMaxY) {
       doc.addPage()
       addPageChrome(doc, logoBase64, buildInfoOpts(doc.getNumberOfPages(), doc.getNumberOfPages()))
-      currentY = CONTENT_AFTER_INFO_BOX_Y
+      currentY = contentStartY
     }
     doc.text(line, MARGIN, currentY)
     currentY += 5
@@ -222,7 +225,7 @@ async function buildStandaloneReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
   if (currentY > contentMaxY - 25) {
     doc.addPage()
     addPageChrome(doc, logoBase64, buildInfoOpts(doc.getNumberOfPages(), doc.getNumberOfPages()))
-    currentY = CONTENT_AFTER_INFO_BOX_Y
+    currentY = contentStartY
   }
 
   autoTable(doc, {
@@ -320,6 +323,7 @@ async function buildInvoiceLinkedReceiptPdf(receipt: ReceiptFull): Promise<jsPDF
     company: quotation.Client?.company || "",
     phone: quotation.Client?.phone || "",
     email: quotation.Client?.email || "",
+    address: quotation.Client?.address ?? undefined,
     companyRegistrationNumber: quotation.Client?.companyRegistrationNumber ?? undefined,
     ic: quotation.Client?.ic ?? undefined,
   }
@@ -340,7 +344,8 @@ async function buildInvoiceLinkedReceiptPdf(receipt: ReceiptFull): Promise<jsPDF
 
   addPageChrome(doc, logoBase64, buildInfoOpts(1, 1))
 
-  let currentY = CONTENT_AFTER_INFO_BOX_Y
+  const contentStartY = getInfoBoxContentStartY(doc, buildInfoOpts(1, 1))
+  let currentY = contentStartY
 
   const allServices = [
     ...regularServices.map((s) => {
@@ -428,11 +433,11 @@ async function buildInvoiceLinkedReceiptPdf(receipt: ReceiptFull): Promise<jsPDF
       margin: {
         left: MARGIN,
         right: MARGIN,
-        top: CONTENT_AFTER_INFO_BOX_Y,
-        bottom: FOOTER_HEIGHT + 4,
-      },
-      styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: "linebreak" },
-      didParseCell: (data: any) => {
+      top: contentStartY,
+      bottom: FOOTER_HEIGHT + 4,
+    },
+    styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: "linebreak" },
+    didParseCell: (data: any) => {
         if (data.row.index >= 0 && data.row.section === "body" && rowHeights[data.row.index]) {
           data.cell.minHeight = rowHeights[data.row.index]
         }
@@ -534,7 +539,7 @@ async function buildInvoiceLinkedReceiptPdf(receipt: ReceiptFull): Promise<jsPDF
     doc.addPage()
     totalPages = doc.getNumberOfPages()
     addPageChrome(doc, logoBase64, buildInfoOpts(totalPages, totalPages))
-    return CONTENT_AFTER_INFO_BOX_Y
+    return contentStartY
   }
 
   const contentMaxY = getContentMaxY(doc)

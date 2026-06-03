@@ -13,10 +13,10 @@ import autoTable from "jspdf-autotable"
 import {
   addPageChrome,
   BLACK,
-  CONTENT_AFTER_INFO_BOX_Y,
   FOOTER_HEIGHT,
   formatDate,
   getContentMaxY,
+  getInfoBoxContentStartY,
   getLogoBase64,
   MARGIN,
   numberToWords,
@@ -35,6 +35,7 @@ const clientInfo: ClientInfoPdf = {
   company: "Efix Digital Sdn Bhd",
   phone: "013-3023333",
   email: "kinnix.chan@efix.my",
+  address: "12 Jalan Example, 46300 Petaling Jaya, Selangor",
   companyRegistrationNumber: "N/A",
   ic: undefined,
 }
@@ -63,8 +64,10 @@ async function renderDoc(title: string, docNumberLabel: string, docNumber: strin
 
   addPageChrome(doc, logoBase64, buildInfoOpts(1, 1))
 
+  const contentStartY = getInfoBoxContentStartY(doc, buildInfoOpts(1, 1))
+
   autoTable(doc, {
-    startY: CONTENT_AFTER_INFO_BOX_Y,
+    startY: contentStartY,
     head: [["No", "Description", "Package", "Price/Package", "Total"]],
     body: sampleRows,
     theme: "grid",
@@ -83,14 +86,14 @@ async function renderDoc(title: string, docNumberLabel: string, docNumber: strin
       3: { cellWidth: ((pageWidth - 2 * MARGIN) / 15) * 3, halign: "right" },
       4: { cellWidth: ((pageWidth - 2 * MARGIN) / 15) * 2, halign: "right" },
     },
-    margin: { left: MARGIN, right: MARGIN, top: CONTENT_AFTER_INFO_BOX_Y, bottom: FOOTER_HEIGHT + 4 },
+    margin: { left: MARGIN, right: MARGIN, top: contentStartY, bottom: FOOTER_HEIGHT + 4 },
     styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: "linebreak" },
     didDrawPage: (data: any) => {
       addPageChrome(doc, logoBase64, buildInfoOpts(data.pageNumber, doc.getNumberOfPages()))
     },
   })
 
-  let currentY = (doc.lastAutoTable?.finalY ?? CONTENT_AFTER_INFO_BOX_Y) + 10
+  let currentY = (doc.lastAutoTable?.finalY ?? contentStartY) + 10
   const contentMaxY = getContentMaxY(doc)
 
   doc.setFontSize(10)

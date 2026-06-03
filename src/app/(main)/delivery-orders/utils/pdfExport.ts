@@ -4,12 +4,12 @@ import { formatNumber } from "@/lib/format-number"
 import {
   addPageChrome,
   BLACK,
-  CONTENT_AFTER_INFO_BOX_Y,
   DESC_BLANK_LINE_GAP,
   DESC_LINE_HEIGHT,
   FOOTER_HEIGHT,
   formatDate,
   getContentMaxY,
+  getInfoBoxContentStartY,
   getLogoBase64,
   MARGIN,
   measureDescriptionHeight,
@@ -46,6 +46,7 @@ async function buildDeliveryOrderPdf(order: FullDeliveryOrder): Promise<jsPDF> {
     company: order.client?.company ?? "",
     phone: order.client?.phone ?? "",
     email: order.client?.email ?? "",
+    address: order.client?.address ?? undefined,
     companyRegistrationNumber: order.client?.companyRegistrationNumber ?? undefined,
     ic: order.client?.ic ?? undefined,
   }
@@ -63,7 +64,8 @@ async function buildDeliveryOrderPdf(order: FullDeliveryOrder): Promise<jsPDF> {
 
   addPageChrome(doc, logoBase64, buildInfoOpts(1, 1))
 
-  let currentY = CONTENT_AFTER_INFO_BOX_Y
+  const contentStartY = getInfoBoxContentStartY(doc, buildInfoOpts(1, 1))
+  let currentY = contentStartY
 
   const allServices = order.services.map((s) => ({
     name: sanitizePdfText(s.service.name),
@@ -131,7 +133,7 @@ async function buildDeliveryOrderPdf(order: FullDeliveryOrder): Promise<jsPDF> {
       4: { cellWidth: cw(2), halign: "right" },
       5: { cellWidth: cw(2), halign: "right" },
     },
-    margin: { left: MARGIN, right: MARGIN, top: CONTENT_AFTER_INFO_BOX_Y, bottom: FOOTER_HEIGHT + 4 },
+    margin: { left: MARGIN, right: MARGIN, top: contentStartY, bottom: FOOTER_HEIGHT + 4 },
     styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: "linebreak" },
     didParseCell: (data: any) => {
       if (data.row.index >= 0 && data.row.section === "body" && rowHeights[data.row.index]) {
@@ -226,7 +228,7 @@ async function buildDeliveryOrderPdf(order: FullDeliveryOrder): Promise<jsPDF> {
     doc.addPage()
     const total = doc.getNumberOfPages()
     addPageChrome(doc, logoBase64, buildInfoOpts(total, total))
-    return CONTENT_AFTER_INFO_BOX_Y
+    return contentStartY
   }
 
   const contentMaxY = getContentMaxY(doc)

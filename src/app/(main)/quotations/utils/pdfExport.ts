@@ -4,12 +4,12 @@ import { formatNumber } from "@/lib/format-number"
 import {
   addPageChrome,
   BLACK,
-  CONTENT_AFTER_INFO_BOX_Y,
   DESC_BLANK_LINE_GAP,
   DESC_LINE_HEIGHT,
   FOOTER_HEIGHT,
   formatDate,
   getContentMaxY,
+  getInfoBoxContentStartY,
   getLogoBase64,
   MARGIN,
   measureDescriptionHeight,
@@ -84,6 +84,7 @@ async function generateQuotationPdfDoc(quotation: QuotationWithServices): Promis
     company: quotation.Client?.company || "",
     phone: quotation.Client?.phone || "",
     email: quotation.Client?.email || "",
+    address: quotation.Client?.address || undefined,
     companyRegistrationNumber: quotation.Client?.companyRegistrationNumber || undefined,
     ic: quotation.Client?.ic || undefined,
   }
@@ -93,7 +94,8 @@ async function generateQuotationPdfDoc(quotation: QuotationWithServices): Promis
 
   addPageChrome(doc, logoBase64, buildInfoOpts(1, 1))
 
-  let currentY = CONTENT_AFTER_INFO_BOX_Y
+  const contentStartY = getInfoBoxContentStartY(doc, buildInfoOpts(1, 1))
+  let currentY = contentStartY
 
   // Combined service list (sanitized)
   const allServices = [
@@ -186,7 +188,7 @@ async function generateQuotationPdfDoc(quotation: QuotationWithServices): Promis
       margin: {
         left: MARGIN,
         right: MARGIN,
-        top: CONTENT_AFTER_INFO_BOX_Y,
+        top: contentStartY,
         bottom: FOOTER_HEIGHT + 4,
       },
       styles: { cellPadding: 3, lineWidth: 0.1, lineColor: [0, 0, 0], overflow: "linebreak" },
@@ -292,7 +294,7 @@ async function generateQuotationPdfDoc(quotation: QuotationWithServices): Promis
     doc.addPage()
     totalPages = doc.getNumberOfPages()
     addPageChrome(doc, logoBase64, buildInfoOpts(totalPages, totalPages))
-    return CONTENT_AFTER_INFO_BOX_Y
+    return contentStartY
   }
 
   const contentMaxY = getContentMaxY(doc)

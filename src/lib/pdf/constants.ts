@@ -24,11 +24,15 @@ export const TEXT_SAFETY = 12
 
 /** Vertical space reserved at the top of every page for the centered logo + olive accent bar. */
 export const TOP_DECORATION_HEIGHT = 30
-/** Height of the document info-box (title + bill-to + right-side details). */
-export const INFO_BOX_HEIGHT = 42
+/** Padding between the last info-box line and the bottom divider. */
+export const INFO_BOX_BOTTOM_PADDING = 3
 /** Y position where the info-box starts (right below the top decoration). */
 export const INFO_BOX_START_Y = TOP_DECORATION_HEIGHT
-/** Y position where free content (table, totals, terms) starts on every page. */
+/**
+ * Typical info-box height; kept only as a layout reference / fallback. The real height now
+ * grows with content — use `getInfoBoxContentStartY(doc, opts)` to position body content.
+ */
+export const INFO_BOX_HEIGHT = 46
 export const CONTENT_AFTER_INFO_BOX_Y = INFO_BOX_START_Y + INFO_BOX_HEIGHT + 6
 
 /** Total reserved space at the bottom of every page for the footer block. */
