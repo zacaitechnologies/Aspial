@@ -296,6 +296,7 @@ export async function createAppointmentBooking(formData: FormData) {
 	const endDate = parseDateInBusinessTZ(endDateStr)
 	const purpose = formData.get("purpose") as string
 	const appointmentType = ((formData.get("appointmentType") as string) || 'OTHERS') as AppointmentType
+	const appointmentCategory = ((formData.get("appointmentCategory") as string) === 'EXTERNAL' ? 'EXTERNAL' : 'INTERNAL') as 'INTERNAL' | 'EXTERNAL'
 	const projectIdStr = formData.get("projectId") as string
 	const projectId = projectIdStr && projectIdStr !== '' ? Number.parseInt(projectIdStr) : null
 	const appointmentIdStr = formData.get("appointmentId") as string
@@ -408,6 +409,7 @@ export async function createAppointmentBooking(formData: FormData) {
 				endDate,
 				purpose: purpose || null,
 				appointmentType: appointmentType,
+				appointmentCategory: appointmentCategory,
 				projectId,
 				appointmentId,
 				attendees,

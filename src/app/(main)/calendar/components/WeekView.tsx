@@ -11,8 +11,9 @@ import {
 	isToday,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
-import { useMemo, useRef } from "react"
+import { useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { CurrentTimeLine } from "./CurrentTimeLine"
 import { useCurrentTime } from "../hooks/useCurrentTime"
 import { useScrollToCurrentTime } from "../hooks/useScrollToCurrentTime"
@@ -45,6 +46,7 @@ export function WeekView({
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const HOUR_HEIGHT = 60
 	const now = useCurrentTime()
+	const [allDayCollapsed, setAllDayCollapsed] = useState(false)
 
 	const hasToday = useMemo(() => weekDays.some(isToday), [weekDays])
 	const weekStartStr = formatDate(weekDays[0])
@@ -130,20 +132,28 @@ export function WeekView({
 						</div>
 					</div>
 
-					{/* All-day row */}
+					{/* All-day row — collapsible, each column scrolls on overflow */}
 					<div className={cn("flex border-b-2 border-border cal-week-subtle-bg")}>
-						{/* All-day label — sticky left */}
-						<div
+						{/* All-day label / toggle — sticky left */}
+						<button
+							type="button"
+							onClick={() => setAllDayCollapsed((v) => !v)}
+							aria-expanded={!allDayCollapsed}
 							className={cn(
 								gutterClass,
 								stickyCornerBase,
 								"cal-week-subtle-bg",
-								"p-1 sm:p-2 text-[9px] sm:text-[10px] text-muted-foreground font-medium flex items-start pt-2 sm:pt-3 min-h-[52px]"
+								"p-1 sm:p-2 text-[9px] sm:text-[10px] text-muted-foreground font-medium flex items-start gap-0.5 pt-2 hover:text-foreground transition-colors"
 							)}
 						>
-							All day
-						</div>
-						<div className="flex-1 grid grid-cols-7 min-h-[52px]">
+							{allDayCollapsed ? (
+								<ChevronRight className="w-3 h-3 shrink-0 mt-px" />
+							) : (
+								<ChevronDown className="w-3 h-3 shrink-0 mt-px" />
+							)}
+							<span className="text-left leading-tight">All day</span>
+						</button>
+						<div className="flex-1 grid grid-cols-7">
 							{weekDays.map((date, index) => {
 								const dateString = formatDate(date)
 								const today = isToday(date)
@@ -152,34 +162,37 @@ export function WeekView({
 									<div
 										key={`allday-${dateString}-${index}`}
 										className={cn(
-											"border-r border-border last:border-r-0 p-1",
+											"border-r border-border last:border-r-0 p-1 min-h-[2rem]",
 											today ? "cal-week-column--today" : "cal-week-grid-bg",
 										)}
 									>
-										<div className="space-y-0.5">
-											{allDayEvents.slice(0, 3).map((event) => (
-												<CalendarEventTooltip key={event.id} booking={event} side="top">
-													<div
-														className={cn(
-															"text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md cursor-pointer truncate leading-tight font-medium transition-shadow hover:shadow-sm",
-															calendarEventSurfaceClass(event.appointmentType),
-															isCalendarEventPast(event, now) && calendarEventPastClass,
-														)}
-														onClick={(e) => {
-															e.stopPropagation()
-															onEventClick(event)
-														}}
-													>
-														{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
-													</div>
-												</CalendarEventTooltip>
-											))}
-											{allDayEvents.length > 3 && (
-												<div className="text-[9px] sm:text-[10px] text-muted-foreground px-1">
-													+{allDayEvents.length - 3} more
+										{allDayCollapsed ? (
+											allDayEvents.length > 0 && (
+												<div className="text-[9px] sm:text-[10px] text-muted-foreground px-1 text-center">
+													{allDayEvents.length}
 												</div>
-											)}
-										</div>
+											)
+										) : (
+											<div className="max-h-[110px] overflow-y-auto space-y-0.5">
+												{allDayEvents.map((event) => (
+													<CalendarEventTooltip key={event.id} booking={event} side="top">
+														<div
+															className={cn(
+																"text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md cursor-pointer truncate leading-tight font-medium transition-shadow hover:shadow-sm",
+																calendarEventSurfaceClass(event.appointmentType),
+																isCalendarEventPast(event, now) && calendarEventPastClass,
+															)}
+															onClick={(e) => {
+																e.stopPropagation()
+																onEventClick(event)
+															}}
+														>
+															{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
+														</div>
+													</CalendarEventTooltip>
+												))}
+											</div>
+										)}
 									</div>
 								)
 							})}

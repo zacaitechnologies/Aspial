@@ -7,6 +7,7 @@ import { Filter, Download, ShieldAlert, Sun, PanelLeftClose, PanelLeftOpen, Slid
 import { CalendarDay } from "./CalendarDay"
 import { BookingDetailsDialog } from "./BookingDetailsDialog"
 import { DateEventsDialog } from "./DateEventsDialog"
+import { MonthDayDialog } from "./MonthDayDialog"
 import { DatePicker } from "./DatePicker"
 import { ExportCalendarDialog } from "./ExportCalendarDialog"
 import { ViewSwitcher } from "./ViewSwitcher"
@@ -17,7 +18,7 @@ import { AppointmentBookingDialog } from "./AppointmentBookingDialog"
 import { EditBookingDialog } from "./EditBookingDialog"
 import { fetchAllBookings, deleteCalendarBlocker, type CalendarBooking } from "../actions"
 import { cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
-import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
+import { CALENDAR_EVENT_TYPES, type AppointmentType, type CalendarEventType } from "../constants"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { parseLocalDateString, formatLocalDate } from "@/lib/date-utils"
@@ -85,6 +86,7 @@ export default function CalendarClient({
 	const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
 	const [selectedDate, setSelectedDate] = useState<string>("")
 	const [isDateEventsDialogOpen, setIsDateEventsDialogOpen] = useState(false)
+	const [isMonthDayDialogOpen, setIsMonthDayDialogOpen] = useState(false)
 	const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
 	const [isBlockerDialogOpen, setIsBlockerDialogOpen] = useState(false)
 	const [editingBlocker, setEditingBlocker] = useState<{
@@ -101,6 +103,8 @@ export default function CalendarClient({
 	const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false)
 	const [bookingInitialDate, setBookingInitialDate] = useState("")
 	const [bookingInitialTime, setBookingInitialTime] = useState<string | null>(null)
+	const [bookingInitialEndTime, setBookingInitialEndTime] = useState<string | null>(null)
+	const [bookingInitialType, setBookingInitialType] = useState<AppointmentType | null>(null)
 
 	// Edit booking dialog state
 	const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false)
@@ -256,10 +260,10 @@ export default function CalendarClient({
 		setCurrentDate(newDate)
 	}
 
-	// Month-cell click: switch directly to day view (per redesign)
+	// Month-cell click: open the multi-column day popup (one column per appointment type)
 	const handleMonthDayClick = (dateString: string) => {
-		setCurrentDate(parseLocalDateString(dateString))
-		setViewMode("day")
+		setSelectedDate(dateString)
+		setIsMonthDayDialogOpen(true)
 	}
 
 	const handleViewChange = (newView: CalendarView) => {
@@ -326,10 +330,18 @@ export default function CalendarClient({
 		setIsDateEventsDialogOpen(true)
 	}
 
-  const handleBookAppointment = (date: string, time?: string | null) => {
+  const handleBookAppointment = (
+    date: string,
+    time?: string | null,
+    appointmentType?: AppointmentType | null,
+    endTime?: string | null,
+  ) => {
     setBookingInitialDate(date)
     setBookingInitialTime(time || null)
+    setBookingInitialEndTime(endTime || null)
+    setBookingInitialType(appointmentType || null)
     setIsDateEventsDialogOpen(false)
+    setIsMonthDayDialogOpen(false)
     setIsBookingDialogOpen(true)
   }
 
@@ -732,6 +744,25 @@ export default function CalendarClient({
 					onBookAppointment={(date) => handleBookAppointment(date)}
 				/>
 
+				{/* Month-day multi-column popup */}
+				<MonthDayDialog
+					isOpen={isMonthDayDialogOpen}
+					onClose={() => {
+						setIsMonthDayDialogOpen(false)
+						setSelectedDate("")
+					}}
+					date={selectedDate}
+					events={getBookingsForDate(selectedDate)}
+					onEventClick={(event) => {
+						setSelectedBooking(event)
+						setIsMonthDayDialogOpen(false)
+						setIsDetailsDialogOpen(true)
+					}}
+					onBookSlot={(date, time, appointmentType) =>
+						handleBookAppointment(date, time, appointmentType)
+					}
+				/>
+
 				{/* Export Calendar Dialog */}
 				<ExportCalendarDialog
 					isOpen={isExportDialogOpen}
@@ -759,9 +790,13 @@ export default function CalendarClient({
 						setIsBookingDialogOpen(false)
 						setBookingInitialDate("")
 						setBookingInitialTime(null)
+						setBookingInitialEndTime(null)
+						setBookingInitialType(null)
 					}}
 					initialDate={bookingInitialDate}
 					initialTime={bookingInitialTime}
+					initialEndTime={bookingInitialEndTime}
+					initialAppointmentType={bookingInitialType}
 					appointments={initialAppointments}
 					userId={userId}
 					userName={userName}

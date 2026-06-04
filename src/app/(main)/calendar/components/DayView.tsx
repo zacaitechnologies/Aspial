@@ -12,8 +12,8 @@ import {
 } from "../utils/calendar-utils"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { Clock, MapPin, Users } from "lucide-react"
-import { useMemo, useRef } from "react"
+import { ChevronDown, ChevronRight, Clock, MapPin, Users } from "lucide-react"
+import { useMemo, useRef, useState } from "react"
 import { CurrentTimeLine } from "./CurrentTimeLine"
 import { useCurrentTime } from "../hooks/useCurrentTime"
 import { useScrollToCurrentTime } from "../hooks/useScrollToCurrentTime"
@@ -51,6 +51,7 @@ export function DayView({
 	const dateString = formatDate(currentDate)
 	const today = isToday(currentDate)
 	const scrollRef = useRef<HTMLDivElement>(null)
+	const [allDayCollapsed, setAllDayCollapsed] = useState(false)
 	const HALF_HOUR_HEIGHT = 60
 	const HOUR_HEIGHT = HALF_HOUR_HEIGHT * 2
 	const now = useCurrentTime()
@@ -133,61 +134,54 @@ export function DayView({
 				</div>
 			</div>
 
-			{/* All Day Events — matches week view all-day row */}
+			{/* All Day Events — compact, collapsible row */}
 			{allDayEvents.length > 0 && (
 				<div className="flex border-b-2 border-border cal-week-subtle-bg">
-					<div className="w-12 shrink-0 border-r border-border cal-week-slot-bg p-2 text-[9px] sm:w-16 sm:text-[10px] md:w-20 text-muted-foreground font-medium flex items-start pt-3 min-h-[52px]">
-						All day
-					</div>
+					<button
+						type="button"
+						onClick={() => setAllDayCollapsed((v) => !v)}
+						aria-expanded={!allDayCollapsed}
+						className="w-12 shrink-0 border-r border-border cal-week-slot-bg p-2 text-[9px] sm:w-16 sm:text-[10px] md:w-20 text-muted-foreground font-medium flex items-start gap-0.5 pt-2 hover:text-foreground transition-colors"
+					>
+						{allDayCollapsed ? (
+							<ChevronRight className="w-3 h-3 shrink-0 mt-px" />
+						) : (
+							<ChevronDown className="w-3 h-3 shrink-0 mt-px" />
+						)}
+						<span className="text-left leading-tight">All day · {allDayEvents.length}</span>
+					</button>
 					<div
 						className={cn(
-							"flex-1 min-h-[52px] p-3 sm:p-4",
+							"flex-1 p-1.5 sm:p-2",
 							today ? "cal-week-column--today" : "cal-week-grid-bg",
 						)}
 					>
-					<div className="space-y-2">
-						{allDayEvents.map(event => (
-							<CalendarEventTooltip key={event.id} booking={event} side="top">
-								<div
-									className={cn(
-										"p-3",
-										eventCardClassName,
-										calendarEventSurfaceClass(event.appointmentType),
-										isCalendarEventPast(event, now) && calendarEventPastClass,
-									)}
-									onClick={() => onEventClick(event)}
-								>
-								<div className="flex items-start justify-between">
-									<div className="flex-1 min-w-0">
-										<div className="flex items-center gap-2 mb-2 flex-wrap">
-											<Badge variant="outline" className={cn(calendarEventBadgeClass, "text-xs")}>
-												{bookingTypeLabels[event.type]}
-											</Badge>
-											<h4 className="font-semibold truncate">
-												{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, '')}
-											</h4>
-										</div>
-										<p className={cn("text-sm", calendarEventMetaClass)}>{event.description}</p>
-										<div className={cn("mt-2 flex items-center gap-4", calendarEventMetaClass)}>
-											{event.projectName && (
-												<div className="flex items-center gap-1">
-													<MapPin className="w-3 h-3" />
-													{event.projectName}
-												</div>
+						{allDayCollapsed ? (
+							<button
+								type="button"
+								onClick={() => setAllDayCollapsed(false)}
+								className="text-[11px] text-muted-foreground hover:text-foreground"
+							>
+								Show {allDayEvents.length} all-day event{allDayEvents.length === 1 ? "" : "s"}
+							</button>
+						) : (
+							<div className="max-h-[120px] overflow-y-auto space-y-1 pr-1">
+								{allDayEvents.map((event) => (
+									<CalendarEventTooltip key={event.id} booking={event} side="top">
+										<div
+											className={cn(
+												"text-xs px-2 py-1 rounded-md cursor-pointer truncate leading-tight font-medium transition-shadow hover:shadow-sm",
+												calendarEventSurfaceClass(event.appointmentType),
+												isCalendarEventPast(event, now) && calendarEventPastClass,
 											)}
-											{event.assigneeName && (
-												<div className="flex items-center gap-1">
-													<Users className="w-3 h-3" />
-													{event.assigneeName}
-												</div>
-											)}
+											onClick={() => onEventClick(event)}
+										>
+											{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
 										</div>
-									</div>
-								</div>
+									</CalendarEventTooltip>
+								))}
 							</div>
-							</CalendarEventTooltip>
-						))}
-					</div>
+						)}
 					</div>
 				</div>
 			)}

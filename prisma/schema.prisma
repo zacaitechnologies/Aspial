@@ -601,9 +601,10 @@ model AppointmentBooking {
   userId          String?
   startDate       DateTime
   endDate         DateTime
-  purpose         String?
-  appointmentType AppointmentType              @default(OTHERS)
-  status          String                       @default("active")
+  purpose             String?
+  appointmentType     AppointmentType              @default(OTHERS)
+  appointmentCategory AppointmentCategory          @default(INTERNAL)
+  status              String                       @default("active")
   projectId       Int?
   appointmentId   Int?
   attendees       Int?
@@ -824,6 +825,11 @@ enum AppointmentType {
   CONSULTATION
   PHOTO_SELECTION
   OTHERS
+}
+
+enum AppointmentCategory {
+  INTERNAL
+  EXTERNAL
 }
 
 model TierSelection {
