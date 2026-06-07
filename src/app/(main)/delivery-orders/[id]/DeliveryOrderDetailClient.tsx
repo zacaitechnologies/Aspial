@@ -42,14 +42,17 @@ import {
 } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { formatNumber } from "@/lib/format-number"
-import { FormattedDescription } from "@/components/FormattedDescription"
 import {
   deleteDeliveryOrder,
+  deleteDeliveryOrderServiceAdmin,
+  reorderDeliveryOrderServices,
   updateDeliveryOrder,
   getDeliveryOrderEmailHistory,
 } from "../action"
 import DeliveryOrderForm from "../components/DeliveryOrderForm"
 import SendDeliveryOrderDialog from "../components/SendDeliveryOrderDialog"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { DocumentServiceList } from "@/components/document-service-list"
 import type {
   DeliveryOrderFull,
   ServiceOption,
@@ -81,8 +84,30 @@ export default function DeliveryOrderDetailClient({
   const [historyOpen, setHistoryOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [isExportingPDF, setIsExportingPDF] = useState(false)
+  const [pendingRemove, setPendingRemove] = useState<{
+    deliveryOrderServiceId: number
+    name: string
+  } | null>(null)
+  const [isRemoving, setIsRemoving] = useState(false)
 
   const isCancelled = order.status === "cancelled"
+  const serviceCount = order.services?.length ?? 0
+  const isOrderAdvisor = order.advisors.some((a) => a.id === currentUserId)
+  const canReorderServices =
+    !isCancelled &&
+    serviceCount > 1 &&
+    (isAdmin || isOrderAdvisor)
+
+  const serviceItems =
+    order.services?.map((s) => ({
+      id: String(s.id),
+      lineId: s.id,
+      name: s.service.name,
+      description: s.descriptionOverride,
+      price: s.price,
+      quantity: s.quantity,
+    })) ?? []
+  const servicesKey = serviceItems.map((s) => s.lineId).join(",")
 
   const subtotal = order.totalAmount
   const finalAmount = order.finalAmount
@@ -307,30 +332,29 @@ export default function DeliveryOrderDetailClient({
                 <CardDescription>Line items on this delivery order</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {order.services.map((s) => (
-                    <div
-                      key={s.id}
-                      className="flex justify-between items-start p-3 border rounded-lg"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium">{s.service.name}</p>
-                        <FormattedDescription
-                          text={s.descriptionOverride}
-                          className="text-sm text-muted-foreground"
-                        />
-                      </div>
-                      <div className="ml-4 text-right shrink-0">
-                        <div className="text-xs text-muted-foreground">
-                          RM{formatNumber(s.price)} × {s.quantity}
-                        </div>
-                        <Badge variant="outline" className="mt-1">
-                          RM{formatNumber(s.price * s.quantity)}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <DocumentServiceList
+                  items={serviceItems}
+                  itemsKey={servicesKey}
+                  canReorder={canReorderServices}
+                  onReorder={async (orderedLineIds) => {
+                    await reorderDeliveryOrderServices(order.id, orderedLineIds)
+                    router.refresh()
+                  }}
+                  canDelete={isAdmin}
+                  onDelete={(deliveryOrderServiceId, name) => {
+                    if (serviceCount <= 1) {
+                      toast({
+                        title: "Cannot remove",
+                        description: "A delivery order must have at least one service.",
+                        variant: "destructive",
+                      })
+                      return
+                    }
+                    setPendingRemove({ deliveryOrderServiceId, name })
+                  }}
+                  isDeleting={isRemoving}
+                  priceDisplay="line"
+                />
               </CardContent>
             </Card>
           )}
@@ -568,6 +592,57 @@ export default function DeliveryOrderDetailClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        isOpen={pendingRemove !== null}
+        onClose={() => {
+          if (!isRemoving) setPendingRemove(null)
+        }}
+        onConfirm={async () => {
+          if (!pendingRemove) return
+          if (!isAdmin) {
+            toast({
+              title: "Not allowed",
+              description: "Only admins can remove services from a delivery order.",
+              variant: "destructive",
+            })
+            setPendingRemove(null)
+            return
+          }
+          setIsRemoving(true)
+          try {
+            await deleteDeliveryOrderServiceAdmin(pendingRemove.deliveryOrderServiceId)
+            toast({ title: "Removed", description: "Service removed from delivery order." })
+            setPendingRemove(null)
+            router.refresh()
+          } catch (e) {
+            if (process.env.NODE_ENV === "development") {
+              console.error("Error removing delivery order service:", e)
+            }
+            toast({
+              title: "Error",
+              description: e instanceof Error ? e.message : "Failed to remove service.",
+              variant: "destructive",
+            })
+          } finally {
+            setIsRemoving(false)
+          }
+        }}
+        title="Remove Service"
+        description={
+          <>
+            Remove <strong>{pendingRemove?.name}</strong> from this delivery order?
+            <br />
+            <span className="text-muted-foreground">
+              The delivery order total will be recalculated from the remaining services.
+            </span>
+          </>
+        }
+        confirmText="Remove"
+        cancelText="Cancel"
+        variant="warning"
+        isLoading={isRemoving}
+      />
     </div>
   )
 }

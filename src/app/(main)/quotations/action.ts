@@ -89,6 +89,7 @@ export async function getAllQuotations(userId?: string) {
         include: {
           service: true,
         },
+        orderBy: { sortOrder: "asc" },
       },
       project: true,
       createdBy: true,
@@ -513,6 +514,7 @@ export async function getQuotationById(id: string) {
         include: {
           service: true,
         },
+        orderBy: { sortOrder: "asc" },
       },
       project: true,
       createdBy: true,
@@ -640,6 +642,7 @@ export async function getQuotationFullById(id: string) {
         include: {
           service: true,
         },
+        orderBy: { sortOrder: "asc" },
       },
       project: true,
       createdBy: true,
@@ -935,13 +938,14 @@ export async function createQuotation(data: unknown) {
               : new Date(),
 
             services: {
-              create: validatedData.services.map((svc) => {
+              create: validatedData.services.map((svc, idx) => {
                 const serviceIdInt = Number.parseInt(svc.serviceId, 10)
                 const trimmedOverride = svc.descriptionOverride?.trim()
                 return {
                   service: { connect: { id: serviceIdInt } },
                   price: svc.price,
                   quantity: svc.quantity,
+                  sortOrder: svc.sortOrder ?? idx,
                   descriptionOverride:
                     trimmedOverride && trimmedOverride.length > 0
                       ? svc.descriptionOverride
@@ -959,6 +963,7 @@ export async function createQuotation(data: unknown) {
               include: {
                 service: true,
               },
+              orderBy: { sortOrder: "asc" },
             },
             createdBy: true,
             advisors: {
@@ -1275,6 +1280,7 @@ export async function editQuotationById(
             include: {
               service: true,
             },
+            orderBy: { sortOrder: "asc" },
           },
           createdBy: true,
           project: true,
@@ -1425,7 +1431,7 @@ export async function editQuotationById(
       ...(validatedData.services
         ? {
             services: {
-              create: validatedData.services.map((svc) => {
+              create: validatedData.services.map((svc, idx) => {
                 const serviceIdInt = Number.parseInt(svc.serviceId, 10)
                 const trimmedOverride = svc.descriptionOverride?.trim()
                 const fallback =
@@ -1436,6 +1442,7 @@ export async function editQuotationById(
                   service: { connect: { id: serviceIdInt } },
                   price: svc.price,
                   quantity: svc.quantity,
+                  sortOrder: svc.sortOrder ?? idx,
                   descriptionOverride:
                     trimmedOverride && trimmedOverride.length > 0
                       ? svc.descriptionOverride
@@ -1456,6 +1463,7 @@ export async function editQuotationById(
           include: {
             service: true,
           },
+          orderBy: { sortOrder: "asc" },
         },
         createdBy: true,
         project: true,
@@ -1659,6 +1667,7 @@ export async function reactivateQuotationCascade(
           include: {
             service: true,
           },
+          orderBy: { sortOrder: "asc" },
         },
         createdBy: true,
         project: true,
@@ -2431,6 +2440,76 @@ export async function deleteQuotationServiceAdmin(quotationServiceId: number) {
 
   await invalidateQuotationsCache(quotationId)
   return { quotationId }
+}
+
+const reorderQuotationServicesSchema = z.object({
+  quotationId: quotationIdSchema,
+  orderedIds: z.array(z.number().int().positive()).min(1),
+})
+
+/** Reorder standard catalogue service lines on a quotation (sortOrder only). */
+export async function reorderQuotationServices(quotationId: unknown, orderedIds: unknown) {
+  unstable_noStore()
+  const validated = reorderQuotationServicesSchema.parse({ quotationId, orderedIds })
+
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to reorder services")
+  }
+
+  const [quotation, dbUser, isAdmin] = await Promise.all([
+    prisma.quotation.findUnique({
+      where: { id: validated.quotationId },
+      select: {
+        workflowStatus: true,
+        createdById: true,
+        advisors: { select: { userId: true } },
+      },
+    }),
+    prisma.user.findUnique({
+      where: { supabase_id: user.id },
+      select: { id: true },
+    }),
+    getCachedIsUserAdmin(user.id),
+  ])
+
+  if (!quotation || !dbUser) {
+    throw new Error("Quotation not found")
+  }
+
+  const isAdvisor = quotation.advisors.some((a) => a.userId === dbUser.id)
+
+  if (!isAdmin && !isAdvisor) {
+    throw new Error("Not authorized to reorder services on this quotation")
+  }
+
+  const existing = await prisma.quotationService.findMany({
+    where: { quotationId: validated.quotationId, serviceId: { not: null } },
+    select: { id: true },
+  })
+
+  const existingIdSet = new Set(existing.map((e) => e.id))
+  if (validated.orderedIds.length !== existing.length) {
+    throw new Error("Invalid service order")
+  }
+  for (const id of validated.orderedIds) {
+    if (!existingIdSet.has(id)) {
+      throw new Error("Invalid service order")
+    }
+  }
+
+  await prisma.$transaction(
+    validated.orderedIds.map((id, idx) =>
+      prisma.quotationService.update({
+        where: { id },
+        data: { sortOrder: idx },
+      }),
+    ),
+  )
+
+  await invalidateQuotationsCache(validated.quotationId)
+  revalidatePath(`/quotations/${validated.quotationId}`)
+  return { success: true }
 }
 
 /**

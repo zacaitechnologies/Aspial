@@ -479,6 +479,148 @@ export async function updateDeliveryOrder(id: unknown, data: unknown) {
   return updated
 }
 
+const deliveryOrderServiceIdSchema = z.number().int().positive()
+
+/**
+ * Admin: remove a single service line from a delivery order.
+ * Recomputes totalAmount and finalAmount from remaining lines.
+ */
+export async function deleteDeliveryOrderServiceAdmin(deliveryOrderServiceId: unknown) {
+  unstable_noStore()
+  const validatedId = deliveryOrderServiceIdSchema.parse(deliveryOrderServiceId)
+
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to remove a service")
+  }
+
+  const isAdmin = await getCachedIsUserAdmin(user.id)
+  if (!isAdmin) {
+    throw new Error("Only admins can remove services from a delivery order")
+  }
+
+  const deliveryOrderId = await prisma.$transaction(async (tx) => {
+    const row = await tx.deliveryOrderService.findUnique({
+      where: { id: validatedId },
+      select: { deliveryOrderId: true },
+    })
+    if (!row) {
+      throw new Error("Service line not found")
+    }
+
+    const remainingCount = await tx.deliveryOrderService.count({
+      where: {
+        deliveryOrderId: row.deliveryOrderId,
+        id: { not: validatedId },
+      },
+    })
+    if (remainingCount === 0) {
+      throw new Error("A delivery order must have at least one service")
+    }
+
+    await tx.deliveryOrderService.delete({ where: { id: validatedId } })
+
+    const order = await tx.deliveryOrder.findUnique({
+      where: { id: row.deliveryOrderId },
+      select: { discountType: true, discountValue: true },
+    })
+
+    const remaining = await tx.deliveryOrderService.findMany({
+      where: { deliveryOrderId: row.deliveryOrderId },
+      select: { price: true, quantity: true },
+    })
+
+    const subtotal = computeSubtotal(remaining)
+    const finalAmount = computeFinalAmount(
+      subtotal,
+      order?.discountType ?? null,
+      order?.discountValue ?? null,
+    )
+
+    await tx.deliveryOrder.update({
+      where: { id: row.deliveryOrderId },
+      data: { totalAmount: subtotal, finalAmount },
+    })
+
+    return row.deliveryOrderId
+  })
+
+  revalidateTag("delivery-orders", { expire: 0 })
+  revalidatePath("/delivery-orders")
+  revalidatePath(`/delivery-orders/${deliveryOrderId}`)
+
+  return { deliveryOrderId }
+}
+
+const reorderDeliveryOrderServicesSchema = z.object({
+  deliveryOrderId: deliveryOrderIdSchema,
+  orderedIds: z.array(z.number().int().positive()).min(1),
+})
+
+/** Reorder service lines on a delivery order (sortOrder only). */
+export async function reorderDeliveryOrderServices(
+  deliveryOrderId: unknown,
+  orderedIds: unknown,
+) {
+  unstable_noStore()
+  const validated = reorderDeliveryOrderServicesSchema.parse({ deliveryOrderId, orderedIds })
+
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error("User must be authenticated to reorder services")
+  }
+
+  const [existing, dbUser, isAdmin] = await Promise.all([
+    prisma.deliveryOrder.findUnique({
+      where: { id: validated.deliveryOrderId },
+      select: {
+        createdById: true,
+        advisors: { select: { userId: true } },
+      },
+    }),
+    prisma.user.findUnique({ where: { supabase_id: user.id }, select: { id: true } }),
+    getCachedIsUserAdmin(user.id),
+  ])
+
+  if (!existing || !dbUser) {
+    throw new Error("Delivery order not found")
+  }
+
+  const isAdvisor = existing.advisors.some((a) => a.userId === dbUser.id)
+  if (!isAdmin && !isAdvisor) {
+    throw new Error("Not authorized to reorder services on this delivery order")
+  }
+
+  const lines = await prisma.deliveryOrderService.findMany({
+    where: { deliveryOrderId: validated.deliveryOrderId },
+    select: { id: true, price: true, quantity: true },
+  })
+
+  const lineById = new Map(lines.map((l) => [l.id, l]))
+  if (validated.orderedIds.length !== lines.length) {
+    throw new Error("Invalid service order")
+  }
+  for (const id of validated.orderedIds) {
+    if (!lineById.has(id)) {
+      throw new Error("Invalid service order")
+    }
+  }
+
+  await prisma.$transaction(
+    validated.orderedIds.map((id, idx) =>
+      prisma.deliveryOrderService.update({
+        where: { id },
+        data: { sortOrder: idx },
+      }),
+    ),
+  )
+
+  revalidateTag("delivery-orders", { expire: 0 })
+  revalidatePath("/delivery-orders")
+  revalidatePath(`/delivery-orders/${validated.deliveryOrderId}`)
+  return { success: true }
+}
+
 // ==================== Delete / cancel ====================
 
 export async function deleteDeliveryOrder(id: unknown) {

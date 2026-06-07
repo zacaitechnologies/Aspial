@@ -269,6 +269,7 @@ export const createQuotationSchema = z.object({
     price: z.number().nonnegative("Price must be non-negative"),
     quantity: z.number().int().positive("Quantity must be at least 1"),
     descriptionOverride: z.string().max(2000).optional(),
+    sortOrder: z.number().int().nonnegative().optional(),
   })).min(1, "At least one service is required"),
   createdById: z.string().min(1, "Creator ID is required"),
   // When provided, must contain at least one advisor. Omit the field entirely to fall back
@@ -309,6 +310,7 @@ export const editQuotationSchema = z.object({
     price: z.number().nonnegative("Price must be non-negative"),
     quantity: z.number().int().positive("Quantity must be at least 1"),
     descriptionOverride: z.string().max(2000).optional(),
+    sortOrder: z.number().int().nonnegative().optional(),
   })).optional(),
   duration: z.number().int().nonnegative().optional(),
   startDate: z.string().optional(),

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { ClientInformationCard } from "@/components/client-information-card"
 import {
 	Card,
@@ -37,7 +37,7 @@ import CreateReceiptForm from "../../receipts/components/CreateReceiptForm"
 import { getReceiptsForInvoice, updateReceiptAdmin, invalidateReceiptsCache } from "../../receipts/action"
 import { updateInvoiceAdmin, invalidateInvoicesCache, reactivateInvoiceWithReceipts } from "../action"
 import { formatNumber } from "@/lib/format-number"
-import { FormattedDescription } from "@/components/FormattedDescription"
+import { DocumentServiceList, DocumentServiceRow } from "@/components/document-service-list"
 import {
 	Dialog,
 	DialogContent,
@@ -95,6 +95,28 @@ export default function InvoiceDetailClient({
 	const [editInvoiceDate, setEditInvoiceDate] = useState("")
 	const [isSavingDate, setIsSavingDate] = useState(false)
 	const isQuotationCancelled = invoice.quotation?.workflowStatus === "cancelled"
+
+	const standardServices = (invoice.quotation?.services ?? []).filter((qs) => !qs.customServiceId)
+	const approvedCustomServices = (invoice.quotation?.customServices ?? []).filter(
+		(cs) => cs.status === "APPROVED",
+	)
+	const hasQuotationServices =
+		standardServices.length > 0 || approvedCustomServices.length > 0
+
+	const invoiceServiceItems = useMemo(
+		() =>
+			standardServices.map((qs) => ({
+				id: String(qs.id),
+				lineId: qs.id,
+				name: qs.service?.name ?? "",
+				description: qs.descriptionOverride ?? qs.service?.description ?? "",
+				price: qs.price,
+				quantity: qs.quantity,
+			})),
+		[standardServices],
+	)
+	const invoiceServicesKey = invoiceServiceItems.map((s) => s.lineId).join(",")
+	const [expandedCustomIds, setExpandedCustomIds] = useState<Set<string>>(new Set())
 
 	const getTypeBadge = (type: string) => {
 		const colors: Record<string, string> = {
@@ -374,7 +396,7 @@ export default function InvoiceDetailClient({
 					</Card>
 
 					{/* Services from Quotation */}
-					{invoice.quotation?.services && invoice.quotation.services.length > 0 && (
+					{hasQuotationServices && (
 						<Card>
 							<CardHeader>
 								<CardTitle className="flex items-center gap-2">
@@ -386,46 +408,41 @@ export default function InvoiceDetailClient({
 								</CardDescription>
 							</CardHeader>
 							<CardContent>
-								<div className="space-y-3">
-									{invoice.quotation.services
-										.filter((qs) => !qs.customServiceId)
-										.map((qs) => (
-											<div
-												key={qs.id}
-												className="flex justify-between items-start p-3 border rounded-lg"
-											>
-												<div className="flex-1">
-													<p className="font-medium">{qs.service?.name ?? ""}</p>
-													<FormattedDescription
-														text={qs.service?.description ?? ""}
-														className="text-sm text-muted-foreground"
-													/>
-												</div>
-												<Badge variant="outline" className="ml-4">
-													RM{formatNumber(qs.service?.basePrice ?? 0)}
-												</Badge>
+								{invoiceServiceItems.length > 0 && (
+									<DocumentServiceList
+										items={invoiceServiceItems}
+										itemsKey={invoiceServicesKey}
+										priceDisplay="line"
+									/>
+								)}
+								{approvedCustomServices.length > 0 && (
+									<div className={`space-y-3 ${invoiceServiceItems.length > 0 ? "mt-3" : ""}`}>
+										{approvedCustomServices.map((cs) => (
+											<div key={cs.id} className="rounded-lg bg-primary/10">
+												<DocumentServiceRow
+													item={{
+														id: cs.id,
+														lineId: 0,
+														name: cs.name,
+														description: cs.description ?? "",
+														price: cs.price,
+														quantity: 1,
+													}}
+													expanded={expandedCustomIds.has(cs.id)}
+													onToggleExpanded={() =>
+														setExpandedCustomIds((prev) => {
+															const next = new Set(prev)
+															if (next.has(cs.id)) next.delete(cs.id)
+															else next.add(cs.id)
+															return next
+														})
+													}
+													priceDisplay="unit"
+												/>
 											</div>
 										))}
-									{invoice.quotation.customServices && invoice.quotation.customServices
-										.filter((cs) => cs.status === "APPROVED")
-										.map((cs) => (
-											<div
-												key={cs.id}
-												className="flex justify-between items-start p-3 border rounded-lg bg-blue-50"
-											>
-												<div className="flex-1">
-													<p className="font-medium">{cs.name}</p>
-													<FormattedDescription
-														text={cs.description}
-														className="text-sm text-muted-foreground"
-													/>
-												</div>
-												<Badge variant="outline" className="ml-4">
-													RM{formatNumber(cs.price)}
-												</Badge>
-											</div>
-										))}
-								</div>
+									</div>
+								)}
 							</CardContent>
 						</Card>
 					)}

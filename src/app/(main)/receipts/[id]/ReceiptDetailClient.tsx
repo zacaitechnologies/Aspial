@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { ClientInformationCard } from "@/components/client-information-card"
 import {
 	Card,
@@ -45,9 +45,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatLocalDate, formatMYTDateForDisplay } from "@/lib/date-utils"
 import { formatNumber } from "@/lib/format-number"
-import { FormattedDescription } from "@/components/FormattedDescription"
 import { PAYMENT_METHOD_LABELS, PaymentMethodType } from "../types"
-import { updateReceiptAdmin, invalidateReceiptsCache } from "../action"
+import {
+	updateReceiptAdmin,
+	invalidateReceiptsCache,
+	deleteReceiptServiceAdmin,
+	reorderReceiptServices,
+} from "../action"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { DocumentServiceList, DocumentServiceRow } from "@/components/document-service-list"
+import { useSession } from "../../contexts/SessionProvider"
 
 interface ReceiptDetailClientProps {
 	receipt: NonNullable<Awaited<ReturnType<typeof import("../action").getReceiptFullById>>>
@@ -61,6 +68,7 @@ export default function ReceiptDetailClient({
 	remainingAmount,
 }: ReceiptDetailClientProps) {
 	const router = useRouter()
+	const { enhancedUser } = useSession()
 	const [isSendReceiptDialogOpen, setIsSendReceiptDialogOpen] = useState(false)
 	const [isEmailHistoryDialogOpen, setIsEmailHistoryDialogOpen] = useState(false)
 	const [isExportingPDF, setIsExportingPDF] = useState(false)
@@ -68,7 +76,59 @@ export default function ReceiptDetailClient({
 	const [isEditDateDialogOpen, setIsEditDateDialogOpen] = useState(false)
 	const [editReceiptDate, setEditReceiptDate] = useState("")
 	const [isSavingDate, setIsSavingDate] = useState(false)
+	const [pendingRemove, setPendingRemove] = useState<{
+		receiptServiceId: number
+		name: string
+	} | null>(null)
+	const [isRemoving, setIsRemoving] = useState(false)
+	const [expandedQuotationCustomIds, setExpandedQuotationCustomIds] = useState<Set<string>>(
+		new Set(),
+	)
 	const isInvoiceCancelled = receipt.invoice?.status === "cancelled"
+
+	const standaloneServiceItems = useMemo(
+		() =>
+			(receipt.services ?? []).map((svc) => ({
+				id: String(svc.id),
+				lineId: svc.id,
+				name: svc.service.name,
+				description: svc.descriptionOverride,
+				price: svc.price,
+				quantity: svc.quantity,
+			})),
+		[receipt.services],
+	)
+	const standaloneServicesKey = standaloneServiceItems.map((s) => s.lineId).join(",")
+	const standaloneServiceCount = standaloneServiceItems.length
+	const isReceiptAdvisor = receipt.advisors?.some((a) => a.id === enhancedUser?.profile?.id)
+	const canReorderStandaloneServices =
+		!receipt.invoice &&
+		standaloneServiceCount > 1 &&
+		(isAdmin || Boolean(isReceiptAdvisor))
+
+	const quotationServiceItems = useMemo(() => {
+		const services = receipt.invoice?.quotation?.services ?? []
+		return services
+			.filter((qs) => !qs.customServiceId)
+			.map((qs) => {
+				const line = qs as {
+					id: number
+					price?: number
+					quantity?: number
+					descriptionOverride?: string | null
+					service?: { name?: string; description?: string; basePrice?: number }
+				}
+				return {
+					id: String(line.id),
+					lineId: line.id,
+					name: line.service?.name ?? "",
+					description: line.descriptionOverride ?? line.service?.description ?? "",
+					price: line.price ?? line.service?.basePrice ?? 0,
+					quantity: line.quantity ?? 1,
+				}
+			})
+	}, [receipt.invoice?.quotation?.services])
+	const quotationServicesKey = quotationServiceItems.map((s) => s.lineId).join(",")
 
 	const getTypeBadge = (type: string) => {
 		const colors: Record<string, string> = {
@@ -314,46 +374,44 @@ export default function ReceiptDetailClient({
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<div className="space-y-3">
-								{receipt.invoice.quotation.services
-									.filter((qs) => !qs.customServiceId)
-									.map((qs) => (
-										<div
-											key={qs.id}
-											className="flex justify-between items-start p-3 border rounded-lg"
-										>
-											<div className="flex-1">
-												<p className="font-medium">{qs.service?.name ?? ""}</p>
-												<FormattedDescription
-													text={qs.service?.description ?? ""}
-													className="text-sm text-muted-foreground"
-												/>
-											</div>
-											<Badge variant="outline" className="ml-4">
-												RM{formatNumber(qs.service?.basePrice ?? 0)}
-											</Badge>
-										</div>
-									))}
-								{receipt.invoice.quotation.customServices && receipt.invoice.quotation.customServices
+							<DocumentServiceList
+								items={quotationServiceItems}
+								itemsKey={quotationServicesKey}
+								priceDisplay="line"
+							/>
+							{receipt.invoice.quotation.customServices &&
+								receipt.invoice.quotation.customServices
 									.filter((cs) => cs.status === "APPROVED")
-									.map((cs) => (
-										<div
-											key={cs.id}
-											className="flex justify-between items-start p-3 border rounded-lg bg-blue-50"
-										>
-											<div className="flex-1">
-												<p className="font-medium">{cs.name}</p>
-												<FormattedDescription
-													text={cs.description}
-													className="text-sm text-muted-foreground"
+									.length > 0 && (
+									<div className="space-y-3 mt-3">
+										{receipt.invoice.quotation.customServices
+											.filter((cs) => cs.status === "APPROVED")
+											.map((cs) => (
+												<DocumentServiceRow
+													key={cs.id}
+													item={{
+														id: cs.id,
+														lineId: 0,
+														name: cs.name,
+														description: cs.description ?? "",
+														price: cs.price,
+														quantity: 1,
+													}}
+													expanded={expandedQuotationCustomIds.has(cs.id)}
+													onToggleExpanded={() =>
+														setExpandedQuotationCustomIds((prev) => {
+															const next = new Set(prev)
+															if (next.has(cs.id)) next.delete(cs.id)
+															else next.add(cs.id)
+															return next
+														})
+													}
+													priceDisplay="unit"
+													rowClassName="bg-muted/30"
 												/>
-											</div>
-											<Badge variant="outline" className="ml-4">
-												RM{formatNumber(cs.price)}
-											</Badge>
-										</div>
-									))}
-							</div>
+											))}
+									</div>
+								)}
 						</CardContent>
 					</Card>
 				)}
@@ -366,36 +424,23 @@ export default function ReceiptDetailClient({
 								<Package className="w-5 h-5" />
 								Services
 							</CardTitle>
-							<CardDescription>Informational line items on this receipt</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<div className="overflow-x-auto">
-								<table className="w-full text-sm">
-									<thead>
-										<tr className="border-b text-muted-foreground">
-											<th className="text-left py-2 pr-4 font-medium">Description</th>
-											<th className="text-right py-2 px-2 font-medium">Qty</th>
-											<th className="text-right py-2 px-2 font-medium">Price (RM)</th>
-											<th className="text-right py-2 pl-2 font-medium">Total (RM)</th>
-										</tr>
-									</thead>
-									<tbody>
-										{receipt.services.map((svc) => (
-											<tr key={svc.id} className="border-b last:border-0">
-												<td className="py-2 pr-4">
-													<p className="font-medium">{svc.service.name}</p>
-													{svc.descriptionOverride && svc.descriptionOverride !== svc.service.name && (
-														<p className="text-muted-foreground mt-0.5 whitespace-pre-wrap">{svc.descriptionOverride}</p>
-													)}
-												</td>
-												<td className="text-right py-2 px-2">{svc.quantity}</td>
-												<td className="text-right py-2 px-2">{formatNumber(svc.price)}</td>
-												<td className="text-right py-2 pl-2 font-medium">{formatNumber(svc.price * svc.quantity)}</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
+							<DocumentServiceList
+								items={standaloneServiceItems}
+								itemsKey={standaloneServicesKey}
+								canReorder={canReorderStandaloneServices}
+								onReorder={async (orderedLineIds) => {
+									await reorderReceiptServices(receipt.id, orderedLineIds)
+									await handleRefresh()
+								}}
+								canDelete={isAdmin}
+								onDelete={(receiptServiceId, name) =>
+									setPendingRemove({ receiptServiceId, name })
+								}
+								isDeleting={isRemoving}
+								priceDisplay="line"
+							/>
 						</CardContent>
 					</Card>
 				)}
@@ -616,6 +661,57 @@ export default function ReceiptDetailClient({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			<ConfirmationDialog
+				isOpen={pendingRemove !== null}
+				onClose={() => {
+					if (!isRemoving) setPendingRemove(null)
+				}}
+				onConfirm={async () => {
+					if (!pendingRemove) return
+					if (!isAdmin) {
+						toast({
+							title: "Not allowed",
+							description: "Only admins can remove services from a receipt.",
+							variant: "destructive",
+						})
+						setPendingRemove(null)
+						return
+					}
+					setIsRemoving(true)
+					try {
+						await deleteReceiptServiceAdmin(pendingRemove.receiptServiceId)
+						toast({ title: "Removed", description: "Service removed from receipt." })
+						setPendingRemove(null)
+						await handleRefresh()
+					} catch (error: unknown) {
+						if (process.env.NODE_ENV === "development") {
+							console.error("Error removing receipt service:", error)
+						}
+						toast({
+							title: "Error",
+							description: error instanceof Error ? error.message : "Failed to remove service.",
+							variant: "destructive",
+						})
+					} finally {
+						setIsRemoving(false)
+					}
+				}}
+				title="Remove Service"
+				description={
+					<>
+						Remove <strong>{pendingRemove?.name}</strong> from this receipt?
+						<br />
+						<span className="text-amber-700">
+							The receipt amount will <strong>not</strong> be updated automatically.
+						</span>
+					</>
+				}
+				confirmText="Remove"
+				cancelText="Cancel"
+				variant="warning"
+				isLoading={isRemoving}
+			/>
 		</div>
 	)
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +17,12 @@ import {
 } from "@/components/ui/select"
 import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors"
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react"
+import {
+  SortableServiceList,
+  SortableServiceItem,
+  DragHandle,
+  useSortableList,
+} from "@/components/ui/sortable-service-list"
 import { toast } from "@/components/ui/use-toast"
 import { formatNumber } from "@/lib/format-number"
 import {
@@ -130,6 +136,11 @@ export default function DeliveryOrderForm({
   }, [initial])
 
   const [items, setItems] = useState<ServiceFormItem[]>(initialItems)
+  const handleItemDragEnd = useSortableList(
+    items,
+    useCallback((next: ServiceFormItem[]) => setItems(next), []),
+    (i) => String(i.serviceId),
+  )
   const [serviceSearch, setServiceSearch] = useState("")
   const [expandAllDescriptions, setExpandAllDescriptions] = useState(false)
 
@@ -354,117 +365,130 @@ export default function DeliveryOrderForm({
           <div className="space-y-2">
             <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
               <span className="col-span-1"></span>
-              <span className="col-span-4">Service</span>
+              <span className="col-span-1"></span>
+              <span className="col-span-3">Service</span>
               <span className="col-span-2">Price (RM)</span>
               <span className="col-span-2">Qty</span>
               <span className="col-span-2 text-right">Total</span>
               <span className="col-span-1"></span>
             </div>
-            {items.map((it) => (
-              <div key={it.serviceId} className="border rounded-lg overflow-hidden">
-                <div className="grid grid-cols-12 gap-2 items-center p-2">
-                  <div className="col-span-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        updateItem(it.serviceId, { expanded: !it.expanded })
-                      }
-                      className="h-8 w-8 p-0"
-                      aria-label={it.expanded ? "Collapse description" : "Expand description"}
-                    >
-                      {it.expanded ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
+            <SortableServiceList
+              ids={items.map((i) => String(i.serviceId))}
+              onDragEnd={handleItemDragEnd}
+            >
+              {items.map((it) => (
+                <SortableServiceItem key={it.serviceId} id={String(it.serviceId)}>
+                  {(dragHandleProps) => (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="grid grid-cols-12 gap-2 items-center p-2">
+                        <div className="col-span-1 flex justify-center">
+                          <DragHandle {...dragHandleProps} />
+                        </div>
+                        <div className="col-span-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              updateItem(it.serviceId, { expanded: !it.expanded })
+                            }
+                            className="h-8 w-8 p-0"
+                            aria-label={it.expanded ? "Collapse description" : "Expand description"}
+                          >
+                            {it.expanded ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <div className="col-span-3">
+                          <p className="font-medium text-sm truncate">{it.name}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={it.price}
+                            onChange={(e) =>
+                              updateItem(it.serviceId, { price: parseFloat(e.target.value) || 0 })
+                            }
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={it.quantity}
+                            onChange={(e) =>
+                              updateItem(it.serviceId, {
+                                quantity: parseInt(e.target.value) || 1,
+                              })
+                            }
+                            onWheel={(e) => e.currentTarget.blur()}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="col-span-2 text-right text-sm font-medium">
+                          RM{formatNumber(it.price * it.quantity)}
+                        </div>
+                        <div className="col-span-1 flex justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeService(it.serviceId)}
+                            className="h-8 w-8 p-0 text-destructive"
+                            aria-label="Remove service"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {it.expanded && (
+                        <div className="border-t bg-muted/40 p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-xs">
+                              Description (this DO only — won&apos;t change the catalog)
+                            </Label>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="link"
+                              className="h-auto p-0 text-xs"
+                              onClick={() =>
+                                updateItem(it.serviceId, {
+                                  descriptionOverride: it.baseDescription,
+                                })
+                              }
+                            >
+                              Reset to default
+                            </Button>
+                          </div>
+                          <Textarea
+                            value={it.descriptionOverride}
+                            onChange={(e) =>
+                              updateItem(it.serviceId, { descriptionOverride: e.target.value })
+                            }
+                            rows={4}
+                            className="text-sm"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Use new lines and dashes (e.g.{" "}
+                            <code className="font-mono">- STUDIO SHOOTING</code>) to format the bullet
+                            list shown on the PDF.
+                          </p>
+                        </div>
                       )}
-                    </Button>
-                  </div>
-                  <div className="col-span-4">
-                    <p className="font-medium text-sm">{it.name}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={it.price}
-                      onChange={(e) =>
-                        updateItem(it.serviceId, { price: parseFloat(e.target.value) || 0 })
-                      }
-                      onWheel={(e) => e.currentTarget.blur()}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={it.quantity}
-                      onChange={(e) =>
-                        updateItem(it.serviceId, {
-                          quantity: parseInt(e.target.value) || 1,
-                        })
-                      }
-                      onWheel={(e) => e.currentTarget.blur()}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="col-span-2 text-right text-sm font-medium">
-                    RM{formatNumber(it.price * it.quantity)}
-                  </div>
-                  <div className="col-span-1 flex justify-end">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => removeService(it.serviceId)}
-                      className="h-8 w-8 p-0 text-destructive"
-                      aria-label="Remove service"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                {it.expanded && (
-                  <div className="border-t bg-muted/40 p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-xs">
-                        Description (this DO only — won&apos;t change the catalog)
-                      </Label>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="link"
-                        className="h-auto p-0 text-xs"
-                        onClick={() =>
-                          updateItem(it.serviceId, {
-                            descriptionOverride: it.baseDescription,
-                          })
-                        }
-                      >
-                        Reset to default
-                      </Button>
                     </div>
-                    <Textarea
-                      value={it.descriptionOverride}
-                      onChange={(e) =>
-                        updateItem(it.serviceId, { descriptionOverride: e.target.value })
-                      }
-                      rows={4}
-                      className="text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Use new lines and dashes (e.g.{" "}
-                      <code className="font-mono">- STUDIO SHOOTING</code>) to format the bullet
-                      list shown on the PDF.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ))}
+                  )}
+                </SortableServiceItem>
+              ))}
+            </SortableServiceList>
           </div>
         )}
       </div>

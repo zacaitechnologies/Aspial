@@ -43,9 +43,10 @@ import {
 	reactivateQuotationCascade,
 	deleteCustomServiceAdmin,
 	deleteQuotationServiceAdmin,
+	reorderQuotationServices,
 } from "../action"
 import { formatNumber } from "@/lib/format-number"
-import { FormattedDescription } from "@/components/FormattedDescription"
+import { DocumentServiceList, DocumentServiceRow } from "@/components/document-service-list"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
@@ -85,6 +86,7 @@ export default function QuotationDetailClient({
 	const [pendingRemove, setPendingRemove] = useState<PendingRemove | null>(null)
 	const [isRemoving, setIsRemoving] = useState(false)
 	const [canDeleteServices, setCanDeleteServices] = useState(false)
+	const [expandedCustomIds, setExpandedCustomIds] = useState<Set<string>>(new Set())
 
 	useEffect(() => {
 		if (!enhancedUser?.id) {
@@ -99,6 +101,29 @@ export default function QuotationDetailClient({
 	const standardServices = (quotation.services ?? []).filter((qs) => !qs.customServiceId)
 	const customServices = quotation.customServices ?? []
 	const itemCount = standardServices.length + customServices.length
+
+	const canReorderServices = useMemo(() => {
+		if (quotation.workflowStatus === "cancelled") return false
+		if (standardServices.length <= 1) return false
+		if (isAdmin) return true
+		const isAdvisor = quotation.advisors?.some((a) => a.id === enhancedUser?.profile?.id)
+		return Boolean(isAdvisor)
+	}, [isAdmin, enhancedUser, quotation, standardServices.length])
+
+	const standardServiceItems = useMemo(
+		() =>
+			standardServices.map((qs) => ({
+				id: String(qs.id),
+				lineId: qs.id,
+				name: qs.service?.name ?? "",
+				description: qs.descriptionOverride ?? qs.service?.description ?? "",
+				price: qs.price,
+				quantity: qs.quantity,
+			})),
+		[standardServices],
+	)
+
+	const standardServicesKey = standardServices.map((s) => s.id).join(",")
 
 	// Memoize badge functions
 	const getWorkflowStatusBadge = useCallback((status: string) => {
@@ -307,81 +332,66 @@ export default function QuotationDetailClient({
 								)}
 							</CardHeader>
 							<CardContent>
-								<div className="space-y-3">
-									{standardServices.map((qs) => (
-										<div
-											key={qs.id}
-											className="flex justify-between items-start p-3 border rounded-lg"
-										>
-											<div className="flex-1">
-												<p className="font-medium">{qs.service?.name ?? ""}</p>
-												<FormattedDescription
-													text={qs.descriptionOverride ?? qs.service?.description ?? ""}
-													className="text-sm text-muted-foreground"
-												/>
-											</div>
-											<div className="ml-4 text-right">
-												<div className="text-xs text-muted-foreground">RM{formatNumber(qs.price)} × {qs.quantity}</div>
-												<Badge variant="outline">RM{formatNumber(qs.price * qs.quantity)}</Badge>
-											</div>
-											{canDeleteServices && (
-												<Button
-													variant="ghost"
-													size="sm"
-													className="ml-2 h-8 w-8 p-0 text-destructive"
-													aria-label="Remove service"
-													disabled={isRemoving}
-													onClick={() => {
-														if (itemCount <= 1) {
-															toast({
-																title: "Cannot remove",
-																description: "A quotation must have at least one service.",
-																variant: "destructive",
-															})
-															return
-														}
-														setPendingRemove({
-															kind: "service",
-															quotationServiceId: qs.id,
-															name: qs.service?.name ?? "this service",
-														})
+								<DocumentServiceList
+									items={standardServiceItems}
+									itemsKey={standardServicesKey}
+									canReorder={canReorderServices}
+									onReorder={async (orderedLineIds) => {
+										await reorderQuotationServices(
+											String(quotation.id),
+											orderedLineIds,
+										)
+										await handleRefresh()
+									}}
+									canDelete={canDeleteServices}
+									onDelete={(quotationServiceId, name) => {
+										if (itemCount <= 1) {
+											toast({
+												title: "Cannot remove",
+												description: "A quotation must have at least one service.",
+												variant: "destructive",
+											})
+											return
+										}
+										setPendingRemove({ kind: "service", quotationServiceId, name })
+									}}
+									isDeleting={isRemoving}
+									priceDisplay="line"
+								/>
+								{customServices.length > 0 && (
+									<div className="space-y-3 mt-3">
+										{customServices.map((cs) => (
+											<div
+												key={cs.id}
+												className={`rounded-lg ${
+													cs.status === "APPROVED"
+														? "bg-primary/10"
+														: cs.status === "REJECTED"
+															? "bg-muted/50"
+															: "bg-muted/30"
+												}`}
+											>
+												<DocumentServiceRow
+													item={{
+														id: cs.id,
+														lineId: 0,
+														name: cs.name,
+														description: cs.description ?? "",
+														price: cs.price,
+														quantity: 1,
 													}}
-												>×</Button>
-											)}
-										</div>
-									))}
-									{customServices.map((cs) => (
-										<div
-											key={cs.id}
-											className={`flex justify-between items-start p-3 border rounded-lg ${
-												cs.status === "APPROVED"
-													? "bg-primary/10"
-													: cs.status === "REJECTED"
-														? "bg-muted/50"
-														: "bg-muted/30"
-											}`}
-										>
-											<div className="flex-1">
-												<p className="font-medium">{cs.name}</p>
-												<FormattedDescription
-													text={cs.description}
-													className="text-sm text-muted-foreground"
-												/>
-												<div className="mt-1">
-													{getCustomServiceStatusBadge(cs.status)}
-												</div>
-											</div>
-											<Badge variant="outline" className="ml-4">
-												RM{formatNumber(cs.price)}
-											</Badge>
-											{canDeleteServices && (
-												<Button
-													variant="ghost"
-													size="sm"
-													className="ml-2 h-8 w-8 p-0 text-destructive"
-													aria-label="Remove custom service"
-													disabled={isRemoving}
-													onClick={() => {
+													expanded={expandedCustomIds.has(cs.id)}
+													onToggleExpanded={() =>
+														setExpandedCustomIds((prev) => {
+															const next = new Set(prev)
+															if (next.has(cs.id)) next.delete(cs.id)
+															else next.add(cs.id)
+															return next
+														})
+													}
+													priceDisplay="unit"
+													canDelete={canDeleteServices}
+													onDelete={() => {
 														if (itemCount <= 1) {
 															toast({
 																title: "Cannot remove",
@@ -392,11 +402,13 @@ export default function QuotationDetailClient({
 														}
 														setPendingRemove({ kind: "customService", id: cs.id, name: cs.name })
 													}}
-												>×</Button>
-											)}
-										</div>
-									))}
-								</div>
+													isDeleting={isRemoving}
+												/>
+												<div className="px-3 pb-3">{getCustomServiceStatusBadge(cs.status)}</div>
+											</div>
+										))}
+									</div>
+								)}
 							</CardContent>
 						</Card>
 					)}

@@ -22,9 +22,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors";
+import {
+  SortableServiceList,
+  SortableServiceItem,
+  DragHandle,
+  useSortableList,
+} from "@/components/ui/sortable-service-list";
 import { Briefcase, ChevronDown, ChevronRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createQuotation, getAllUsers } from "../action";
 import { getAllServices } from "../../services/action";
@@ -90,6 +96,19 @@ export default function CreateQuotationForm({
   };
   const [selectedServices, setSelectedServices] = useState<SelectedService[]>([]);
   const [totalPrice, setTotalPrice] = useState(0);
+
+  const setSelectedServicesAndRecalc = useCallback(
+    (next: SelectedService[]) => {
+      setSelectedServices(next);
+      setTotalPrice(next.reduce((sum, s) => sum + s.price * s.quantity, 0));
+    },
+    [],
+  );
+  const handleServiceDragEnd = useSortableList(
+    selectedServices,
+    setSelectedServicesAndRecalc,
+    (s) => s.serviceId,
+  );
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [expandAllDescriptions, setExpandAllDescriptions] = useState(false);
   const [clientMode, setClientMode] = useState<"existing" | "new">("existing");
@@ -450,11 +469,12 @@ export default function CreateQuotationForm({
       await createQuotation({
         description: quotationForm.description,
         totalPrice: discountedTotal,
-        services: selectedServices.map((s) => ({
+        services: selectedServices.map((s, idx) => ({
           serviceId: s.serviceId,
           price: s.price,
           quantity: s.quantity,
           descriptionOverride: s.description,
+          sortOrder: idx,
         })),
         createdById: enhancedUser.id, // Always the logged-in user's supabase_id
         advisorIds: selectedAdvisorIds,
@@ -742,92 +762,105 @@ export default function CreateQuotationForm({
                 <div className="space-y-2">
                   <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
                     <span className="col-span-1"></span>
-                    <span className="col-span-3">Service</span>
+                    <span className="col-span-1"></span>
+                    <span className="col-span-2">Service</span>
                     <span className="col-span-3">Price (RM)</span>
                     <span className="col-span-2">Qty</span>
                     <span className="col-span-2 text-right">Total</span>
                     <span className="col-span-1"></span>
                   </div>
-                  {selectedServices.map((s) => (
-                    <div key={s.serviceId} className="border rounded-lg overflow-hidden">
-                      <div className="grid grid-cols-12 gap-2 items-center p-2">
-                        <div className="col-span-1">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              const updated = selectedServices.map((svc) =>
-                                svc.serviceId === s.serviceId ? { ...svc, expanded: !svc.expanded } : svc
-                              );
-                              setSelectedServices(updated);
-                            }}
-                            className="h-8 w-8 p-0"
-                            aria-label={s.expanded ? "Hide description" : "Show description"}
-                          >
-                            {s.expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                          </Button>
-                        </div>
-                        <div className="col-span-3">
-                          <p className="font-medium text-sm">{s.name}</p>
-                        </div>
-                        <div className="col-span-3">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={s.price}
-                            onChange={(e) => handleServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => e.currentTarget.blur()}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <Input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={s.quantity}
-                            onChange={(e) => handleServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
-                            onWheel={(e) => e.currentTarget.blur()}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div className="col-span-2 text-right text-sm font-medium">
-                          RM{formatNumber(s.price * s.quantity)}
-                        </div>
-                        <div className="col-span-1 flex justify-end">
-                          <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
-                        </div>
-                      </div>
-                      {s.expanded && (
-                        <div className="border-t bg-muted/40 p-3 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label className="text-xs">
-                              Description (this quotation only — won&apos;t change the catalog)
-                            </Label>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="link"
-                              className="h-auto p-0 text-xs"
-                              onClick={() => handleResetServiceDescription(s.serviceId)}
-                            >
-                              Reset to default
-                            </Button>
+                  <SortableServiceList
+                    ids={selectedServices.map((s) => s.serviceId)}
+                    onDragEnd={handleServiceDragEnd}
+                  >
+                    {selectedServices.map((s) => (
+                      <SortableServiceItem key={s.serviceId} id={s.serviceId}>
+                        {(dragHandleProps) => (
+                          <div className="border rounded-lg overflow-hidden">
+                            <div className="grid grid-cols-12 gap-2 items-center p-2">
+                              <div className="col-span-1 flex justify-center">
+                                <DragHandle {...dragHandleProps} />
+                              </div>
+                              <div className="col-span-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    const updated = selectedServices.map((svc) =>
+                                      svc.serviceId === s.serviceId ? { ...svc, expanded: !svc.expanded } : svc
+                                    );
+                                    setSelectedServices(updated);
+                                  }}
+                                  className="h-8 w-8 p-0"
+                                  aria-label={s.expanded ? "Hide description" : "Show description"}
+                                >
+                                  {s.expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                </Button>
+                              </div>
+                              <div className="col-span-2">
+                                <p className="font-medium text-sm truncate">{s.name}</p>
+                              </div>
+                              <div className="col-span-3">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={s.price}
+                                  onChange={(e) => handleServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
+                                  onWheel={(e) => e.currentTarget.blur()}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={s.quantity}
+                                  onChange={(e) => handleServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
+                                  onWheel={(e) => e.currentTarget.blur()}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="col-span-2 text-right text-sm font-medium">
+                                RM{formatNumber(s.price * s.quantity)}
+                              </div>
+                              <div className="col-span-1 flex justify-end">
+                                <Button type="button" size="sm" variant="ghost" onClick={() => handleRemoveService(s.serviceId)} className="h-8 w-8 p-0 text-destructive">×</Button>
+                              </div>
+                            </div>
+                            {s.expanded && (
+                              <div className="border-t bg-muted/40 p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <Label className="text-xs">
+                                    Description (this quotation only — won&apos;t change the catalog)
+                                  </Label>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="link"
+                                    className="h-auto p-0 text-xs"
+                                    onClick={() => handleResetServiceDescription(s.serviceId)}
+                                  >
+                                    Reset to default
+                                  </Button>
+                                </div>
+                                <Textarea
+                                  value={s.description}
+                                  onChange={(e) =>
+                                    handleServiceDescriptionChange(s.serviceId, e.target.value)
+                                  }
+                                  rows={4}
+                                  className="text-sm"
+                                />
+                              </div>
+                            )}
                           </div>
-                          <Textarea
-                            value={s.description}
-                            onChange={(e) =>
-                              handleServiceDescriptionChange(s.serviceId, e.target.value)
-                            }
-                            rows={4}
-                            className="text-sm"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </SortableServiceItem>
+                    ))}
+                  </SortableServiceList>
                 </div>
               )}
               {selectedServices.length === 0 && (

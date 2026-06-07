@@ -259,6 +259,7 @@ export async function getInvoiceById(id: string) {
 						include: {
 							service: true,
 						},
+						orderBy: { sortOrder: "asc" },
 					},
 					project: true,
 					createdBy: true,
@@ -334,6 +335,7 @@ export async function getInvoiceFullById(id: unknown) {
 						include: {
 							service: true,
 						},
+						orderBy: { sortOrder: "asc" },
 					},
 					project: true,
 					createdBy: true,

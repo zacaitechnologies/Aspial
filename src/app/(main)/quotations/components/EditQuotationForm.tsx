@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { editQuotationById, getCustomServicesByQuotationId, getAllUsers, getQuotationFullById, reactivateQuotationCascade, deleteCustomServiceAdmin } from "../action";
 import { getAllServices } from "../../services/action";
@@ -32,6 +32,12 @@ import ClientSelection from "./ClientSelection";
 import ProjectSelection from "./ProjectSelection";
 import CustomServiceDialog from "./CustomServiceDialog";
 import { MultiSelectAdvisors } from "@/components/ui/multi-select-advisors";
+import {
+  SortableServiceList,
+  SortableServiceItem,
+  DragHandle,
+  useSortableList,
+} from "@/components/ui/sortable-service-list";
 import { Briefcase, Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
@@ -89,6 +95,11 @@ export default function EditQuotationForm({
     expanded: boolean;
   };
   const [editSelectedServices, setEditSelectedServices] = useState<SelectedService[]>([]);
+  const handleEditServiceDragEnd = useSortableList(
+    editSelectedServices,
+    useCallback((next: SelectedService[]) => setEditSelectedServices(next), []),
+    (s) => s.serviceId,
+  );
   const [editServiceSearchQuery, setEditServiceSearchQuery] = useState("");
   const [editExpandAllDescriptions, setEditExpandAllDescriptions] = useState(false);
   const [isCustomServiceDialogOpen, setIsCustomServiceDialogOpen] = useState(false);
@@ -672,11 +683,12 @@ export default function EditQuotationForm({
         discountType: editForm.discountValue
           ? editForm.discountType
           : undefined,
-        services: editSelectedServices.map((s) => ({
+        services: editSelectedServices.map((s, idx) => ({
           serviceId: s.serviceId,
           price: s.price,
           quantity: s.quantity,
           descriptionOverride: s.description,
+          sortOrder: idx,
         })),
         duration: editForm.duration ? parseInt(editForm.duration) : undefined,
         startDate: editForm.startDate || undefined,
@@ -730,11 +742,12 @@ export default function EditQuotationForm({
           ? parseFloat(editForm.discountValue)
           : undefined,
         discountType: editForm.discountValue ? editForm.discountType : undefined,
-        services: editSelectedServices.map((s) => ({
+        services: editSelectedServices.map((s, idx) => ({
           serviceId: s.serviceId,
           price: s.price,
           quantity: s.quantity,
           descriptionOverride: s.description,
+          sortOrder: idx,
         })),
         duration: editForm.duration ? parseInt(editForm.duration, 10) : undefined,
         startDate: editForm.startDate || undefined,
@@ -1252,110 +1265,123 @@ export default function EditQuotationForm({
                 <div className="space-y-2">
                   <div className="grid grid-cols-12 gap-2 text-xs text-muted-foreground font-medium px-1">
                     <span className="col-span-1"></span>
-                    <span className="col-span-3">Service</span>
+                    <span className="col-span-1"></span>
+                    <span className="col-span-2">Service</span>
                     <span className="col-span-3">Price (RM)</span>
                     <span className="col-span-2">Qty</span>
                     <span className="col-span-2 text-right">Total</span>
                     <span className="col-span-1"></span>
                   </div>
-                  {editSelectedServices.map((s) => (
-                    <div key={s.serviceId} className="border rounded-lg overflow-hidden">
-                      <div className="grid grid-cols-12 gap-2 items-center p-2">
-                        <div className="col-span-1">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditServiceToggleExpanded(s.serviceId)}
-                            className="h-8 w-8 p-0"
-                            aria-label={s.expanded ? "Hide description" : "Show description"}
-                          >
-                            {s.expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                          </Button>
-                        </div>
-                        <div className="col-span-3">
-                          <p className="font-medium text-sm">{s.name}</p>
-                        </div>
-                        <div className="col-span-3">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={s.price}
-                            onChange={(e) => handleEditServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => e.currentTarget.blur()}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <Input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={s.quantity}
-                            onChange={(e) => handleEditServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
-                            onWheel={(e) => e.currentTarget.blur()}
-                            className="h-8 text-sm"
-                          />
-                        </div>
-                        <div className="col-span-2 text-right text-sm font-medium">
-                          RM{formatNumber(s.price * s.quantity)}
-                        </div>
-                        {isAdmin && (
-                        <div className="col-span-1 flex justify-end">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              if (editSelectedServices.length + customServices.length <= 1) {
-                                toast({
-                                  title: "Cannot remove",
-                                  description: "A quotation must have at least one service.",
-                                  variant: "destructive",
-                                });
-                                return;
-                              }
-                              if (hasLinkedInvoices) {
-                                setPendingRemove({ kind: "service", serviceId: s.serviceId, name: s.name });
-                              } else {
-                                handleRemoveEditService(s.serviceId);
-                              }
-                            }}
-                            className="h-8 w-8 p-0 text-destructive"
-                            aria-label="Remove service"
-                          >×</Button>
-                        </div>
-                        )}
-                      </div>
-                      {s.expanded && (
-                        <div className="border-t bg-muted/40 p-3 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label className="text-xs">
-                              Description (this quotation only — won&apos;t change the catalog)
-                            </Label>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="link"
-                              className="h-auto p-0 text-xs"
-                              onClick={() => handleResetEditServiceDescription(s.serviceId)}
-                            >
-                              Reset to default
-                            </Button>
+                  <SortableServiceList
+                    ids={editSelectedServices.map((s) => s.serviceId)}
+                    onDragEnd={handleEditServiceDragEnd}
+                  >
+                    {editSelectedServices.map((s) => (
+                      <SortableServiceItem key={s.serviceId} id={s.serviceId}>
+                        {(dragHandleProps) => (
+                          <div className="border rounded-lg overflow-hidden">
+                            <div className="grid grid-cols-12 gap-2 items-center p-2">
+                              <div className="col-span-1 flex justify-center">
+                                <DragHandle {...dragHandleProps} />
+                              </div>
+                              <div className="col-span-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEditServiceToggleExpanded(s.serviceId)}
+                                  className="h-8 w-8 p-0"
+                                  aria-label={s.expanded ? "Hide description" : "Show description"}
+                                >
+                                  {s.expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                </Button>
+                              </div>
+                              <div className="col-span-2">
+                                <p className="font-medium text-sm truncate">{s.name}</p>
+                              </div>
+                              <div className="col-span-3">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={s.price}
+                                  onChange={(e) => handleEditServicePriceChange(s.serviceId, parseFloat(e.target.value) || 0)}
+                                  onWheel={(e) => e.currentTarget.blur()}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={s.quantity}
+                                  onChange={(e) => handleEditServiceQuantityChange(s.serviceId, parseInt(e.target.value) || 1)}
+                                  onWheel={(e) => e.currentTarget.blur()}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                              <div className="col-span-2 text-right text-sm font-medium">
+                                RM{formatNumber(s.price * s.quantity)}
+                              </div>
+                              {isAdmin && (
+                              <div className="col-span-1 flex justify-end">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    if (editSelectedServices.length + customServices.length <= 1) {
+                                      toast({
+                                        title: "Cannot remove",
+                                        description: "A quotation must have at least one service.",
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
+                                    if (hasLinkedInvoices) {
+                                      setPendingRemove({ kind: "service", serviceId: s.serviceId, name: s.name });
+                                    } else {
+                                      handleRemoveEditService(s.serviceId);
+                                    }
+                                  }}
+                                  className="h-8 w-8 p-0 text-destructive"
+                                  aria-label="Remove service"
+                                >×</Button>
+                              </div>
+                              )}
+                            </div>
+                            {s.expanded && (
+                              <div className="border-t bg-muted/40 p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <Label className="text-xs">
+                                    Description (this quotation only — won&apos;t change the catalog)
+                                  </Label>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="link"
+                                    className="h-auto p-0 text-xs"
+                                    onClick={() => handleResetEditServiceDescription(s.serviceId)}
+                                  >
+                                    Reset to default
+                                  </Button>
+                                </div>
+                                <Textarea
+                                  value={s.description}
+                                  onChange={(e) =>
+                                    handleEditServiceDescriptionChange(s.serviceId, e.target.value)
+                                  }
+                                  rows={4}
+                                  className="text-sm"
+                                />
+                              </div>
+                            )}
                           </div>
-                          <Textarea
-                            value={s.description}
-                            onChange={(e) =>
-                              handleEditServiceDescriptionChange(s.serviceId, e.target.value)
-                            }
-                            rows={4}
-                            className="text-sm"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </SortableServiceItem>
+                    ))}
+                  </SortableServiceList>
                 </div>
               )}
               {editSelectedServices.length === 0 && (

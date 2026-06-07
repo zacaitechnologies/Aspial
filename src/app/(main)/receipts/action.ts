@@ -1243,6 +1243,123 @@ export async function updateReceiptAdmin(
 	return receipt
 }
 
+const receiptServiceIdSchema = z.number().int().positive()
+
+/**
+ * Admin: remove a single service line from a standalone receipt.
+ * Receipt amount is unchanged — line items are informational only.
+ */
+export async function deleteReceiptServiceAdmin(receiptServiceId: unknown) {
+	unstable_noStore()
+	const validatedId = receiptServiceIdSchema.parse(receiptServiceId)
+
+	const user = await getCachedUser()
+	if (!user) {
+		throw new Error("User must be authenticated to remove a service")
+	}
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	if (!isAdmin) {
+		throw new Error("Only admins can remove services from a receipt")
+	}
+
+	const row = await prisma.receiptService.findUnique({
+		where: { id: validatedId },
+		select: {
+			receiptId: true,
+			receipt: { select: { invoiceId: true } },
+		},
+	})
+
+	if (!row) {
+		throw new Error("Service line not found")
+	}
+
+	if (row.receipt.invoiceId) {
+		throw new Error("Cannot remove services from invoice-linked receipts")
+	}
+
+	await prisma.receiptService.delete({ where: { id: validatedId } })
+
+	revalidateTag("receipts", { expire: 0 })
+	revalidatePath("/receipts")
+	revalidatePath(`/receipts/${row.receiptId}`)
+
+	return { receiptId: row.receiptId }
+}
+
+const reorderReceiptServicesSchema = z.object({
+	receiptId: z.string().min(1),
+	orderedIds: z.array(z.number().int().positive()).min(1),
+})
+
+/** Reorder service lines on a standalone receipt (sortOrder only). Admin or receipt advisor. */
+export async function reorderReceiptServices(receiptId: unknown, orderedIds: unknown) {
+	unstable_noStore()
+	const validated = reorderReceiptServicesSchema.parse({ receiptId, orderedIds })
+
+	const user = await getCachedUser()
+	if (!user) {
+		throw new Error("User must be authenticated to reorder services")
+	}
+
+	const [receipt, dbUser, isAdmin] = await Promise.all([
+		prisma.receipt.findUnique({
+			where: { id: validated.receiptId },
+			select: {
+				invoiceId: true,
+				advisors: { select: { userId: true } },
+			},
+		}),
+		prisma.user.findUnique({
+			where: { supabase_id: user.id },
+			select: { id: true },
+		}),
+		getCachedIsUserAdmin(user.id),
+	])
+
+	if (!receipt || !dbUser) {
+		throw new Error("Receipt not found")
+	}
+	if (receipt.invoiceId) {
+		throw new Error("Cannot reorder services on invoice-linked receipts")
+	}
+
+	const isAdvisor = receipt.advisors.some((a) => a.userId === dbUser.id)
+	if (!isAdmin && !isAdvisor) {
+		throw new Error("Not authorized to reorder services on this receipt")
+	}
+
+	const existing = await prisma.receiptService.findMany({
+		where: { receiptId: validated.receiptId },
+		select: { id: true },
+	})
+
+	const existingIdSet = new Set(existing.map((e) => e.id))
+	if (validated.orderedIds.length !== existing.length) {
+		throw new Error("Invalid service order")
+	}
+	for (const id of validated.orderedIds) {
+		if (!existingIdSet.has(id)) {
+			throw new Error("Invalid service order")
+		}
+	}
+
+	await prisma.$transaction(
+		validated.orderedIds.map((id, idx) =>
+			prisma.receiptService.update({
+				where: { id },
+				data: { sortOrder: idx },
+			}),
+		),
+	)
+
+	revalidateTag("receipts", { expire: 0 })
+	revalidatePath("/receipts")
+	revalidatePath(`/receipts/${validated.receiptId}`)
+	return { success: true }
+}
+
 /**
  * Send receipt PDF via email
  */
