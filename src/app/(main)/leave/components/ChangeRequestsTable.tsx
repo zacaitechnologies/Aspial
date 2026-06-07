@@ -26,6 +26,12 @@ import { format } from "date-fns"
 import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { Check, X } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import {
+  leaveTableHeadClass,
+  leaveTableHeadRowClass,
+  leaveTableShellClass,
+} from "../leave-table-styles"
+import { cn } from "@/lib/utils"
 
 interface ChangeRequestsTableProps {
   requests: LeaveChangeRequestDTO[]
@@ -81,17 +87,19 @@ export default function ChangeRequestsTable({
 
   return (
     <>
-      <div className="rounded-md border">
+      <div className={leaveTableShellClass}>
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Employee</TableHead>
-              <TableHead>Leave</TableHead>
-              <TableHead>Request Type</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Date</TableHead>
-              {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+            <TableRow className={leaveTableHeadRowClass}>
+              <TableHead className={leaveTableHeadClass}>Employee</TableHead>
+              <TableHead className={leaveTableHeadClass}>Leave</TableHead>
+              <TableHead className={leaveTableHeadClass}>Request Type</TableHead>
+              <TableHead className={leaveTableHeadClass}>Reason</TableHead>
+              <TableHead className={leaveTableHeadClass}>Status</TableHead>
+              <TableHead className={leaveTableHeadClass}>Date</TableHead>
+              {isAdmin && (
+                <TableHead className={cn("text-right", leaveTableHeadClass)}>Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>

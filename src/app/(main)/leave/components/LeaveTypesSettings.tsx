@@ -26,6 +26,12 @@ import { Pencil, Plus, Lock, Power, RotateCcw } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { createLeaveType, updateLeaveType } from "../action"
 import type { LeaveTypeDTO } from "../types"
+import {
+  leaveTableHeadClass,
+  leaveTableHeadRowClass,
+  leaveTableShellClass,
+} from "../leave-table-styles"
+import { cn } from "@/lib/utils"
 
 type LeaveTypeRow = LeaveTypeDTO & { _count: { applications: number; balances: number } }
 
@@ -173,16 +179,16 @@ export default function LeaveTypesSettings({ types, onSuccess }: LeaveTypesSetti
           </Button>
         </div>
 
-        <div className="rounded-md border">
+        <div className={leaveTableShellClass}>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Default Days</TableHead>
-                <TableHead>Flags</TableHead>
-                <TableHead>Usage</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+              <TableRow className={leaveTableHeadRowClass}>
+                <TableHead className={leaveTableHeadClass}>Code</TableHead>
+                <TableHead className={leaveTableHeadClass}>Name</TableHead>
+                <TableHead className={leaveTableHeadClass}>Default Days</TableHead>
+                <TableHead className={leaveTableHeadClass}>Flags</TableHead>
+                <TableHead className={leaveTableHeadClass}>Usage</TableHead>
+                <TableHead className={cn("text-right", leaveTableHeadClass)}>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

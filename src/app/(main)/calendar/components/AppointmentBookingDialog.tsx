@@ -23,7 +23,8 @@ import {
 	Check,
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { getActiveBlockers } from "@/app/(main)/calendar/actions"
+import { getActiveBlockers, getAppointmentBookingDetails, updateAppointmentBooking } from "@/app/(main)/calendar/actions"
+import type { CalendarBooking } from "../actions"
 import {
 	createAppointmentBooking,
 	getBookingFormProjects,
@@ -60,6 +61,8 @@ interface AppointmentBookingDialogProps {
 	userId: string
 	userName: string
 	onSuccess: () => void
+	/** When set, the dialog opens in edit mode for this booking. */
+	editBooking?: CalendarBooking | null
 }
 
 interface BlockerSlot {
@@ -90,6 +93,23 @@ function addOneHour(time: string): string {
 	return `${String(nextHour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
 }
 
+function groupReminderRows(
+	rows: Array<{ offsetMinutes: number; recipientEmail: string }>
+): Array<{ offsetMinutes: number; recipientEmails: string[] }> {
+	const map = new Map<number, string[]>()
+	for (const row of rows) {
+		const email = row.recipientEmail.trim()
+		if (!email) continue
+		const list = map.get(row.offsetMinutes) ?? []
+		if (!list.includes(email)) list.push(email)
+		map.set(row.offsetMinutes, list)
+	}
+	return Array.from(map.entries()).map(([offsetMinutes, recipientEmails]) => ({
+		offsetMinutes,
+		recipientEmails,
+	}))
+}
+
 export function AppointmentBookingDialog({
 	isOpen,
 	onClose,
@@ -101,6 +121,7 @@ export function AppointmentBookingDialog({
 	userId,
 	userName,
 	onSuccess,
+	editBooking = null,
 }: AppointmentBookingDialogProps) {
 	const { toast } = useToast()
 	const [selectedAppointment, setSelectedAppointment] = useState<AvailableAppointment | null>(null)
@@ -130,6 +151,9 @@ export function AppointmentBookingDialog({
 		{ offsetMinutes: 1440, recipientEmails: [""] },
 	])
 	const [isSubmitting, setIsSubmitting] = useState(false)
+	const [isLoadingEdit, setIsLoadingEdit] = useState(false)
+	const [editBookingId, setEditBookingId] = useState<number | null>(null)
+	const [activeDateStr, setActiveDateStr] = useState(initialDate)
 	const [error, setError] = useState<string | null>(null)
 	const errorRef = useRef<HTMLDivElement>(null)
 
@@ -141,35 +165,133 @@ export function AppointmentBookingDialog({
 	const [showOverwriteDialog, setShowOverwriteDialog] = useState(false)
 	const [pendingProjectSelection, setPendingProjectSelection] = useState<string | null>(null)
 
-	// Reset state when dialog opens/closes
+	const appointmentsRef = useRef(appointments)
+	appointmentsRef.current = appointments
+
+	const isEditMode = editBookingId !== null
+
+	// Reset state only when opening in create mode
 	useEffect(() => {
-		if (isOpen) {
-			const start = initialTime || "09:00"
-			setStartTime(start)
-			setEndTime(initialEndTime || addOneHour(start))
-			setAppointmentCategory("INTERNAL")
-			setAppointmentSearch("")
-			setAppointmentPopoverOpen(false)
-			// Preselect the first appointment matching the requested type (from a column click)
-			const preselected = initialAppointmentType
-				? appointments.find((a) => a.appointmentType === initialAppointmentType) ?? null
-				: null
-			setSelectedAppointment(preselected)
-			setPurpose("")
-			setAttendees("")
-			setSelectedProject("none")
-			setProjectSearch("")
-			setProjectPopoverOpen(false)
-			setBookingName("")
-			setCompanyName("")
-			setContactNumber("")
-			setRemarks("")
-			setClientEmails([""])
-			setReminders([{ offsetMinutes: 1440, recipientEmails: [""] }])
-			setError(null)
-			setBlockers([])
+		if (!isOpen || editBooking) return
+
+		setEditBookingId(null)
+		setIsLoadingEdit(false)
+		setActiveDateStr(initialDate)
+		const start = initialTime || "09:00"
+		setStartTime(start)
+		setEndTime(initialEndTime || addOneHour(start))
+		setAppointmentCategory("INTERNAL")
+		setAppointmentSearch("")
+		setAppointmentPopoverOpen(false)
+		const preselected = initialAppointmentType
+			? appointmentsRef.current.find((a) => a.appointmentType === initialAppointmentType) ?? null
+			: null
+		setSelectedAppointment(preselected)
+		setPurpose("")
+		setAttendees("")
+		setSelectedProject("none")
+		setProjectSearch("")
+		setProjectPopoverOpen(false)
+		setBookingName("")
+		setCompanyName("")
+		setContactNumber("")
+		setRemarks("")
+		setClientEmails([""])
+		setReminders([{ offsetMinutes: 1440, recipientEmails: [""] }])
+		setError(null)
+		setBlockers([])
+		setShowResultDialog(false)
+		setEmailResult(null)
+	}, [isOpen, initialDate, initialTime, initialEndTime, initialAppointmentType, editBooking])
+
+	// Load existing booking when editing
+	useEffect(() => {
+		if (!isOpen || !editBooking) return
+
+		const idMatch = editBooking.id.match(/appointment-(\d+)/)
+		if (!idMatch) {
+			setError("Invalid booking reference")
+			setIsLoadingEdit(false)
+			return
 		}
-	}, [isOpen, initialTime, initialEndTime, initialAppointmentType, appointments])
+
+		const numericId = Number.parseInt(idMatch[1], 10)
+		setEditBookingId(numericId)
+		setIsLoadingEdit(true)
+		setError(null)
+
+		void (async () => {
+			const details = await getAppointmentBookingDetails(numericId)
+			if (!details) {
+				setError("Could not load booking details")
+				setIsLoadingEdit(false)
+				return
+			}
+
+			const start = new Date(details.startDate)
+			const end = new Date(details.endDate)
+			const startBiz = toBusinessTZParts(start)
+			const endBiz = toBusinessTZParts(end)
+
+			setActiveDateStr(startBiz.dateStr)
+			setStartTime(startBiz.timeStr)
+			setEndTime(endBiz.timeStr)
+			setAppointmentCategory(
+				details.appointmentCategory === "EXTERNAL" ? "EXTERNAL" : "INTERNAL"
+			)
+			setPurpose(details.purpose || "")
+			setAttendees(details.attendees ? String(details.attendees) : "")
+			setBookingName(details.bookingName || "")
+			setCompanyName(details.companyName || "")
+			setContactNumber(details.contactNumber || "")
+			setRemarks(details.remarks || "")
+			setSelectedProject(details.projectId ? String(details.projectId) : "none")
+
+			const emailSet = new Set<string>()
+			for (const row of details.bookingEmails) {
+				const email = row.recipientEmail.trim()
+				if (email) emailSet.add(email)
+			}
+			const projectEmail = details.project?.Client?.email?.trim()
+			if (projectEmail) emailSet.add(projectEmail)
+			setClientEmails(emailSet.size > 0 ? Array.from(emailSet) : [""])
+
+			const groupedReminders = groupReminderRows(details.reminders)
+			setReminders(
+				groupedReminders.length > 0
+					? groupedReminders
+					: [{ offsetMinutes: 1440, recipientEmails: emailSet.size > 0 ? Array.from(emailSet) : [""] }]
+			)
+
+			if (details.appointment) {
+				setSelectedAppointment({
+					id: details.appointment.id,
+					name: details.appointment.name,
+					location: details.appointment.location,
+					brand: details.appointment.brand,
+					description: null,
+					appointmentType: details.appointment.appointmentType,
+				})
+			} else {
+				setSelectedAppointment(null)
+			}
+
+			setIsLoadingEdit(false)
+		})()
+	}, [isOpen, editBooking])
+
+	// Keep reminder recipient lists in sync when client emails are filled manually
+	useEffect(() => {
+		const filled = clientEmails.filter((e) => e.trim())
+		if (filled.length === 0) return
+		setReminders((prev) =>
+			prev.map((r) =>
+				r.recipientEmails.some((e) => e.trim())
+					? r
+					: { ...r, recipientEmails: [...filled] }
+			)
+		)
+	}, [clientEmails])
 
 	// Fetch projects (admin: all; non-admin: involved only — enforced server-side)
 	useEffect(() => {
@@ -185,10 +307,10 @@ export function AppointmentBookingDialog({
 
 	// Fetch active blockers for the date so we can warn / prevent booking over them
 	useEffect(() => {
-		if (!isOpen || !initialDate || !initialDate.includes("-")) return
+		if (!isOpen || !activeDateStr || !activeDateStr.includes("-")) return
 		const fetchBlockers = async () => {
-			const dayStart = parseDateInBusinessTZ(`${initialDate}T00:00:00`)
-			const dayEnd = parseDateInBusinessTZ(`${initialDate}T23:59:59`)
+			const dayStart = parseDateInBusinessTZ(`${activeDateStr}T00:00:00`)
+			const dayEnd = parseDateInBusinessTZ(`${activeDateStr}T23:59:59`)
 			const blockersResult = await getActiveBlockers(dayStart, dayEnd)
 			setBlockers(
 				blockersResult.map((b) => ({
@@ -200,7 +322,7 @@ export function AppointmentBookingDialog({
 			)
 		}
 		void fetchBlockers()
-	}, [isOpen, initialDate])
+	}, [isOpen, activeDateStr])
 
 	// Scroll to error
 	useEffect(() => {
@@ -318,10 +440,10 @@ export function AppointmentBookingDialog({
 			return
 		}
 
-		const startDt = parseDateInBusinessTZ(`${initialDate}T${startTime}:00`)
-		const endDt = parseDateInBusinessTZ(`${initialDate}T${endTime}:00`)
+		const startDt = parseDateInBusinessTZ(`${activeDateStr}T${startTime}:00`)
+		const endDt = parseDateInBusinessTZ(`${activeDateStr}T${endTime}:00`)
 
-		if (startDt.getTime() < Date.now()) {
+		if (!isEditMode && startDt.getTime() < Date.now()) {
 			setError("Start time has already passed. Please choose a future time.")
 			return
 		}
@@ -340,15 +462,23 @@ export function AppointmentBookingDialog({
 			if (!contactNumber.trim()) { setError("Contact Number is required when no project is selected"); return }
 		}
 		const validEmails = clientEmails.filter((e) => e.trim())
-		if (validEmails.length === 0) {
+		if (!isEditMode && validEmails.length === 0) {
 			setError("At least one client email address is required")
 			return
 		}
-		if (reminders.length === 0) {
+		const remindersToSubmit = reminders.map((r) => ({
+			...r,
+			recipientEmails: r.recipientEmails.some((e) => e.trim())
+				? r.recipientEmails
+				: validEmails.length > 0
+					? validEmails
+					: r.recipientEmails,
+		}))
+		if (remindersToSubmit.length === 0) {
 			setError("Automated Reminders: Please add at least one reminder (e.g. 24h before).")
 			return
 		}
-		for (const r of reminders) {
+		for (const r of remindersToSubmit) {
 			if (!r.recipientEmails.some((e) => e.trim())) {
 				setError("Each reminder must have at least one recipient email.")
 				return
@@ -358,22 +488,38 @@ export function AppointmentBookingDialog({
 		setIsSubmitting(true)
 		try {
 			const formData = new FormData()
-			formData.set("bookedBy", userName)
-			formData.set("userId", userId)
-			formData.set("startDate", `${initialDate}T${startTime}:00`)
-			formData.set("endDate", `${initialDate}T${endTime}:00`)
+			formData.set("startDate", `${activeDateStr}T${startTime}:00`)
+			formData.set("endDate", `${activeDateStr}T${endTime}:00`)
 			formData.set("purpose", purpose)
-			formData.set("appointmentType", selectedAppointment.appointmentType || "OTHERS")
 			formData.set("appointmentCategory", appointmentCategory)
 			if (selectedProject !== "none") formData.set("projectId", selectedProject)
-			formData.set("appointmentId", String(selectedAppointment.id))
 			if (attendees) formData.set("attendees", attendees)
 			formData.set("bookingName", bookingName)
 			formData.set("companyName", companyName)
 			formData.set("contactNumber", contactNumber)
 			formData.set("remarks", remarks)
+			formData.set("reminderOffsets", JSON.stringify(remindersToSubmit))
+
+			if (isEditMode && editBookingId) {
+				const result = await updateAppointmentBooking(editBookingId, formData, userName)
+				if (result.success) {
+					toast({
+						title: "Booking Updated",
+						description: "The appointment has been updated successfully.",
+					})
+					onSuccess()
+					onClose()
+				} else {
+					setError(result.error || "Failed to update booking")
+				}
+				return
+			}
+
+			formData.set("bookedBy", userName)
+			formData.set("userId", userId)
+			formData.set("appointmentType", selectedAppointment.appointmentType || "OTHERS")
+			formData.set("appointmentId", String(selectedAppointment.id))
 			formData.set("clientEmails", JSON.stringify(validEmails))
-			formData.set("reminderOffsets", JSON.stringify(reminders))
 
 			const result = await createAppointmentBooking(formData)
 
@@ -382,6 +528,7 @@ export function AppointmentBookingDialog({
 				const totalEmailSent = result.emailSentCount ?? 0
 				const totalEmailFailed = result.emailFailedCount ?? 0
 				const totalRecipients = result.uniqueRecipientCount ?? 0
+				onClose()
 				if (totalEmailSent > 0 || totalEmailFailed > 0) {
 					if (totalEmailFailed === 0) {
 						setEmailResult({
@@ -400,7 +547,6 @@ export function AppointmentBookingDialog({
 						title: "Appointment Booked",
 						description: "Booking confirmed successfully.",
 					})
-					onClose()
 				}
 			} else {
 				setError(result.error || "Failed to create booking")
@@ -412,8 +558,8 @@ export function AppointmentBookingDialog({
 		}
 	}
 
-	const formattedDate = initialDate
-		? new Date(`${initialDate}T12:00:00`).toLocaleDateString("en-US", {
+	const formattedDate = activeDateStr
+		? new Date(`${activeDateStr}T12:00:00`).toLocaleDateString("en-US", {
 				weekday: "long",
 				month: "long",
 				day: "numeric",
@@ -458,25 +604,44 @@ export function AppointmentBookingDialog({
 		return haystack.includes(normalizedAppointmentSearch)
 	})
 
-	const appointmentStart = initialDate && startTime
-		? parseDateInBusinessTZ(`${initialDate}T${startTime}:00`)
+	const appointmentStart = activeDateStr && startTime
+		? parseDateInBusinessTZ(`${activeDateStr}T${startTime}:00`)
 		: null
 
 	return (
 		<>
-			<Dialog open={isOpen} onOpenChange={onClose}>
-				<DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+			<Dialog
+				open={isOpen}
+				onOpenChange={onClose}
+			>
+				<DialogContent
+					className="z-[60] max-w-2xl max-h-[85vh] overflow-y-auto"
+					onPointerDownOutside={(e) => {
+						if ((e.target as Element).closest('[data-slot="select-content"]')) {
+							e.preventDefault()
+						}
+					}}
+					onFocusOutside={(e) => {
+						if ((e.target as Element).closest('[data-slot="select-content"]')) {
+							e.preventDefault()
+						}
+					}}
+				>
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<Calendar className="w-5 h-5" />
-							Book Appointment
+							{isEditMode ? "Edit Booking" : "Book Appointment"}
 						</DialogTitle>
 						{formattedDate && (
 							<p className="text-sm text-muted-foreground mt-1">{formattedDate}</p>
 						)}
 					</DialogHeader>
 
-					{appointments.length === 0 ? (
+					{isLoadingEdit ? (
+						<div className="flex items-center justify-center py-12">
+							<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+						</div>
+					) : appointments.length === 0 && !isEditMode ? (
 						<div className="text-center py-8 text-muted-foreground">
 							<Calendar className="w-12 h-12 mx-auto mb-4 opacity-30" />
 							<p className="font-medium">No appointments available</p>
@@ -509,9 +674,29 @@ export function AppointmentBookingDialog({
 								</div>
 							)}
 
-							{/* Appointment (searchable) */}
+							{/* Appointment */}
 							<div>
 								<Label>Appointment <span className="text-destructive">*</span></Label>
+								{isEditMode ? (
+									<div className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-muted/30 px-3 text-sm">
+										<span className="truncate font-medium">
+											{selectedAppointment?.name ?? "Appointment"}
+										</span>
+										{selectedAppointment && (
+											<Badge
+												variant="secondary"
+												className={cn(
+													"ml-auto shrink-0 text-[10px]",
+													APPOINTMENT_TYPES[selectedAppointment.appointmentType as AppointmentType]?.color ??
+														APPOINTMENT_TYPES.OTHERS.color
+												)}
+											>
+												{APPOINTMENT_TYPES[selectedAppointment.appointmentType as AppointmentType]?.label ??
+													"Others"}
+											</Badge>
+										)}
+									</div>
+								) : (
 								<Popover
 									open={appointmentPopoverOpen}
 									onOpenChange={(open) => {
@@ -536,11 +721,11 @@ export function AppointmentBookingDialog({
 										</Button>
 									</PopoverTrigger>
 									<PopoverContent
-										className="z-[60] flex w-[var(--radix-popover-trigger-width)] max-h-[min(20rem,calc(100vh-8rem))] flex-col overflow-hidden p-0"
+										className="z-[60] flex w-[var(--radix-popover-trigger-width)] max-h-[min(20rem,calc(100vh-8rem))] flex-col overflow-hidden border-border bg-card p-0 text-card-foreground shadow-md"
 										align="start"
 										onWheel={(e) => e.stopPropagation()}
 									>
-										<div className="relative shrink-0 border-b p-2">
+										<div className="relative shrink-0 border-b border-border bg-card p-2">
 											<Search className="absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
 											<Input
 												placeholder="Search name, type, description, location..."
@@ -551,7 +736,7 @@ export function AppointmentBookingDialog({
 											/>
 										</div>
 										<div
-											className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 space-y-0.5"
+											className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-card p-1 space-y-0.5"
 											onWheel={(e) => e.stopPropagation()}
 											onTouchMove={(e) => e.stopPropagation()}
 										>
@@ -604,6 +789,7 @@ export function AppointmentBookingDialog({
 										</div>
 									</PopoverContent>
 								</Popover>
+								)}
 							</div>
 
 							{/* Time + category */}
@@ -630,10 +816,10 @@ export function AppointmentBookingDialog({
 										value={appointmentCategory}
 										onValueChange={(v) => setAppointmentCategory(v as AppointmentCategory)}
 									>
-										<SelectTrigger>
+										<SelectTrigger className="w-full">
 											<SelectValue />
 										</SelectTrigger>
-										<SelectContent>
+										<SelectContent className="z-[70] bg-card text-card-foreground">
 											<SelectItem value="INTERNAL">Internal</SelectItem>
 											<SelectItem value="EXTERNAL">External</SelectItem>
 										</SelectContent>
@@ -669,11 +855,11 @@ export function AppointmentBookingDialog({
 										</Button>
 									</PopoverTrigger>
 									<PopoverContent
-										className="z-[60] flex w-[var(--radix-popover-trigger-width)] max-h-[min(20rem,calc(100vh-8rem))] flex-col overflow-hidden p-0"
+										className="z-[60] flex w-[var(--radix-popover-trigger-width)] max-h-[min(20rem,calc(100vh-8rem))] flex-col overflow-hidden border-border bg-card p-0 text-card-foreground shadow-md"
 										align="start"
 										onWheel={(e) => e.stopPropagation()}
 									>
-										<div className="relative shrink-0 border-b p-2">
+										<div className="relative shrink-0 border-b border-border bg-card p-2">
 											<Search className="absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
 											<Input
 												placeholder="Search projects..."
@@ -684,7 +870,7 @@ export function AppointmentBookingDialog({
 											/>
 										</div>
 										<div
-											className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 space-y-0.5"
+											className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-card p-1 space-y-0.5"
 											onWheel={(e) => e.stopPropagation()}
 											onTouchMove={(e) => e.stopPropagation()}
 										>
@@ -815,13 +1001,24 @@ export function AppointmentBookingDialog({
 								/>
 							</div>
 
-							{/* Client emails */}
-							<EmailListInput
-								emails={clientEmails}
-								onChange={setClientEmails}
-								required
-								label="Client Email Address"
-							/>
+							{/* Client emails — create only (stored on initial confirmation send) */}
+							{!isEditMode && (
+								<EmailListInput
+									emails={clientEmails}
+									onChange={setClientEmails}
+									required
+									label="Client Email Address"
+								/>
+							)}
+
+							{isEditMode && clientEmails.some((e) => e.trim()) && (
+								<EmailListInput
+									emails={clientEmails}
+									onChange={setClientEmails}
+									disabled
+									label="Client Email Address"
+								/>
+							)}
 
 							{/* Reminders */}
 							<div className="space-y-3">
@@ -914,9 +1111,9 @@ export function AppointmentBookingDialog({
 								<Button variant="outline" onClick={onClose} disabled={isSubmitting}>
 									Cancel
 								</Button>
-								<Button onClick={handleSubmit} disabled={isSubmitting}>
+								<Button onClick={handleSubmit} disabled={isSubmitting || isLoadingEdit}>
 									{isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-									Book Appointment
+									{isEditMode ? "Save Changes" : "Book Appointment"}
 								</Button>
 							</div>
 						</div>
@@ -946,11 +1143,10 @@ export function AppointmentBookingDialog({
 					if (!open) {
 						setShowResultDialog(false)
 						setEmailResult(null)
-						onClose()
 					}
 				}}
 			>
-				<DialogContent>
+				<DialogContent nested>
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							{emailResult?.success ? (
@@ -972,7 +1168,6 @@ export function AppointmentBookingDialog({
 							onClick={() => {
 								setShowResultDialog(false)
 								setEmailResult(null)
-								onClose()
 							}}
 						>
 							OK

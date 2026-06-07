@@ -9,6 +9,8 @@ export function useScrollToCurrentTime(
 	hourHeightPx: number,
 	scrollToCurrentTime: boolean,
 	scrollKey: string,
+	/** Sticky header height inside the scroll container — keeps the target hour below headers. */
+	headerOffsetPx = 0,
 ) {
 	useLayoutEffect(() => {
 		const scrollToTarget = () => {
@@ -22,7 +24,7 @@ export function useScrollToCurrentTime(
 					})()
 				: DEFAULT_SCROLL_HOUR
 
-			el.scrollTop = Math.max(0, fractionalHour * hourHeightPx)
+			el.scrollTop = Math.max(0, fractionalHour * hourHeightPx - headerOffsetPx)
 		}
 
 		scrollToTarget()
@@ -33,5 +35,5 @@ export function useScrollToCurrentTime(
 			cancelAnimationFrame(raf)
 			window.clearTimeout(timeoutId)
 		}
-	}, [scrollToCurrentTime, hourHeightPx, scrollKey])
+	}, [scrollToCurrentTime, hourHeightPx, scrollKey, headerOffsetPx])
 }

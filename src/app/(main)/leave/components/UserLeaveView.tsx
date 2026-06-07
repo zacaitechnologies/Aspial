@@ -21,6 +21,7 @@ import LeaveDetailDialog from "./LeaveDetailDialog"
 import LeaveChangeRequestDialog from "./LeaveChangeRequestDialog"
 import LeaveCalendar from "./LeaveCalendar"
 import { cancelOwnPendingLeave, withdrawLeaveChangeRequest } from "../action"
+import { calToolbarControlClass } from "@/app/(main)/calendar/utils/calendar-toolbar-styles"
 import { useToast } from "@/components/ui/use-toast"
 import type {
   LeaveApplicationDTO,
@@ -255,7 +256,7 @@ export default function UserLeaveView({
         <TabsContent value="applications" className="space-y-4 mt-4">
           <div className="flex flex-wrap gap-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className={cn("w-[150px]", calToolbarControlClass)}>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -269,7 +270,7 @@ export default function UserLeaveView({
             </Select>
 
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className={cn("w-[150px]", calToolbarControlClass)}>
                 <SelectValue placeholder="Leave Type" />
               </SelectTrigger>
               <SelectContent>
@@ -340,7 +341,7 @@ export default function UserLeaveView({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="gap-1"
+                            className="gap-1 border-destructive bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive"
                             onClick={() => handleWithdrawChangeRequest(cr.id)}
                           >
                             <X className="h-3.5 w-3.5" />

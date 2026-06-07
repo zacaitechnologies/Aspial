@@ -59,7 +59,7 @@ export default function AppointmentBookingEmailHistoryDialog({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[600px]">
+			<DialogContent nested className="sm:max-w-[600px]">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<Mail className="w-5 h-5" />

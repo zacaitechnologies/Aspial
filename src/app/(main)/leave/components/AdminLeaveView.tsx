@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Plus, Settings2, Download } from "lucide-react"
+import { calToolbarControlClass } from "@/app/(main)/calendar/utils/calendar-toolbar-styles"
 import LeaveOverviewCards from "./LeaveOverviewCards"
 import LeaveApplicationTable from "./LeaveApplicationTable"
 import LeaveApplicationForm from "./LeaveApplicationForm"
@@ -253,7 +254,7 @@ export default function AdminLeaveView({
         <TabsContent value="applications" className="space-y-4 mt-4">
           <div className="flex flex-wrap items-center gap-3">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px] min-w-[120px]">
+              <SelectTrigger className={cn("w-[150px] min-w-[120px]", calToolbarControlClass)}>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -267,7 +268,7 @@ export default function AdminLeaveView({
             </Select>
 
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[150px] min-w-[120px]">
+              <SelectTrigger className={cn("w-[150px] min-w-[120px]", calToolbarControlClass)}>
                 <SelectValue placeholder="Leave Type" />
               </SelectTrigger>
               <SelectContent>
@@ -281,7 +282,7 @@ export default function AdminLeaveView({
             </Select>
 
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className={cn("w-[180px]", calToolbarControlClass)}>
                 <SelectValue placeholder="Employee" />
               </SelectTrigger>
               <SelectContent>
@@ -297,7 +298,7 @@ export default function AdminLeaveView({
             <Button
               variant="outline"
               size="sm"
-              className="ml-auto gap-2"
+              className={cn("ml-auto gap-2", calToolbarControlClass)}
               onClick={() => setShowExportDialog(true)}
             >
               <Download className="h-4 w-4" />

@@ -1,16 +1,17 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { formatDateStringDirect } from "@/lib/date-utils"
+import { formatDateStringDirect, parseLocalDateString } from "@/lib/date-utils"
 import { type CalendarBooking } from "../actions"
 import { APPOINTMENT_TYPES, type AppointmentType, type CalendarEventType } from "../constants"
 import {
 	getTimeSlots,
 	parseTime,
 	isCalendarEventPast,
+	isToday,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
 import {
@@ -19,7 +20,9 @@ import {
 	calendarEventSurfaceClass,
 } from "../utils/event-surface-styles"
 import { CalendarEventTooltip } from "./CalendarEventTooltip"
+import { CurrentTimeLine } from "./CurrentTimeLine"
 import { useCurrentTime } from "../hooks/useCurrentTime"
+import { useScrollToCurrentTime } from "../hooks/useScrollToCurrentTime"
 
 interface MonthDayDialogProps {
 	isOpen: boolean
@@ -44,6 +47,7 @@ const TYPE_CSS_VAR: Record<CalendarEventType, string> = {
 }
 
 const HOUR_HEIGHT = 48
+const COLUMN_HEADER_HEIGHT = 36
 
 export function MonthDayDialog({
 	isOpen,
@@ -54,7 +58,15 @@ export function MonthDayDialog({
 	onBookSlot,
 }: MonthDayDialogProps) {
 	const now = useCurrentTime()
+	const scrollRef = useRef<HTMLDivElement>(null)
 	const timeSlots = useMemo(() => getTimeSlots(0, 24), [])
+
+	const today = useMemo(() => {
+		if (!date) return false
+		return isToday(parseLocalDateString(date))
+	}, [date])
+
+	useScrollToCurrentTime(scrollRef, HOUR_HEIGHT, today, `${date}-${isOpen}`, COLUMN_HEADER_HEIGHT)
 
 	const formattedTitle = useMemo(
 		() => (date ? formatDateStringDirect(date, { includeWeekday: true, format: "long" }) : ""),
@@ -79,30 +91,32 @@ export function MonthDayDialog({
 		return map
 	}, [events])
 
+	const gridCols = `repeat(${TYPE_COLUMNS.length}, minmax(0, 1fr))`
+
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
-			<DialogContent className="max-w-[95vw] w-[95vw] sm:max-w-5xl max-h-[88vh] overflow-hidden flex flex-col">
-				<DialogHeader>
+			<DialogContent className="calendar-page max-w-[95vw] w-[95vw] sm:max-w-5xl max-h-[88vh] overflow-hidden flex flex-col">
+				<DialogHeader className="shrink-0 pb-0">
 					<DialogTitle className="flex items-center gap-2">
 						<CalendarIcon className="w-5 h-5" />
 						{formattedTitle}
 					</DialogTitle>
 				</DialogHeader>
 
-				{/* Leave / Blocker banner */}
+				{/* Leave / Blocker — compact single row */}
 				{bannerEvents.length > 0 && (
-					<div className="shrink-0 rounded-lg border border-border bg-muted/30 p-2">
-						<p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-							Leave &amp; Blockers
-						</p>
-						<div className="flex flex-wrap gap-1.5">
+					<div className="shrink-0 flex items-center gap-2 border-b border-border py-1 min-h-0">
+						<span className="shrink-0 text-[10px] font-medium text-muted-foreground">
+							Leave / Blockers
+						</span>
+						<div className="flex min-w-0 flex-1 gap-1 overflow-x-auto hide-scrollbar">
 							{bannerEvents.map((event) => (
 								<CalendarEventTooltip key={event.id} booking={event} side="top">
 									<button
 										type="button"
 										onClick={() => onEventClick(event)}
 										className={cn(
-											"text-xs px-2 py-1 rounded-md cursor-pointer truncate max-w-[14rem] font-medium transition-shadow hover:shadow-sm",
+											"shrink-0 max-w-[12rem] truncate rounded px-1.5 py-0.5 text-[10px] font-medium cursor-pointer transition-shadow hover:shadow-sm",
 											calendarEventSurfaceClass(event.appointmentType),
 											isCalendarEventPast(event, now) && calendarEventPastClass,
 										)}
@@ -116,16 +130,21 @@ export function MonthDayDialog({
 				)}
 
 				{/* Multi-column day grid */}
-				<div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
+				<div
+					ref={scrollRef}
+					className="min-h-0 flex-1 overflow-auto rounded-lg border border-border hide-scrollbar"
+				>
 					<div className="flex min-w-[640px]">
-						{/* Time gutter */}
+						{/* Time gutter — grey, matches week view */}
 						<div className="w-12 sm:w-14 shrink-0 border-r border-border cal-week-slot-bg sticky left-0 z-20">
-							{/* Header spacer to align with column headers */}
-							<div className="h-9 border-b border-border cal-week-slot-bg sticky top-0 z-30" />
+							<div
+								className="border-b border-border cal-week-slot-bg sticky top-0 z-30"
+								style={{ height: COLUMN_HEADER_HEIGHT }}
+							/>
 							{timeSlots.map((slot) => (
 								<div
 									key={slot}
-									className="border-t border-border p-1 text-[10px] sm:text-xs text-muted-foreground font-medium cal-week-slot-bg"
+									className="border-b border-border p-1 text-[10px] sm:text-xs text-muted-foreground font-medium cal-week-slot-bg"
 									style={{ height: HOUR_HEIGHT }}
 								>
 									{slot}
@@ -134,15 +153,19 @@ export function MonthDayDialog({
 						</div>
 
 						{/* Type columns */}
-						<div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${TYPE_COLUMNS.length}, minmax(0, 1fr))` }}>
-							{TYPE_COLUMNS.map((typeKey) => {
-								const config = APPOINTMENT_TYPES[typeKey]
-								const columnEvents = eventsByType.get(typeKey) ?? []
-								const layouts = layoutOverlappingEvents(columnEvents)
-								return (
-									<div key={typeKey} className="relative border-r border-border last:border-r-0">
-										{/* Column header */}
-										<div className="sticky top-0 z-10 flex h-9 items-center gap-1.5 border-b border-border bg-background px-2">
+						<div className="flex-1 min-w-0 flex flex-col">
+							{/* Shared column headers — z-30 so scrolled events (z-10) stay beneath */}
+							<div
+								className="grid sticky top-0 z-30 border-b border-border bg-background shadow-[0_2px_6px_-2px_rgba(0,0,0,0.1)]"
+								style={{ gridTemplateColumns: gridCols }}
+							>
+								{TYPE_COLUMNS.map((typeKey) => {
+									const config = APPOINTMENT_TYPES[typeKey]
+									return (
+										<div
+											key={`header-${typeKey}`}
+											className="flex h-9 items-center gap-1.5 border-r border-border px-2 last:border-r-0 cal-week-subtle-bg"
+										>
 											<span
 												className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border/40"
 												style={{ backgroundColor: TYPE_CSS_VAR[typeKey] }}
@@ -150,57 +173,84 @@ export function MonthDayDialog({
 											/>
 											<span className="truncate text-[11px] font-semibold">{config.label}</span>
 										</div>
+									)
+								})}
+							</div>
 
-										{/* Clickable hour grid */}
-										<div className="relative">
-											{timeSlots.map((slot) => (
-												<div
-													key={slot}
-													className="border-t border-border cal-time-grid-slot"
-													style={{ height: HOUR_HEIGHT }}
-													onClick={() => onBookSlot(date, slot, typeKey)}
-												/>
-											))}
-
-											{/* Positioned events */}
-											{layouts.map(({ event, column, totalColumns }) => {
-												const startHour = parseTime(event.startTime)
-												const endHour = parseTime(event.endTime)
-												const top = startHour * HOUR_HEIGHT
-												const height = Math.max(22, (endHour - startHour) * HOUR_HEIGHT - 2)
-												const widthPct = 100 / totalColumns
-												const leftPct = column * widthPct
-												return (
-													<CalendarEventTooltip key={event.id} booking={event} side="top">
-														<div
-															className={cn(
-																"absolute z-10 overflow-hidden rounded-md px-1.5 py-1 text-[11px] cursor-pointer shadow-sm transition-shadow hover:shadow-md hover:brightness-[0.98]",
-																calendarEventSurfaceClass(event.appointmentType),
-																isCalendarEventPast(event, now) && calendarEventPastClass,
-															)}
-															style={{
-																top,
-																height,
-																left: `calc(${leftPct}% + 1px)`,
-																width: `calc(${widthPct}% - 2px)`,
-															}}
-															onClick={(e) => {
-																e.stopPropagation()
-																onEventClick(event)
-															}}
-														>
-															<div className="font-semibold truncate leading-tight">{event.title}</div>
-															<div className={cn(calendarEventMetaClass, "truncate text-[10px]")}>
-																{event.startTime} – {event.endTime}
-															</div>
-														</div>
-													</CalendarEventTooltip>
-												)
-											})}
-										</div>
+							{/* Time grid — white slots, today tint + current-time line */}
+							<div
+								className="relative"
+								style={{ minHeight: timeSlots.length * HOUR_HEIGHT }}
+							>
+								{today && (
+									<div className="absolute inset-0 z-[35] pointer-events-none">
+										<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
 									</div>
-								)
-							})}
+								)}
+
+								<div className="grid" style={{ gridTemplateColumns: gridCols }}>
+									{TYPE_COLUMNS.map((typeKey) => {
+										const columnEvents = eventsByType.get(typeKey) ?? []
+										const layouts = layoutOverlappingEvents(columnEvents)
+										return (
+											<div
+												key={typeKey}
+												className={cn(
+													"relative border-r border-border last:border-r-0",
+													today && "cal-week-column--today",
+												)}
+											>
+												{timeSlots.map((slot) => (
+													<div
+														key={slot}
+														className={cn(
+															"border-b border-border cal-time-grid-slot",
+															today && "cal-time-grid-slot--today-col",
+														)}
+														style={{ height: HOUR_HEIGHT }}
+														onClick={() => onBookSlot(date, slot, typeKey)}
+													/>
+												))}
+
+												{layouts.map(({ event, column, totalColumns }) => {
+													const startHour = parseTime(event.startTime)
+													const endHour = parseTime(event.endTime)
+													const top = startHour * HOUR_HEIGHT
+													const height = Math.max(22, (endHour - startHour) * HOUR_HEIGHT - 2)
+													const widthPct = 100 / totalColumns
+													const leftPct = column * widthPct
+													return (
+														<CalendarEventTooltip key={event.id} booking={event} side="top">
+															<div
+																className={cn(
+																	"absolute z-[5] overflow-hidden rounded-md px-1.5 py-1 text-[11px] cursor-pointer shadow-sm transition-shadow hover:z-20 hover:shadow-md hover:brightness-[0.98]",
+																	calendarEventSurfaceClass(event.appointmentType),
+																	isCalendarEventPast(event, now) && calendarEventPastClass,
+																)}
+																style={{
+																	top,
+																	height,
+																	left: `calc(${leftPct}% + 1px)`,
+																	width: `calc(${widthPct}% - 2px)`,
+																}}
+																onClick={(e) => {
+																	e.stopPropagation()
+																	onEventClick(event)
+																}}
+															>
+																<div className="font-semibold truncate leading-tight">{event.title}</div>
+																<div className={cn(calendarEventMetaClass, "truncate text-[10px]")}>
+																	{event.startTime} – {event.endTime}
+																</div>
+															</div>
+														</CalendarEventTooltip>
+													)
+												})}
+											</div>
+										)
+									})}
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>

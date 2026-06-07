@@ -6,9 +6,19 @@ import { CALENDAR_EVENT_TYPES } from "@/app/(main)/calendar/constants"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Calendar, Clock, MapPin, User, UserCircle, Users, Pencil, Trash2, ShieldAlert, Loader2, Mail, CalendarPlus } from "lucide-react"
+import { Calendar, Clock, MapPin, User, UserCircle, Users, Pencil, Trash2, ShieldAlert, Loader2, Mail, CalendarPlus, Tag, Send, Bell } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { isCalendarAllDayRowEvent } from "../utils/calendar-utils"
+import { isCalendarAllDayRowEvent, formatAppointmentCategoryLabel } from "../utils/calendar-utils"
+import SendAppointmentReminderDialog from "@/app/(main)/appointment-bookings/components/SendAppointmentReminderDialog"
+import EditAppointmentRemindersDialog from "@/app/(main)/appointment-bookings/components/EditAppointmentRemindersDialog"
+import AppointmentBookingEmailHistoryDialog from "@/app/(main)/appointment-bookings/components/AppointmentBookingEmailHistoryDialog"
+
+function parseAppointmentBookingId(bookingId: string): number | null {
+	const match = bookingId.match(/^appointment-(\d+)/)
+	if (!match) return null
+	const id = Number.parseInt(match[1], 10)
+	return Number.isNaN(id) ? null : id
+}
 
 interface BookingDetailsDialogProps {
   booking: CalendarBooking | null
@@ -51,6 +61,9 @@ export function BookingDetailsDialog({
 }: BookingDetailsDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
+  const [showSendReminderDialog, setShowSendReminderDialog] = useState(false)
+  const [showEditRemindersDialog, setShowEditRemindersDialog] = useState(false)
+  const [showEmailHistoryDialog, setShowEmailHistoryDialog] = useState(false)
 
   if (!booking) return null
 
@@ -89,10 +102,18 @@ export function BookingDetailsDialog({
   }
 
   const isAppointment = booking?.type === "appointment"
+  const categoryLabel = isAppointment ? formatAppointmentCategoryLabel(booking) : null
   const isMerged = partCount > 1
   // Merged events represent multiple booking rows — editing/cancelling one
   // would be misleading, so route the user to the appointment-bookings page.
   const canEditAppointment = isAppointment && !isMerged && (booking?.isUserBooking || isAdmin)
+  const appointmentBookingId = isAppointment ? parseAppointmentBookingId(booking.id) : null
+  const canManageEmails =
+    isAppointment &&
+    !isMerged &&
+    appointmentBookingId !== null &&
+    (booking.isUserBooking || isAdmin)
+  const canManageReminders = canManageEmails && Boolean(booking.projectId)
   const canBookAtTime =
     onBookAtTime &&
     !isCalendarAllDayRowEvent(booking) &&
@@ -103,7 +124,8 @@ export function BookingDetailsDialog({
     (isBlocker && isAdmin && onEdit) ||
     (isBlocker && isAdmin && onDelete) ||
     (canEditAppointment && onEditBooking) ||
-    (canEditAppointment && onCancelBooking)
+    (canEditAppointment && onCancelBooking) ||
+    canManageEmails
 
   // Extract additional details from originalData for appointments. Merged
   // events wrap the first booking's originalData under `first`.
@@ -120,8 +142,9 @@ export function BookingDetailsDialog({
   })()
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md z-[60]">
         <DialogHeader>
           <DialogTitle>
             {isBlocker ? "Blocker Details" : booking.type === "leave" ? "Leave details" : "Booking Details"}
@@ -130,9 +153,16 @@ export function BookingDetailsDialog({
 
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <Badge variant="secondary" className={booking.color}>
-              {appointmentTypeLabel}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className={booking.color}>
+                {appointmentTypeLabel}
+              </Badge>
+              {categoryLabel && (
+                <Badge variant="outline" className="text-xs">
+                  {categoryLabel}
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               {isMerged && (
                 <Badge variant="outline" className="text-xs">
@@ -234,6 +264,13 @@ export function BookingDetailsDialog({
               </div>
               {booking.type === "appointment" && (
                 <>
+                  {categoryLabel && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Tag className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Category:</span>
+                      <span>{categoryLabel}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="w-4 h-4 text-muted-foreground" />
                     <span>{booking.startTime} - {booking.endTime}</span>
@@ -319,6 +356,36 @@ export function BookingDetailsDialog({
 
           {hasFooterActions && (
             <div className="flex flex-wrap gap-2 pt-4 border-t">
+              {canManageReminders && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSendReminderDialog(true)}
+                  >
+                    <Send className="w-4 h-4 mr-1" />
+                    Send Reminder
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowEditRemindersDialog(true)}
+                  >
+                    <Bell className="w-4 h-4 mr-1" />
+                    Edit Reminders
+                  </Button>
+                </>
+              )}
+              {canManageEmails && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowEmailHistoryDialog(true)}
+                >
+                  <Mail className="w-4 h-4 mr-1" />
+                  Email History
+                </Button>
+              )}
               {canBookAtTime && (
                 <Button
                   variant="default"
@@ -358,5 +425,26 @@ export function BookingDetailsDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    {appointmentBookingId !== null && (
+      <>
+        <SendAppointmentReminderDialog
+          isOpen={showSendReminderDialog}
+          onOpenChange={setShowSendReminderDialog}
+          appointmentBookingId={appointmentBookingId}
+        />
+        <EditAppointmentRemindersDialog
+          isOpen={showEditRemindersDialog}
+          onOpenChange={setShowEditRemindersDialog}
+          appointmentBookingId={appointmentBookingId}
+        />
+        <AppointmentBookingEmailHistoryDialog
+          isOpen={showEmailHistoryDialog}
+          onOpenChange={setShowEmailHistoryDialog}
+          appointmentBookingId={appointmentBookingId}
+        />
+      </>
+    )}
+    </>
   )
 }

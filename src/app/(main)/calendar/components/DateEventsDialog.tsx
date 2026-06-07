@@ -8,6 +8,7 @@ import { Calendar, Clock, MapPin, Users, Calendar as CalendarIcon, Plus } from "
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { type CalendarBooking } from "../actions"
 import { CALENDAR_EVENT_TYPES } from "../constants"
+import { formatAppointmentCategoryLabel } from "../utils/calendar-utils"
 
 interface DateEventsDialogProps {
   isOpen: boolean
@@ -84,6 +85,8 @@ export function DateEventsDialog({
           ) : (
             events.map((event) => {
               const legend = getEventLegendConfig(event)
+              const categoryLabel =
+                event.type === "appointment" ? formatAppointmentCategoryLabel(event) : null
               return (
               <div
                 key={event.id}
@@ -96,6 +99,11 @@ export function DateEventsDialog({
                       <Badge variant="secondary" className={event.color || legend.color}>
                         {legend.label}
                       </Badge>
+                      {categoryLabel && (
+                        <Badge variant="outline" className="text-xs">
+                          {categoryLabel}
+                        </Badge>
+                      )}
                       <h3 className="truncate font-semibold text-foreground">
                         {event.bookingName ?? event.appointmentName ?? event.title}
                       </h3>

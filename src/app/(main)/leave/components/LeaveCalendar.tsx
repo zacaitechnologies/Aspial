@@ -1,39 +1,26 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar } from "@/components/ui/calendar"
+import { useState, useMemo, useCallback, useEffect, type ReactNode } from "react"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { DatePicker } from "@/app/(main)/calendar/components/DatePicker"
+import {
+  CalendarTooltip,
+  CalendarEventTooltipProvider,
+} from "@/app/(main)/calendar/components/CalendarEventTooltip"
+import { calendarLeaveSurfaceClass } from "@/app/(main)/calendar/utils/event-surface-styles"
 import type { LeaveApplicationDTO, LeaveTypeDTO } from "../types"
-import { isMalaysiaNonWorkingDay, leaveTypeChipClasses, formatLeaveTypeName } from "../types"
+import { formatLeaveTypeName } from "../types"
 import LeaveDayPopover from "./LeaveDayPopover"
+import { LeaveTooltipContent } from "./LeaveTooltipContent"
 import { parseLocalDateString, toBusinessTZParts } from "@/lib/date-utils"
 import { getMalaysiaDateStr } from "@/lib/malaysia-time"
-import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  eachDayOfInterval,
-  isSameMonth,
-  isSameDay,
-  addMonths,
-  subMonths,
-  startOfWeek,
-  endOfWeek,
-} from "date-fns"
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
+import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 
 interface LeaveCalendarProps {
   applications: LeaveApplicationDTO[]
@@ -41,21 +28,35 @@ interface LeaveCalendarProps {
   leaveTypes?: LeaveTypeDTO[]
 }
 
+const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
+const MAX_VISIBLE_LEAVES = 2
+
+/** Build YYYY-MM-DD for a grid cell from calendar year/month/day (no local TZ shift). */
+function formatCalendarDayStr(year: number, monthIndex: number, day: number): string {
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
+function getDaysInMonth(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+}
+
+function getFirstDayOfMonth(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+}
+
 export default function LeaveCalendar({
   applications,
   showEmployeeName = false,
   leaveTypes,
 }: LeaveCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(() =>
-    startOfMonth(parseLocalDateString(getMalaysiaDateStr()))
+  const [currentDate, setCurrentDate] = useState(() =>
+    parseLocalDateString(getMalaysiaDateStr())
   )
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const [todayStr, setTodayStr] = useState<string | null>(null)
 
-  const monthStart = startOfMonth(currentMonth)
-  const monthEnd = endOfMonth(currentMonth)
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 })
-  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
-  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd })
+  useEffect(() => {
+    setTodayStr(getMalaysiaDateStr())
+  }, [])
 
   const approvedLeaves = useMemo(
     () =>
@@ -65,194 +66,187 @@ export default function LeaveCalendar({
     [applications]
   )
 
-  function getLeavesForDay(day: Date) {
-    // Compare in MYT calendar-day terms so a leave spanning Jan 29 in MYT shows on Jan 29
-    // regardless of viewer timezone.
-    const dayStr = getMalaysiaDateStr(day)
-    return approvedLeaves.filter((leave) => {
-      const startStr = toBusinessTZParts(new Date(leave.startDate)).dateStr
-      const endStr = toBusinessTZParts(new Date(leave.endDate)).dateStr
-      return dayStr >= startStr && dayStr <= endStr
-    })
+  const getLeavesForDay = useCallback(
+    (dayStr: string) => {
+      return approvedLeaves
+        .filter((leave) => {
+          const startStr = toBusinessTZParts(new Date(leave.startDate)).dateStr
+          const endStr = toBusinessTZParts(new Date(leave.endDate)).dateStr
+          return dayStr >= startStr && dayStr <= endStr
+        })
+        .sort((a, b) => a.id - b.id)
+    },
+    [approvedLeaves]
+  )
+
+  const getLabel = (type: string) => formatLeaveTypeName(type, leaveTypes)
+
+  const renderCalendarDays = () => {
+    const daysInMonth = getDaysInMonth(currentDate)
+    const firstDay = getFirstDayOfMonth(currentDate)
+    const year = currentDate.getFullYear()
+    const monthIndex = currentDate.getMonth()
+    const cells: ReactNode[] = []
+
+    for (let i = 0; i < firstDay; i++) {
+      cells.push(
+        <div
+          key={`pad-${i}`}
+          className="cal-day-cell cal-day-cell--empty"
+          aria-hidden
+        />
+      )
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStr = formatCalendarDayStr(year, monthIndex, day)
+      const date = parseLocalDateString(dayStr)
+      const isToday = todayStr !== null && dayStr === todayStr
+      const dayLeaves = getLeavesForDay(dayStr)
+      const hasLeaves = dayLeaves.length > 0
+
+      const cellContent = (
+        <>
+          <div
+            className={cn(
+              "cal-day-number mb-1 inline-flex items-center justify-center",
+              isToday
+                ? "cal-day-number--today h-8 w-8 text-base font-extrabold text-foreground sm:text-lg"
+                : "h-6 w-6 text-xs font-semibold text-foreground sm:text-sm"
+            )}
+          >
+            {day}
+          </div>
+          {hasLeaves && (
+            <div className="mt-1 space-y-0.5">
+              {dayLeaves.slice(0, MAX_VISIBLE_LEAVES).map((leave) => (
+                <CalendarTooltip
+                  key={leave.id}
+                  side="top"
+                  align="start"
+                  content={
+                    <LeaveTooltipContent
+                      leave={leave}
+                      showEmployeeName={showEmployeeName}
+                      leaveTypes={leaveTypes}
+                    />
+                  }
+                >
+                  <div
+                    role="presentation"
+                    className={cn(
+                      "w-full truncate rounded-sm px-1 py-0.5 text-left text-[10px] font-medium transition-shadow hover:shadow-sm hover:brightness-[0.98]",
+                      calendarLeaveSurfaceClass(leave.status)
+                    )}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    {showEmployeeName
+                      ? `${leave.user.firstName} ${leave.user.lastName.charAt(0)}.`
+                      : getLabel(leave.leaveType)}
+                  </div>
+                </CalendarTooltip>
+              ))}
+              {dayLeaves.length > MAX_VISIBLE_LEAVES && (
+                <div className="px-1 text-[10px] font-medium text-muted-foreground">
+                  +{dayLeaves.length - MAX_VISIBLE_LEAVES} more
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )
+
+      if (hasLeaves) {
+        cells.push(
+          <Popover key={dayStr}>
+            <PopoverTrigger asChild>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label={`View leaves on ${format(date, "PPP")}`}
+                className={cn(
+                  "cal-day-cell relative min-w-0 cursor-pointer overflow-hidden p-1 text-left sm:p-1.5",
+                  isToday && "cal-day-cell--today"
+                )}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    e.currentTarget.click()
+                  }
+                }}
+              >
+                {cellContent}
+              </div>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              className="w-auto border-border bg-card p-0 shadow-md"
+            >
+              <LeaveDayPopover
+                date={date}
+                leaves={dayLeaves}
+                showEmployeeName={showEmployeeName}
+                leaveTypes={leaveTypes}
+              />
+            </PopoverContent>
+          </Popover>
+        )
+      } else {
+        cells.push(
+          <div
+            key={dayStr}
+            className={cn(
+              "cal-day-cell relative min-w-0 overflow-hidden p-1 sm:p-1.5",
+              isToday && "cal-day-cell--today"
+            )}
+          >
+            {cellContent}
+          </div>
+        )
+      }
+    }
+
+    return cells
   }
 
-  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
-  const getLabel = (type: string) => formatLeaveTypeName(type)
-
   return (
-    <Card className="shadow-sm border bg-card">
-      <CardHeader className="pb-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-base font-semibold text-foreground">
-            Leave Calendar
-          </CardTitle>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 border-border"
-                >
-                  <CalendarDays className="h-4 w-4" />
-                  Go to month
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                  selected={currentMonth}
-                  onSelect={(d) => {
-                    if (d) {
-                      setCurrentMonth(startOfMonth(d))
-                      setPickerOpen(false)
-                    }
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-            <div className="flex items-center gap-1 rounded-md border border-border bg-background px-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-                aria-label="Previous month"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm font-semibold min-w-[130px] text-center text-foreground tabular-nums">
-                {format(currentMonth, "MMMM yyyy")}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                aria-label="Next month"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+    <CalendarEventTooltipProvider>
+    <div className="calendar-page">
+      <Card className="cal-toolbar-card overflow-hidden !gap-0 !border-0 !bg-transparent !px-0 !py-0 !shadow-none">
+        <div className="cal-toolbar border-b border-border px-0 py-3">
+          <div className="flex w-full min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <h2 className="shrink-0 text-base font-semibold text-foreground">
+              Leave Calendar
+            </h2>
+            <div className="min-w-0 w-full xl:max-w-xl">
+              <DatePicker
+                currentDate={currentDate}
+                onDateChange={setCurrentDate}
+                viewMode="month"
+              />
             </div>
           </div>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden border border-border">
-          {weekDays.map((day) => (
-            <div
-              key={day}
-              className="bg-muted/50 p-2 text-center text-xs font-semibold text-foreground"
-            >
-              {day}
-            </div>
-          ))}
 
-          {calendarDays.map((day) => {
-            const dayLeaves = getLeavesForDay(day)
-            const isCurrentMonth = isSameMonth(day, currentMonth)
-            const isToday = getMalaysiaDateStr(day) === getMalaysiaDateStr()
-            const isSundayOff = isMalaysiaNonWorkingDay(getMalaysiaDateStr(day))
-            const hasLeaves = dayLeaves.length > 0
+        <CardContent className="!bg-transparent !p-0 pt-3">
+          <div className="mb-2 grid grid-cols-7 gap-1 sm:gap-1.5">
+            {WEEKDAY_HEADERS.map((day) => (
+              <div
+                key={day}
+                className="p-2 text-center text-sm font-bold text-primary"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
 
-            const cellClasses = cn(
-              "bg-background p-1 min-h-[64px] sm:min-h-[72px]",
-              !isCurrentMonth && "bg-muted/30",
-              isSundayOff && isCurrentMonth && "bg-muted/20"
-            )
-
-            const cellContent = (
-              <>
-                <div
-                  className={cn(
-                    "text-xs mb-0.5 font-medium tabular-nums",
-                    isToday &&
-                      "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center font-semibold",
-                    !isToday && !isCurrentMonth && "text-muted-foreground",
-                    !isToday && isCurrentMonth && "text-foreground"
-                  )}
-                >
-                  {format(day, "d")}
-                </div>
-                <div className="space-y-0.5">
-                  {dayLeaves.slice(0, 3).map((leave) => {
-                    const chipClass = leaveTypeChipClasses(leave.leaveType)
-                    return (
-                      <TooltipProvider key={leave.id}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div
-                              className={cn(
-                                "text-[10px] px-1 py-0.5 rounded-sm truncate font-medium border",
-                                hasLeaves ? "cursor-pointer" : "cursor-default",
-                                chipClass,
-                                leave.status === "PENDING" && "opacity-80 ring-1 ring-foreground/20"
-                              )}
-                            >
-                              {showEmployeeName
-                                ? `${leave.user.firstName} ${leave.user.lastName.charAt(0)}.`
-                                : getLabel(leave.leaveType)}
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">
-                              {showEmployeeName &&
-                                `${leave.user.firstName} ${leave.user.lastName} - `}
-                              {getLabel(leave.leaveType)}
-                              {leave.status === "PENDING" && " (Pending)"}
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )
-                  })}
-                  {dayLeaves.length > 3 && (
-                    <div className="text-[10px] text-muted-foreground px-1 font-medium">
-                      +{dayLeaves.length - 3} more
-                    </div>
-                  )}
-                </div>
-              </>
-            )
-
-            if (!hasLeaves) {
-              return (
-                <div key={day.toISOString()} className={cellClasses}>
-                  {cellContent}
-                </div>
-              )
-            }
-
-            return (
-              <Popover key={day.toISOString()}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={`View leaves on ${format(day, "PPP")}`}
-                    className={cn(
-                      cellClasses,
-                      "text-left w-full hover:bg-accent/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    )}
-                  >
-                    {cellContent}
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-auto p-0">
-                  <LeaveDayPopover
-                    date={day}
-                    leaves={dayLeaves}
-                    showEmployeeName={showEmployeeName}
-                    leaveTypes={leaveTypes}
-                  />
-                </PopoverContent>
-              </Popover>
-            )
-          })}
-        </div>
-      </CardContent>
-    </Card>
+          <div className="cal-month-grid relative grid grid-cols-7 gap-1 sm:gap-1.5">
+            {renderCalendarDays()}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+    </CalendarEventTooltipProvider>
   )
 }

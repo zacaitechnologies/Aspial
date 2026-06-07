@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
 	Dialog,
 	DialogContent,
@@ -7,30 +8,42 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Calendar, Clock, User, Building2, Phone, Mail, FileText, Briefcase } from "lucide-react"
+import { Calendar, Clock, User, Building2, Phone, Mail, FileText, Briefcase, Send, Bell } from "lucide-react"
 import { format } from "date-fns"
 import type { AppointmentBooking } from "../equipment-dashboard"
+import SendAppointmentReminderDialog from "./SendAppointmentReminderDialog"
+import EditAppointmentRemindersDialog from "./EditAppointmentRemindersDialog"
+import AppointmentBookingEmailHistoryDialog from "./AppointmentBookingEmailHistoryDialog"
 
 interface BookingDetailsDialogProps {
 	isOpen: boolean
 	onOpenChange: (open: boolean) => void
 	booking: AppointmentBooking | null
+	onSuccess?: () => void
 }
 
 export default function BookingDetailsDialog({
 	isOpen,
 	onOpenChange,
 	booking,
+	onSuccess,
 }: BookingDetailsDialogProps) {
+	const [showSendReminderDialog, setShowSendReminderDialog] = useState(false)
+	const [showEditRemindersDialog, setShowEditRemindersDialog] = useState(false)
+	const [showEmailHistoryDialog, setShowEmailHistoryDialog] = useState(false)
+
 	if (!booking) return null
 
 	const formattedStartDate = format(new Date(booking.startDate), "PPP")
 	const formattedStartTime = format(new Date(booking.startDate), "h:mm a")
 	const formattedEndTime = format(new Date(booking.endDate), "h:mm a")
 	const formattedEndDate = format(new Date(booking.endDate), "PPP")
+	const hasProject = Boolean(booking.project)
 
 	return (
+		<>
 		<Dialog open={isOpen} onOpenChange={onOpenChange}>
 			<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
 				<DialogHeader>
@@ -218,7 +231,59 @@ export default function BookingDetailsDialog({
 						</>
 					)}
 				</div>
+
+				<div className="flex flex-wrap gap-2 pt-4 border-t">
+					{hasProject && (
+						<>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setShowSendReminderDialog(true)}
+							>
+								<Send className="w-4 h-4 mr-1" />
+								Send Reminder
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setShowEditRemindersDialog(true)}
+							>
+								<Bell className="w-4 h-4 mr-1" />
+								Edit Reminders
+							</Button>
+						</>
+					)}
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setShowEmailHistoryDialog(true)}
+					>
+						<Mail className="w-4 h-4 mr-1" />
+						Email History
+					</Button>
+				</div>
 			</DialogContent>
 		</Dialog>
+
+		<SendAppointmentReminderDialog
+			isOpen={showSendReminderDialog}
+			onOpenChange={setShowSendReminderDialog}
+			appointmentBookingId={booking.id}
+			onSuccess={onSuccess}
+		/>
+
+		<EditAppointmentRemindersDialog
+			isOpen={showEditRemindersDialog}
+			onOpenChange={setShowEditRemindersDialog}
+			appointmentBookingId={booking.id}
+			onSuccess={onSuccess}
+		/>
+
+		<AppointmentBookingEmailHistoryDialog
+			isOpen={showEmailHistoryDialog}
+			onOpenChange={setShowEmailHistoryDialog}
+			appointmentBookingId={booking.id}
+		/>
+		</>
 	)
 }

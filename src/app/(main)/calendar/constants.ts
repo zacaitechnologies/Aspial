@@ -45,3 +45,11 @@ export const CALENDAR_EVENT_TYPES = {
 } as const
 
 export type CalendarEventType = keyof typeof CALENDAR_EVENT_TYPES
+
+/** Booking audience category stored on appointment_bookings (Internal vs External). */
+export const APPOINTMENT_CATEGORIES = {
+	INTERNAL: { label: "Internal" },
+	EXTERNAL: { label: "External" },
+} as const
+
+export type AppointmentCategory = keyof typeof APPOINTMENT_CATEGORIES

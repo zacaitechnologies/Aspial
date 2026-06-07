@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { CalendarBooking } from "@/app/(main)/calendar/actions"
 import { formatDateStringDirect } from "@/lib/date-utils"
-import { Calendar, Clock, MapPin, Users } from "lucide-react"
+import { Calendar, Clock, MapPin, Users, Tag } from "lucide-react"
+import { formatAppointmentCategoryLabel } from "../utils/calendar-utils"
 
 interface BookingTooltipProps {
   booking: CalendarBooking
@@ -13,6 +14,7 @@ interface BookingTooltipProps {
 
 export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
   const [mounted, setMounted] = useState(false)
+  const categoryLabel = formatAppointmentCategoryLabel(booking)
 
   useEffect(() => {
     setMounted(true)
@@ -75,6 +77,12 @@ export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
           <Users className="w-3 h-3" />
           {booking.attendees} attendees
         </div>
+        {booking.type === "appointment" && categoryLabel && (
+          <div className="flex items-center gap-1">
+            <Tag className="w-3 h-3" />
+            <span>Category: {categoryLabel}</span>
+          </div>
+        )}
       </div>
       {booking.description ? (
         <div className="mt-2 border-t border-border pt-2">

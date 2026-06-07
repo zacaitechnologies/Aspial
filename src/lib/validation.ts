@@ -435,11 +435,14 @@ const leaveTypeCode = z.string().trim().min(1, "Leave type is required").max(64)
 export const applyLeaveSchema = z.object({
   leaveType: leaveTypeCode,
   startDate: leaveDateString,
-  endDate: leaveDateString,
+  endDate: leaveDateString.optional(),
   halfDay: z.enum(["NONE", "FIRST_HALF", "SECOND_HALF"]).default("NONE"),
   reason: z.string().trim().min(1, "Reason is required").max(500, "Reason must be 500 characters or less"),
   attachmentUrl: z.string().url().optional(),
-}).refine(data => data.endDate >= data.startDate, {
+}).transform((data) => ({
+  ...data,
+  endDate: data.endDate ?? data.startDate,
+})).refine(data => data.endDate >= data.startDate, {
   message: "End date must be on or after start date",
   path: ["endDate"],
 }).refine(data => {

@@ -2,6 +2,7 @@ import { Clock, MapPin, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CalendarBooking } from "../actions"
 import { calendarEventLegendDotClass } from "../utils/event-surface-styles"
+import { AppointmentCategoryDetail } from "./AppointmentCategoryDetail"
 
 export function EventTooltipContent({ booking }: { booking: CalendarBooking }) {
 	return (
@@ -18,6 +19,9 @@ export function EventTooltipContent({ booking }: { booking: CalendarBooking }) {
 			</div>
 			{booking.clientName && (
 				<p className="text-muted-foreground">{booking.clientName}</p>
+			)}
+			{booking.type === "appointment" && (
+				<AppointmentCategoryDetail booking={booking} />
 			)}
 			{booking.type !== "task" && booking.startTime && (
 				<div className="flex items-center gap-1.5">

@@ -10,7 +10,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -18,10 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { calToolbarControlClass } from "@/app/(main)/calendar/utils/calendar-toolbar-styles"
+import {
+  leaveTableHeadClass,
+  leaveTableHeadRowClass,
+  leaveTableShellClass,
+} from "../leave-table-styles"
 import { LeaveTypeBadge, LeaveStatusBadge } from "./LeaveStatusBadge"
 import type { EmployeeLeaveOverview as EmployeeLeaveOverviewType, LeaveTypeDTO } from "../types"
 import { formatLeaveTypeName } from "../types"
 import { formatMYTDateForDisplay } from "@/lib/date-utils"
+import { cn } from "@/lib/utils"
 import { Search } from "lucide-react"
 
 interface EmployeeLeaveOverviewProps {
@@ -74,26 +80,24 @@ export default function EmployeeLeaveOverviewTable({
     (_, i) => yearMin + i
   )
 
+  const tableHeadClass = leaveTableHeadClass
+
   return (
-    <Card className="border bg-card shadow-sm">
-      <CardHeader className="pb-3 space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1 min-w-0">
-            <CardTitle className="text-lg font-semibold text-foreground">
-              Employee overview
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Leave balances for calendar year {selectedYear} (Malaysia time). Last and next
-              leave are based on today&apos;s date.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Year</span>
+    <div className="flex flex-col gap-3">
+      <div className="border-b border-border pb-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="shrink-0 text-base font-semibold text-foreground">
+            Employee overview
+          </h2>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <span className="whitespace-nowrap text-sm text-muted-foreground">Year</span>
             <Select
               value={String(selectedYear)}
               onValueChange={(v) => onYearChange(Number.parseInt(v, 10))}
             >
-              <SelectTrigger className="w-[min(100vw-4rem,140px)]">
+              <SelectTrigger
+                className={cn("w-[min(100vw-4rem,140px)]", calToolbarControlClass)}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -106,30 +110,29 @@ export default function EmployeeLeaveOverviewTable({
             </Select>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0">
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="relative mt-3 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search employees..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-background"
+            className={cn("pl-9 shadow-xs", calToolbarControlClass)}
           />
         </div>
+      </div>
 
-        <div className="rounded-lg border border-border bg-background overflow-x-auto">
+      <div className={leaveTableShellClass}>
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead className="sticky left-0 z-20 bg-background text-foreground font-semibold">
+              <TableRow className={leaveTableHeadRowClass}>
+                <TableHead className={cn("sticky left-0 z-20", tableHeadClass)}>
                   Employee
                 </TableHead>
-                <TableHead className="text-foreground font-semibold">Role</TableHead>
-                <TableHead className="text-foreground font-semibold">Last leave</TableHead>
-                <TableHead className="text-foreground font-semibold">Next leave</TableHead>
+                <TableHead className={tableHeadClass}>Role</TableHead>
+                <TableHead className={tableHeadClass}>Last leave</TableHead>
+                <TableHead className={tableHeadClass}>Next leave</TableHead>
                 {summaryColumns.map((t) => (
-                  <TableHead key={t.code} className="text-foreground font-semibold whitespace-nowrap">
+                  <TableHead key={t.code} className={cn("whitespace-nowrap", tableHeadClass)}>
                     {t.name}
                   </TableHead>
                 ))}
@@ -148,7 +151,7 @@ export default function EmployeeLeaveOverviewTable({
               ) : (
                 filtered.map((emp) => (
                   <TableRow key={emp.userId} className="hover:bg-muted/30">
-                    <TableCell className="sticky left-0 z-10 bg-background font-medium text-foreground">
+                    <TableCell className="sticky left-0 z-10 bg-card font-medium text-foreground">
                       {emp.firstName} {emp.lastName}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
@@ -219,7 +222,6 @@ export default function EmployeeLeaveOverviewTable({
             </TableBody>
           </Table>
         </div>
-      </CardContent>
-    </Card>
+    </div>
   )
 }

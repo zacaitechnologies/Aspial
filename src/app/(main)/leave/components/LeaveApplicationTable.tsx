@@ -15,6 +15,12 @@ import { format } from "date-fns"
 import { formatMYTDateForDisplay } from "@/lib/date-utils"
 import { Check, X, Pencil, Ban, Eye, FileText } from "lucide-react"
 import { leaveAttachmentUrlIsPdf } from "../leave-attachment-utils"
+import {
+  leaveTableHeadClass,
+  leaveTableHeadRowClass,
+  leaveTableShellClass,
+} from "../leave-table-styles"
+import { cn } from "@/lib/utils"
 
 interface LeaveApplicationTableProps {
   applications: LeaveApplicationDTO[]
@@ -50,17 +56,19 @@ export default function LeaveApplicationTable({
   }
 
   return (
-    <div className="rounded-md border">
+    <div className={leaveTableShellClass}>
       <Table>
         <TableHeader>
-          <TableRow>
-            {isAdmin && <TableHead>Employee</TableHead>}
-            <TableHead>Type</TableHead>
-            <TableHead>Dates</TableHead>
-            <TableHead>Days</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Unpaid</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+          <TableRow className={leaveTableHeadRowClass}>
+            {isAdmin && (
+              <TableHead className={leaveTableHeadClass}>Employee</TableHead>
+            )}
+            <TableHead className={leaveTableHeadClass}>Type</TableHead>
+            <TableHead className={leaveTableHeadClass}>Dates</TableHead>
+            <TableHead className={leaveTableHeadClass}>Days</TableHead>
+            <TableHead className={leaveTableHeadClass}>Status</TableHead>
+            <TableHead className={leaveTableHeadClass}>Unpaid</TableHead>
+            <TableHead className={cn("text-right", leaveTableHeadClass)}>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

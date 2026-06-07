@@ -32,6 +32,21 @@ export function calendarEventLegendDotClass(appointmentType: CalendarEventType):
 /** Slightly faded styling for events that have already ended. */
 export const calendarEventPastClass = "cal-event-surface--past"
 
+/** Leave chips — approved uses pastel leave surface; pending uses dashed pending token (matches calendar actions). */
+export function calendarLeaveSurfaceClass(status: string): string {
+	if (status === "PENDING") {
+		return "bg-calendar-leave-pending text-foreground border border-dashed border-calendar-leave/70"
+	}
+	return "cal-event-surface cal-event-surface--leave"
+}
+
+export function calendarLeaveLegendDotClass(status: string): string {
+	if (status === "PENDING") {
+		return "bg-calendar-leave-pending ring-1 ring-border/40"
+	}
+	return "bg-calendar-leave ring-1 ring-border/40"
+}
+
 /** Badge on event cards — subtle, inherits legend text color */
 export const calendarEventBadgeClass =
 	"shrink-0 border border-current/25 bg-card/50 text-inherit text-[10px] font-medium leading-tight"

@@ -126,7 +126,7 @@ export default function SendAppointmentReminderDialog({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[500px]">
+			<DialogContent nested className="sm:max-w-[500px]">
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<MailIcon className="w-5 h-5" />

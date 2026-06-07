@@ -66,7 +66,7 @@ export async function getBookingFormProjects(): Promise<ProjectWithClient[]> {
 	return uniqueProjects.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-async function userCanAccessProject(
+export async function userCanAccessProject(
 	userId: string,
 	projectId: number
 ): Promise<boolean> {
@@ -522,10 +522,12 @@ export async function createAppointmentBooking(formData: FormData) {
 				// Parse reminder data (can be array of numbers or array of objects with emails)
 				const reminderData = (reminderList as Array<number | { offsetMinutes: number; recipientEmails: string[] }>).map((item: number | { offsetMinutes: number; recipientEmails: string[] }) => {
 					if (typeof item === 'number') {
-						// Use confirmation emails as default if no emails specified
 						return { offsetMinutes: item, recipientEmails: validEmails.length > 0 ? validEmails : [] }
 					}
-					return item // Already has offsetMinutes and recipientEmails
+					const recipientEmails = item.recipientEmails.some((e) => e.trim())
+						? item.recipientEmails
+						: validEmails
+					return { offsetMinutes: item.offsetMinutes, recipientEmails }
 				})
 				await createOrUpdateReminders(booking.id, startDate, reminderData)
 			} catch (reminderError) {
@@ -645,6 +647,17 @@ function validateReminderOffsets(offsets: number[]): { valid: boolean; error?: s
 	}
 
 	return { valid: true }
+}
+
+/**
+ * Create or update reminders for a booking (replaces all existing reminder rows).
+ */
+export async function syncBookingReminders(
+	appointmentBookingId: number,
+	startDate: Date,
+	reminders: Array<{ offsetMinutes: number; recipientEmails: string[] }>
+) {
+	await createOrUpdateReminders(appointmentBookingId, startDate, reminders)
 }
 
 /**

@@ -16,6 +16,13 @@ import { Loader2, Save, Search } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { bulkUpsertLeaveBalances, fetchAllLeaveBalances } from "../action"
 import type { LeaveBalanceDTO, LeaveTypeDTO } from "../types"
+import { calToolbarControlClass } from "@/app/(main)/calendar/utils/calendar-toolbar-styles"
+import {
+  leaveTableHeadClass,
+  leaveTableHeadRowClass,
+  leaveTableShellClass,
+} from "../leave-table-styles"
+import { cn } from "@/lib/utils"
 
 interface BalanceGridEditorProps {
   users: { id: string; firstName: string; lastName: string }[]
@@ -213,12 +220,12 @@ export default function BalanceGridEditor({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search employee..."
-            className="pl-10"
+            className={cn("pl-10 shadow-xs", calToolbarControlClass)}
           />
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className={leaveTableShellClass}>
         {loading ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="h-5 w-5 mr-2 animate-spin" /> Loading balances...
@@ -226,19 +233,23 @@ export default function BalanceGridEditor({
         ) : (
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="sticky left-0 z-20 bg-background min-w-[160px]">
+              <TableRow className={leaveTableHeadRowClass}>
+                <TableHead
+                  className={cn("sticky left-0 z-20 min-w-[160px]", leaveTableHeadClass)}
+                >
                   Employee
                 </TableHead>
                 {paidLeaveTypes.map((t) => (
-                  <TableHead key={t.code} className="min-w-[140px]">
+                  <TableHead key={t.code} className={cn("min-w-[140px]", leaveTableHeadClass)}>
                     {t.name}
                     <span className="block text-[10px] font-normal text-muted-foreground">
                       default {t.defaultEntitlement}
                     </span>
                   </TableHead>
                 ))}
-                <TableHead className="text-right min-w-[90px]">Save</TableHead>
+                <TableHead className={cn("min-w-[90px] text-right", leaveTableHeadClass)}>
+                  Save
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -257,7 +268,7 @@ export default function BalanceGridEditor({
                 const isDirty = dirtyByUser[u.id]
                 return (
                   <TableRow key={u.id}>
-                    <TableCell className="sticky left-0 z-10 bg-background font-medium">
+                    <TableCell className="sticky left-0 z-10 bg-card font-medium">
                       <div>{u.firstName} {u.lastName}</div>
                       {isDirty && (
                         <Badge variant="outline" className="mt-1 bg-amber-50 text-amber-800 border-amber-200">
@@ -275,7 +286,10 @@ export default function BalanceGridEditor({
                             step="0.5"
                             value={cell?.draft ?? ""}
                             onChange={(e) => setDraft(u.id, t.code, e.target.value)}
-                            className={cell?.dirty ? "border-amber-400" : undefined}
+                            className={cn(
+                              calToolbarControlClass,
+                              cell?.dirty && "border-amber-400"
+                            )}
                           />
                           <p className="text-[10px] text-muted-foreground mt-1">
                             used {cell?.used ?? 0} · pending {cell?.pending ?? 0} · bal{" "}

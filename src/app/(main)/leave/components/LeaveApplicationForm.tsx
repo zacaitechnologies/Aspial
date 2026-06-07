@@ -9,6 +9,7 @@ import { halfDayOptions, calculateLeaveDaysClient } from "../types"
 import type { LeaveBalanceDTO, LeaveTypeDTO } from "../types"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -33,7 +34,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
 import {
   Tooltip,
@@ -108,10 +108,10 @@ export default function LeaveApplicationForm({
 
   const selectedBalance = balances.find((b) => b.leaveType === watchLeaveType)
   const estimatedDays =
-    watchStartDate && watchEndDate
+    watchStartDate
       ? calculateLeaveDaysClient(
           String(watchStartDate),
-          String(watchEndDate),
+          String(watchEndDate || watchStartDate),
           watchHalfDay ?? "NONE"
         )
       : 0
@@ -201,12 +201,16 @@ export default function LeaveApplicationForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="flex flex-col overflow-hidden sm:max-w-[500px]">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Apply for Leave</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex min-h-0 flex-1 flex-col gap-4"
+          >
+            <DialogBody className="space-y-4 pr-1">
             <FormField
               control={form.control}
               name="leaveType"
@@ -333,8 +337,7 @@ export default function LeaveApplicationForm({
 
                 return (
                   <FormItem>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <FormLabel htmlFor={fileInputId} className="!mt-0 cursor-pointer">
                           Supporting document
                           {requiresAttachment ? (
@@ -358,22 +361,6 @@ export default function LeaveApplicationForm({
                             the upload area or drop a file onto it.
                           </TooltipContent>
                         </Tooltip>
-                      </div>
-                      {requiresAttachment ? (
-                        <Badge
-                          variant="secondary"
-                          className="shrink-0 border border-border/60 text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
-                        >
-                          Required
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
-                        >
-                          Optional
-                        </Badge>
-                      )}
                     </div>
 
                     <FormControl>
@@ -651,7 +638,9 @@ export default function LeaveApplicationForm({
               </div>
             )}
 
-            <DialogFooter>
+            </DialogBody>
+
+            <DialogFooter className="shrink-0 border-t border-border pt-4">
               <Button
                 type="button"
                 variant="outline"

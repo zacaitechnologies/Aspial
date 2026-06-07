@@ -159,7 +159,9 @@ export function BlockerFormDialog({ open, onOpenChange, blocker, onSuccess }: Bl
 
 				<form onSubmit={handleSubmit} className="space-y-4">
 					<div className="space-y-2">
-						<Label htmlFor="blocker-title">Title *</Label>
+						<Label htmlFor="blocker-title">
+							Title <span className="text-destructive">*</span>
+						</Label>
 						<Input
 							id="blocker-title"
 							name="title"
@@ -200,7 +202,9 @@ export function BlockerFormDialog({ open, onOpenChange, blocker, onSuccess }: Bl
 					{allDay ? (
 						<div key="all-day-fields" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div className="space-y-2">
-								<Label htmlFor="blocker-start-date">Start date *</Label>
+								<Label htmlFor="blocker-start-date">
+									Start date <span className="text-destructive">*</span>
+								</Label>
 								<Input
 									id="blocker-start-date"
 									name="startDate"
@@ -210,7 +214,9 @@ export function BlockerFormDialog({ open, onOpenChange, blocker, onSuccess }: Bl
 								/>
 							</div>
 							<div className="space-y-2">
-								<Label htmlFor="blocker-end-date">End date *</Label>
+								<Label htmlFor="blocker-end-date">
+									End date <span className="text-destructive">*</span>
+								</Label>
 								<Input
 									id="blocker-end-date"
 									name="endDate"
@@ -223,7 +229,9 @@ export function BlockerFormDialog({ open, onOpenChange, blocker, onSuccess }: Bl
 					) : (
 						<div key="timed-fields" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div className="space-y-2">
-								<Label htmlFor="blocker-start">Start date & time *</Label>
+								<Label htmlFor="blocker-start">
+									Start date & time <span className="text-destructive">*</span>
+								</Label>
 								<Input
 									id="blocker-start"
 									name="startDateTime"
@@ -233,7 +241,9 @@ export function BlockerFormDialog({ open, onOpenChange, blocker, onSuccess }: Bl
 								/>
 							</div>
 							<div className="space-y-2">
-								<Label htmlFor="blocker-end">End date & time *</Label>
+								<Label htmlFor="blocker-end">
+									End date & time <span className="text-destructive">*</span>
+								</Label>
 								<Input
 									id="blocker-end"
 									name="endDateTime"

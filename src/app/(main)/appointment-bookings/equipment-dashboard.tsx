@@ -434,9 +434,9 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
               const appointmentConfig = APPOINTMENT_TYPES[booking.appointmentType as keyof typeof APPOINTMENT_TYPES] || APPOINTMENT_TYPES.OTHERS
               
               return (
-                <Card key={booking.id} className="card">
-                  <CardHeader>
-                    <div className="flex items-center gap-2 mb-2 w-full">
+                <Card key={booking.id} className="card min-w-0 overflow-hidden">
+                  <CardHeader className="min-w-0 space-y-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <Calendar className="w-5 h-5 shrink-0" />
                       <h3 
                         className="text-lg font-semibold truncate flex-1 min-w-0" 
@@ -444,7 +444,20 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                       >
                         {booking.itemName}
                       </h3>
-                      <div className="flex shrink-0 gap-1">
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-2 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        <Badge className={appointmentConfig.color}>
+                          {appointmentConfig.label}
+                        </Badge>
+                        <Badge 
+                          variant="secondary"
+                          className={hasPassed ? "bg-muted text-muted-foreground" : "bg-[var(--color-chart-3)] text-primary-foreground"}
+                        >
+                          {hasPassed ? 'Expired' : 'Active'}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 ml-auto max-w-full">
                         {booking.project && (
                           <>
                             <Button
@@ -454,7 +467,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                                 setSelectedReminderBookingId(booking.id)
                                 setShowSendReminderDialog(true)
                               }}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50 shrink-0"
                               title="Send reminder email"
                             >
                               <Send className="w-4 h-4" />
@@ -466,7 +479,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                                 setSelectedEditRemindersBookingId(booking.id)
                                 setShowEditRemindersDialog(true)
                               }}
-                              className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                              className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 shrink-0"
                               title="Edit reminders"
                             >
                               <Bell className="w-4 h-4" />
@@ -480,7 +493,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                             setSelectedBookingForDetails(booking)
                             setShowBookingDetailsDialog(true)
                           }}
-                          className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                          className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 shrink-0"
                           title="View booking details"
                         >
                           <Info className="w-4 h-4" />
@@ -492,7 +505,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                             setSelectedBookingId(booking.id)
                             setShowEmailHistoryDialog(true)
                           }}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 shrink-0"
                           title="View email history"
                         >
                           <Mail className="w-4 h-4" />
@@ -502,23 +515,12 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                           size="sm"
                           disabled={hasPassed}
                           onClick={() => handleCancelBooking(booking.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
                           title={hasPassed ? "Cannot cancel past bookings" : "Cancel booking"}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={appointmentConfig.color}>
-                        {appointmentConfig.label}
-                      </Badge>
-                      <Badge 
-                        variant="secondary"
-                        className={hasPassed ? "bg-muted text-muted-foreground" : "bg-[var(--color-chart-3)] text-primary-foreground"}
-                      >
-                        {hasPassed ? 'Expired' : 'Active'}
-                      </Badge>
                     </div>
                   </CardHeader>
 
@@ -810,6 +812,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
           }
         }}
         booking={selectedBookingForDetails}
+        onSuccess={handleRefresh}
       />
     </Tabs>
   )

@@ -283,7 +283,7 @@ export default function EditAppointmentRemindersDialog({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+			<DialogContent nested className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
 				<DialogHeader className="px-6 pt-6 pb-4 flex-shrink-0">
 					<DialogTitle className="flex items-center gap-2">
 						<Bell className="w-5 h-5" />

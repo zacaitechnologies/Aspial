@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Filter, Download, ShieldAlert, Sun, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from "lucide-react"
+import { Filter, Download, ShieldAlert, Sun, PanelRightClose, PanelRightOpen, SlidersHorizontal } from "lucide-react"
 import { CalendarDay } from "./CalendarDay"
 import { BookingDetailsDialog } from "./BookingDetailsDialog"
 import { DateEventsDialog } from "./DateEventsDialog"
@@ -15,7 +15,6 @@ import { WeekView } from "./WeekView"
 import { DayView } from "./DayView"
 import { BlockerFormDialog } from "./BlockerFormDialog"
 import { AppointmentBookingDialog } from "./AppointmentBookingDialog"
-import { EditBookingDialog } from "./EditBookingDialog"
 import { fetchAllBookings, deleteCalendarBlocker, type CalendarBooking } from "../actions"
 import { cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
 import { CALENDAR_EVENT_TYPES, type AppointmentType, type CalendarEventType } from "../constants"
@@ -106,8 +105,7 @@ export default function CalendarClient({
 	const [bookingInitialEndTime, setBookingInitialEndTime] = useState<string | null>(null)
 	const [bookingInitialType, setBookingInitialType] = useState<AppointmentType | null>(null)
 
-	// Edit booking dialog state
-	const [isEditBookingDialogOpen, setIsEditBookingDialogOpen] = useState(false)
+	// Edit booking (same dialog as create)
 	const [editingBooking, setEditingBooking] = useState<CalendarBooking | null>(null)
 
 	const isAdmin = initialIsAdmin
@@ -336,12 +334,12 @@ export default function CalendarClient({
     appointmentType?: AppointmentType | null,
     endTime?: string | null,
   ) => {
+    setEditingBooking(null)
     setBookingInitialDate(date)
     setBookingInitialTime(time || null)
     setBookingInitialEndTime(endTime || null)
     setBookingInitialType(appointmentType || null)
     setIsDateEventsDialogOpen(false)
-    setIsMonthDayDialogOpen(false)
     setIsBookingDialogOpen(true)
   }
 
@@ -362,7 +360,7 @@ export default function CalendarClient({
 	const handleEditBooking = (booking: CalendarBooking) => {
 		setEditingBooking(booking)
 		setIsDetailsDialogOpen(false)
-		setIsEditBookingDialogOpen(true)
+		setIsBookingDialogOpen(true)
 	}
 
 	const handleCancelBooking = async (booking: CalendarBooking) => {
@@ -566,42 +564,6 @@ export default function CalendarClient({
 		<div className="calendar-page min-h-screen bg-background px-4 pt-[5px] pb-5 sm:px-6 sm:pb-6">
 			<div className="max-w-[92rem] mx-auto">
 				<div className="flex items-start gap-2 lg:gap-3">
-					<aside className="hidden lg:block shrink-0 sticky top-4 self-start">
-						{isSidebarOpen ? (
-							<div className="cal-sidebar-panel flex w-[21rem] flex-col">
-								<div className="cal-sidebar-header flex shrink-0 items-center justify-between gap-2 py-1.5">
-									<h2 className="text-sm font-semibold leading-none text-foreground">
-										Calendar Panel
-									</h2>
-									<Button
-										size="icon"
-										variant="ghost"
-										className="h-7 w-7"
-										onClick={() => setIsSidebarOpen(false)}
-										aria-label="Collapse sidebar"
-									>
-										<PanelLeftClose className="h-4 w-4" />
-									</Button>
-								</div>
-								<div className="cal-sidebar-body pt-2">
-									{renderSidebarContent("desktop")}
-								</div>
-							</div>
-						) : (
-							<div className="cal-sidebar-rail w-10">
-								<Button
-									size="icon"
-									variant="ghost"
-									className="h-9 w-9"
-									onClick={() => setIsSidebarOpen(true)}
-									aria-label="Expand sidebar"
-								>
-									<PanelLeftOpen className="h-4 w-4" />
-								</Button>
-							</div>
-						)}
-					</aside>
-
 					<div className="min-w-0 flex-1">
 						{/* Calendar */}
 						<Card className="cal-toolbar-card overflow-hidden !gap-0 !border-0 !bg-transparent !py-0 !px-0 !shadow-none">
@@ -624,7 +586,7 @@ export default function CalendarClient({
 											<SlidersHorizontal className="w-3.5 h-3.5" />
 											Panel
 										</Button>
-										<SheetContent side="left" className="w-[88vw] max-w-sm p-0">
+										<SheetContent side="right" className="w-[88vw] max-w-sm p-0">
 											<SheetHeader className="border-b border-border px-4 py-3">
 												<SheetTitle>Calendar Panel</SheetTitle>
 												<SheetDescription>
@@ -709,23 +671,43 @@ export default function CalendarClient({
 					</CardContent>
 				</Card>
 					</div>
-				</div>
 
-				{/* Booking Details Dialog */}
-				<BookingDetailsDialog
-					booking={selectedBooking}
-					isOpen={isDetailsDialogOpen}
-					onClose={() => {
-						setIsDetailsDialogOpen(false)
-						setSelectedBooking(null)
-					}}
-					onEdit={handleBookingEdit}
-					onDelete={handleBookingDelete}
-					onEditBooking={handleEditBooking}
-					onCancelBooking={handleCancelBooking}
-					onBookAtTime={handleBookAtTimeFromDetails}
-					isAdmin={isAdmin}
-				/>
+					<aside className="hidden lg:block shrink-0 sticky top-4 self-start">
+						{isSidebarOpen ? (
+							<div className="cal-sidebar-panel flex w-[21rem] flex-col">
+								<div className="cal-sidebar-header flex shrink-0 items-center justify-between gap-2 py-1.5">
+									<h2 className="text-sm font-semibold leading-none text-foreground">
+										Calendar Panel
+									</h2>
+									<Button
+										size="icon"
+										variant="ghost"
+										className="h-7 w-7"
+										onClick={() => setIsSidebarOpen(false)}
+										aria-label="Collapse panel"
+									>
+										<PanelRightClose className="h-4 w-4" />
+									</Button>
+								</div>
+								<div className="cal-sidebar-body pt-2">
+									{renderSidebarContent("desktop")}
+								</div>
+							</div>
+						) : (
+							<div className="cal-sidebar-rail w-10">
+								<Button
+									size="icon"
+									variant="ghost"
+									className="h-9 w-9"
+									onClick={() => setIsSidebarOpen(true)}
+									aria-label="Expand panel"
+								>
+									<PanelRightOpen className="h-4 w-4" />
+								</Button>
+							</div>
+						)}
+					</aside>
+				</div>
 
 				{/* Date Events Dialog */}
 				<DateEventsDialog
@@ -755,12 +737,49 @@ export default function CalendarClient({
 					events={getBookingsForDate(selectedDate)}
 					onEventClick={(event) => {
 						setSelectedBooking(event)
-						setIsMonthDayDialogOpen(false)
 						setIsDetailsDialogOpen(true)
 					}}
 					onBookSlot={(date, time, appointmentType) =>
 						handleBookAppointment(date, time, appointmentType)
 					}
+				/>
+
+				{/* Booking Details — after month-day dialog so it stacks on top */}
+				<BookingDetailsDialog
+					booking={selectedBooking}
+					isOpen={isDetailsDialogOpen}
+					onClose={() => {
+						setIsDetailsDialogOpen(false)
+						setSelectedBooking(null)
+					}}
+					onEdit={handleBookingEdit}
+					onDelete={handleBookingDelete}
+					onEditBooking={handleEditBooking}
+					onCancelBooking={handleCancelBooking}
+					onBookAtTime={handleBookAtTimeFromDetails}
+					isAdmin={isAdmin}
+				/>
+
+				{/* Appointment Booking — after month-day dialog so it stacks on top */}
+				<AppointmentBookingDialog
+					isOpen={isBookingDialogOpen}
+					onClose={() => {
+						setIsBookingDialogOpen(false)
+						setEditingBooking(null)
+						setBookingInitialDate("")
+						setBookingInitialTime(null)
+						setBookingInitialEndTime(null)
+						setBookingInitialType(null)
+					}}
+					initialDate={bookingInitialDate}
+					initialTime={bookingInitialTime}
+					initialEndTime={bookingInitialEndTime}
+					initialAppointmentType={bookingInitialType}
+					editBooking={editingBooking}
+					appointments={initialAppointments}
+					userId={userId}
+					userName={userName}
+					onSuccess={handleBookingSuccess}
 				/>
 
 				{/* Export Calendar Dialog */}
@@ -783,38 +802,6 @@ export default function CalendarClient({
 					/>
 				)}
 
-				{/* Appointment Booking Dialog */}
-				<AppointmentBookingDialog
-					isOpen={isBookingDialogOpen}
-					onClose={() => {
-						setIsBookingDialogOpen(false)
-						setBookingInitialDate("")
-						setBookingInitialTime(null)
-						setBookingInitialEndTime(null)
-						setBookingInitialType(null)
-					}}
-					initialDate={bookingInitialDate}
-					initialTime={bookingInitialTime}
-					initialEndTime={bookingInitialEndTime}
-					initialAppointmentType={bookingInitialType}
-					appointments={initialAppointments}
-					userId={userId}
-					userName={userName}
-					onSuccess={handleBookingSuccess}
-				/>
-
-				{/* Edit Booking Dialog */}
-				<EditBookingDialog
-					isOpen={isEditBookingDialogOpen}
-					onClose={() => {
-						setIsEditBookingDialogOpen(false)
-						setEditingBooking(null)
-					}}
-					booking={editingBooking}
-					userName={userName}
-					isAdmin={isAdmin}
-					onSuccess={handleBookingSuccess}
-				/>
 			</div>
 		</div>
 		</CalendarEventTooltipProvider>

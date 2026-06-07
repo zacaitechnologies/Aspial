@@ -4,6 +4,36 @@
 
 import { formatLocalDate, toBusinessTZParts } from "@/lib/date-utils"
 import type { CalendarBooking } from "../actions"
+import { APPOINTMENT_CATEGORIES, type AppointmentCategory } from "../constants"
+
+/** Resolve Internal / External category for an appointment calendar event. */
+export function resolveAppointmentCategory(
+	booking: CalendarBooking
+): AppointmentCategory | null {
+	if (booking.type !== "appointment") return null
+	if (
+		booking.appointmentCategory === "INTERNAL" ||
+		booking.appointmentCategory === "EXTERNAL"
+	) {
+		return booking.appointmentCategory
+	}
+	const raw = booking.originalData
+	if (raw !== null && typeof raw === "object") {
+		const record = raw as Record<string, unknown>
+		const source =
+			record.kind === "merged" && record.first && typeof record.first === "object"
+				? (record.first as Record<string, unknown>)
+				: record
+		const category = source.appointmentCategory
+		if (category === "INTERNAL" || category === "EXTERNAL") return category
+	}
+	return null
+}
+
+export function formatAppointmentCategoryLabel(booking: CalendarBooking): string | null {
+	const category = resolveAppointmentCategory(booking)
+	return category ? APPOINTMENT_CATEGORIES[category].label : null
+}
 
 /**
  * Week/day views: tasks and leave always use the all-day row; all-day blockers join them (not time columns).

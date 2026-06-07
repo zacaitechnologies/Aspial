@@ -6,9 +6,14 @@ import { formatLocalDate, formatLocalDateTime, toBusinessTZParts, parseDateInBus
 import type { LeaveHalfDay } from "@prisma/client"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import {
+	syncBookingReminders,
+	userCanAccessProject,
+} from "@/app/(main)/appointment-bookings/actions"
+import {
 	APPOINTMENT_TYPES,
 	CALENDAR_EVENT_TYPES,
 	type AppointmentType,
+	type AppointmentCategory,
 	type CalendarEventType,
 } from "./constants"
 
@@ -31,6 +36,8 @@ export interface CalendarBooking {
 	endTime: string
 	type: "appointment" | "task" | "leave" | "blocker"
 	appointmentType: CalendarEventType
+	/** Appointments only: Internal vs External booking category. */
+	appointmentCategory?: AppointmentCategory | null
 	location: string
 	attendees: number
 	color: string
@@ -54,36 +61,30 @@ export interface CalendarBooking {
 	allDay?: boolean
 }
 
-/** Local calendar dates (YYYY-MM-DD) for each day of a leave span, optionally clipped to a visible range. */
+/** Inclusive MYT calendar dates (YYYY-MM-DD) between two stored UTC instants, optionally clipped to a visible range. */
 function expandLeaveDatesInRange(
 	leaveStart: Date,
 	leaveEnd: Date,
 	range?: { start: Date | string; end: Date | string }
 ): string[] {
-	const rs = range ? coerceToDate(range.start) : null
-	const re = range ? coerceToDate(range.end) : null
-	const start = new Date(
-		leaveStart.getFullYear(),
-		leaveStart.getMonth(),
-		leaveStart.getDate()
-	)
-	const end = new Date(leaveEnd.getFullYear(), leaveEnd.getMonth(), leaveEnd.getDate())
-	const rangeStart = rs
-		? new Date(rs.getFullYear(), rs.getMonth(), rs.getDate())
-		: null
-	const rangeEnd = re
-		? new Date(re.getFullYear(), re.getMonth(), re.getDate())
-		: null
+	const startBiz = toBusinessTZParts(leaveStart).dateStr
+	const endBiz = toBusinessTZParts(leaveEnd).dateStr
+	const rangeStartStr = range ? toBusinessTZParts(coerceToDate(range.start)).dateStr : null
+	const rangeEndStr = range ? toBusinessTZParts(coerceToDate(range.end)).dateStr : null
+
+	const [startYear, startMonth, startDay] = startBiz.split("-").map(Number)
+	const [endYear, endMonth, endDay] = endBiz.split("-").map(Number)
+	const cur = new Date(startYear, startMonth - 1, startDay)
+	const endDayDate = new Date(endYear, endMonth - 1, endDay)
+
 	const out: string[] = []
-	const cur = new Date(start)
-	while (cur <= end) {
-		if (rangeStart && rangeEnd) {
-			if (cur < rangeStart || cur > rangeEnd) {
-				cur.setDate(cur.getDate() + 1)
-				continue
-			}
+	while (cur <= endDayDate) {
+		const dateStr = formatLocalDate(cur)
+		if (rangeStartStr && rangeEndStr && (dateStr < rangeStartStr || dateStr > rangeEndStr)) {
+			cur.setDate(cur.getDate() + 1)
+			continue
 		}
-		out.push(formatLocalDate(cur))
+		out.push(dateStr)
 		cur.setDate(cur.getDate() + 1)
 	}
 	return out
@@ -158,7 +159,8 @@ async function _fetchLeaveBookings(
 
 	const leaveTypeNameByCode = new Map(leaveTypes.map((t) => [t.code, t.name]))
 
-	const leaveStartEndSameDay = (s: Date, e: Date) => formatLocalDate(s) === formatLocalDate(e)
+	const leaveStartEndSameDay = (s: Date, e: Date) =>
+		toBusinessTZParts(s).dateStr === toBusinessTZParts(e).dateStr
 	const results: CalendarBooking[] = []
 
 	for (const leave of leaves) {
@@ -328,6 +330,8 @@ async function _fetchAppointmentBookings(
 			endTime: endParts.timeStr,
 			type: "appointment",
 			appointmentType,
+			appointmentCategory:
+				booking.appointmentCategory === "EXTERNAL" ? "EXTERNAL" : "INTERNAL",
 			location,
 			attendees: booking.attendees || 1,
 			color: appointmentConfig.color,
@@ -690,9 +694,47 @@ export async function updateAppointmentBooking(
 	const bookingName = (formData.get("bookingName") as string)?.trim() || null
 	const companyName = (formData.get("companyName") as string)?.trim() || null
 	const contactNumber = (formData.get("contactNumber") as string)?.trim() || null
+	const appointmentCategory =
+		(formData.get("appointmentCategory") as string) === "EXTERNAL" ? "EXTERNAL" : "INTERNAL"
+	const projectIdStr = formData.get("projectId") as string | null
+	const projectId =
+		projectIdStr && projectIdStr !== "" && projectIdStr !== "none"
+			? Number.parseInt(projectIdStr, 10)
+			: null
+	const reminderOffsetsStr = formData.get("reminderOffsets") as string | null
+	const reminderList = reminderOffsetsStr
+		? (JSON.parse(reminderOffsetsStr) as Array<{ offsetMinutes: number; recipientEmails: string[] }>)
+		: []
 
 	if (endDate <= startDate) {
 		return { success: false, error: "End time must be after start time" }
+	}
+
+	if (projectId && user.id) {
+		const allowed = await userCanAccessProject(user.id, projectId)
+		if (!allowed) {
+			return { success: false, error: "You do not have access to the selected project." }
+		}
+	}
+
+	// Reject overlap with other active bookings on the same resource
+	if (existing.appointmentId) {
+		const conflict = await prisma.appointmentBooking.findFirst({
+			where: {
+				id: { not: id },
+				appointmentId: existing.appointmentId,
+				status: "active",
+				startDate: { lt: endDate },
+				endDate: { gt: startDate },
+			},
+			select: { id: true, bookedBy: true },
+		})
+		if (conflict) {
+			return {
+				success: false,
+				error: `This time overlaps another booking (${conflict.bookedBy}).`,
+			}
+		}
 	}
 
 	try {
@@ -707,14 +749,28 @@ export async function updateAppointmentBooking(
 				bookingName,
 				companyName,
 				contactNumber,
+				appointmentCategory,
+				projectId,
 			},
 		})
+
+		if (reminderList.length > 0) {
+			const reminderData = reminderList.map((item) => ({
+				offsetMinutes: item.offsetMinutes,
+				recipientEmails: item.recipientEmails.filter((e) => e.trim()),
+			}))
+			await syncBookingReminders(id, startDate, reminderData)
+		}
+
 		revalidatePath("/calendar")
 		revalidatePath("/appointment-bookings")
 		return { success: true }
 	} catch (error) {
 		console.error("Error updating appointment booking:", error)
-		return { success: false, error: "Failed to update booking" }
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Failed to update booking",
+		}
 	}
 }
 
