@@ -4,12 +4,16 @@ import { type CalendarBooking } from "../actions"
 import {
 	formatDate,
 	getDetailedTimeSlots,
-	parseTime,
+	getCalendarGridTimeRange,
+	getTimedEventTopPx,
+	getTimedEventHeightPx,
 	isCalendarAllDayRowEvent,
 	isCalendarEventPast,
 	isToday,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
+import { CALENDAR_GRID_START_HOUR } from "../constants"
+import { getCalendarEventDisplayTitle } from "../utils/appointment-display"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ChevronRight, Clock, MapPin, Users } from "lucide-react"
@@ -74,11 +78,7 @@ export function DayView({
 		[dayEvents]
 	)
 	
-	// Calculate relevant time range - show full 24 hours
-	const timeRange = useMemo(
-		() => ({ start: 0, end: 24 }),
-		[]
-	)
+	const timeRange = useMemo(() => getCalendarGridTimeRange(), [])
 	
 	// Generate time slots (30-minute intervals)
 	const timeSlots = useMemo(
@@ -176,7 +176,7 @@ export function DayView({
 											)}
 											onClick={() => onEventClick(event)}
 										>
-											{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
+											{getCalendarEventDisplayTitle(event)}
 										</div>
 									</CalendarEventTooltip>
 								))}
@@ -212,7 +212,11 @@ export function DayView({
 					<div className={cn("flex-1 relative", today && "cal-week-column--today")}>
 						{today && (
 							<div className="absolute inset-0 z-[35] pointer-events-none">
-								<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
+								<CurrentTimeLine
+									hourHeightPx={HOUR_HEIGHT}
+									startHour={CALENDAR_GRID_START_HOUR}
+									showLabel
+								/>
 							</div>
 						)}
 
@@ -237,10 +241,20 @@ export function DayView({
 
 						{/* Absolute-positioned event cards */}
 						{eventLayouts.map(({ event, column, totalColumns }) => {
-							const startHour = parseTime(event.startTime)
-							const endHour = parseTime(event.endTime)
-							const top = startHour * HOUR_HEIGHT
-							const height = Math.max(40, (endHour - startHour) * HOUR_HEIGHT - 4)
+							const top = getTimedEventTopPx(
+								event.startTime,
+								CALENDAR_GRID_START_HOUR,
+								HOUR_HEIGHT
+							)
+							const height = getTimedEventHeightPx(
+								event.startTime,
+								event.endTime,
+								CALENDAR_GRID_START_HOUR,
+								HOUR_HEIGHT,
+								40,
+								4
+							)
+							if (height <= 0) return null
 							const widthPct = 100 / totalColumns
 							const leftPct = column * widthPct
 							return (
@@ -271,7 +285,7 @@ export function DayView({
 											{bookingTypeLabels[event.type]}
 										</Badge>
 										<h4 className="font-semibold truncate text-sm min-w-0">
-											{event.title}
+											{getCalendarEventDisplayTitle(event)}
 										</h4>
 									</div>
 									<div className={cn("flex flex-wrap items-center gap-3", calendarEventMetaClass)}>

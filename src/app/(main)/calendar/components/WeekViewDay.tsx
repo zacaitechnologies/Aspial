@@ -2,6 +2,7 @@
 
 import { CalendarBooking } from "../actions"
 import { isToday, formatDate, parseTime, isCalendarAllDayRowEvent } from "../utils/calendar-utils"
+import { getCalendarEventDisplayTitle } from "../utils/appointment-display"
 import { useMemo } from "react"
 
 interface WeekViewDayProps {
@@ -81,7 +82,7 @@ export function WeekViewDay({
 									onEventClick(event)
 								}}
 							>
-								{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, '')}
+								{getCalendarEventDisplayTitle(event)}
 							</div>
 						))}
 						{allDayEvents.length > 3 && (
@@ -113,7 +114,9 @@ export function WeekViewDay({
 												onEventClick(event)
 											}}
 										>
-											<div className="font-medium truncate">{event.title}</div>
+											<div className="font-medium truncate">
+												{getCalendarEventDisplayTitle(event)}
+											</div>
 											<div className="text-[10px] truncate opacity-80">
 												{event.startTime} - {event.endTime}
 											</div>

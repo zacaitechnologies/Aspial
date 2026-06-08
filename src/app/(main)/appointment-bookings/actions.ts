@@ -290,6 +290,17 @@ export async function createAppointmentBooking(formData: FormData) {
 	const formUserId = (formData.get("userId") as string | null)?.trim() || null
 	const authUser = await getCachedUser()
 	const userId = authUser?.id ?? formUserId
+
+	// Only admin and brand-advisor may create bookings
+	if (authUser) {
+		const [isAdmin, isBrandAdvisor] = await Promise.all([
+			getCachedIsUserAdmin(authUser.id),
+			(await import("@/lib/admin-cache")).getCachedIsUserBrandAdvisor(authUser.id),
+		])
+		if (!isAdmin && !isBrandAdvisor) {
+			return { success: false, error: "You do not have permission to create bookings." }
+		}
+	}
 	const startDateStr = formData.get("startDate") as string
 	const endDateStr = formData.get("endDate") as string
 	const startDate = parseDateInBusinessTZ(startDateStr)
@@ -554,6 +565,40 @@ export async function createAppointmentBooking(formData: FormData) {
 
 export async function cancelAppointmentBooking(id: number) {
   try {
+    const authUser = await getCachedUser()
+    if (!authUser) return { success: false, error: "Not authenticated" }
+
+    const [isAdmin, isBrandAdvisor] = await Promise.all([
+      getCachedIsUserAdmin(authUser.id),
+      (await import("@/lib/admin-cache")).getCachedIsUserBrandAdvisor(authUser.id),
+    ])
+
+    if (!isAdmin && !isBrandAdvisor) {
+      return { success: false, error: "You do not have permission to cancel bookings." }
+    }
+
+    if (!isAdmin) {
+      // Brand-advisor can only cancel their own bookings
+      const booking = await prisma.appointmentBooking.findUnique({
+        where: { id },
+        select: { userId: true, bookedBy: true },
+      })
+      if (!booking) return { success: false, error: "Booking not found" }
+      const dbUser = await prisma.user.findUnique({
+        where: { supabase_id: authUser.id },
+        select: { firstName: true, lastName: true, email: true },
+      })
+      const currentUserName = dbUser
+        ? `${dbUser.firstName} ${dbUser.lastName}`.trim() || dbUser.email
+        : authUser.email ?? ""
+      const isOwner = booking.userId
+        ? booking.userId === authUser.id
+        : booking.bookedBy === currentUserName
+      if (!isOwner) {
+        return { success: false, error: "You can only cancel your own bookings." }
+      }
+    }
+
     await prisma.appointmentBooking.update({
       where: { id },
       data: { status: "cancelled" },

@@ -1,9 +1,8 @@
 import { useLayoutEffect, type RefObject } from "react"
+import { CALENDAR_GRID_START_HOUR } from "../constants"
 import { getLocalTime } from "../utils/calendar-utils"
 
-const DEFAULT_SCROLL_HOUR = 8
-
-/** Scroll a time-grid container so the current time or 8am sits at the top of the viewport. */
+/** Scroll a time-grid container so the current time or grid start (7am) sits near the top. */
 export function useScrollToCurrentTime(
 	scrollRef: RefObject<HTMLDivElement | null>,
 	hourHeightPx: number,
@@ -11,6 +10,7 @@ export function useScrollToCurrentTime(
 	scrollKey: string,
 	/** Sticky header height inside the scroll container — keeps the target hour below headers. */
 	headerOffsetPx = 0,
+	gridStartHour = CALENDAR_GRID_START_HOUR,
 ) {
 	useLayoutEffect(() => {
 		const scrollToTarget = () => {
@@ -22,9 +22,12 @@ export function useScrollToCurrentTime(
 						const { hours, minutes } = getLocalTime()
 						return hours + minutes / 60
 					})()
-				: DEFAULT_SCROLL_HOUR
+				: gridStartHour
 
-			el.scrollTop = Math.max(0, fractionalHour * hourHeightPx - headerOffsetPx)
+			el.scrollTop = Math.max(
+				0,
+				(fractionalHour - gridStartHour) * hourHeightPx - headerOffsetPx
+			)
 		}
 
 		scrollToTarget()
@@ -35,5 +38,5 @@ export function useScrollToCurrentTime(
 			cancelAnimationFrame(raf)
 			window.clearTimeout(timeoutId)
 		}
-	}, [scrollToCurrentTime, hourHeightPx, scrollKey, headerOffsetPx])
+	}, [scrollToCurrentTime, hourHeightPx, scrollKey, headerOffsetPx, gridStartHour])
 }

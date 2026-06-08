@@ -6,6 +6,7 @@ import { CalendarBooking } from "@/app/(main)/calendar/actions"
 import { formatDateStringDirect } from "@/lib/date-utils"
 import { Calendar, Clock, MapPin, Users, Tag } from "lucide-react"
 import { formatAppointmentCategoryLabel } from "../utils/calendar-utils"
+import { formatAppointmentEventTitle } from "../utils/appointment-display"
 
 interface BookingTooltipProps {
   booking: CalendarBooking
@@ -31,28 +32,15 @@ export function BookingTooltip({ booking, isVisible }: BookingTooltipProps) {
       style={{ top: 'var(--tooltip-top)', left: 'var(--tooltip-left)' }}
     >
       <div className="mb-2 text-sm font-medium text-foreground">
-        {booking.type === "appointment" && booking.creatorName ? (
+        {booking.type === "appointment" ? (
           <>
-            <p className="text-foreground">
-              <span className="text-muted-foreground">Booked by: </span>
-              <span className="font-bold">{booking.creatorName}</span>
+            <p className="font-semibold text-foreground">
+              {formatAppointmentEventTitle(booking)}
             </p>
-            {booking.clientName ? (
-              <p className="text-foreground">
-                <span className="text-muted-foreground">Client: </span>
-                <span className="font-medium">{booking.clientName}</span>
-              </p>
-            ) : null}
-            {booking.bookingName ? (
-              <p className="text-foreground">
-                <span className="text-muted-foreground">Booking name: </span>
-                <span className="font-medium">{booking.bookingName}</span>
-              </p>
-            ) : null}
-            {booking.appointmentName ? (
-              <p className="text-foreground">
-                <span className="text-muted-foreground">Appointment: </span>
-                <span className="font-medium">{booking.appointmentName}</span>
+            {booking.creatorName ? (
+              <p className="mt-1 text-foreground">
+                <span className="text-muted-foreground">Booked by: </span>
+                <span className="font-medium">{booking.creatorName}</span>
               </p>
             ) : null}
           </>

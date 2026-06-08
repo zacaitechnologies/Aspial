@@ -2,9 +2,18 @@
  * Calendar utility functions for date calculations and time management
  */
 
-import { formatLocalDate, toBusinessTZParts } from "@/lib/date-utils"
+import {
+	formatLocalDate,
+	getBusinessTodayDateString,
+	toBusinessTZParts,
+} from "@/lib/date-utils"
 import type { CalendarBooking } from "../actions"
-import { APPOINTMENT_CATEGORIES, type AppointmentCategory } from "../constants"
+import {
+	APPOINTMENT_CATEGORIES,
+	CALENDAR_GRID_END_HOUR,
+	CALENDAR_GRID_START_HOUR,
+	type AppointmentCategory,
+} from "../constants"
 
 /** Resolve Internal / External category for an appointment calendar event. */
 export function resolveAppointmentCategory(
@@ -120,6 +129,36 @@ export function getTimeSlots(startHour: number = 0, endHour: number = 24): strin
 /**
  * Generate time slots for a day (30-minute intervals)
  */
+export function getCalendarGridTimeRange(): { start: number; end: number } {
+	return { start: CALENDAR_GRID_START_HOUR, end: CALENDAR_GRID_END_HOUR }
+}
+
+/** Pixel offset for an event top within a grid that begins at `gridStartHour`. */
+export function getTimedEventTopPx(
+	startTime: string,
+	gridStartHour: number,
+	hourHeightPx: number
+): number {
+	const startHour = parseTime(startTime)
+	return Math.max(0, (startHour - gridStartHour) * hourHeightPx)
+}
+
+/** Pixel height for an event clipped to the visible grid window. */
+export function getTimedEventHeightPx(
+	startTime: string,
+	endTime: string,
+	gridStartHour: number,
+	hourHeightPx: number,
+	minHeightPx: number,
+	bottomGapPx = 2
+): number {
+	const startHour = parseTime(startTime)
+	const endHour = parseTime(endTime)
+	const visibleStart = Math.max(startHour, gridStartHour)
+	if (endHour <= gridStartHour) return 0
+	return Math.max(minHeightPx, (endHour - visibleStart) * hourHeightPx - bottomGapPx)
+}
+
 export function getDetailedTimeSlots(startHour: number = 0, endHour: number = 24): string[] {
 	const slots: string[] = []
 	
@@ -233,7 +272,7 @@ export function formatDateRange(startDate: Date, endDate: Date): string {
  * Check if a date is today
  */
 export function isToday(date: Date): boolean {
-	return isSameDay(date, new Date())
+	return formatDate(date) === getBusinessTodayDateString()
 }
 
 /**
@@ -263,7 +302,7 @@ export function isCalendarEventPast(
 	booking: CalendarBooking,
 	referenceDate: Date = new Date(),
 ): boolean {
-	const todayStr = formatLocalDate(referenceDate)
+	const todayStr = getBusinessTodayDateString(referenceDate)
 
 	if (booking.date < todayStr) return true
 	if (booking.date > todayStr) return false

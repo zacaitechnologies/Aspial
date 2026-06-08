@@ -9,6 +9,7 @@ import { formatDateStringDirect } from "@/lib/date-utils"
 import { type CalendarBooking } from "../actions"
 import { CALENDAR_EVENT_TYPES } from "../constants"
 import { formatAppointmentCategoryLabel } from "../utils/calendar-utils"
+import { formatAppointmentEventTitle } from "../utils/appointment-display"
 
 interface DateEventsDialogProps {
   isOpen: boolean
@@ -105,25 +106,15 @@ export function DateEventsDialog({
                         </Badge>
                       )}
                       <h3 className="truncate font-semibold text-foreground">
-                        {event.bookingName ?? event.appointmentName ?? event.title}
+                        {event.type === "appointment"
+                          ? formatAppointmentEventTitle(event)
+                          : event.title}
                       </h3>
                     </div>
-                    {event.type === "appointment" && event.appointmentName && event.bookingName && (
-                      <p className="text-sm text-foreground">
-                        <span className="text-muted-foreground">Appointment: </span>
-                        <span className="font-medium">{event.appointmentName}</span>
-                      </p>
-                    )}
                     {event.type === "appointment" && event.creatorName && (
                       <p className="text-sm text-foreground">
                         <span className="text-muted-foreground">Booked by: </span>
                         <span className="font-bold">{event.creatorName}</span>
-                      </p>
-                    )}
-                    {event.type === "appointment" && event.clientName && (
-                      <p className="text-sm text-foreground">
-                        <span className="text-muted-foreground">Client: </span>
-                        <span className="font-medium">{event.clientName}</span>
                       </p>
                     )}
                   </div>

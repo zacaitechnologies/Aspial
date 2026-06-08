@@ -16,6 +16,10 @@ import {
 	type AppointmentCategory,
 	type CalendarEventType,
 } from "./constants"
+import {
+	buildAppointmentTitle,
+	resolveAppointmentClientLabel,
+} from "./utils/appointment-display"
 
 /** Server Actions may deserialize `Date` props as ISO strings — normalize before using Date APIs. */
 function coerceToDate(value: Date | string): Date {
@@ -309,12 +313,18 @@ async function _fetchAppointmentBookings(
 		const appointmentType = (booking.appointmentType as AppointmentType) || "OTHERS"
 		const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS
 
-		let title = `Appointment - ${bookerDisplay}`
-		let location = "Unspecified"
-		if (booking.appointment) {
-			title = `${booking.appointment.name} - ${bookerDisplay}`
-			location = booking.appointment.location || booking.appointment.brand || "Appointment"
-		}
+		const clientLabel = resolveAppointmentClientLabel({
+			clientName: booking.project?.clientName || null,
+			bookingName: booking.bookingName,
+		})
+		const title = buildAppointmentTitle(
+			booking.appointment?.name ?? null,
+			clientLabel,
+			bookerDisplay
+		)
+		const location = booking.appointment
+			? booking.appointment.location || booking.appointment.brand || "Appointment"
+			: "Unspecified"
 
 		const startParts = toBusinessTZParts(startDate)
 		const endParts = toBusinessTZParts(endDate)
@@ -667,7 +677,15 @@ export async function updateAppointmentBooking(
 	const user = await (await import("@/lib/auth-cache")).getCachedUser()
 	if (!user) return { success: false, error: "Not authenticated" }
 
-	const isAdmin = await getCachedIsUserAdmin(user.id)
+	const [isAdmin, isBrandAdvisor] = await Promise.all([
+		getCachedIsUserAdmin(user.id),
+		(await import("@/lib/admin-cache")).getCachedIsUserBrandAdvisor(user.id),
+	])
+
+	// Only admin and brand-advisor may edit bookings at all
+	if (!isAdmin && !isBrandAdvisor) {
+		return { success: false, error: "You do not have permission to edit bookings." }
+	}
 
 	// Fetch existing booking to check ownership
 	const existing = await prisma.appointmentBooking.findUnique({
@@ -679,7 +697,8 @@ export async function updateAppointmentBooking(
 	const isOwner = existing.userId
 		? existing.userId === user.id
 		: existing.bookedBy === currentUserName
-	if (!isOwner && !isAdmin) {
+	// Brand-advisors can only edit their own bookings; admins can edit anyone's
+	if (!isAdmin && !isOwner) {
 		return { success: false, error: "You can only edit your own bookings" }
 	}
 

@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { createAppointmentBooking, getUserProjects, getProjectUsersEmails } from "@/app/(main)/appointment-bookings/actions"
 import { APPOINTMENT_TYPES } from "@/app/(main)/calendar/constants"
 import { EmailListInput } from "./EmailListInput"
+import { CopyClientEmailsToRemindersButton } from "./CopyClientEmailsToRemindersButton"
 import { FieldOverwriteDialog } from "./FieldOverwriteDialog"
 import { format, subMinutes } from "date-fns"
 import { useSession } from "@/app/(main)/contexts/SessionProvider"
@@ -666,9 +667,16 @@ export function MultipleBookingForm({ item, slots, onClose, onSuccess }: Multipl
 								{/* Selected reminders list with email inputs */}
 								{reminders.length > 0 && (
 									<div className="space-y-2 border rounded-lg p-3 bg-gray-50">
-										<p className="text-xs font-medium text-muted-foreground mb-2">
-											Selected Reminders ({reminders.length})
-										</p>
+										<div className="mb-2 flex items-center justify-between gap-2">
+											<p className="text-xs font-medium text-muted-foreground">
+												Selected Reminders ({reminders.length})
+											</p>
+											<CopyClientEmailsToRemindersButton
+												sourceEmails={clientEmails}
+												reminders={reminders}
+												onRemindersChange={setReminders}
+											/>
+										</div>
 										{reminders
 											.sort((a, b) => b.offsetMinutes - a.offsetMinutes)
 											.map((reminder, index) => {

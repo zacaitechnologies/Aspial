@@ -53,3 +53,7 @@ export const APPOINTMENT_CATEGORIES = {
 } as const
 
 export type AppointmentCategory = keyof typeof APPOINTMENT_CATEGORIES
+
+/** First hour row shown in week/day/month-popup time grids. */
+export const CALENDAR_GRID_START_HOUR = 7
+export const CALENDAR_GRID_END_HOUR = 24

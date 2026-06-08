@@ -20,7 +20,7 @@ import { cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/acti
 import { CALENDAR_EVENT_TYPES, type AppointmentType, type CalendarEventType } from "../constants"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { parseLocalDateString, formatLocalDate } from "@/lib/date-utils"
+import { getBusinessTodayDateString, parseLocalDateString } from "@/lib/date-utils"
 import { CalendarView, getWeekDays, formatDate } from "../utils/calendar-utils"
 import { calToolbarControlClass } from "../utils/calendar-toolbar-styles"
 import { cn } from "@/lib/utils"
@@ -43,7 +43,9 @@ interface AvailableAppointment {
 interface CalendarClientProps {
 	initialBookings: CalendarBooking[]
 	initialIsAdmin: boolean
+	initialCanBook: boolean
 	initialAppointments: AvailableAppointment[]
+	initialTodayDateString: string
 	userId: string
 	userName: string
 }
@@ -62,20 +64,17 @@ const TYPE_CSS_VAR: Record<CalendarEventType, string> = {
 export default function CalendarClient({
 	initialBookings,
 	initialIsAdmin,
+	initialCanBook,
 	initialAppointments,
+	initialTodayDateString,
 	userId,
 	userName,
 }: CalendarClientProps) {
 	const { toast } = useToast()
-	// Fix hydration: initialize with a stable date, then update after mount if needed
-	const [currentDate, setCurrentDate] = useState<Date>(() => {
-		// Use a stable initial date to avoid hydration mismatches
-		// The server and client will both use the same initial value
-		const now = new Date()
-		// Set to start of day for consistency
-		now.setHours(0, 0, 0, 0)
-		return now
-	})
+	const [todayDateString, setTodayDateString] = useState(initialTodayDateString)
+	const [currentDate, setCurrentDate] = useState<Date>(() =>
+		parseLocalDateString(initialTodayDateString)
+	)
 	const [viewMode, setViewMode] = useState<CalendarView>('month')
 	const [filterType, setFilterType] = useState<string>("all")
 	const [bookmarkScope, setBookmarkScope] = useState<string>("all")
@@ -108,7 +107,19 @@ export default function CalendarClient({
 	// Edit booking (same dialog as create)
 	const [editingBooking, setEditingBooking] = useState<CalendarBooking | null>(null)
 
+	useEffect(() => {
+		const syncToday = () => {
+			const currentBusinessToday = getBusinessTodayDateString()
+			setTodayDateString((prev) => (prev === currentBusinessToday ? prev : currentBusinessToday))
+		}
+
+		syncToday()
+		const intervalId = window.setInterval(syncToday, 60_000)
+		return () => window.clearInterval(intervalId)
+	}, [])
+
 	const isAdmin = initialIsAdmin
+	const canBook = initialCanBook
 
 	function getRangeKey(start: Date, end: Date) {
 		return `${start.getTime()}_${end.getTime()}`
@@ -119,12 +130,12 @@ export default function CalendarClient({
 	const rangeCacheRef = useRef<Map<string, CalendarBooking[]>>(new Map())
 	const initialRangeKeyRef = useRef<string | null>(null)
 
-	// Seed cache with initial month on first run
+	// Seed cache with initial business month on first run
 	if (initialRangeKeyRef.current === null) {
-		const now = new Date()
-		const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+		const [year, month] = initialTodayDateString.split("-").map(Number)
+		const monthStart = new Date(year, month - 1, 1)
 		monthStart.setHours(0, 0, 0, 0)
-		const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+		const monthEnd = new Date(year, month, 0)
 		monthEnd.setHours(23, 59, 59, 999)
 		initialRangeKeyRef.current = getRangeKey(monthStart, monthEnd)
 		rangeCacheRef.current.set(initialRangeKeyRef.current, initialBookings)
@@ -248,11 +259,10 @@ export default function CalendarClient({
 
 	// Today's bookings — for the "Today" stat card
 	const todaysBookings = useMemo(() => {
-		const todayKey = formatLocalDate(new Date())
 		return filteredBookings
-			.filter((b) => b.date === todayKey)
+			.filter((b) => b.date === todayDateString)
 			.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
-	}, [filteredBookings])
+	}, [filteredBookings, todayDateString])
 
 	const handleDateChange = (newDate: Date) => {
 		setCurrentDate(newDate)
@@ -334,6 +344,7 @@ export default function CalendarClient({
     appointmentType?: AppointmentType | null,
     endTime?: string | null,
   ) => {
+    if (!canBook) return
     setEditingBooking(null)
     setBookingInitialDate(date)
     setBookingInitialTime(time || null)
@@ -351,6 +362,7 @@ export default function CalendarClient({
   }
 
 	const handleTimeSlotClick = (date: string, hourOrTime: number | string) => {
+		if (!canBook) return
 		const time = typeof hourOrTime === "number"
 			? `${String(hourOrTime).padStart(2, "0")}:00`
 			: String(hourOrTime)
@@ -410,8 +422,7 @@ export default function CalendarClient({
 			const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
 			const dateString = formatDate(date)
 			const dayBookings = getBookingsForDate(dateString)
-			const todayString = formatDate(new Date())
-			const isToday = dateString === todayString
+			const isToday = dateString === todayDateString
 
 			days.push(
 				<CalendarDay
@@ -723,7 +734,7 @@ export default function CalendarClient({
 						setIsDateEventsDialogOpen(false)
 						setIsDetailsDialogOpen(true)
 					}}
-					onBookAppointment={(date) => handleBookAppointment(date)}
+					onBookAppointment={canBook ? (date) => handleBookAppointment(date) : undefined}
 				/>
 
 				{/* Month-day multi-column popup */}
@@ -739,9 +750,9 @@ export default function CalendarClient({
 						setSelectedBooking(event)
 						setIsDetailsDialogOpen(true)
 					}}
-					onBookSlot={(date, time, appointmentType) =>
-						handleBookAppointment(date, time, appointmentType)
-					}
+					onBookAppointment={canBook ? (date) => handleBookAppointment(date) : undefined}
+					onBookSlot={canBook ? (date, time, appointmentType) =>
+						handleBookAppointment(date, time, appointmentType) : undefined}
 				/>
 
 				{/* Booking Details — after month-day dialog so it stacks on top */}
@@ -756,31 +767,34 @@ export default function CalendarClient({
 					onDelete={handleBookingDelete}
 					onEditBooking={handleEditBooking}
 					onCancelBooking={handleCancelBooking}
-					onBookAtTime={handleBookAtTimeFromDetails}
+					onBookAtTime={canBook ? handleBookAtTimeFromDetails : undefined}
 					isAdmin={isAdmin}
+					canBook={canBook}
 				/>
 
 				{/* Appointment Booking — after month-day dialog so it stacks on top */}
-				<AppointmentBookingDialog
-					isOpen={isBookingDialogOpen}
-					onClose={() => {
-						setIsBookingDialogOpen(false)
-						setEditingBooking(null)
-						setBookingInitialDate("")
-						setBookingInitialTime(null)
-						setBookingInitialEndTime(null)
-						setBookingInitialType(null)
-					}}
-					initialDate={bookingInitialDate}
-					initialTime={bookingInitialTime}
-					initialEndTime={bookingInitialEndTime}
-					initialAppointmentType={bookingInitialType}
-					editBooking={editingBooking}
-					appointments={initialAppointments}
-					userId={userId}
-					userName={userName}
-					onSuccess={handleBookingSuccess}
-				/>
+				{canBook && (
+					<AppointmentBookingDialog
+						isOpen={isBookingDialogOpen}
+						onClose={() => {
+							setIsBookingDialogOpen(false)
+							setEditingBooking(null)
+							setBookingInitialDate("")
+							setBookingInitialTime(null)
+							setBookingInitialEndTime(null)
+							setBookingInitialType(null)
+						}}
+						initialDate={bookingInitialDate}
+						initialTime={bookingInitialTime}
+						initialEndTime={bookingInitialEndTime}
+						initialAppointmentType={bookingInitialType}
+						editBooking={editingBooking}
+						appointments={initialAppointments}
+						userId={userId}
+						userName={userName}
+						onSuccess={handleBookingSuccess}
+					/>
+				)}
 
 				{/* Export Calendar Dialog */}
 				<ExportCalendarDialog

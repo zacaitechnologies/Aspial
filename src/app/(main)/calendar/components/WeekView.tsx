@@ -6,11 +6,16 @@ import {
 	formatDate,
 	getTimeSlots,
 	parseTime,
+	getCalendarGridTimeRange,
+	getTimedEventTopPx,
+	getTimedEventHeightPx,
 	isCalendarAllDayRowEvent,
 	isCalendarEventPast,
 	isToday,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
+import { CALENDAR_GRID_START_HOUR } from "../constants"
+import { getCalendarEventDisplayTitle } from "../utils/appointment-display"
 import { useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ChevronRight } from "lucide-react"
@@ -59,7 +64,7 @@ export function WeekView({
 		return bookings.filter((b) => b.date >= weekStartStr && b.date <= weekEndStr)
 	}, [weekDays, bookings])
 
-	const timeRange = useMemo(() => ({ start: 0, end: 24 }), [])
+	const timeRange = useMemo(() => getCalendarGridTimeRange(), [])
 	const timeSlots = useMemo(
 		() => getTimeSlots(timeRange.start, timeRange.end),
 		[timeRange],
@@ -187,7 +192,7 @@ export function WeekView({
 																onEventClick(event)
 															}}
 														>
-															{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
+															{getCalendarEventDisplayTitle(event)}
 														</div>
 													</CalendarEventTooltip>
 												))}
@@ -240,7 +245,11 @@ export function WeekView({
 								>
 									{today && (
 										<div className="absolute inset-0 z-[35] pointer-events-none">
-											<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
+											<CurrentTimeLine
+												hourHeightPx={HOUR_HEIGHT}
+												startHour={CALENDAR_GRID_START_HOUR}
+												showLabel
+											/>
 										</div>
 									)}
 									{/* Click-to-create grid lines */}
@@ -261,10 +270,19 @@ export function WeekView({
 
 									{/* Event cards */}
 									{layouts.map(({ event, column, totalColumns }) => {
-										const startHour = parseTime(event.startTime)
-										const endHour = parseTime(event.endTime)
-										const top = startHour * HOUR_HEIGHT
-										const height = Math.max(20, (endHour - startHour) * HOUR_HEIGHT - 2)
+										const top = getTimedEventTopPx(
+											event.startTime,
+											CALENDAR_GRID_START_HOUR,
+											HOUR_HEIGHT
+										)
+										const height = getTimedEventHeightPx(
+											event.startTime,
+											event.endTime,
+											CALENDAR_GRID_START_HOUR,
+											HOUR_HEIGHT,
+											20
+										)
+										if (height <= 0) return null
 										const widthPct = 100 / totalColumns
 										const leftPct = column * widthPct
 										return (
@@ -286,7 +304,9 @@ export function WeekView({
 														onEventClick(event)
 													}}
 												>
-													<div className="font-semibold truncate leading-tight">{event.title}</div>
+													<div className="font-semibold truncate leading-tight">
+														{getCalendarEventDisplayTitle(event)}
+													</div>
 													<div className={cn(calendarEventMetaClass, "truncate text-[10px]")}>
 														{event.startTime} – {event.endTime}
 													</div>

@@ -1,6 +1,7 @@
-import { Clock, MapPin } from "lucide-react"
+import { Clock, MapPin, User } from "lucide-react"
 import type { CalendarBooking } from "../actions"
 import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
+import { formatAppointmentEventTitle } from "../utils/appointment-display"
 import { AppointmentCategoryDetail } from "./AppointmentCategoryDetail"
 
 interface DayTypeTooltipContentProps {
@@ -38,9 +39,16 @@ export function DayTypeTooltipContent({ type, bookings }: DayTypeTooltipContentP
 						key={booking.id}
 						className="space-y-1 border-t border-border pt-2 first:border-0 first:pt-0"
 					>
-						<p className="font-medium leading-snug">{booking.title}</p>
-						{booking.clientName && (
-							<p className="text-muted-foreground">{booking.clientName}</p>
+						<p className="font-medium leading-snug">
+							{booking.type === "appointment"
+								? formatAppointmentEventTitle(booking)
+								: booking.title}
+						</p>
+						{booking.type === "appointment" && booking.creatorName && (
+							<div className="flex items-center gap-1.5 text-muted-foreground">
+								<User className="h-3 w-3 shrink-0 opacity-70" />
+								<span>Booked by: {booking.creatorName}</span>
+							</div>
 						)}
 						{booking.type === "appointment" && (
 							<AppointmentCategoryDetail booking={booking} />

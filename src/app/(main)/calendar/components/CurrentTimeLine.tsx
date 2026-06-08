@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { CALENDAR_GRID_END_HOUR } from "../constants"
 import { getLocalTime } from "../utils/calendar-utils"
 
 interface CurrentTimeLineProps {
@@ -23,7 +24,8 @@ export function CurrentTimeLine({
 		return {
 			topPx: (fractionalHour - startHour) * hourHeightPx,
 			label: `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`,
-			visible: fractionalHour >= startHour && fractionalHour < startHour + 24,
+			visible:
+				fractionalHour >= startHour && fractionalHour < CALENDAR_GRID_END_HOUR,
 		}
 	}, [hourHeightPx, startHour])
 

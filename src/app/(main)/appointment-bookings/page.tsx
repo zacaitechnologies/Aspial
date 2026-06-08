@@ -181,10 +181,13 @@ async function getUserWithRole() {
 		}
 
 		const isAdmin = dbUser.userRoles.some(userRole => userRole.role.slug === "admin")
+		const isBrandAdvisor = dbUser.userRoles.some(userRole => userRole.role.slug === "brand-advisor")
+		const canBook = isAdmin || isBrandAdvisor
 
 		return {
 			user: dbUser,
 			isAdmin,
+			canBook,
 			userId: user.id
 		}
 	} catch (error: unknown) {
@@ -241,6 +244,7 @@ export default async function AdminPage() {
 					appointments={safeAppointments}
 					bookings={safeBookings}
 					isAdmin={userData.isAdmin}
+					canBook={userData.canBook}
 					userProjectIds={safeUserProjectIds}
 				/>
 			</Suspense>

@@ -86,14 +86,15 @@ interface AdminDashboardProps {
 	appointments: Appointment[]
 	bookings: AppointmentBooking[]
 	isAdmin: boolean
+	canBook: boolean
 	userProjectIds: number[]
 }
 
-export function BookingDashboard({ appointments, bookings, isAdmin, userProjectIds }: AdminDashboardProps) {
+export function BookingDashboard({ appointments, bookings, isAdmin, canBook, userProjectIds }: AdminDashboardProps) {
   const { enhancedUser } = useSession()
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [showAppointmentForm, setShowAppointmentForm] = useState(false)
-  const [activeTab, setActiveTab] = useState("appointment-booking")
+  const [activeTab, setActiveTab] = useState(canBook ? "appointment-booking" : "my-bookings")
   // Fix hydration: use stable initial date
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const now = new Date()
@@ -275,16 +276,34 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
     }
   }
 
+  // Determine number of visible tabs for layout
+  const tabCount = (canBook ? 1 : 0) + 1 + (isAdmin ? 1 : 0) // Book + My Bookings + Manage
+
+  const slidingIndicatorClass = (() => {
+    if (tabCount === 3) {
+      if (activeTab === "appointment-booking") return "left-1 w-[calc(33.33%-4px)]"
+      if (activeTab === "my-bookings") return canBook ? "left-[calc(33.33%+2px)] w-[calc(33.33%-4px)]" : "left-1 w-[calc(50%-4px)]"
+      return canBook ? "left-[calc(66.66%+2px)] w-[calc(33.33%-4px)]" : "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+    }
+    if (tabCount === 2) {
+      if (activeTab === "appointment-booking" || (!canBook && activeTab === "my-bookings")) return "left-1 w-[calc(50%-4px)]"
+      return "left-[calc(50%+2px)] w-[calc(50%-4px)]"
+    }
+    return "left-1 w-[calc(100%-8px)]"
+  })()
+
   return (
-    <Tabs defaultValue="appointment-booking" className="w-full" onValueChange={setActiveTab}>
+    <Tabs defaultValue={canBook ? "appointment-booking" : "my-bookings"} className="w-full" onValueChange={setActiveTab}>
       <div className="relative">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} bg-transparent border-primary border transition-all duration-300 ease-in-out`}>
-          <TabsTrigger 
-            value="appointment-booking" 
-            className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
-          >
-            Book Appointments
-          </TabsTrigger>
+        <TabsList className={`grid w-full ${tabCount === 3 ? "grid-cols-3" : tabCount === 2 ? "grid-cols-2" : "grid-cols-1"} bg-transparent border-primary border transition-all duration-300 ease-in-out`}>
+          {canBook && (
+            <TabsTrigger 
+              value="appointment-booking" 
+              className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
+            >
+              Book Appointments
+            </TabsTrigger>
+          )}
           <TabsTrigger 
             value="my-bookings" 
             className="transition-all duration-300 ease-in-out relative z-10 data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground"
@@ -301,18 +320,7 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
           )}
         </TabsList>
         {/* Sliding indicator */}
-        <div 
-          className={`absolute top-1 h-[calc(100%-8px)] bg-primary transition-all duration-300 ease-in-out rounded-md z-0 ${
-            isAdmin ? (
-              activeTab === "appointment-booking" ? "left-1 w-[calc(33.33%-4px)]" : 
-              activeTab === "my-bookings" ? "left-[calc(33.33%+2px)] w-[calc(33.33%-4px)]" : 
-              "left-[calc(66.66%+2px)] w-[calc(33.33%-4px)]"
-            ) : (
-              activeTab === "appointment-booking" ? "left-1 w-[calc(50%-4px)]" : 
-              "left-[calc(50%+2px)] w-[calc(50%-4px)]"
-            )
-          }`}
-        />
+        <div className={`absolute top-1 h-[calc(100%-8px)] bg-primary transition-all duration-300 ease-in-out rounded-md z-0 ${slidingIndicatorClass}`} />
       </div>
 
       {/* Book Appointments Tab */}
@@ -510,16 +518,18 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
                         >
                           <Mail className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={hasPassed}
-                          onClick={() => handleCancelBooking(booking.id)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
-                          title={hasPassed ? "Cannot cancel past bookings" : "Cancel booking"}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {canBook && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={hasPassed}
+                            onClick={() => handleCancelBooking(booking.id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
+                            title={hasPassed ? "Cannot cancel past bookings" : "Cancel booking"}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
@@ -612,7 +622,9 @@ export function BookingDashboard({ appointments, bookings, isAdmin, userProjectI
             <div className="text-center py-8 text-muted-foreground">
               <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>You don't have any bookings yet.</p>
-              <p className="text-sm">Go to the Book Appointments tab to make your first booking!</p>
+              {canBook && (
+                <p className="text-sm">Go to the Book Appointments tab to make your first booking!</p>
+              )}
             </div>
           )}
 

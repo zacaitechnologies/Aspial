@@ -1,10 +1,16 @@
-import { Clock, MapPin, Users } from "lucide-react"
+import { Clock, MapPin, User, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CalendarBooking } from "../actions"
 import { calendarEventLegendDotClass } from "../utils/event-surface-styles"
+import { formatAppointmentEventTitle } from "../utils/appointment-display"
 import { AppointmentCategoryDetail } from "./AppointmentCategoryDetail"
 
 export function EventTooltipContent({ booking }: { booking: CalendarBooking }) {
+	const headline =
+		booking.type === "appointment"
+			? formatAppointmentEventTitle(booking)
+			: booking.title
+
 	return (
 		<div className="space-y-1.5 text-xs">
 			<div className="flex items-center gap-2">
@@ -15,10 +21,13 @@ export function EventTooltipContent({ booking }: { booking: CalendarBooking }) {
 					)}
 					aria-hidden
 				/>
-				<p className="font-semibold leading-snug">{booking.title}</p>
+				<p className="font-semibold leading-snug">{headline}</p>
 			</div>
-			{booking.clientName && (
-				<p className="text-muted-foreground">{booking.clientName}</p>
+			{booking.type === "appointment" && booking.creatorName && (
+				<div className="flex items-center gap-1.5 text-muted-foreground">
+					<User className="h-3 w-3 shrink-0 opacity-70" />
+					<span>Booked by: {booking.creatorName}</span>
+				</div>
 			)}
 			{booking.type === "appointment" && (
 				<AppointmentCategoryDetail booking={booking} />

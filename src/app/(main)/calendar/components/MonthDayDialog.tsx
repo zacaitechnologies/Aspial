@@ -2,18 +2,23 @@
 
 import { useMemo, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Calendar as CalendarIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Calendar as CalendarIcon, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatDateStringDirect, parseLocalDateString } from "@/lib/date-utils"
 import { type CalendarBooking } from "../actions"
 import { APPOINTMENT_TYPES, type AppointmentType, type CalendarEventType } from "../constants"
 import {
 	getTimeSlots,
-	parseTime,
+	getCalendarGridTimeRange,
+	getTimedEventTopPx,
+	getTimedEventHeightPx,
 	isCalendarEventPast,
 	isToday,
 	layoutOverlappingEvents,
 } from "../utils/calendar-utils"
+import { CALENDAR_GRID_START_HOUR } from "../constants"
+import { getCalendarEventDisplayTitle } from "../utils/appointment-display"
 import {
 	calendarEventMetaClass,
 	calendarEventPastClass,
@@ -30,6 +35,7 @@ interface MonthDayDialogProps {
 	date: string
 	events: CalendarBooking[]
 	onEventClick: (event: CalendarBooking) => void
+	onBookAppointment?: (date: string) => void
 	onBookSlot: (date: string, time: string, appointmentType: AppointmentType) => void
 }
 
@@ -55,11 +61,16 @@ export function MonthDayDialog({
 	date,
 	events,
 	onEventClick,
+	onBookAppointment,
 	onBookSlot,
 }: MonthDayDialogProps) {
 	const now = useCurrentTime()
 	const scrollRef = useRef<HTMLDivElement>(null)
-	const timeSlots = useMemo(() => getTimeSlots(0, 24), [])
+	const timeRange = useMemo(() => getCalendarGridTimeRange(), [])
+	const timeSlots = useMemo(
+		() => getTimeSlots(timeRange.start, timeRange.end),
+		[timeRange]
+	)
 
 	const today = useMemo(() => {
 		if (!date) return false
@@ -97,10 +108,23 @@ export function MonthDayDialog({
 		<Dialog open={isOpen} onOpenChange={onClose}>
 			<DialogContent className="calendar-page max-w-[95vw] w-[95vw] sm:max-w-5xl max-h-[88vh] overflow-hidden flex flex-col">
 				<DialogHeader className="shrink-0 pb-0">
-					<DialogTitle className="flex items-center gap-2">
-						<CalendarIcon className="w-5 h-5" />
-						{formattedTitle}
-					</DialogTitle>
+						<div className="flex items-center justify-between gap-2 pr-8">
+							<DialogTitle className="flex items-center gap-2">
+								<CalendarIcon className="w-5 h-5" />
+								{formattedTitle}
+							</DialogTitle>
+							{onBookAppointment && (
+								<Button
+									type="button"
+									size="sm"
+									onClick={() => onBookAppointment(date)}
+									className="shrink-0 gap-1.5"
+								>
+									<Plus className="w-4 h-4" />
+									Appointment
+								</Button>
+							)}
+						</div>
 				</DialogHeader>
 
 				{/* Leave / Blocker — compact single row */}
@@ -121,7 +145,7 @@ export function MonthDayDialog({
 											isCalendarEventPast(event, now) && calendarEventPastClass,
 										)}
 									>
-										{event.title.replace(/^(START:|DUE:|OVERDUE:)\s*/, "")}
+										{getCalendarEventDisplayTitle(event)}
 									</button>
 								</CalendarEventTooltip>
 							))}
@@ -184,7 +208,11 @@ export function MonthDayDialog({
 							>
 								{today && (
 									<div className="absolute inset-0 z-[35] pointer-events-none">
-										<CurrentTimeLine hourHeightPx={HOUR_HEIGHT} showLabel />
+										<CurrentTimeLine
+											hourHeightPx={HOUR_HEIGHT}
+											startHour={CALENDAR_GRID_START_HOUR}
+											showLabel
+										/>
 									</div>
 								)}
 
@@ -204,19 +232,32 @@ export function MonthDayDialog({
 													<div
 														key={slot}
 														className={cn(
-															"border-b border-border cal-time-grid-slot",
+															"group/slot relative border-b border-border cal-time-grid-slot cursor-pointer",
 															today && "cal-time-grid-slot--today-col",
 														)}
 														style={{ height: HOUR_HEIGHT }}
 														onClick={() => onBookSlot(date, slot, typeKey)}
-													/>
+													>
+														<span className="pointer-events-none absolute inset-0 flex items-center justify-center px-1 text-[10px] font-medium text-muted-foreground opacity-0 transition-opacity group-hover/slot:opacity-100">
+															+ Appointment
+														</span>
+													</div>
 												))}
 
 												{layouts.map(({ event, column, totalColumns }) => {
-													const startHour = parseTime(event.startTime)
-													const endHour = parseTime(event.endTime)
-													const top = startHour * HOUR_HEIGHT
-													const height = Math.max(22, (endHour - startHour) * HOUR_HEIGHT - 2)
+													const top = getTimedEventTopPx(
+														event.startTime,
+														CALENDAR_GRID_START_HOUR,
+														HOUR_HEIGHT
+													)
+													const height = getTimedEventHeightPx(
+														event.startTime,
+														event.endTime,
+														CALENDAR_GRID_START_HOUR,
+														HOUR_HEIGHT,
+														22
+													)
+													if (height <= 0) return null
 													const widthPct = 100 / totalColumns
 													const leftPct = column * widthPct
 													return (
@@ -238,7 +279,9 @@ export function MonthDayDialog({
 																	onEventClick(event)
 																}}
 															>
-																<div className="font-semibold truncate leading-tight">{event.title}</div>
+																<div className="font-semibold truncate leading-tight">
+																	{getCalendarEventDisplayTitle(event)}
+																</div>
 																<div className={cn(calendarEventMetaClass, "truncate text-[10px]")}>
 																	{event.startTime} – {event.endTime}
 																</div>
@@ -256,7 +299,7 @@ export function MonthDayDialog({
 				</div>
 
 				<p className="shrink-0 text-center text-[11px] text-muted-foreground">
-					Click an empty time slot in a column to book that appointment type.
+					Hover an empty slot and click + Appointment to book that column&apos;s type.
 				</p>
 			</DialogContent>
 		</Dialog>

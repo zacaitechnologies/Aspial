@@ -61,6 +61,11 @@ export function toBusinessTZParts(date: Date): { dateStr: string; timeStr: strin
   return { dateStr: `${year}-${month}-${day}`, timeStr: `${hour}:${minute}` }
 }
 
+/** Calendar-safe "today" key in business timezone (YYYY-MM-DD). */
+export function getBusinessTodayDateString(reference: Date = new Date()): string {
+	return toBusinessTZParts(reference).dateStr
+}
+
 /**
  * Parse a YYYY-MM-DD string as local date (midnight in local timezone).
  * Use when displaying or comparing date strings; avoids new Date("YYYY-MM-DD") which is UTC midnight.

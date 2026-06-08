@@ -1,6 +1,7 @@
 "use client"
 
 import { CalendarBooking } from "../actions"
+import { getCalendarEventDisplayTitle } from "../utils/appointment-display"
 import { Badge } from "@/components/ui/badge"
 import { Clock } from "lucide-react"
 
@@ -36,7 +37,9 @@ export function TimeSlot({
 									onEventClick(event)
 								}}
 							>
-								<div className="font-medium truncate">{event.title}</div>
+								<div className="font-medium truncate">
+									{getCalendarEventDisplayTitle(event)}
+								</div>
 								{event.type !== 'task' && (
 									<div className="flex items-center gap-1 mt-0.5 opacity-80">
 										<Clock className="w-3 h-3" />

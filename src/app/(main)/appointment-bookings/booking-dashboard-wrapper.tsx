@@ -71,6 +71,7 @@ interface BookingDashboardWrapperProps {
 	appointments: Appointment[]
 	bookings: AppointmentBooking[]
 	isAdmin: boolean
+	canBook: boolean
 	userProjectIds: number[]
 }
 

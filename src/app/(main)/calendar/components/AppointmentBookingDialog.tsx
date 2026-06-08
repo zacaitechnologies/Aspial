@@ -37,6 +37,7 @@ import {
 	SYSTEM_CLIENT_DISPLAY_LABEL,
 } from "@/lib/no-project"
 import { EmailListInput } from "@/app/(main)/appointment-bookings/components/EmailListInput"
+import { CopyClientEmailsToRemindersButton } from "@/app/(main)/appointment-bookings/components/CopyClientEmailsToRemindersButton"
 import { FieldOverwriteDialog } from "@/app/(main)/appointment-bookings/components/FieldOverwriteDialog"
 import { APPOINTMENT_TYPES, type AppointmentType } from "../constants"
 import type { ProjectWithClient } from "@/app/(main)/appointment-bookings/types"
@@ -280,19 +281,6 @@ export function AppointmentBookingDialog({
 		})()
 	}, [isOpen, editBooking])
 
-	// Keep reminder recipient lists in sync when client emails are filled manually
-	useEffect(() => {
-		const filled = clientEmails.filter((e) => e.trim())
-		if (filled.length === 0) return
-		setReminders((prev) =>
-			prev.map((r) =>
-				r.recipientEmails.some((e) => e.trim())
-					? r
-					: { ...r, recipientEmails: [...filled] }
-			)
-		)
-	}, [clientEmails])
-
 	// Fetch projects (admin: all; non-admin: involved only — enforced server-side)
 	useEffect(() => {
 		if (!isOpen) return
@@ -377,10 +365,6 @@ export function AppointmentBookingDialog({
 		}
 		if (projectEmails.length > 0) {
 			setClientEmails(projectEmails)
-			// Set reminder emails too
-			setReminders((prev) =>
-				prev.map((r) => ({ ...r, recipientEmails: projectEmails }))
-			)
 		}
 	}
 
@@ -404,10 +388,9 @@ export function AppointmentBookingDialog({
 		if (exists) {
 			setReminders(reminders.filter((r) => r.offsetMinutes !== minutes))
 		} else {
-			const defaultEmails = clientEmails.filter((e) => e.trim())
 			setReminders([
 				...reminders,
-				{ offsetMinutes: minutes, recipientEmails: defaultEmails.length > 0 ? defaultEmails : [""] },
+				{ offsetMinutes: minutes, recipientEmails: [""] },
 			])
 		}
 	}
@@ -675,7 +658,7 @@ export function AppointmentBookingDialog({
 							)}
 
 							{/* Appointment */}
-							<div>
+							<div className="space-y-2">
 								<Label>Appointment <span className="text-destructive">*</span></Label>
 								{isEditMode ? (
 									<div className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-muted/30 px-3 text-sm">
@@ -794,7 +777,7 @@ export function AppointmentBookingDialog({
 
 							{/* Time + category */}
 							<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-								<div>
+								<div className="space-y-2">
 									<Label>Start Time <span className="text-destructive">*</span></Label>
 									<Input
 										type="time"
@@ -802,7 +785,7 @@ export function AppointmentBookingDialog({
 										onChange={(e) => setStartTime(e.target.value)}
 									/>
 								</div>
-								<div>
+								<div className="space-y-2">
 									<Label>End Time <span className="text-destructive">*</span></Label>
 									<Input
 										type="time"
@@ -810,7 +793,7 @@ export function AppointmentBookingDialog({
 										onChange={(e) => setEndTime(e.target.value)}
 									/>
 								</div>
-								<div>
+								<div className="space-y-2">
 									<Label>Type <span className="text-destructive">*</span></Label>
 									<Select
 										value={appointmentCategory}
@@ -828,7 +811,7 @@ export function AppointmentBookingDialog({
 							</div>
 
 							{/* Project Selection */}
-							<div>
+							<div className="space-y-2">
 								<Label>Project (Optional)</Label>
 								<Popover
 									open={projectPopoverOpen}
@@ -937,7 +920,7 @@ export function AppointmentBookingDialog({
 
 							{/* Contact Details */}
 							<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-								<div>
+								<div className="space-y-2">
 									<Label>
 										Booking Name {selectedProject === "none" && <span className="text-destructive">*</span>}
 									</Label>
@@ -947,7 +930,7 @@ export function AppointmentBookingDialog({
 										placeholder="Contact name"
 									/>
 								</div>
-								<div>
+								<div className="space-y-2">
 									<Label>
 										Company Name {selectedProject === "none" && <span className="text-destructive">*</span>}
 									</Label>
@@ -959,7 +942,7 @@ export function AppointmentBookingDialog({
 								</div>
 							</div>
 							<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-								<div>
+								<div className="space-y-2">
 									<Label>
 										Contact Number {selectedProject === "none" && <span className="text-destructive">*</span>}
 									</Label>
@@ -969,7 +952,7 @@ export function AppointmentBookingDialog({
 										placeholder="Phone number"
 									/>
 								</div>
-								<div>
+								<div className="space-y-2">
 									<Label>Attendees</Label>
 									<Input
 										type="number"
@@ -982,7 +965,7 @@ export function AppointmentBookingDialog({
 							</div>
 
 							{/* Purpose & Remarks */}
-							<div>
+							<div className="space-y-2">
 								<Label>Purpose</Label>
 								<Textarea
 									value={purpose}
@@ -991,7 +974,7 @@ export function AppointmentBookingDialog({
 									rows={2}
 								/>
 							</div>
-							<div>
+							<div className="space-y-2">
 								<Label>Remarks</Label>
 								<Textarea
 									value={remarks}
@@ -1058,9 +1041,17 @@ export function AppointmentBookingDialog({
 								{/* Selected reminders with per-reminder email inputs */}
 								{reminders.length > 0 && (
 									<div className="space-y-2 border rounded-lg p-3 bg-muted/30">
-										<p className="text-xs font-medium text-muted-foreground">
-											Selected Reminders ({reminders.length})
-										</p>
+										<div className="flex items-center justify-between gap-2">
+											<p className="text-xs font-medium text-muted-foreground">
+												Selected Reminders ({reminders.length})
+											</p>
+											<CopyClientEmailsToRemindersButton
+												sourceEmails={clientEmails}
+												sourceLabel="client email address"
+												reminders={reminders}
+												onRemindersChange={setReminders}
+											/>
+										</div>
 										{[...reminders]
 											.sort((a, b) => b.offsetMinutes - a.offsetMinutes)
 											.map((reminder, sortedIndex) => {

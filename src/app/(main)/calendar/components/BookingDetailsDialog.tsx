@@ -30,6 +30,8 @@ interface BookingDetailsDialogProps {
   onCancelBooking?: (booking: CalendarBooking) => void
   onBookAtTime?: (booking: CalendarBooking) => void
   isAdmin?: boolean
+  /** True when the current user is admin or brand-advisor (can create/edit bookings). */
+  canBook?: boolean
 }
 
 function leaveStatusLabel(booking: CalendarBooking): string | null {
@@ -58,6 +60,7 @@ export function BookingDetailsDialog({
   onCancelBooking,
   onBookAtTime,
   isAdmin = false,
+  canBook = false,
 }: BookingDetailsDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -106,13 +109,14 @@ export function BookingDetailsDialog({
   const isMerged = partCount > 1
   // Merged events represent multiple booking rows — editing/cancelling one
   // would be misleading, so route the user to the appointment-bookings page.
-  const canEditAppointment = isAppointment && !isMerged && (booking?.isUserBooking || isAdmin)
+  // Admin can edit any booking; brand-advisor (canBook && !isAdmin) can only edit their own
+  const canEditAppointment = isAppointment && !isMerged && (isAdmin || (canBook && booking?.isUserBooking))
   const appointmentBookingId = isAppointment ? parseAppointmentBookingId(booking.id) : null
   const canManageEmails =
     isAppointment &&
     !isMerged &&
     appointmentBookingId !== null &&
-    (booking.isUserBooking || isAdmin)
+    (isAdmin || (canBook && booking.isUserBooking))
   const canManageReminders = canManageEmails && Boolean(booking.projectId)
   const canBookAtTime =
     onBookAtTime &&
