@@ -36,7 +36,7 @@ interface MonthDayDialogProps {
 	events: CalendarBooking[]
 	onEventClick: (event: CalendarBooking) => void
 	onBookAppointment?: (date: string) => void
-	onBookSlot: (date: string, time: string, appointmentType: AppointmentType) => void
+	onBookSlot?: (date: string, time: string, appointmentType: AppointmentType) => void
 }
 
 // Appointment-type columns (leave/blocker are shown in the banner, not as columns)
@@ -232,15 +232,18 @@ export function MonthDayDialog({
 													<div
 														key={slot}
 														className={cn(
-															"group/slot relative border-b border-border cal-time-grid-slot cursor-pointer",
+															"group/slot relative border-b border-border cal-time-grid-slot",
+															onBookSlot ? "cursor-pointer" : "cursor-default",
 															today && "cal-time-grid-slot--today-col",
 														)}
 														style={{ height: HOUR_HEIGHT }}
-														onClick={() => onBookSlot(date, slot, typeKey)}
+														onClick={() => onBookSlot?.(date, slot, typeKey)}
 													>
-														<span className="pointer-events-none absolute inset-0 flex items-center justify-center px-1 text-[10px] font-medium text-muted-foreground opacity-0 transition-opacity group-hover/slot:opacity-100">
-															+ Appointment
-														</span>
+														{onBookSlot && (
+															<span className="pointer-events-none absolute inset-0 flex items-center justify-center px-1 text-[10px] font-medium text-muted-foreground opacity-0 transition-opacity group-hover/slot:opacity-100">
+																+ Appointment
+															</span>
+														)}
 													</div>
 												))}
 
