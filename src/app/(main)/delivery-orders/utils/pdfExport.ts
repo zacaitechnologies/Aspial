@@ -69,7 +69,7 @@ async function buildDeliveryOrderPdf(order: FullDeliveryOrder): Promise<jsPDF> {
 
   const allServices = order.services.map((s) => ({
     name: sanitizePdfText(s.service.name),
-    description: sanitizePdfText(s.descriptionOverride || ""),
+    description: sanitizePdfText(s.descriptionOverride || s.service.description || ""),
     price: s.price,
     quantity: s.quantity,
   }))

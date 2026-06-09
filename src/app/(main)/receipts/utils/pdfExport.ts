@@ -36,6 +36,7 @@ interface QuotationWithServices {
   id: number
   services: Array<{
     customServiceId?: string | null
+    descriptionOverride?: string | null
     price?: number
     quantity?: number
     service: { basePrice: number; name: string; description?: string | null }
@@ -149,7 +150,7 @@ async function buildStandaloneReceiptPdf(receipt: ReceiptFull): Promise<jsPDF> {
   const tableBody: (string | number)[][] = hasServices
     ? receipt.services!.map((svc, idx) => [
         String(idx + 1),
-        sanitizePdfText(svc.descriptionOverride || svc.service.name),
+        sanitizePdfText(svc.descriptionOverride || svc.service.description || svc.service.name),
         String(svc.quantity),
         formatNumber(svc.price),
         formatNumber(svc.price * svc.quantity),
@@ -353,7 +354,7 @@ async function buildInvoiceLinkedReceiptPdf(receipt: ReceiptFull): Promise<jsPDF
       const quantity = s.quantity ?? 1
       return {
         name: sanitizePdfText(s.service.name),
-        description: sanitizePdfText(s.service.description ?? ""),
+        description: sanitizePdfText(s.descriptionOverride ?? s.service.description ?? ""),
         price,
         quantity,
       }

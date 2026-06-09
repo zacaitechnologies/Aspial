@@ -60,9 +60,8 @@ async function buildInvoicePdf(invoice: InvoiceWithQuotation): Promise<jsPDF> {
 
   // Totals
   const regularServices = quotation.services.filter((qs) => !qs.customServiceId)
-  const servicesTotal = regularServices.reduce((sum, serviceItem) => {
-    const qs = serviceItem as { price?: number; quantity?: number; service: { basePrice: number } }
-    return sum + (qs.price != null ? qs.price * (qs.quantity ?? 1) : qs.service.basePrice)
+  const servicesTotal = regularServices.reduce((sum, s) => {
+    return sum + (s.price != null ? s.price * (s.quantity ?? 1) : s.service.basePrice)
   }, 0)
   const approvedCustomServicesTotal = (quotation.customServices || [])
     .filter((cs) => cs.status === "APPROVED")
@@ -123,12 +122,11 @@ async function buildInvoicePdf(invoice: InvoiceWithQuotation): Promise<jsPDF> {
 
   const allServices = [
     ...regularServices.map((s) => {
-      const qs = s as { price?: number; quantity?: number; service: { name: string; description?: string | null; basePrice: number } }
-      const price = qs.price != null ? qs.price : qs.service.basePrice
-      const quantity = qs.quantity ?? 1
+      const price = s.price != null ? s.price : s.service.basePrice
+      const quantity = s.quantity ?? 1
       return {
-        name: sanitizePdfText(qs.service.name),
-        description: sanitizePdfText(qs.service.description || ""),
+        name: sanitizePdfText(s.service.name),
+        description: sanitizePdfText(s.descriptionOverride ?? s.service.description ?? ""),
         price,
         quantity,
       }

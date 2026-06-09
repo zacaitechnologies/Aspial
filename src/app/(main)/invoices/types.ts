@@ -51,6 +51,9 @@ export type InvoiceWithQuotation = {
 			quotationId: number
 			serviceId: number
 			customServiceId?: string | null
+			descriptionOverride?: string | null
+			price?: number | null
+			quantity?: number | null
 			service: {
 				id: number
 				name: string
