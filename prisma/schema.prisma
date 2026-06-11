@@ -82,6 +82,8 @@ model User {
   reviewedChangeRequests   LeaveChangeRequest[]      @relation("ChangeRequestReviewer")
   calendarBlockers         CalendarBlocker[]         @relation("CalendarBlockerCreator")
   appointmentBookings      AppointmentBooking[]      @relation("AppointmentBookingBooker")
+  cancelledAppointmentBookings AppointmentBooking[]  @relation("AppointmentBookingCanceller")
+  appointmentAssignments   AppointmentBookingAssignee[] @relation("AppointmentBookingAssignee")
 
   @@index([supabase_id])
   @@map("user")
@@ -204,6 +206,8 @@ model Invoice {
   amount        Float
   createdById   String
   status        InvoiceStatus         @default(active)
+  /// Derived from active receipts vs amount; recalculated on receipt changes.
+  paymentStatus PaymentStatus         @default(unpaid)
   /// Business / document date (editable by admin). Used for sales analytics.
   invoiceDate   DateTime              @default(now()) @map("invoice_date")
   created_at    DateTime              @default(now())
@@ -219,6 +223,7 @@ model Invoice {
   @@index([type])
   @@index([created_at])
   @@index([status])
+  @@index([paymentStatus])
   @@map("invoices")
 }
 
@@ -614,16 +619,32 @@ model AppointmentBooking {
   companyName     String?
   contactNumber   String?
   remarks         String?
+  cancellationReason String?
+  cancelledAt     DateTime?
+  cancelledById   String?
   createdAt       DateTime                     @default(now())
   updatedAt       DateTime                     @updatedAt
   appointment     Appointment?                 @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   project         Project?                     @relation("AppointmentBookingProject", fields: [projectId], references: [id], onDelete: SetNull)
   bookedByUser    User?                        @relation("AppointmentBookingBooker", fields: [userId], references: [supabase_id], onDelete: SetNull, onUpdate: Cascade)
+  cancelledByUser User?                        @relation("AppointmentBookingCanceller", fields: [cancelledById], references: [supabase_id], onDelete: SetNull, onUpdate: Cascade)
   bookingEmails   AppointmentBookingEmail[]
   reminders       AppointmentBookingReminder[]
+  assignees       AppointmentBookingAssignee[]
 
   @@index([userId])
   @@map("appointment_bookings")
+}
+
+model AppointmentBookingAssignee {
+  bookingId Int
+  userId    String
+  booking   AppointmentBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user      User               @relation("AppointmentBookingAssignee", fields: [userId], references: [supabase_id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([bookingId, userId])
+  @@index([userId])
+  @@map("appointment_booking_assignees")
 }
 
 model AppointmentBookingEmail {
@@ -770,10 +791,7 @@ enum MembershipType {
 
 enum QuotationStatus {
   draft
-  in_review
   final
-  accepted
-  rejected
   cancelled
 }
 
