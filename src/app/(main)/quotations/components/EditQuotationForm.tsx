@@ -276,7 +276,7 @@ export default function EditQuotationForm({
       name: quotation.name,
       description: quotation.description,
       totalPrice: quotation.totalPrice.toString(),
-      workflowStatus: quotation.workflowStatus as "draft" | "in_review" | "final" | "accepted" | "rejected",
+      workflowStatus: quotation.workflowStatus as "draft" | "final" | "cancelled",
       paymentStatus: quotation.paymentStatus as "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid",
       discountValue: quotation.discountValue?.toString() || "",
       discountType: quotation.discountType || "percentage",
@@ -671,7 +671,7 @@ export default function EditQuotationForm({
       await editQuotationById(editingQuotation.id.toString(), {
         description: editForm.description,
         totalPrice: editGrandTotal, // Sum of services (with discount) + approved custom services; no duration multiplication
-        workflowStatus: (workflowStatus || editForm.workflowStatus) as "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled",
+        workflowStatus: (workflowStatus || editForm.workflowStatus) as "draft" | "final" | "cancelled",
         paymentStatus: editForm.paymentStatus,
         // If we already created the client (for final quotations with new clients), use the clientId
         // Otherwise, use the existing logic
@@ -1501,7 +1501,7 @@ export default function EditQuotationForm({
                   if (isDraftQuotation && !isAdmin) {
                     setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "cancelled" }))
                   } else {
-                    setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled" }))
+                    setEditForm((prev) => ({ ...prev, workflowStatus: value as "draft" | "final" | "cancelled" }))
                   }
                 }}
                 disabled={isNonEditableQuotation && !isAdmin}

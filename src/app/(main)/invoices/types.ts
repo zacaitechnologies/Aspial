@@ -9,6 +9,8 @@ export type InvoiceWithQuotation = {
 	balance?: number
 	quotationId: number
 	status: "active" | "cancelled"
+	/** Derived from active receipts; deposit_paid is a legacy value rendered as partially paid */
+	paymentStatus?: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"
 	created_at: Date
 	updated_at: Date
 	invoiceDate: Date

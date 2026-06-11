@@ -368,7 +368,7 @@ export default function CreateQuotationForm({
     return true;
   };
 
-  const handleCreateQuotation = async (workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled" = "draft") => {
+  const handleCreateQuotation = async (workflowStatus: "draft" | "final" | "cancelled" = "draft") => {
     if (!validateForm()) {
       return;
     }

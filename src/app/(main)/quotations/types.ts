@@ -132,7 +132,7 @@ export type EditFormData = {
   name: string; // Keep for display purposes (read-only)
   description: string;
   totalPrice: string;
-  workflowStatus: "draft" | "in_review" | "final" | "accepted" | "rejected" | "cancelled";
+  workflowStatus: "draft" | "final" | "cancelled";
   paymentStatus: "unpaid" | "partially_paid" | "deposit_paid" | "fully_paid"; // deposit_paid kept for legacy data; not selectable in UI
   discountValue: string;
   discountType: "percentage" | "fixed";
@@ -165,10 +165,7 @@ export type EditFormData = {
 
 export const workflowStatusOptions = [
   { value: "draft", label: "Draft", color: "secondary" as const },
-  { value: "in_review", label: "In Review", color: "default" as const },
   { value: "final", label: "Final", color: "default" as const },
-  { value: "accepted", label: "Accepted", color: "default" as const },
-  { value: "rejected", label: "Rejected", color: "destructive" as const },
   { value: "cancelled", label: "Cancelled", color: "destructive" as const },
 ] as const;
 

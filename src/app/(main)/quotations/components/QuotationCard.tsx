@@ -174,9 +174,7 @@ export default function QuotationCard({
   );
   const isFinalQuotation = quotation.workflowStatus === "final";
   const isDraftQuotation = quotation.workflowStatus === "draft";
-  const isEditableQuotation = quotation.workflowStatus === "draft" || 
-    quotation.workflowStatus === "accepted" || 
-    quotation.workflowStatus === "rejected";
+  const isEditableQuotation = quotation.workflowStatus === "draft";
   const isCreator = enhancedUser?.id === quotation.createdBy?.supabase_id;
   const currentDbUserId = enhancedUser?.profile?.id;
   const isAdvisor = Boolean(

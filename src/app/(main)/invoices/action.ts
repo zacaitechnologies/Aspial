@@ -6,7 +6,7 @@ import { unstable_noStore, unstable_cache, revalidateTag, revalidatePath } from 
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { formatLocalDateTime, parseDocumentDateInputOrNow } from "@/lib/date-utils"
 import { parseEmailSendResponse } from "@/lib/email-api"
-import { recalcQuotationPaymentStatus } from "@/lib/quotation-payment-status"
+import { recalcInvoicePaymentStatus, recalcQuotationPaymentStatus } from "@/lib/quotation-payment-status"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { Prisma } from "@prisma/client"
 import {
@@ -32,6 +32,7 @@ async function _getInvoicesPaginatedInternal(
 	const parsed = invoiceListFiltersSchema.safeParse(filters)
 	const raw = parsed.success ? parsed.data : {}
 	const typeFilter = raw.typeFilter
+	const paymentStatusFilter = raw.paymentStatusFilter
 	const searchQuery = raw.searchQuery
 	const advisorFilter = raw.advisorFilter
 	const monthYear =
@@ -41,6 +42,12 @@ async function _getInvoicesPaginatedInternal(
 	const where: Prisma.InvoiceWhereInput = {}
 	if (typeFilter && typeFilter !== 'all') {
 		where.type = typeFilter as "SO" | "EPO" | "EO"
+	}
+	if (paymentStatusFilter && paymentStatusFilter !== 'all') {
+		// Legacy deposit_paid counts as partially paid
+		where.paymentStatus = paymentStatusFilter === "partially_paid"
+			? { in: ["partially_paid", "deposit_paid"] }
+			: paymentStatusFilter
 	}
 	if (advisorFilter && advisorFilter !== 'all') {
 		where.advisors = { some: { userId: advisorFilter } }
@@ -80,6 +87,7 @@ async function _getInvoicesPaginatedInternal(
 				amount: true,
 				quotationId: true,
 				status: true,
+				paymentStatus: true,
 				created_at: true,
 				updated_at: true,
 				invoiceDate: true,
@@ -158,6 +166,7 @@ async function _getInvoicesPaginatedInternal(
 			balance,
 			quotationId: invoice.quotationId,
 			status: invoice.status,
+			paymentStatus: invoice.paymentStatus,
 			created_at: invoice.created_at,
 			updated_at: invoice.updated_at,
 			invoiceDate: invoice.invoiceDate,
@@ -848,6 +857,9 @@ export async function updateInvoiceAdmin(
 		await recalcQuotationPaymentStatus(existingInvoice.quotationId)
 	}
 
+	// Recompute invoice payment status (receipts may have been cancelled with the invoice)
+	await recalcInvoicePaymentStatus(validatedInvoiceId)
+
 	revalidateTag("invoices", { expire: 0 })
 	revalidateTag("receipts", { expire: 0 })
 	revalidateTag("quotations", { expire: 0 })
@@ -972,6 +984,9 @@ export async function reactivateInvoiceWithReceipts(
 	if (existingInvoice.quotationId) {
 		await recalcQuotationPaymentStatus(existingInvoice.quotationId)
 	}
+
+	// Recompute invoice payment status (receipts may have been reactivated with the invoice)
+	await recalcInvoicePaymentStatus(validatedInvoiceId)
 
 	revalidateTag("invoices", { expire: 0 })
 	revalidateTag("receipts", { expire: 0 })

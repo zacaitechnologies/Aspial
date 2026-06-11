@@ -163,6 +163,30 @@ export default function InvoiceCard({
 		return null
 	}
 
+	const getPaymentStatusBadge = (paymentStatus?: string) => {
+		if (!paymentStatus) return null
+		// Legacy deposit_paid renders as Partially Paid
+		if (paymentStatus === "partially_paid" || paymentStatus === "deposit_paid") {
+			return (
+				<Badge className="bg-amber-500 text-white">
+					Partially Paid
+				</Badge>
+			)
+		}
+		if (paymentStatus === "fully_paid") {
+			return (
+				<Badge className="bg-green-600 text-white">
+					Paid
+				</Badge>
+			)
+		}
+		return (
+			<Badge className="bg-red-600 text-white">
+				Unpaid
+			</Badge>
+		)
+	}
+
 	return (
 		<Card 
 			className="hover:shadow-md transition-shadow duration-200 border-l-2 border-l-primary pt-0 pb-0"
@@ -179,6 +203,7 @@ export default function InvoiceCard({
 							</CardTitle>
 							<div className="flex shrink-0 flex-wrap items-center gap-1.5">
 								{getTypeBadge(invoice.type)}
+								{getPaymentStatusBadge(invoice.paymentStatus)}
 								{getStatusBadge(invoice.status)}
 							</div>
 						</div>

@@ -19,6 +19,18 @@ import {
 import { ProjectPagination } from "../../projects/components/ProjectPagination"
 import { toast } from "@/components/ui/use-toast"
 
+const PAYMENT_STATUS_FILTERS = ["unpaid", "partially_paid", "fully_paid"] as const
+
+function isPaymentStatusFilter(v: string): v is (typeof PAYMENT_STATUS_FILTERS)[number] {
+	return (PAYMENT_STATUS_FILTERS as readonly string[]).includes(v)
+}
+
+const paymentStatusFilterOptions = [
+	{ value: "unpaid", label: "Unpaid" },
+	{ value: "partially_paid", label: "Partially Paid" },
+	{ value: "fully_paid", label: "Paid" },
+] as const
+
 interface InvoicesClientProps {
 	initialData: {
 		data: InvoiceWithQuotation[]
@@ -36,6 +48,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 	const [isMounted, setIsMounted] = useState(false)
 	const [isCreateOpen, setIsCreateOpen] = useState(false)
 	const [typeFilter, setTypeFilter] = useState<string>("all")
+	const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all")
 	const [advisorFilter, setAdvisorFilter] = useState<string>("all")
 	const [monthYearFilter, setMonthYearFilter] = useState<string>("all")
 	const [searchInput, setSearchInput] = useState("")
@@ -58,11 +71,13 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 	const buildListFilters = useCallback((): InvoiceListFilters => {
 		return {
 			typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+			paymentStatusFilter:
+				paymentStatusFilter !== "all" && isPaymentStatusFilter(paymentStatusFilter) ? paymentStatusFilter : undefined,
 			searchQuery: searchQuery || undefined,
 			advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 			monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
 		}
-	}, [typeFilter, searchQuery, advisorFilter, monthYearFilter])
+	}, [typeFilter, paymentStatusFilter, searchQuery, advisorFilter, monthYearFilter])
 
 	// State from initial data - use initial data directly, no copying to state unless it changes
 	const [invoices, setInvoices] = useState<InvoiceWithQuotation[]>(initialData.data)
@@ -113,6 +128,8 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		try {
 			const result = await getInvoicesPaginatedFresh(1, pageSize, {
 				typeFilter: value !== "all" ? value : undefined,
+				paymentStatusFilter:
+					paymentStatusFilter !== "all" && isPaymentStatusFilter(paymentStatusFilter) ? paymentStatusFilter : undefined,
 				searchQuery: searchQuery || undefined,
 				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
@@ -127,61 +144,16 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		} finally {
 			setLoading(false)
 		}
-	}, [pageSize, searchQuery, advisorFilter, monthYearFilter])
+	}, [pageSize, paymentStatusFilter, searchQuery, advisorFilter, monthYearFilter])
 
-	const handleAdvisorFilterChange = useCallback(async (value: string) => {
-		setAdvisorFilter(value)
+	const handlePaymentStatusFilterChange = useCallback(async (value: string) => {
+		setPaymentStatusFilter(value)
 		setPage(1)
 		setLoading(true)
 		try {
 			const result = await getInvoicesPaginatedFresh(1, pageSize, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
-				searchQuery: searchQuery || undefined,
-				advisorFilter: value !== "all" ? value : undefined,
-				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
-			})
-			setInvoices(result.data as InvoiceWithQuotation[])
-			setTotal(result.total)
-			setTotalPages(result.totalPages)
-		} catch (error) {
-			if (process.env.NODE_ENV === 'development') {
-				console.error("Error fetching invoices:", error)
-			}
-		} finally {
-			setLoading(false)
-		}
-	}, [pageSize, typeFilter, searchQuery, monthYearFilter])
-
-	const handleMonthYearFilterChange = useCallback(async (value: string) => {
-		setMonthYearFilter(value)
-		setPage(1)
-		setLoading(true)
-		try {
-			const result = await getInvoicesPaginatedFresh(1, pageSize, {
-				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
-				searchQuery: searchQuery || undefined,
-				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
-				monthYear: value !== "all" ? value : undefined,
-			})
-			setInvoices(result.data as InvoiceWithQuotation[])
-			setTotal(result.total)
-			setTotalPages(result.totalPages)
-		} catch (error) {
-			if (process.env.NODE_ENV === "development") {
-				console.error("Error fetching invoices:", error)
-			}
-		} finally {
-			setLoading(false)
-		}
-	}, [pageSize, typeFilter, searchQuery, advisorFilter])
-
-	// Handle page changes - fetch directly
-	const goToPage = useCallback(async (newPage: number) => {
-		setPage(newPage)
-		setLoading(true)
-		try {
-			const result = await getInvoicesPaginatedFresh(newPage, pageSize, {
-				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				paymentStatusFilter: value !== "all" && isPaymentStatusFilter(value) ? value : undefined,
 				searchQuery: searchQuery || undefined,
 				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
@@ -198,13 +170,65 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		}
 	}, [pageSize, typeFilter, searchQuery, advisorFilter, monthYearFilter])
 
-	const setPageSize = useCallback(async (size: number) => {
-		setPageSizeState(size)
+	const handleAdvisorFilterChange = useCallback(async (value: string) => {
+		setAdvisorFilter(value)
 		setPage(1)
 		setLoading(true)
 		try {
-			const result = await getInvoicesPaginatedFresh(1, size, {
+			const result = await getInvoicesPaginatedFresh(1, pageSize, {
 				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				paymentStatusFilter:
+					paymentStatusFilter !== "all" && isPaymentStatusFilter(paymentStatusFilter) ? paymentStatusFilter : undefined,
+				searchQuery: searchQuery || undefined,
+				advisorFilter: value !== "all" ? value : undefined,
+				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+			})
+			setInvoices(result.data as InvoiceWithQuotation[])
+			setTotal(result.total)
+			setTotalPages(result.totalPages)
+		} catch (error) {
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error fetching invoices:", error)
+			}
+		} finally {
+			setLoading(false)
+		}
+	}, [pageSize, typeFilter, paymentStatusFilter, searchQuery, monthYearFilter])
+
+	const handleMonthYearFilterChange = useCallback(async (value: string) => {
+		setMonthYearFilter(value)
+		setPage(1)
+		setLoading(true)
+		try {
+			const result = await getInvoicesPaginatedFresh(1, pageSize, {
+				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				paymentStatusFilter:
+					paymentStatusFilter !== "all" && isPaymentStatusFilter(paymentStatusFilter) ? paymentStatusFilter : undefined,
+				searchQuery: searchQuery || undefined,
+				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+				monthYear: value !== "all" ? value : undefined,
+			})
+			setInvoices(result.data as InvoiceWithQuotation[])
+			setTotal(result.total)
+			setTotalPages(result.totalPages)
+		} catch (error) {
+			if (process.env.NODE_ENV === "development") {
+				console.error("Error fetching invoices:", error)
+			}
+		} finally {
+			setLoading(false)
+		}
+	}, [pageSize, typeFilter, paymentStatusFilter, searchQuery, advisorFilter])
+
+	// Handle page changes - fetch directly
+	const goToPage = useCallback(async (newPage: number) => {
+		setPage(newPage)
+		setLoading(true)
+		try {
+			const result = await getInvoicesPaginatedFresh(newPage, pageSize, {
+				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				paymentStatusFilter:
+					paymentStatusFilter !== "all" && isPaymentStatusFilter(paymentStatusFilter) ? paymentStatusFilter : undefined,
 				searchQuery: searchQuery || undefined,
 				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
@@ -219,7 +243,32 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		} finally {
 			setLoading(false)
 		}
-	}, [typeFilter, searchQuery, advisorFilter, monthYearFilter])
+	}, [pageSize, typeFilter, paymentStatusFilter, searchQuery, advisorFilter, monthYearFilter])
+
+	const setPageSize = useCallback(async (size: number) => {
+		setPageSizeState(size)
+		setPage(1)
+		setLoading(true)
+		try {
+			const result = await getInvoicesPaginatedFresh(1, size, {
+				typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+				paymentStatusFilter:
+					paymentStatusFilter !== "all" && isPaymentStatusFilter(paymentStatusFilter) ? paymentStatusFilter : undefined,
+				searchQuery: searchQuery || undefined,
+				advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+				monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+			})
+			setInvoices(result.data as InvoiceWithQuotation[])
+			setTotal(result.total)
+			setTotalPages(result.totalPages)
+		} catch (error) {
+			if (process.env.NODE_ENV === 'development') {
+				console.error("Error fetching invoices:", error)
+			}
+		} finally {
+			setLoading(false)
+		}
+	}, [typeFilter, paymentStatusFilter, searchQuery, advisorFilter, monthYearFilter])
 
 	// When search query changes, reset to page 1 and refetch (skip initial mount to avoid overwriting server data)
 	const prevSearchQueryRef = useRef<string | undefined>(undefined)
@@ -235,6 +284,8 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 		setLoading(true)
 		getInvoicesPaginatedFresh(1, pageSize, {
 			typeFilter: typeFilter !== "all" ? typeFilter : undefined,
+			paymentStatusFilter:
+				paymentStatusFilter !== "all" && isPaymentStatusFilter(paymentStatusFilter) ? paymentStatusFilter : undefined,
 			searchQuery: searchQuery || undefined,
 			advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
 			monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
@@ -300,6 +351,19 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 								))}
 							</SelectContent>
 						</Select>
+						<Select value={paymentStatusFilter} onValueChange={handlePaymentStatusFilterChange}>
+							<SelectTrigger className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-48" style={{ borderColor: "#BDC4A5" }} aria-label="Payment status filter">
+								<SelectValue placeholder="Payment" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Payments</SelectItem>
+								{paymentStatusFilterOptions.map((option) => (
+									<SelectItem key={option.value} value={option.value}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 						{initialAdvisors.length > 0 && (
 							<Select value={advisorFilter} onValueChange={handleAdvisorFilterChange}>
 								<SelectTrigger className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-48" style={{ borderColor: "#BDC4A5" }}>
@@ -330,12 +394,13 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 								</SelectContent>
 							</Select>
 						</div>
-						{(typeFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all") && (
+						{(typeFilter !== "all" || paymentStatusFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all") && (
 							<Button
 								variant="outline"
 								size="sm"
 								onClick={async () => {
 									setTypeFilter("all")
+									setPaymentStatusFilter("all")
 									setAdvisorFilter("all")
 									setMonthYearFilter("all")
 									setPage(1)
@@ -401,14 +466,14 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 					)}
 				</div>
 
-				{!loading && invoices.length === 0 && total === 0 && typeFilter === "all" && advisorFilter === "all" && monthYearFilter === "all" && !searchQuery && (
+				{!loading && invoices.length === 0 && total === 0 && typeFilter === "all" && paymentStatusFilter === "all" && advisorFilter === "all" && monthYearFilter === "all" && !searchQuery && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-muted-foreground">No invoices available.</p>
 					</div>
 				)}
 
-				{!loading && invoices.length === 0 && (typeFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all" || searchQuery) && (
+				{!loading && invoices.length === 0 && (typeFilter !== "all" || paymentStatusFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all" || searchQuery) && (
 					<div className="text-center py-12">
 						<FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
 						<p className="text-muted-foreground">
@@ -420,6 +485,7 @@ export default function InvoicesClient({ initialData, userId, isAdmin, initialAd
 							style={{ borderColor: "#BDC4A5" }}
 							onClick={async () => {
 								setTypeFilter("all")
+								setPaymentStatusFilter("all")
 								setAdvisorFilter("all")
 								setMonthYearFilter("all")
 								if (searchQuery) {

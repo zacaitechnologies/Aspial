@@ -548,9 +548,9 @@ export default function ProjectDetailClient({
 													<div className="flex items-center gap-3 mt-1">
 														<Badge
 															variant={
-																quotation.workflowStatus === "accepted"
+																quotation.workflowStatus === "final"
 																	? "default"
-																	: quotation.workflowStatus === "rejected"
+																	: quotation.workflowStatus === "cancelled"
 																	? "destructive"
 																	: "secondary"
 															}

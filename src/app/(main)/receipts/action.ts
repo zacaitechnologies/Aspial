@@ -11,7 +11,7 @@ import { withExcludedSystemClient } from "@/lib/no-project"
 import { Prisma, type PaymentMethod } from "@prisma/client"
 import { receiptListFiltersSchema, type ReceiptListFilters, type ReceiptServiceItem } from "@/lib/validation"
 import { z } from "zod"
-import { recalcQuotationPaymentStatus } from "@/lib/quotation-payment-status"
+import { recalcInvoicePaymentStatus, recalcQuotationPaymentStatus } from "@/lib/quotation-payment-status"
 
 // Internal function - not cached, used by cached version
 async function _getReceiptsPaginatedInternal(
@@ -839,6 +839,14 @@ export async function createReceipt(data: {
 				revalidatePath(`/quotations/${receipt.invoice.quotation.id}`)
 			}
 
+			// Recompute invoice payment status for invoice-linked receipts
+			if (receipt.invoiceId) {
+				await recalcInvoicePaymentStatus(receipt.invoiceId)
+				revalidateTag("invoices", { expire: 0 })
+				revalidatePath("/invoices")
+				revalidatePath(`/invoices/${receipt.invoiceId}`)
+			}
+
 			await invalidateReceiptsCache()
 			revalidatePath("/receipts")
 			return receipt
@@ -1224,6 +1232,11 @@ export async function updateReceiptAdmin(
 	// Recompute quotation payment status when receipt status changes (cancel/reactivate)
 	if (data.status !== undefined && existingReceipt.invoice?.quotationId) {
 		await recalcQuotationPaymentStatus(existingReceipt.invoice.quotationId)
+	}
+
+	// Recompute invoice payment status when receipt status changes (cancel/reactivate)
+	if (data.status !== undefined && existingReceipt.invoiceId) {
+		await recalcInvoicePaymentStatus(existingReceipt.invoiceId)
 	}
 
 	revalidateTag("receipts", { expire: 0 })

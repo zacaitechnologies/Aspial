@@ -8,6 +8,7 @@ import { formatLocalDateTime } from "@/lib/date-utils"
 import { parseEmailSendResponse } from "@/lib/email-api"
 import { ensureClientAdvisors } from "@/lib/client-advisors"
 import { excludeNoProjectSentinelWhere, excludeSystemClientWhere } from "@/lib/no-project"
+import { recalcInvoicePaymentStatus } from "@/lib/quotation-payment-status"
 import {
   getAuthenticatedActor,
   requireNotificationAdmin,
@@ -139,12 +140,18 @@ async function _getQuotationsPaginatedInternal(
   }
 
   const skip = (validatedPage - 1) * validatedPageSize
-  const { statusFilter, searchQuery, advisorFilter, monthYear } = validatedFilters
+  const { statusFilter, paymentFilter, searchQuery, advisorFilter, monthYear } = validatedFilters
 
   // Build where clause
   const where: Prisma.QuotationWhereInput = {}
   if (statusFilter && statusFilter !== 'all') {
     where.workflowStatus = statusFilter
+  }
+  if (paymentFilter && paymentFilter !== 'all') {
+    // Legacy deposit_paid counts as partially paid
+    where.paymentStatus = paymentFilter === "partially_paid"
+      ? { in: ["partially_paid", "deposit_paid"] }
+      : paymentFilter
   }
   if (advisorFilter && advisorFilter !== "all") {
     where.advisors = { some: { userId: advisorFilter } }
@@ -1523,6 +1530,14 @@ export async function editQuotationById(
 
   // Revalidate caches after cascade cancellation
   if (validatedData.workflowStatus === "cancelled") {
+    // Receipts were cascade-cancelled with their invoices — recompute invoice payment statuses
+    const cascadeInvoices = await prisma.invoice.findMany({
+      where: { quotationId },
+      select: { id: true },
+    })
+    for (const inv of cascadeInvoices) {
+      await recalcInvoicePaymentStatus(inv.id)
+    }
     revalidateTag("quotations", { expire: 0 })
     revalidateTag("invoices", { expire: 0 })
     revalidateTag("receipts", { expire: 0 })
@@ -1718,6 +1733,18 @@ export async function reactivateQuotationCascade(
 
     return reactivatedQuotation
   }, { timeout: 15000 }) // Increased timeout for production network latency
+
+  // Receipts may have been reactivated (or left cancelled) with their invoices —
+  // recompute invoice payment statuses
+  if (options.reactivateInvoices) {
+    const cascadeInvoices = await prisma.invoice.findMany({
+      where: { quotationId: validatedQuotationId },
+      select: { id: true },
+    })
+    for (const inv of cascadeInvoices) {
+      await recalcInvoicePaymentStatus(inv.id)
+    }
+  }
 
   // Revalidate caches
   revalidateTag("quotations", { expire: 0 })
@@ -2251,29 +2278,6 @@ export async function updateCustomServiceStatus(
             totalPrice: { increment: customService.price },
           },
         })
-      }
-    }
-
-    // Check if there are any pending custom services
-    const pendingCount = await tx.customService.count({
-      where: {
-        quotationId: customService.quotationId,
-        status: "PENDING",
-      },
-    });
-
-    // If no pending custom services and quotation is in_review, change to rejected
-    if (pendingCount === 0) {
-      const quotation = await tx.quotation.findUnique({
-        where: { id: customService.quotationId },
-        select: { workflowStatus: true },
-      });
-
-      if (quotation?.workflowStatus === "in_review") {
-        await tx.quotation.update({
-          where: { id: customService.quotationId },
-          data: { workflowStatus: "rejected" },
-        });
       }
     }
 

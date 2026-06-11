@@ -33,11 +33,23 @@ interface QuotationsClientProps {
   initialAdvisors: { id: string; firstName: string; lastName: string }[];
 }
 
-const WORKFLOW_STATUSES = ["draft", "in_review", "final", "accepted", "rejected", "cancelled"] as const;
+const WORKFLOW_STATUSES = ["draft", "final", "cancelled"] as const;
 
 function isWorkflowStatus(v: string): v is (typeof WORKFLOW_STATUSES)[number] {
   return (WORKFLOW_STATUSES as readonly string[]).includes(v);
 }
+
+const PAYMENT_FILTERS = ["unpaid", "partially_paid", "fully_paid"] as const;
+
+function isPaymentFilter(v: string): v is (typeof PAYMENT_FILTERS)[number] {
+  return (PAYMENT_FILTERS as readonly string[]).includes(v);
+}
+
+const paymentFilterOptions = [
+  { value: "unpaid", label: "Unpaid" },
+  { value: "partially_paid", label: "Partially Paid" },
+  { value: "fully_paid", label: "Paid" },
+] as const;
 
 export default function QuotationsClient({ initialData, initialAdvisors }: QuotationsClientProps) {
   const { enhancedUser } = useSession();
@@ -46,6 +58,7 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingQuotation, setEditingQuotation] = useState<QuotationWithServices | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [advisorFilter, setAdvisorFilter] = useState<string>("all");
   const [monthYearFilter, setMonthYearFilter] = useState<string>("all");
   const [searchInput, setSearchInput] = useState("");
@@ -69,11 +82,13 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
     return {
       statusFilter:
         statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
+      paymentFilter:
+        paymentFilter !== "all" && isPaymentFilter(paymentFilter) ? paymentFilter : undefined,
       searchQuery: searchQuery || undefined,
       advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
       monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
     };
-  }, [statusFilter, searchQuery, advisorFilter, monthYearFilter]);
+  }, [statusFilter, paymentFilter, searchQuery, advisorFilter, monthYearFilter]);
 
   const [quotations, setQuotations] = useState<QuotationWithServices[]>(initialData.data);
   const [loading, setLoading] = useState(false);
@@ -142,6 +157,7 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
       try {
         const result = await getQuotationsPaginatedFresh(1, pageSize, {
           statusFilter: value !== "all" && isWorkflowStatus(value) ? value : undefined,
+          paymentFilter: paymentFilter !== "all" && isPaymentFilter(paymentFilter) ? paymentFilter : undefined,
           searchQuery: searchQuery || undefined,
           advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
           monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
@@ -158,70 +174,18 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
         setLoading(false);
       }
     },
-    [pageSize, searchQuery, advisorFilter, monthYearFilter]
+    [pageSize, paymentFilter, searchQuery, advisorFilter, monthYearFilter]
   );
 
-  const handleAdvisorFilterChange = useCallback(
+  const handlePaymentFilterChange = useCallback(
     async (value: string) => {
-      setAdvisorFilter(value);
+      setPaymentFilter(value);
       setPage(1);
       setLoading(true);
       try {
         const result = await getQuotationsPaginatedFresh(1, pageSize, {
           statusFilter: statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
-          searchQuery: searchQuery || undefined,
-          advisorFilter: value !== "all" ? value : undefined,
-          monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
-        });
-        setQuotations(result.data);
-        setTotal(result.total);
-        setTotalPages(result.totalPages);
-      } catch (error: unknown) {
-        if (process.env.NODE_ENV === "development") {
-          // eslint-disable-next-line no-console
-          console.error("Error fetching quotations:", error);
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    [pageSize, statusFilter, searchQuery, monthYearFilter]
-  );
-
-  const handleMonthYearFilterChange = useCallback(
-    async (value: string) => {
-      setMonthYearFilter(value);
-      setPage(1);
-      setLoading(true);
-      try {
-        const result = await getQuotationsPaginatedFresh(1, pageSize, {
-          statusFilter: statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
-          searchQuery: searchQuery || undefined,
-          advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
-          monthYear: value !== "all" ? value : undefined,
-        });
-        setQuotations(result.data);
-        setTotal(result.total);
-        setTotalPages(result.totalPages);
-      } catch (error: unknown) {
-        if (process.env.NODE_ENV === "development") {
-          // eslint-disable-next-line no-console
-          console.error("Error fetching quotations:", error);
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    [pageSize, statusFilter, searchQuery, advisorFilter]
-  );
-
-  const goToPage = useCallback(
-    async (newPage: number) => {
-      setPage(newPage);
-      setLoading(true);
-      try {
-        const result = await getQuotationsPaginatedFresh(newPage, pageSize, {
-          statusFilter: statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
+          paymentFilter: value !== "all" && isPaymentFilter(value) ? value : undefined,
           searchQuery: searchQuery || undefined,
           advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
           monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
@@ -241,14 +205,70 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
     [pageSize, statusFilter, searchQuery, advisorFilter, monthYearFilter]
   );
 
-  const setPageSize = useCallback(
-    async (size: number) => {
-      setPageSizeState(size);
+  const handleAdvisorFilterChange = useCallback(
+    async (value: string) => {
+      setAdvisorFilter(value);
       setPage(1);
       setLoading(true);
       try {
-        const result = await getQuotationsPaginatedFresh(1, size, {
+        const result = await getQuotationsPaginatedFresh(1, pageSize, {
           statusFilter: statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
+          paymentFilter: paymentFilter !== "all" && isPaymentFilter(paymentFilter) ? paymentFilter : undefined,
+          searchQuery: searchQuery || undefined,
+          advisorFilter: value !== "all" ? value : undefined,
+          monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+        });
+        setQuotations(result.data);
+        setTotal(result.total);
+        setTotalPages(result.totalPages);
+      } catch (error: unknown) {
+        if (process.env.NODE_ENV === "development") {
+          // eslint-disable-next-line no-console
+          console.error("Error fetching quotations:", error);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [pageSize, statusFilter, paymentFilter, searchQuery, monthYearFilter]
+  );
+
+  const handleMonthYearFilterChange = useCallback(
+    async (value: string) => {
+      setMonthYearFilter(value);
+      setPage(1);
+      setLoading(true);
+      try {
+        const result = await getQuotationsPaginatedFresh(1, pageSize, {
+          statusFilter: statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
+          paymentFilter: paymentFilter !== "all" && isPaymentFilter(paymentFilter) ? paymentFilter : undefined,
+          searchQuery: searchQuery || undefined,
+          advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+          monthYear: value !== "all" ? value : undefined,
+        });
+        setQuotations(result.data);
+        setTotal(result.total);
+        setTotalPages(result.totalPages);
+      } catch (error: unknown) {
+        if (process.env.NODE_ENV === "development") {
+          // eslint-disable-next-line no-console
+          console.error("Error fetching quotations:", error);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [pageSize, statusFilter, paymentFilter, searchQuery, advisorFilter]
+  );
+
+  const goToPage = useCallback(
+    async (newPage: number) => {
+      setPage(newPage);
+      setLoading(true);
+      try {
+        const result = await getQuotationsPaginatedFresh(newPage, pageSize, {
+          statusFilter: statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
+          paymentFilter: paymentFilter !== "all" && isPaymentFilter(paymentFilter) ? paymentFilter : undefined,
           searchQuery: searchQuery || undefined,
           advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
           monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
@@ -265,7 +285,35 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
         setLoading(false);
       }
     },
-    [statusFilter, searchQuery, advisorFilter, monthYearFilter]
+    [pageSize, statusFilter, paymentFilter, searchQuery, advisorFilter, monthYearFilter]
+  );
+
+  const setPageSize = useCallback(
+    async (size: number) => {
+      setPageSizeState(size);
+      setPage(1);
+      setLoading(true);
+      try {
+        const result = await getQuotationsPaginatedFresh(1, size, {
+          statusFilter: statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
+          paymentFilter: paymentFilter !== "all" && isPaymentFilter(paymentFilter) ? paymentFilter : undefined,
+          searchQuery: searchQuery || undefined,
+          advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
+          monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
+        });
+        setQuotations(result.data);
+        setTotal(result.total);
+        setTotalPages(result.totalPages);
+      } catch (error: unknown) {
+        if (process.env.NODE_ENV === "development") {
+          // eslint-disable-next-line no-console
+          console.error("Error fetching quotations:", error);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [statusFilter, paymentFilter, searchQuery, advisorFilter, monthYearFilter]
   );
 
   const prevSearchQueryRef = useRef<string | undefined>(undefined);
@@ -281,6 +329,7 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
     setLoading(true);
     getQuotationsPaginatedFresh(1, pageSize, {
       statusFilter: statusFilter !== "all" && isWorkflowStatus(statusFilter) ? statusFilter : undefined,
+      paymentFilter: paymentFilter !== "all" && isPaymentFilter(paymentFilter) ? paymentFilter : undefined,
       searchQuery: searchQuery || undefined,
       advisorFilter: advisorFilter !== "all" ? advisorFilter : undefined,
       monthYear: monthYearFilter !== "all" ? monthYearFilter : undefined,
@@ -336,7 +385,7 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
   }, [fetchQuotations]);
 
   const hasActiveFilters =
-    statusFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all";
+    statusFilter !== "all" || paymentFilter !== "all" || advisorFilter !== "all" || monthYearFilter !== "all";
 
   return (
     <>
@@ -388,6 +437,23 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={paymentFilter} onValueChange={handlePaymentFilterChange}>
+                <SelectTrigger
+                  className="h-9 w-full min-w-[9rem] max-w-full border-2 bg-white sm:w-48"
+                  style={{ borderColor: "#BDC4A5" }}
+                  aria-label="Payment status filter"
+                >
+                  <SelectValue placeholder="Payment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payments</SelectItem>
+                  {paymentFilterOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {initialAdvisors.length > 0 && (
                 <Select value={advisorFilter} onValueChange={handleAdvisorFilterChange}>
                   <SelectTrigger
@@ -430,6 +496,7 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
                   size="sm"
                   onClick={async () => {
                     setStatusFilter("all");
+                    setPaymentFilter("all");
                     setAdvisorFilter("all");
                     setMonthYearFilter("all");
                     setPage(1);
@@ -510,6 +577,7 @@ export default function QuotationsClient({ initialData, initialAdvisors }: Quota
               className="mt-4"
               onClick={async () => {
                 setStatusFilter("all");
+                setPaymentFilter("all");
                 setAdvisorFilter("all");
                 setMonthYearFilter("all");
                 setPage(1);

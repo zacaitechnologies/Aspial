@@ -213,7 +213,9 @@ export type StopTimeEntryValues = z.infer<typeof stopTimeEntrySchema>;
 
 // Quotation validation schemas
 export const quotationFiltersSchema = z.object({
-  statusFilter: z.enum(["all", "draft", "in_review", "final", "accepted", "rejected", "cancelled"]).optional(),
+  statusFilter: z.enum(["all", "draft", "final", "cancelled"]).optional(),
+  /** Payment status filter — partially_paid also matches legacy deposit_paid */
+  paymentFilter: z.enum(["all", "unpaid", "partially_paid", "fully_paid"]).optional(),
   searchQuery: z.string().max(200).optional(),
   advisorFilter: z.string().optional(),
   /** YYYY-MM — filters by quotation document date (quotationDate) within that calendar month */
@@ -241,7 +243,7 @@ export const quotationPaginationSchema = z.object({
 
 export type QuotationPagination = z.infer<typeof quotationPaginationSchema>;
 
-export const workflowStatusSchema = z.enum(["draft", "in_review", "final", "accepted", "rejected", "cancelled"]);
+export const workflowStatusSchema = z.enum(["draft", "final", "cancelled"]);
 
 export const paymentStatusSchema = z.enum(["unpaid", "partially_paid", "deposit_paid", "fully_paid"]);
 
@@ -368,6 +370,8 @@ export type SendInvoiceEmailValues = z.infer<typeof sendInvoiceEmailSchema>;
 /** Filters for paginated invoice list (`monthYear`: YYYY-MM, matches **invoiceDate** month). */
 export const invoiceListFiltersSchema = z.object({
 	typeFilter: z.string().optional(),
+	/** Payment status filter — partially_paid also matches legacy deposit_paid */
+	paymentStatusFilter: z.enum(["all", "unpaid", "partially_paid", "fully_paid"]).optional(),
 	searchQuery: z.string().optional(),
 	advisorFilter: z.string().optional(),
 	monthYear: z.string().optional(),
