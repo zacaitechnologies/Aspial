@@ -329,6 +329,12 @@ export async function createAppointmentBooking(formData: FormData) {
 	const reminderOffsetsParsed = reminderOffsetsStr ? (JSON.parse(reminderOffsetsStr) as unknown) : []
 	const reminderList = Array.isArray(reminderOffsetsParsed) ? reminderOffsetsParsed : []
 
+	const assigneeIdsStr = formData.get("assigneeIds") as string | null
+	const assigneeIdsParsed = assigneeIdsStr ? (JSON.parse(assigneeIdsStr) as unknown) : []
+	const assigneeIds = Array.isArray(assigneeIdsParsed)
+		? assigneeIdsParsed.filter((v): v is string => typeof v === "string" && v.trim() !== "")
+		: []
+
 	try {
 		if (projectId && userId) {
 			const allowed = await userCanAccessProject(userId, projectId)
@@ -449,6 +455,17 @@ export async function createAppointmentBooking(formData: FormData) {
 			},
 		})
 
+		// Assign selected team members
+		if (assigneeIds.length > 0) {
+			await prisma.appointmentBookingAssignee.createMany({
+				data: assigneeIds.map((assigneeUserId) => ({
+					bookingId: booking.id,
+					userId: assigneeUserId,
+				})),
+				skipDuplicates: true,
+			})
+		}
+
 		// Use the emails from the form directly (they already include project users)
 		// The form adds project users when a project is selected, so we don't need to add them again
 		const allEmails: string[] = [...validEmails]
@@ -563,10 +580,14 @@ export async function createAppointmentBooking(formData: FormData) {
 	}
 }
 
-export async function cancelAppointmentBooking(id: number) {
+export async function cancelAppointmentBooking(id: number, reason: string) {
   try {
     const authUser = await getCachedUser()
     if (!authUser) return { success: false, error: "Not authenticated" }
+
+    if (!reason || !reason.trim()) {
+      return { success: false, error: "A cancellation reason is required." }
+    }
 
     const [isAdmin, isBrandAdvisor] = await Promise.all([
       getCachedIsUserAdmin(authUser.id),
@@ -601,10 +622,25 @@ export async function cancelAppointmentBooking(id: number) {
 
     await prisma.appointmentBooking.update({
       where: { id },
-      data: { status: "cancelled" },
+      data: {
+        status: "cancelled",
+        cancellationReason: reason.trim(),
+        cancelledAt: new Date(),
+        cancelledById: authUser.id,
+      },
 		})
 
+    // Stop unsent reminders; the reminder edge function only checks reminder
+    // status, not booking status. Keep SENT rows for history.
+    await prisma.appointmentBookingReminder.deleteMany({
+      where: {
+        appointmentBookingId: id,
+        status: { in: ["PENDING", "SENDING", "FAILED"] },
+      },
+    })
+
     revalidatePath("/appointment-bookings")
+    revalidatePath("/calendar")
     revalidateTag("appointment-bookings", { expire: 0 })
 		return { success: true }
 	} catch (error) {

@@ -32,6 +32,9 @@ export function calendarEventLegendDotClass(appointmentType: CalendarEventType):
 /** Slightly faded styling for events that have already ended. */
 export const calendarEventPastClass = "cal-event-surface--past"
 
+/** Grey override for cancelled appointments — append after the type surface class. */
+export const calendarEventCancelledClass = "cal-event-surface--cancelled"
+
 /** Leave chips — approved uses pastel leave surface; pending uses dashed pending token (matches calendar actions). */
 export function calendarLeaveSurfaceClass(status: string): string {
 	if (status === "PENDING") {

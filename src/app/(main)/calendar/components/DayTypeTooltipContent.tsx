@@ -21,7 +21,10 @@ const TYPE_CSS_VAR: Record<CalendarEventType, string> = {
 
 export function DayTypeTooltipContent({ type, bookings }: DayTypeTooltipContentProps) {
 	const label = CALENDAR_EVENT_TYPES[type].label
-	const typeBookings = bookings.filter((b) => b.appointmentType === type)
+	// Cancelled appointments have their own grey day-cell chip, so keep them out of type tooltips
+	const typeBookings = bookings.filter(
+		(b) => b.appointmentType === type && !(b.type === "appointment" && b.status === "cancelled")
+	)
 
 	return (
 		<div className="space-y-2 text-xs">

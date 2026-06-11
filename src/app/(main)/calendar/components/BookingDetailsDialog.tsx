@@ -105,12 +105,14 @@ export function BookingDetailsDialog({
   }
 
   const isAppointment = booking?.type === "appointment"
+  const isCancelled = isAppointment && booking.status === "cancelled"
   const categoryLabel = isAppointment ? formatAppointmentCategoryLabel(booking) : null
   const isMerged = partCount > 1
   // Merged events represent multiple booking rows — editing/cancelling one
   // would be misleading, so route the user to the appointment-bookings page.
   // Admin can edit any booking; brand-advisor (canBook && !isAdmin) can only edit their own
-  const canEditAppointment = isAppointment && !isMerged && (isAdmin || (canBook && booking?.isUserBooking))
+  const canEditAppointment =
+    isAppointment && !isMerged && !isCancelled && (isAdmin || (canBook && booking?.isUserBooking))
   const appointmentBookingId = isAppointment ? parseAppointmentBookingId(booking.id) : null
   const canManageEmails =
     isAppointment &&
@@ -164,6 +166,11 @@ export function BookingDetailsDialog({
               {categoryLabel && (
                 <Badge variant="outline" className="text-xs">
                   {categoryLabel}
+                </Badge>
+              )}
+              {isCancelled && (
+                <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                  Cancelled
                 </Badge>
               )}
             </div>
@@ -225,6 +232,19 @@ export function BookingDetailsDialog({
                     <span className="min-w-0 break-all">
                       {booking.clientEmails.join(", ")}
                     </span>
+                  </div>
+                )}
+                {booking.assigneeNames && booking.assigneeNames.length > 0 && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <UserCircle className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+                    <span className="text-muted-foreground shrink-0">Assigned to:</span>
+                    <span className="min-w-0">{booking.assigneeNames.join(", ")}</span>
+                  </div>
+                )}
+                {isCancelled && booking.cancellationReason && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <span className="text-muted-foreground shrink-0">Cancellation reason:</span>
+                    <span className="min-w-0">{booking.cancellationReason}</span>
                   </div>
                 )}
                 {booking.description ? (

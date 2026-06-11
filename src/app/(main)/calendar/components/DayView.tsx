@@ -24,6 +24,7 @@ import { useScrollToCurrentTime } from "../hooks/useScrollToCurrentTime"
 import { CalendarEventTooltip } from "./CalendarEventTooltip"
 import {
 	calendarEventBadgeClass,
+	calendarEventCancelledClass,
 	calendarEventMetaClass,
 	calendarEventPastClass,
 	calendarEventSurfaceClass,
@@ -172,6 +173,7 @@ export function DayView({
 											className={cn(
 												"text-xs px-2 py-1 rounded-md cursor-pointer truncate leading-tight font-medium transition-shadow hover:shadow-sm",
 												calendarEventSurfaceClass(event.appointmentType),
+												event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 												isCalendarEventPast(event, now) && calendarEventPastClass,
 											)}
 											onClick={() => onEventClick(event)}
@@ -264,6 +266,7 @@ export function DayView({
 											"absolute z-10 overflow-hidden p-2",
 											eventCardClassName,
 											calendarEventSurfaceClass(event.appointmentType),
+											event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 											isCalendarEventPast(event, now) && calendarEventPastClass,
 										)}
 										style={{

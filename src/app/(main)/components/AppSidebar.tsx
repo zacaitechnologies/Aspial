@@ -24,6 +24,7 @@ import {
   Wallet,
   FileCheck,
   Truck,
+  LayoutDashboard,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getAllPendingInvitations, getUserInvitations } from "../projects/permissions";
@@ -48,6 +49,11 @@ import {
 
 const mainNavItems = [
   {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
     title: "Project Management",
     url: "/projects",
     icon: Briefcase,
@@ -58,11 +64,6 @@ const mainNavItems = [
     icon: Wrench,
   },
   {
-    title: "Appointment Bookings",
-    url: "/appointment-bookings",
-    icon: CalendarClockIcon,
-  },
-  {
     title: "Time Tracking",
     url: "/time-tracking",
     icon: Clock,
@@ -71,11 +72,6 @@ const mainNavItems = [
     title: "Leave",
     url: "/leave",
     icon: CalendarDays,
-  },
-  {
-    title: "Calendar",
-    url: "/calendar",
-    icon: Calendar,
   },
   {
     title: "Clients",
@@ -97,6 +93,9 @@ export function AppSidebar() {
   const [isOperationUser, setIsOperationUser] = useState<boolean | null>(null);
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(
     pathname.includes("/quotations") || pathname.includes("/invoices") || pathname.includes("/receipts") || pathname.includes("/delivery-orders")
+  );
+  const [isCalendarOpen, setIsCalendarOpen] = useState(
+    pathname.includes("/calendar") || pathname.includes("/appointment-bookings")
   );
 
   const fetchPendingInvitations = useCallback(async () => {
@@ -187,8 +186,9 @@ export function AppSidebar() {
             <SidebarMenu>
               {mainNavItems
                 .filter((item) => {
-                  // Operation users can only see: Projects, Appointment Bookings, Time Tracking, Calendar (no Benefits)
-                  const allowedUrlsForOperationUser = ["/projects", "/appointment-bookings", "/time-tracking", "/leave", "/calendar"];
+                  // Operation users can only see: Dashboard, Projects, Time Tracking, Leave (no Benefits).
+                  // Calendar + Appointment Types render in their own collapsible group below, visible to everyone.
+                  const allowedUrlsForOperationUser = ["/dashboard", "/projects", "/time-tracking", "/leave"];
                   
                   // If role check is still in progress, show only allowed items (safer default)
                   if (isOperationUser === null) {
@@ -221,6 +221,73 @@ export function AppSidebar() {
                   );
                 })}
               
+              {/* Calendar Collapsible Section - visible to all roles */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                  isActive={pathname.includes("/calendar") || pathname.includes("/appointment-bookings")}
+                  className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
+                >
+                  <div className="flex items-center gap-3 w-full justify-between">
+                    <div className="flex items-center gap-3">
+                      <Calendar className="w-5 h-5" />
+                      <span className="font-medium">Calendar</span>
+                    </div>
+                    <div className={`transition-transform duration-300 ease-in-out ${isCalendarOpen ? 'rotate-0' : '-rotate-90'}`}>
+                      {isCalendarOpen ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </div>
+                  </div>
+                </SidebarMenuButton>
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isCalendarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                  }`}
+                >
+                  <SidebarMenuSub className="mt-1">
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.includes("/calendar")}
+                      >
+                        <Link
+                          href="/calendar"
+                          className={`flex items-center gap-2 ${
+                            pathname.includes("/calendar")
+                              ? ''
+                              : '[&>svg]:!text-[#202F21]'
+                          }`}
+                        >
+                          <Calendar className="w-4 h-4 transition-colors" />
+                          <span>Calendar</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.includes("/appointment-bookings")}
+                      >
+                        <Link
+                          href="/appointment-bookings"
+                          className={`flex items-center gap-2 ${
+                            pathname.includes("/appointment-bookings")
+                              ? ''
+                              : '[&>svg]:!text-[#202F21]'
+                          }`}
+                        >
+                          <CalendarClockIcon className="w-4 h-4 transition-colors" />
+                          <span>Appointment Types</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  </SidebarMenuSub>
+                </div>
+              </SidebarMenuItem>
+
               {/* Payments Collapsible Section - Hidden for operation-user */}
               {isOperationUser !== null && !isOperationUser && (
               <SidebarMenuItem>

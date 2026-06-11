@@ -36,10 +36,11 @@ export function AppHeader() {
         { path: "/services", title: "Services" },
         { path: "/quotations", title: "Quotations" },
         { path: "/projects", title: "Projects" },
-        { path: "/appointment-bookings", title: "Appointment Bookings" },
+        { path: "/appointment-bookings", title: "Appointment Types" },
         { path: "/calendar", title: "Calendar" },
         { path: "/time-tracking", title: "Time Tracking" },
         { path: "/clients", title: "Clients" },
+        { path: "/dashboard", title: "Dashboard" },
       ];
       
       const currentItem = navItems.find(item => pathname.includes(item.path.replace('/', '')));

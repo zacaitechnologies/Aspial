@@ -20,6 +20,7 @@ import {
 import { CALENDAR_GRID_START_HOUR } from "../constants"
 import { getCalendarEventDisplayTitle } from "../utils/appointment-display"
 import {
+	calendarEventCancelledClass,
 	calendarEventMetaClass,
 	calendarEventPastClass,
 	calendarEventSurfaceClass,
@@ -127,28 +128,43 @@ export function MonthDayDialog({
 						</div>
 				</DialogHeader>
 
-				{/* Leave / Blocker — compact single row */}
+				{/* Leave / Blocker — roomy stacked list for readability */}
 				{bannerEvents.length > 0 && (
-					<div className="shrink-0 flex items-center gap-2 border-b border-border py-1 min-h-0">
-						<span className="shrink-0 text-[10px] font-medium text-muted-foreground">
+					<div className="shrink-0 border-b border-border py-2">
+						<p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 							Leave / Blockers
-						</span>
-						<div className="flex min-w-0 flex-1 gap-1 overflow-x-auto hide-scrollbar">
-							{bannerEvents.map((event) => (
-								<CalendarEventTooltip key={event.id} booking={event} side="top">
-									<button
-										type="button"
-										onClick={() => onEventClick(event)}
-										className={cn(
-											"shrink-0 max-w-[12rem] truncate rounded px-1.5 py-0.5 text-[10px] font-medium cursor-pointer transition-shadow hover:shadow-sm",
-											calendarEventSurfaceClass(event.appointmentType),
-											isCalendarEventPast(event, now) && calendarEventPastClass,
-										)}
-									>
-										{getCalendarEventDisplayTitle(event)}
-									</button>
-								</CalendarEventTooltip>
-							))}
+						</p>
+						<div className="grid max-h-40 grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+							{bannerEvents.map((event) => {
+								// Blockers without a real description carry a synthesized "Blocker: <title>" placeholder
+								const detail =
+									event.type === "blocker" && event.description === `Blocker: ${event.title}`
+										? null
+										: event.description
+								return (
+									<CalendarEventTooltip key={event.id} booking={event} side="top">
+										<button
+											type="button"
+											onClick={() => onEventClick(event)}
+											className={cn(
+												"min-w-0 rounded-md px-2.5 py-2 text-left cursor-pointer transition-shadow hover:shadow-sm",
+												calendarEventSurfaceClass(event.appointmentType),
+												event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
+												isCalendarEventPast(event, now) && calendarEventPastClass,
+											)}
+										>
+											<span className="block truncate text-sm font-semibold leading-snug">
+												{getCalendarEventDisplayTitle(event)}
+											</span>
+											{detail && (
+												<span className={cn("mt-0.5 block line-clamp-2 text-xs", calendarEventMetaClass)}>
+													{detail}
+												</span>
+											)}
+										</button>
+									</CalendarEventTooltip>
+								)
+							})}
 						</div>
 					</div>
 				)}
@@ -269,6 +285,7 @@ export function MonthDayDialog({
 																className={cn(
 																	"absolute z-[5] overflow-hidden rounded-md px-1.5 py-1 text-[11px] cursor-pointer shadow-sm transition-shadow hover:z-20 hover:shadow-md hover:brightness-[0.98]",
 																	calendarEventSurfaceClass(event.appointmentType),
+																	event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 																	isCalendarEventPast(event, now) && calendarEventPastClass,
 																)}
 																style={{

@@ -51,10 +51,17 @@ export function CalendarDay({
   isToday,
   onDateClick,
 }: CalendarDayProps) {
+  const isCancelledAppointment = (b: CalendarBooking) =>
+    b.type === "appointment" && b.status === "cancelled"
+
+  // Cancelled appointments get their own grey chip instead of counting toward type colors
   const typeCounts = dayBookings.reduce<Record<string, number>>((acc, b) => {
+    if (isCancelledAppointment(b)) return acc
     acc[b.appointmentType] = (acc[b.appointmentType] || 0) + 1
     return acc
   }, {})
+
+  const cancelledBookings = dayBookings.filter(isCancelledAppointment)
 
   const presentTypes = TYPE_ORDER.filter((t) => (typeCounts[t] || 0) > 0)
 
@@ -74,7 +81,7 @@ export function CalendarDay({
       >
         {day}
       </div>
-      {presentTypes.length > 0 && (
+      {(presentTypes.length > 0 || cancelledBookings.length > 0) && (
         <div className="mt-1 flex min-w-0 flex-wrap gap-1">
           {presentTypes.map((t) => {
             const count = typeCounts[t]
@@ -101,6 +108,31 @@ export function CalendarDay({
               </CalendarTooltip>
             )
           })}
+          {cancelledBookings.length > 0 && (
+            <CalendarTooltip
+              side="top"
+              align="start"
+              content={
+                <div className="space-y-0.5">
+                  <p className="font-semibold">Cancelled</p>
+                  {cancelledBookings.map((b) => (
+                    <p key={b.id} className="text-xs">
+                      {b.startTime} {b.title}
+                    </p>
+                  ))}
+                </div>
+              }
+            >
+              <button
+                type="button"
+                aria-label={`Cancelled: ${cancelledBookings.length}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold leading-none shadow-sm ring-1 ring-border/40 bg-muted text-muted-foreground line-through"
+              >
+                {cancelledBookings.length}
+              </button>
+            </CalendarTooltip>
+          )}
         </div>
       )}
     </div>

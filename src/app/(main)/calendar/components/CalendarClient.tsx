@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Filter, Download, ShieldAlert, Sun, PanelRightClose, PanelRightOpen, SlidersHorizontal } from "lucide-react"
+import { Filter, Download, ShieldAlert, Sun, PanelRightClose, PanelRightOpen, SlidersHorizontal, CalendarOff } from "lucide-react"
 import { CalendarDay } from "./CalendarDay"
 import { BookingDetailsDialog } from "./BookingDetailsDialog"
 import { DateEventsDialog } from "./DateEventsDialog"
@@ -15,6 +15,7 @@ import { WeekView } from "./WeekView"
 import { DayView } from "./DayView"
 import { BlockerFormDialog } from "./BlockerFormDialog"
 import { AppointmentBookingDialog } from "./AppointmentBookingDialog"
+import { CancelBookingDialog } from "./CancelBookingDialog"
 import { fetchAllBookings, deleteCalendarBlocker, type CalendarBooking } from "../actions"
 import { cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
 import { CALENDAR_EVENT_TYPES, type AppointmentType, type CalendarEventType } from "../constants"
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { CalendarEventTooltip, CalendarEventTooltipProvider } from "./CalendarEventTooltip"
 import {
+	calendarEventCancelledClass,
 	calendarEventMetaClass,
 	calendarEventSurfaceClass,
 } from "../utils/event-surface-styles"
@@ -48,6 +50,18 @@ interface CalendarClientProps {
 	initialTodayDateString: string
 	userId: string
 	userName: string
+}
+
+// Fixed month names — avoids locale-dependent output that could mismatch between server and client
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+function formatPanelDate(dateStr: string): string {
+	const [, month, day] = dateStr.split("-").map(Number)
+	return `${day} ${MONTH_ABBR[month - 1]}`
+}
+
+function formatPanelDateRange(first: string, last: string): string {
+	return first === last ? formatPanelDate(first) : `${formatPanelDate(first)} – ${formatPanelDate(last)}`
 }
 
 // Map appointment type to its CSS color variable (legend dots)
@@ -106,6 +120,9 @@ export default function CalendarClient({
 
 	// Edit booking (same dialog as create)
 	const [editingBooking, setEditingBooking] = useState<CalendarBooking | null>(null)
+
+	// Booking pending cancellation (reason dialog)
+	const [cancellingBooking, setCancellingBooking] = useState<CalendarBooking | null>(null)
 
 	useEffect(() => {
 		const syncToday = () => {
@@ -216,10 +233,12 @@ export default function CalendarClient({
 			// Filter by appointment type
 			if (filterType !== "all" && booking.appointmentType !== filterType) return false
 			
-			// Filter by ownership: default shows everyone's appointments; "own" narrows to the user's bookings
+			// Filter by ownership: default shows everyone's appointments; "own" narrows to the
+			// user's own bookings plus appointments assigned to them
 			if (bookmarkScope === "own") {
 				if (booking.type === "blocker") return true
-				if (!booking.isUserBooking) return false
+				const isAssignedToUser = (booking.assigneeIds ?? []).includes(userId)
+				if (!booking.isUserBooking && !isAssignedToUser) return false
 			}
 
 			return true
@@ -263,6 +282,70 @@ export default function CalendarClient({
 			.filter((b) => b.date === todayDateString)
 			.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
 	}, [filteredBookings, todayDateString])
+
+	// Full viewed-month bookings for the "Blocker & Leave Information" panel section.
+	// Week/day views only load their own range, so the month is fetched/cached separately.
+	const monthRange = useMemo(() => {
+		const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+		monthStart.setHours(0, 0, 0, 0)
+		const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+		monthEnd.setHours(23, 59, 59, 999)
+		return { start: monthStart, end: monthEnd }
+	}, [currentDate])
+
+	const [monthInfoBookings, setMonthInfoBookings] = useState<CalendarBooking[]>(initialBookings)
+	useEffect(() => {
+		const key = getRangeKey(monthRange.start, monthRange.end)
+		const cached = rangeCacheRef.current.get(key)
+		if (cached) {
+			setMonthInfoBookings(cached)
+			return
+		}
+		let cancelled = false
+		fetchAllBookings(userId, userName, { start: monthRange.start, end: monthRange.end }).then((data) => {
+			if (!cancelled) {
+				rangeCacheRef.current.set(key, data)
+				setMonthInfoBookings(data)
+			}
+		})
+		return () => {
+			cancelled = true
+		}
+		// `bookings` is a dependency so the section refreshes after refreshBookings() clears the cache
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [monthRange.start.getTime(), monthRange.end.getTime(), bookings, userId, userName])
+
+	// Blockers and leave within the viewed month, deduped from per-day expansion rows
+	const monthKey = formatDate(currentDate).slice(0, 7)
+	const blockerLeaveInfo = useMemo(() => {
+		const map = new Map<
+			string,
+			{ key: string; booking: CalendarBooking; firstDate: string; lastDate: string }
+		>()
+		for (const b of monthInfoBookings) {
+			if (b.type !== "blocker" && b.type !== "leave") continue
+			if (!b.date.startsWith(monthKey)) continue
+			const od = b.originalData as { blockerId?: number; leaveApplicationId?: number } | null
+			const key =
+				b.type === "blocker"
+					? `blocker-${od?.blockerId ?? b.id}`
+					: `leave-${od?.leaveApplicationId ?? b.id}`
+			const existing = map.get(key)
+			if (existing) {
+				if (b.date < existing.firstDate) {
+					existing.firstDate = b.date
+					existing.booking = b
+				}
+				if (b.date > existing.lastDate) existing.lastDate = b.date
+			} else {
+				map.set(key, { key, booking: b, firstDate: b.date, lastDate: b.date })
+			}
+		}
+		return Array.from(map.values()).sort(
+			(a, b) =>
+				a.firstDate.localeCompare(b.firstDate) || a.booking.title.localeCompare(b.booking.title)
+		)
+	}, [monthInfoBookings, monthKey])
 
 	const handleDateChange = (newDate: Date) => {
 		setCurrentDate(newDate)
@@ -375,14 +458,22 @@ export default function CalendarClient({
 		setIsBookingDialogOpen(true)
 	}
 
-	const handleCancelBooking = async (booking: CalendarBooking) => {
+	// Step 1: open the reason dialog; the actual cancellation happens in confirmCancelBooking
+	const handleCancelBooking = (booking: CalendarBooking) => {
+		setCancellingBooking(booking)
+	}
+
+	const confirmCancelBooking = async (reason: string) => {
+		const booking = cancellingBooking
+		if (!booking) return
 		const idMatch = booking.id.match(/appointment-(\d+)/)
 		if (!idMatch) return
 
 		const numericId = parseInt(idMatch[1])
-		const result = await cancelAppointmentBooking(numericId)
+		const result = await cancelAppointmentBooking(numericId, reason)
 		if (result.success) {
 			toast({ title: "Booking Cancelled", description: "The appointment booking has been cancelled." })
+			setCancellingBooking(null)
 			setIsDetailsDialogOpen(false)
 			setSelectedBooking(null)
 			refreshBookings()
@@ -440,7 +531,8 @@ export default function CalendarClient({
 		return days
 	}
 
-	// Memoize stats counts. Pending leave is excluded from the LEAVE bucket — only approved leave counts.
+	// Memoize stats counts. Pending leave and cancelled appointments are excluded —
+	// only approved leave and active appointments count.
 	const statsCounts = useMemo(() => {
 		const counts: Record<string, number> = {}
 		Object.keys(CALENDAR_EVENT_TYPES).forEach((appointmentKey) => {
@@ -450,6 +542,7 @@ export default function CalendarClient({
 					const status = (b.originalData as { status?: string } | null)?.status
 					return status !== "PENDING"
 				}
+				if (b.type === "appointment" && b.status === "cancelled") return false
 				return true
 			}).length
 		})
@@ -514,7 +607,8 @@ export default function CalendarClient({
 									onClick={() => handleBookingClick(b)}
 									className={cn(
 										"cal-sidebar-event w-full text-left rounded-md px-2 py-1.5 shadow-sm transition-all hover:shadow-md hover:brightness-[0.98]",
-										calendarEventSurfaceClass(b.appointmentType)
+										calendarEventSurfaceClass(b.appointmentType),
+										b.type === "appointment" && b.status === "cancelled" && calendarEventCancelledClass
 									)}
 								>
 									<div className="flex items-center gap-2 min-w-0">
@@ -537,9 +631,57 @@ export default function CalendarClient({
 				)}
 			</div>
 
+			<div className="cal-sidebar-blocker-leave shrink-0 rounded-lg border border-border bg-card p-3">
+				<div className="mb-2 flex items-center gap-2">
+					<CalendarOff className="w-4 h-4 text-muted-foreground" aria-hidden />
+					<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+						Blocker &amp; Leave Information
+					</p>
+				</div>
+				{blockerLeaveInfo.length === 0 ? (
+					<p className="text-xs text-muted-foreground">No blockers or leave this month</p>
+				) : (
+					<div className="hide-scrollbar max-h-56 space-y-2 overflow-y-auto">
+						{blockerLeaveInfo.map((entry) => {
+							const b = entry.booking
+							const isBlocker = b.type === "blocker"
+							// Blockers without a real description carry a synthesized "Blocker: <title>" placeholder
+							const detail = isBlocker
+								? b.description === `Blocker: ${b.title}`
+									? null
+									: b.description
+								: b.description
+							return (
+								<button
+									key={entry.key}
+									type="button"
+									onClick={() => handleBookingClick(b)}
+									className={cn(
+										"w-full text-left rounded-md px-2.5 py-2 transition-all hover:shadow-md hover:brightness-[0.98]",
+										calendarEventSurfaceClass(b.appointmentType)
+									)}
+								>
+									<div className="flex items-start justify-between gap-2">
+										<p className="min-w-0 flex-1 text-xs font-semibold leading-snug">{b.title}</p>
+										<span className={cn("shrink-0 text-[10px] tabular-nums", calendarEventMetaClass)}>
+											{formatPanelDateRange(entry.firstDate, entry.lastDate)}
+										</span>
+									</div>
+									{detail && (
+										<p className={cn("mt-0.5 line-clamp-2 text-[11px] font-normal", calendarEventMetaClass)}>
+											{detail}
+										</p>
+									)}
+								</button>
+							)
+						})}
+					</div>
+				)}
+			</div>
+
 			<div className="cal-sidebar-legend shrink-0 rounded-lg border border-border bg-card p-3">
 				<p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-					Legend
+					Appointment Summary
 				</p>
 				<div className="space-y-1.5">
 					{Object.entries(CALENDAR_EVENT_TYPES).map(([key, config]) => {
@@ -601,7 +743,7 @@ export default function CalendarClient({
 											<SheetHeader className="border-b border-border px-4 py-3">
 												<SheetTitle>Calendar Panel</SheetTitle>
 												<SheetDescription>
-													Filters, today snapshot, and event legend.
+													Filters, today snapshot, blocker &amp; leave info, and appointment summary.
 												</SheetDescription>
 											</SheetHeader>
 											<div className="hide-scrollbar max-h-[calc(100vh-5rem)] overflow-y-auto px-4 pt-3">
@@ -796,11 +938,19 @@ export default function CalendarClient({
 					/>
 				)}
 
+				{/* Cancellation reason — stacks above Booking Details */}
+				<CancelBookingDialog
+					isOpen={cancellingBooking !== null}
+					onClose={() => setCancellingBooking(null)}
+					bookingTitle={cancellingBooking?.title ?? ""}
+					onConfirm={confirmCancelBooking}
+				/>
+
 				{/* Export Calendar Dialog */}
 				<ExportCalendarDialog
 					isOpen={isExportDialogOpen}
 					onClose={() => setIsExportDialogOpen(false)}
-					bookings={bookings}
+					bookings={bookings.filter((b) => !(b.type === "appointment" && b.status === "cancelled"))}
 				/>
 
 				{/* Blocker Form Dialog (admin only) */}

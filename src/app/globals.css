@@ -771,6 +771,14 @@
   border-color: color-mix(in srgb, var(--calendar-blocker) 26%, var(--border));
 }
 
+/* Cancelled appointments — grey override appended after the type surface class */
+.calendar-page .cal-event-surface--cancelled {
+  background-color: color-mix(in srgb, var(--muted-foreground) 12%, var(--card));
+  color: var(--muted-foreground);
+  border-color: color-mix(in srgb, var(--muted-foreground) 28%, var(--border));
+  opacity: 0.85;
+}
+
 .calendar-page .cal-event-surface--past {
   opacity: 0.45;
   transition: opacity 160ms ease;

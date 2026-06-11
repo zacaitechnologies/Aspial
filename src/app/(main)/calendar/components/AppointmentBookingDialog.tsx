@@ -24,6 +24,8 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { getActiveBlockers, getAppointmentBookingDetails, updateAppointmentBooking } from "@/app/(main)/calendar/actions"
+import { getAllUsers } from "@/app/(main)/quotations/action"
+import { MultiSelectAdvisors, type AdvisorOption } from "@/components/ui/multi-select-advisors"
 import type { CalendarBooking } from "../actions"
 import {
 	createAppointmentBooking,
@@ -147,6 +149,8 @@ export function AppointmentBookingDialog({
 	const [companyName, setCompanyName] = useState("")
 	const [contactNumber, setContactNumber] = useState("")
 	const [remarks, setRemarks] = useState("")
+	const [assigneeIds, setAssigneeIds] = useState<string[]>([])
+	const [teamMembers, setTeamMembers] = useState<AdvisorOption[]>([])
 	const [clientEmails, setClientEmails] = useState<string[]>([""])
 	const [reminders, setReminders] = useState<Array<{ offsetMinutes: number; recipientEmails: string[] }>>([
 		{ offsetMinutes: 1440, recipientEmails: [""] },
@@ -197,6 +201,7 @@ export function AppointmentBookingDialog({
 		setCompanyName("")
 		setContactNumber("")
 		setRemarks("")
+		setAssigneeIds([])
 		setClientEmails([""])
 		setReminders([{ offsetMinutes: 1440, recipientEmails: [""] }])
 		setError(null)
@@ -246,6 +251,7 @@ export function AppointmentBookingDialog({
 			setCompanyName(details.companyName || "")
 			setContactNumber(details.contactNumber || "")
 			setRemarks(details.remarks || "")
+			setAssigneeIds(details.assignees.map((a) => a.userId))
 			setSelectedProject(details.projectId ? String(details.projectId) : "none")
 
 			const emailSet = new Set<string>()
@@ -291,6 +297,21 @@ export function AppointmentBookingDialog({
 			setIsLoadingProjects(false)
 		}
 		void fetchProjects()
+	}, [isOpen])
+
+	// Fetch team members for the Assign To field
+	useEffect(() => {
+		if (!isOpen) return
+		void getAllUsers().then((users) => {
+			setTeamMembers(
+				users.map((u) => ({
+					id: u.supabase_id,
+					firstName: u.firstName,
+					lastName: u.lastName,
+					email: u.email,
+				}))
+			)
+		})
 	}, [isOpen])
 
 	// Fetch active blockers for the date so we can warn / prevent booking over them
@@ -481,6 +502,7 @@ export function AppointmentBookingDialog({
 			formData.set("companyName", companyName)
 			formData.set("contactNumber", contactNumber)
 			formData.set("remarks", remarks)
+			formData.set("assigneeIds", JSON.stringify(assigneeIds))
 			formData.set("reminderOffsets", JSON.stringify(remindersToSubmit))
 
 			if (isEditMode && editBookingId) {
@@ -962,6 +984,19 @@ export function AppointmentBookingDialog({
 										placeholder="Number of attendees"
 									/>
 								</div>
+							</div>
+
+							{/* Assign To — team members who should see this appointment */}
+							<div className="space-y-2">
+								<Label>Assign To</Label>
+								<MultiSelectAdvisors
+									users={teamMembers}
+									selectedIds={assigneeIds}
+									onChange={setAssigneeIds}
+									currentUserId={userId}
+									isAdmin
+									placeholder="Select team members"
+								/>
 							</div>
 
 							{/* Purpose & Remarks */}

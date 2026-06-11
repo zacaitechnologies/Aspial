@@ -13,6 +13,7 @@ import SendAppointmentReminderDialog from "@/app/(main)/appointment-bookings/com
 import EditAppointmentRemindersDialog from "@/app/(main)/appointment-bookings/components/EditAppointmentRemindersDialog"
 import BookingDetailsDialog from "@/app/(main)/appointment-bookings/components/BookingDetailsDialog"
 import { deleteAppointment, cancelAppointmentBooking } from "@/app/(main)/appointment-bookings/actions"
+import { CancelBookingDialog } from "@/app/(main)/calendar/components/CancelBookingDialog"
 import { cn } from "@/lib/utils"
 import { toBusinessTZParts } from "@/lib/date-utils"
 import { APPOINTMENT_TYPES } from "@/app/(main)/calendar/constants"
@@ -267,9 +268,9 @@ export function BookingDashboard({ appointments, bookings, isAdmin, canBook, use
     setShowCancelBookingDialog(true)
   }
 
-  const confirmCancelBooking = async () => {
+  const confirmCancelBooking = async (reason: string) => {
     if (bookingToCancel) {
-      await cancelAppointmentBooking(bookingToCancel.id)
+      await cancelAppointmentBooking(bookingToCancel.id, reason)
       setShowCancelBookingDialog(false)
       setBookingToCancel(null)
       handleRefresh()
@@ -751,18 +752,14 @@ export function BookingDashboard({ appointments, bookings, isAdmin, canBook, use
         variant="danger"
       />
 
-      <ConfirmationDialog
+      <CancelBookingDialog
         isOpen={showCancelBookingDialog}
         onClose={() => {
           setShowCancelBookingDialog(false)
           setBookingToCancel(null)
         }}
+        bookingTitle=""
         onConfirm={confirmCancelBooking}
-        title="Cancel Booking"
-        description="Are you sure you want to cancel this booking? This action cannot be undone."
-        confirmText="Cancel Booking"
-        cancelText="Keep Booking"
-        variant="warning"
       />
 
       {/* Email History Dialog */}

@@ -61,6 +61,14 @@ export interface CalendarBooking {
 	isTeamBooking?: boolean
 	assigneeId?: string | null
 	creatorId?: string | null
+	/** Appointments only: booking status. Cancelled bookings stay visible, rendered grey. */
+	status?: "active" | "cancelled"
+	/** Appointments only: reason captured when the booking was cancelled. */
+	cancellationReason?: string | null
+	/** Appointments only: supabase ids of assigned team members. */
+	assigneeIds?: string[]
+	/** Appointments only: display names of assigned team members. */
+	assigneeNames?: string[]
 	/** Blockers only: true when the event is stored as full local days (week/day views use the all-day row). */
 	allDay?: boolean
 }
@@ -237,8 +245,12 @@ async function _fetchAppointmentBookings(
 	userName: string,
 	safeRange?: { start: Date; end: Date }
 ): Promise<CalendarBooking[]> {
-	const appointmentWhere: { status: string; startDate?: { lte: Date }; endDate?: { gte: Date } } = {
-		status: "active",
+	const appointmentWhere: {
+		status: { in: string[] }
+		startDate?: { lte: Date }
+		endDate?: { gte: Date }
+	} = {
+		status: { in: ["active", "cancelled"] },
 	}
 	if (safeRange) {
 		appointmentWhere.startDate = { lte: safeRange.end }
@@ -276,6 +288,14 @@ async function _fetchAppointmentBookings(
 				select: { recipientEmail: true },
 				orderBy: { sentAt: "asc" },
 			},
+			assignees: {
+				select: {
+					userId: true,
+					user: {
+						select: { firstName: true, lastName: true, email: true },
+					},
+				},
+			},
 		}
 	})
 
@@ -312,6 +332,9 @@ async function _fetchAppointmentBookings(
 
 		const appointmentType = (booking.appointmentType as AppointmentType) || "OTHERS"
 		const appointmentConfig = APPOINTMENT_TYPES[appointmentType] || APPOINTMENT_TYPES.OTHERS
+		const isCancelled = booking.status === "cancelled"
+		const assigneeIds = booking.assignees.map((a) => a.userId)
+		const assigneeNames = booking.assignees.map((a) => formatLeaveApplicantName(a.user))
 
 		const clientLabel = resolveAppointmentClientLabel({
 			clientName: booking.project?.clientName || null,
@@ -344,7 +367,7 @@ async function _fetchAppointmentBookings(
 				booking.appointmentCategory === "EXTERNAL" ? "EXTERNAL" : "INTERNAL",
 			location,
 			attendees: booking.attendees || 1,
-			color: appointmentConfig.color,
+			color: isCancelled ? "bg-muted text-muted-foreground" : appointmentConfig.color,
 			projectId: projId ?? null,
 			projectName: booking.project?.name || null,
 			clientName: booking.project?.clientName || null,
@@ -357,6 +380,10 @@ async function _fetchAppointmentBookings(
 			taskDueDate: null,
 			isUserBooking,
 			isTeamBooking: false,
+			status: isCancelled ? "cancelled" : "active",
+			cancellationReason: booking.cancellationReason ?? null,
+			assigneeIds,
+			assigneeNames,
 			originalData: {
 				...booking,
 				startDate: formatLocalDateTime(startDate),
@@ -658,6 +685,14 @@ export async function getAppointmentBookingDetails(bookingId: number) {
 						recipientEmail: true,
 					},
 				},
+				assignees: {
+					select: {
+						userId: true,
+						user: {
+							select: { firstName: true, lastName: true, email: true },
+						},
+					},
+				},
 			},
 		})
 
@@ -724,6 +759,10 @@ export async function updateAppointmentBooking(
 	const reminderList = reminderOffsetsStr
 		? (JSON.parse(reminderOffsetsStr) as Array<{ offsetMinutes: number; recipientEmails: string[] }>)
 		: []
+	const assigneeIdsStr = formData.get("assigneeIds") as string | null
+	const assigneeIds = assigneeIdsStr
+		? (JSON.parse(assigneeIdsStr) as string[]).filter((v) => typeof v === "string" && v.trim())
+		: null
 
 	if (endDate <= startDate) {
 		return { success: false, error: "End time must be after start time" }
@@ -779,6 +818,17 @@ export async function updateAppointmentBooking(
 				recipientEmails: item.recipientEmails.filter((e) => e.trim()),
 			}))
 			await syncBookingReminders(id, startDate, reminderData)
+		}
+
+		// Replace-all sync of assigned team members (only when the field was submitted)
+		if (assigneeIds !== null) {
+			await prisma.appointmentBookingAssignee.deleteMany({ where: { bookingId: id } })
+			if (assigneeIds.length > 0) {
+				await prisma.appointmentBookingAssignee.createMany({
+					data: assigneeIds.map((userId) => ({ bookingId: id, userId })),
+					skipDuplicates: true,
+				})
+			}
 		}
 
 		revalidatePath("/calendar")
