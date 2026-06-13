@@ -1,19 +1,33 @@
 import { getCachedUser } from "@/lib/auth-cache"
-import { getCachedIsUserAdmin } from "@/lib/admin-cache"
-import {
-	formatDateStringDirect,
-	getBusinessTodayDateString,
-	parseDateInBusinessTZ,
-	toBusinessTZParts,
-} from "@/lib/date-utils"
+import { getCachedIsUserAdmin, getCachedUserRole } from "@/lib/admin-cache"
 import { prisma } from "@/lib/prisma"
-import { APPOINTMENT_TYPES, type AppointmentType } from "@/app/(main)/calendar/constants"
-import { getAllUserTasks, getTasksAssignedToUser } from "@/app/(main)/projects/task-actions"
+import type { TaskWithAssignee } from "@/app/(main)/projects/types"
+import {
+	getDashboardTaskAssigneeOptions,
+	getDashboardTasks,
+} from "./actions"
+import { DashboardAppointmentsSection } from "./components/DashboardAppointmentsSection"
+import { DashboardHeader } from "./components/DashboardHeader"
 import { DashboardTasksSection } from "./components/DashboardTasksSection"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Calendar, CalendarCheck, Clock, MapPin, UserCircle } from "lucide-react"
-import Link from "next/link"
+import type { DashboardAppointment } from "./types"
+import { DEFAULT_DASHBOARD_TASK_STATUSES } from "./types"
+
+function getLatestDashboardUpdate(
+	tasks: TaskWithAssignee[],
+	appointments: DashboardAppointment[]
+): Date | null {
+	const timestamps: number[] = []
+
+	for (const task of tasks) {
+		timestamps.push(new Date(task.updatedAt).getTime())
+	}
+	for (const appointment of appointments) {
+		timestamps.push(new Date(appointment.updatedAt).getTime())
+	}
+
+	if (timestamps.length === 0) return null
+	return new Date(Math.max(...timestamps))
+}
 
 // Force dynamic rendering since we use cookies for authentication
 export const dynamic = "force-dynamic"
@@ -26,18 +40,20 @@ export default async function DashboardPage() {
 		return null
 	}
 
-	// Upcoming = anything that hasn't ended before the start of the business-TZ day
-	const todayStart = parseDateInBusinessTZ(`${getBusinessTodayDateString()}T00:00:00`)
-
 	const isAdmin = await getCachedIsUserAdmin(user.id)
-	const myTasks = await getTasksAssignedToUser(user.id)
-	// Admins also get an overview of everyone's tasks across all projects.
-	const allTasks = isAdmin ? await getAllUserTasks(user.id) : []
+
+	const [userRole, myTasks, assigneeOptions, allTasks] = await Promise.all([
+		getCachedUserRole(user.id),
+		getDashboardTasks({ scope: "my", statuses: DEFAULT_DASHBOARD_TASK_STATUSES }),
+		isAdmin ? getDashboardTaskAssigneeOptions() : Promise.resolve([]),
+		isAdmin
+			? getDashboardTasks({ scope: "all", statuses: DEFAULT_DASHBOARD_TASK_STATUSES })
+			: Promise.resolve([]),
+	])
 
 	const assignedBookings = await prisma.appointmentBooking.findMany({
 		where: {
 			status: "active",
-			endDate: { gte: todayStart },
 			assignees: { some: { userId: user.id } },
 		},
 		include: {
@@ -51,111 +67,41 @@ export default async function DashboardPage() {
 		orderBy: { startDate: "asc" },
 	})
 
+	const appointments: DashboardAppointment[] = assignedBookings.map((booking) => ({
+		id: booking.id,
+		updatedAt: booking.updatedAt.toISOString(),
+		startDate: booking.startDate.toISOString(),
+		endDate: booking.endDate.toISOString(),
+		appointmentType: booking.appointmentType,
+		bookedBy: booking.bookedBy,
+		bookingName: booking.bookingName,
+		purpose: booking.purpose,
+		appointment: booking.appointment,
+		project: booking.project,
+		bookedByUser: booking.bookedByUser,
+		assignees: booking.assignees,
+	}))
+
+	const lastUpdatedAt = getLatestDashboardUpdate(
+		isAdmin ? allTasks : myTasks,
+		appointments
+	)
+
 	return (
-		<div className="min-h-screen bg-background px-4 py-6 sm:px-6">
-			<div className="mx-auto max-w-4xl space-y-4">
-				<div className="flex items-center gap-2">
-					<CalendarCheck className="h-5 w-5 text-muted-foreground" aria-hidden />
-					<h1 className="text-lg font-semibold text-foreground">My Assigned Appointments</h1>
-					<span className="text-sm font-medium tabular-nums text-muted-foreground">
-						{assignedBookings.length}
-					</span>
-				</div>
+		<div className="dashboard-page min-h-screen bg-background px-4 py-6 sm:px-6">
+			<div className="mx-auto max-w-4xl space-y-8">
+				<DashboardHeader
+					initialUserRole={userRole}
+					lastUpdatedAt={lastUpdatedAt?.toISOString() ?? null}
+				/>
 
-				{assignedBookings.length === 0 ? (
-					<Card>
-						<CardContent className="py-10 text-center">
-							<p className="text-sm text-muted-foreground">
-								No upcoming appointments are assigned to you.
-							</p>
-							<Link
-								href="/calendar"
-								className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
-							>
-								Open the calendar
-							</Link>
-						</CardContent>
-					</Card>
-				) : (
-					<div className="space-y-3">
-						{assignedBookings.map((booking) => {
-							const typeConfig =
-								APPOINTMENT_TYPES[booking.appointmentType as AppointmentType] ??
-								APPOINTMENT_TYPES.OTHERS
-							const startParts = toBusinessTZParts(booking.startDate)
-							const endParts = toBusinessTZParts(booking.endDate)
-							const bookerName = booking.bookedByUser
-								? `${booking.bookedByUser.firstName} ${booking.bookedByUser.lastName}`.trim() ||
-									booking.bookedByUser.email
-								: booking.bookedBy
-							const assigneeNames = booking.assignees.map(
-								(a) => `${a.user.firstName} ${a.user.lastName}`.trim() || a.user.email
-							)
-							const location = booking.appointment
-								? booking.appointment.location || booking.appointment.brand || "Appointment"
-								: null
-
-							return (
-								<Card key={booking.id}>
-									<CardContent className="space-y-2 py-4">
-										<div className="flex flex-wrap items-center gap-2">
-											<Badge variant="secondary" className={typeConfig.color}>
-												{typeConfig.label}
-											</Badge>
-											{booking.appointment?.name && (
-												<span className="text-sm font-semibold text-foreground">
-													{booking.appointment.name}
-												</span>
-											)}
-											{(booking.project?.clientName || booking.bookingName) && (
-												<span className="text-sm text-muted-foreground">
-													· {booking.project?.clientName || booking.bookingName}
-												</span>
-											)}
-										</div>
-										<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-											<span className="inline-flex items-center gap-1.5">
-												<Calendar className="h-4 w-4" aria-hidden />
-												{formatDateStringDirect(startParts.dateStr)}
-											</span>
-											<span className="inline-flex items-center gap-1.5">
-												<Clock className="h-4 w-4" aria-hidden />
-												{startParts.timeStr} - {endParts.timeStr}
-											</span>
-											{location && (
-												<span className="inline-flex items-center gap-1.5">
-													<MapPin className="h-4 w-4" aria-hidden />
-													{location}
-												</span>
-											)}
-										</div>
-										<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-											<span className="text-muted-foreground">
-												Booked by: <span className="text-foreground">{bookerName}</span>
-											</span>
-											<span className="inline-flex items-center gap-1.5 text-muted-foreground">
-												<UserCircle className="h-4 w-4" aria-hidden />
-												Assigned to:{" "}
-												<span className="text-foreground">{assigneeNames.join(", ")}</span>
-											</span>
-										</div>
-										{booking.purpose && (
-											<p className="text-sm text-muted-foreground">{booking.purpose}</p>
-										)}
-										<Link
-											href="/calendar"
-											className="inline-block text-xs font-medium text-primary hover:underline"
-										>
-											View on calendar
-										</Link>
-									</CardContent>
-								</Card>
-							)
-						})}
-					</div>
-				)}
-
-				<DashboardTasksSection myTasks={myTasks} allTasks={allTasks} isAdmin={isAdmin} />
+				<DashboardAppointmentsSection appointments={appointments} />
+				<DashboardTasksSection
+					initialMyTasks={myTasks}
+					initialAllTasks={allTasks}
+					isAdmin={isAdmin}
+					assigneeOptions={assigneeOptions}
+				/>
 			</div>
 		</div>
 	)

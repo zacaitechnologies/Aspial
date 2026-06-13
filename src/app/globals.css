@@ -270,17 +270,20 @@
     background-color: var(--card);
     box-shadow: var(--card-shadow-rest);
     border: 1px solid var(--card-border);
-    transform: translateY(0) rotate(0deg) scale(1);
     transition:
-      transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
       box-shadow 300ms cubic-bezier(0.4, 0, 0.2, 1),
       border-color 300ms cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: transform, box-shadow;
     overflow: hidden; /* keeps pseudo-elem effects clean within rounded corners */
     isolation: isolate; /* safer blending */
   }
 
-  /* soft gradient sheen that animates subtly on hover */
+  /* Keep card content above decorative pseudo-elements */
+  .card > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* soft gradient sheen — behind content, never on top of text */
   .card::after {
     content: "";
     position: absolute;
@@ -291,7 +294,7 @@
       radial-gradient(160px 120px at 120% 0%, var(--card-bg-tint), transparent 60%);
     opacity: 0;
     transition: opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 1;
+    z-index: 0;
     border-radius: inherit;
   }
 
@@ -306,16 +309,15 @@
     z-index: -1;
   }
 
+  /* Shadow + border only — no transform (translateY blurs text on hover) */
   .card:hover {
-    transform:
-      translateY(var(--card-hover-translate))
-      rotate(var(--card-hover-rotate));
     box-shadow: var(--card-shadow-hover);
     border-color: var(--card-border-hover);
+    will-change: box-shadow;
   }
 
   .card:hover::after {
-    opacity: 0.3;
+    opacity: 0.15;
   }
 
   .card:hover::before {
@@ -336,9 +338,7 @@
     .card::before,
     .card::after {
       transition: none !important;
-    }
-    .card:hover {
-      transform: none !important;
+      will-change: auto !important;
     }
     .card:hover::after {
       opacity: 0 !important;
@@ -673,6 +673,16 @@
 }
 
 .calendar-page .cal-event-tooltip-arrow {
+  fill: var(--card) !important;
+}
+
+.dashboard-page .cal-event-tooltip {
+  background-color: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.dashboard-page .cal-event-tooltip-arrow {
   fill: var(--card) !important;
 }
 
