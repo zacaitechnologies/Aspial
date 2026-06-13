@@ -42,7 +42,7 @@ import {
 } from "../types";
 import { createTask, updateTask } from "../task-actions";
 import { useSession } from "../../contexts/SessionProvider";
-import { formatLocalDate } from "@/lib/date-utils";
+import { addDays, formatDateForDisplay, formatLocalDate, parseLocalDateString } from "@/lib/date-utils";
 import { getMilestoneColorOption } from "@/lib/milestone-colors";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +55,10 @@ const taskSchema = z.object({
   milestoneId: z.string().optional(),
   assigneeId: z.string().optional(),
   startDate: z.string().min(1, "Start date is required"),
-  dueDate: z.string().min(1, "Due date is required"),
+  // Deadline = start date + cycle (14 or 28 days) on create.
+  cycleDays: z.enum(["14", "28"]),
+  // On edit, the deadline may only be extended by 14 or 28 days (0 = keep).
+  extendDays: z.enum(["0", "14", "28"]),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -205,44 +208,115 @@ const AssigneeField = ({ form, availableUsers }: { form: UseFormReturn<TaskFormD
   />
 );
 
-const DateFields = ({ form }: { form: any }) => (
-  <>
-    <FormField
-      control={form.control}
-      name="startDate"
-      render={({ field }) => (
+const DeadlineFields = ({
+  form,
+  isEdit = false,
+  existingDueDate,
+}: {
+  form: UseFormReturn<TaskFormData>;
+  isEdit?: boolean;
+  existingDueDate?: Date;
+}) => {
+  const startDate = form.watch("startDate");
+  const cycleDays = form.watch("cycleDays");
+  const extendDays = form.watch("extendDays");
+
+  if (isEdit) {
+    const base = existingDueDate ? new Date(existingDueDate) : new Date();
+    const newDue = addDays(base, parseInt(extendDays || "0", 10));
+    return (
+      <>
+        <FormField
+          control={form.control}
+          name="extendDays"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Extend deadline</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Keep current" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="0">Keep current</SelectItem>
+                  <SelectItem value="14">+14 days</SelectItem>
+                  <SelectItem value="28">+28 days</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormItem>
-          <FormLabel>Start Date *</FormLabel>
-          <FormControl>
-            <Input type="date" {...field} />
-          </FormControl>
-          <FormMessage />
+          <FormLabel>Deadline</FormLabel>
+          <div className="rounded-md border border-input bg-muted/40 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">{formatDateForDisplay(base)}</span>
+            {extendDays !== "0" && (
+              <span className="font-medium text-foreground"> → {formatDateForDisplay(newDue)}</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Deadlines can only be extended, in 14- or 28-day steps.
+          </p>
         </FormItem>
-      )}
-    />
-    <FormField
-      control={form.control}
-      name="dueDate"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Due Date *</FormLabel>
-          <FormControl>
-            <Input type="date" {...field} />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  </>
-);
+      </>
+    );
+  }
+
+  const previewStart = startDate ? parseLocalDateString(startDate) : new Date();
+  const due = addDays(previewStart, parseInt(cycleDays || "14", 10));
+  return (
+    <>
+      <FormField
+        control={form.control}
+        name="startDate"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Start Date *</FormLabel>
+            <FormControl>
+              <Input type="date" {...field} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="cycleDays"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Deadline cycle *</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select cycle" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="14">14 days</SelectItem>
+                <SelectItem value="28">28 days</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Deadline: {formatDateForDisplay(due)}
+            </p>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </>
+  );
+};
 
 // Main form content component
 const TaskFormContent = ({ 
   form, 
-  availableUsers, 
+  availableUsers,
   availableMilestones,
   isSubmitting,
   isEdit = false,
+  existingDueDate,
   onCancel,
   onSubmit,
   error
@@ -252,6 +326,7 @@ const TaskFormContent = ({
   availableMilestones?: Milestone[];
   isSubmitting: boolean;
   isEdit?: boolean;
+  existingDueDate?: Date;
   onCancel?: () => void;
   onSubmit: (data: TaskFormData) => Promise<void>;
   error?: string | null;
@@ -277,7 +352,7 @@ const TaskFormContent = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <DateFields form={form} />
+        <DeadlineFields form={form} isEdit={isEdit} existingDueDate={existingDueDate} />
       </div>
 
       <div className="flex justify-end gap-2">
@@ -328,9 +403,8 @@ export function TaskForm({
       startDate: task?.startDate
         ? formatLocalDate(new Date(task.startDate))
         : formatLocalDate(new Date()),
-      dueDate: task?.dueDate
-        ? formatLocalDate(new Date(task.dueDate))
-        : formatLocalDate(new Date(new Date().setDate(new Date().getDate() + 7))), // Default to 7 days from now
+      cycleDays: "14",
+      extendDays: "0",
     },
   });
 
@@ -346,15 +420,22 @@ export function TaskForm({
     setIsSubmitting(true);
     
     try {
+      const { cycleDays, extendDays, startDate: startDateStr, ...rest } = data;
+      const startDateObj = startDateStr ? parseLocalDateString(startDateStr) : new Date();
+      // Create: deadline = start + chosen cycle. Edit: extend existing due date only.
+      const dueDate = task
+        ? addDays(task.dueDate ? new Date(task.dueDate) : startDateObj, parseInt(extendDays || "0", 10))
+        : addDays(startDateObj, parseInt(cycleDays || "14", 10));
+
       const taskData = {
-        ...data,
+        ...rest,
         projectId,
         status: "todo",
-        startDate: data.startDate ? new Date(data.startDate) : undefined,
-        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        startDate: startDateObj,
+        dueDate,
         creatorId: enhancedUser.id,
-        assigneeId: data.assigneeId === "unassigned" ? null : data.assigneeId,
-        milestoneId: data.milestoneId === "none" ? null : data.milestoneId ? parseInt(data.milestoneId) : null,
+        assigneeId: rest.assigneeId === "unassigned" ? null : rest.assigneeId,
+        milestoneId: rest.milestoneId === "none" ? null : rest.milestoneId ? parseInt(rest.milestoneId) : null,
       };
 
       if (task) {
@@ -397,6 +478,7 @@ export function TaskForm({
           availableMilestones={availableMilestones}
           isSubmitting={isSubmitting}
           isEdit={true}
+          existingDueDate={task.dueDate ? new Date(task.dueDate) : undefined}
           onSubmit={onSubmit}
           error={error}
         />

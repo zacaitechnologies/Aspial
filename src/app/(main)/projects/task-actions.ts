@@ -140,9 +140,16 @@ export async function createTask(data: CreateTaskData): Promise<TaskWithAssignee
 
 // Update a task
 export async function updateTask(taskId: number, data: UpdateTaskData): Promise<TaskWithAssignee> {
+  // When the status is part of the edit, keep the completion timestamp in sync:
+  // stamp it when moving to `done`, clear it otherwise.
+  const updateData: UpdateTaskData =
+    data.status !== undefined
+      ? { ...data, completedAt: data.status === "done" ? new Date() : null }
+      : data
+
   const updatedTask = await prisma.task.update({
     where: { id: taskId },
-    data,
+    data: updateData,
     include: {
       creator: {
         select: {
@@ -203,7 +210,7 @@ export async function deleteTask(taskId: number): Promise<void> {
 export async function updateTaskStatus(taskId: number, status: TaskStatus): Promise<TaskWithAssignee> {
   const updatedTask = await prisma.task.update({
     where: { id: taskId },
-    data: { status },
+    data: { status, completedAt: status === "done" ? new Date() : null },
     include: {
       creator: {
         select: {
@@ -271,7 +278,10 @@ export async function bulkUpdateTaskStatus(
   await prisma.$transaction(async (tx) => {
     await tx.task.updateMany({
       where: { id: { in: existing.map((t) => t.id) } },
-      data: { status: parsed.status },
+      data: {
+        status: parsed.status,
+        completedAt: parsed.status === "done" ? new Date() : null,
+      },
     })
   })
 
@@ -456,6 +466,32 @@ export async function getProjectCollaborators(projectId: number) {
   })
 
   return permissions.map(permission => permission.user)
+}
+
+// Get tasks directly assigned to a user (for the personal dashboard).
+export async function getTasksAssignedToUser(userId: string): Promise<TaskWithAssignee[]> {
+  if (!userId || userId.trim() === "") {
+    return []
+  }
+
+  return (await prisma.task.findMany({
+    where: { assigneeId: userId },
+    include: {
+      creator: {
+        select: { id: true, firstName: true, lastName: true, email: true, supabase_id: true },
+      },
+      assignee: {
+        select: { id: true, firstName: true, lastName: true, email: true, supabase_id: true },
+      },
+      project: {
+        select: { id: true, name: true },
+      },
+      milestone: {
+        select: { id: true, title: true, status: true, color: true },
+      },
+    },
+    orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+  })) as TaskWithAssignee[]
 }
 
 // Get all tasks for a user (across all projects they have access to). Optional date range filters by task overlap.

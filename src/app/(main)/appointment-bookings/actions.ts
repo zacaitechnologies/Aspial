@@ -6,7 +6,7 @@ import { getCachedUser } from "@/lib/auth-cache"
 import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import { excludeNoProjectSentinelWhere } from "@/lib/no-project"
 import type { AppointmentType } from "@/app/(main)/calendar/constants"
-import { formatLocalDateTime, parseDateInBusinessTZ } from "@/lib/date-utils"
+import { parseDateInBusinessTZ } from "@/lib/date-utils"
 import { parseEmailSendResponse } from "@/lib/email-api"
 import type { ProjectWithClient } from "@/app/(main)/appointment-bookings/types"
 
@@ -499,8 +499,8 @@ export async function createAppointmentBooking(formData: FormData) {
 								appointmentLocation: booking.appointment?.location || null,
 								clientName,
 								clientEmail: recipientEmail,
-								startDate: formatLocalDateTime(startDate),
-								endDate: formatLocalDateTime(endDate),
+								startDate: startDate.toISOString(),
+								endDate: endDate.toISOString(),
 								purpose: purpose || null,
 								bookedBy,
 							}),
@@ -1194,8 +1194,8 @@ export async function sendAppointmentReminder(
 				appointmentLocation: booking.appointment?.location || null,
 				clientName,
 				clientEmail,
-				startDate: formatLocalDateTime(booking.startDate),
-				endDate: formatLocalDateTime(booking.endDate),
+				startDate: booking.startDate.toISOString(),
+				endDate: booking.endDate.toISOString(),
 				purpose: booking.purpose || null,
 				bookedBy: booking.bookedBy,
 			}),

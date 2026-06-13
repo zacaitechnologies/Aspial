@@ -27,21 +27,26 @@ Deno.serve(async (req) => {
 			)
 		}
 
-		// Format the dates
+		// Format the dates in Malaysia time so the email matches what was booked.
+		// startDate/endDate arrive as true UTC instants (ISO strings).
+		const MALAYSIA_TZ = 'Asia/Kuala_Lumpur'
 		const formattedStartDate = new Date(startDate).toLocaleDateString('en-GB', {
 			year: 'numeric',
 			month: 'long',
-			day: 'numeric'
+			day: 'numeric',
+			timeZone: MALAYSIA_TZ
 		})
 		const formattedStartTime = new Date(startDate).toLocaleTimeString('en-GB', {
 			hour: '2-digit',
 			minute: '2-digit',
-			hour12: true
+			hour12: true,
+			timeZone: MALAYSIA_TZ
 		})
 		const formattedEndTime = new Date(endDate).toLocaleTimeString('en-GB', {
 			hour: '2-digit',
 			minute: '2-digit',
-			hour12: true
+			hour12: true,
+			timeZone: MALAYSIA_TZ
 		})
 
 		// Aspial office address and Waze navigation link

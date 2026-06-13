@@ -30,6 +30,7 @@ import {
   Package,
 } from "lucide-react";
 import { Milestone } from "../types";
+import { getDeadlineBadge, getDeadlineStatus } from "../deadline-utils";
 import { getMilestoneColorOption } from "@/lib/milestone-colors";
 import { cn } from "@/lib/utils";
 import { MilestoneForm } from "./MilestoneForm";
@@ -105,6 +106,14 @@ export function MilestoneCard({
   const totalTasks = milestone.tasks?.length || 0;
   const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
   const colorOption = getMilestoneColorOption(milestone.color);
+
+  const deadlineBadge = getDeadlineBadge(
+    getDeadlineStatus({
+      dueDate: milestone.dueDate,
+      completedAt: milestone.completedAt,
+      isCompleted: milestone.status === "completed",
+    })
+  );
 
   return (
     <Card
@@ -229,19 +238,43 @@ export function MilestoneCard({
           </div>
         )}
 
-        {/* Due Date */}
+        {/* Start / Due Date */}
         {milestone.dueDate && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-100 border border-amber-200">
               <Calendar className="w-3.5 h-3.5 text-amber-700" />
               <span className="text-xs font-medium text-amber-900">
-                Due: {new Date(milestone.dueDate).toLocaleDateString("en-GB", {
+                {milestone.startDate &&
+                  `${new Date(milestone.startDate).toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })} - `}
+                {new Date(milestone.dueDate).toLocaleDateString("en-GB", {
                   day: "numeric",
                   month: "short",
                   year: "numeric",
                 })}
               </span>
             </div>
+            {deadlineBadge && (
+              <Badge variant="outline" className={cn("text-xs", deadlineBadge.className)}>
+                {deadlineBadge.label}
+              </Badge>
+            )}
+          </div>
+        )}
+
+        {/* Completion timestamp */}
+        {milestone.status === "completed" && milestone.completedAt && (
+          <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <CheckCircle className="w-3 h-3" />
+            Completed{" "}
+            {new Date(milestone.completedAt).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
           </div>
         )}
       </CardContent>

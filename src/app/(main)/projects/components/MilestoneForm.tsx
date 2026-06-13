@@ -39,7 +39,7 @@ import {
   milestoneStatusOptions,
 } from "../types";
 import { createMilestone, updateMilestone, getProjectServices } from "../milestone-actions";
-import { formatLocalDate } from "@/lib/date-utils";
+import { addDays, formatDateForDisplay, formatLocalDate, parseLocalDateString } from "@/lib/date-utils";
 import {
   DEFAULT_MILESTONE_COLOR,
   MILESTONE_COLOR_OPTIONS,
@@ -58,7 +58,11 @@ const milestoneSchema = z.object({
     required_error: "Priority is required",
   }),
   status: z.enum(["not_started", "in_progress", "completed"]),
-  dueDate: z.string().min(1, "Due date is required"),
+  startDate: z.string().min(1, "Start date is required"),
+  // Deadline = start date + cycle (14 or 28 days) on create.
+  cycleDays: z.enum(["14", "28"]),
+  // On edit, the deadline may only be extended by 14 or 28 days (0 = keep).
+  extendDays: z.enum(["0", "14", "28"]),
 });
 
 type MilestoneFormData = z.infer<typeof milestoneSchema>;
@@ -208,25 +212,95 @@ const ColorField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
   />
 );
 
-const DueDateField = ({ form }: { form: UseFormReturn<MilestoneFormData> }) => (
-  <FormField
-    control={form.control}
-    name="dueDate"
-    render={({ field }) => (
-      <FormItem>
-        <FormLabel>Due Date *</FormLabel>
-        <FormControl>
-          <Input
-            type="date"
-            {...field}
-            value={field.value || ""}
-          />
-        </FormControl>
-        <FormMessage />
-      </FormItem>
-    )}
-  />
-);
+const DeadlineFields = ({
+  form,
+  isEdit = false,
+  existingDueDate,
+}: {
+  form: UseFormReturn<MilestoneFormData>;
+  isEdit?: boolean;
+  existingDueDate?: Date;
+}) => {
+  const startDate = form.watch("startDate");
+  const cycleDays = form.watch("cycleDays");
+  const extendDays = form.watch("extendDays");
+
+  if (isEdit) {
+    const base = existingDueDate ? new Date(existingDueDate) : new Date();
+    const newDue = addDays(base, parseInt(extendDays || "0", 10));
+    return (
+      <FormField
+        control={form.control}
+        name="extendDays"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Extend deadline</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Keep current" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="0">Keep current</SelectItem>
+                <SelectItem value="14">+14 days</SelectItem>
+                <SelectItem value="28">+28 days</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Deadline: {formatDateForDisplay(base)}
+              {extendDays !== "0" && ` → ${formatDateForDisplay(newDue)}`}. Deadlines can only be
+              extended, in 14- or 28-day steps.
+            </p>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    );
+  }
+
+  const previewStart = startDate ? parseLocalDateString(startDate) : new Date();
+  const due = addDays(previewStart, parseInt(cycleDays || "14", 10));
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <FormField
+        control={form.control}
+        name="startDate"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Start Date *</FormLabel>
+            <FormControl>
+              <Input type="date" {...field} value={field.value || ""} />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="cycleDays"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Deadline cycle *</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select cycle" />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectItem value="14">14 days</SelectItem>
+                <SelectItem value="28">28 days</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Deadline: {formatDateForDisplay(due)}</p>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
+  );
+};
 
 const ServiceField = ({ form, availableServices, isLoadingServices }: { form: UseFormReturn<MilestoneFormData>; availableServices: Array<{ id: number; name: string; description: string; basePrice: number }>; isLoadingServices: boolean }) => (
   <FormField
@@ -288,9 +362,11 @@ export function MilestoneForm({
       color: milestone?.color ? (milestone.color as MilestoneFormData["color"]) : DEFAULT_MILESTONE_COLOR,
       priority: milestone?.priority || "low",
       status: milestone?.status || "not_started",
-      dueDate: milestone?.dueDate 
-        ? formatLocalDate(new Date(milestone.dueDate))
-        : "",
+      startDate: milestone?.startDate
+        ? formatLocalDate(new Date(milestone.startDate))
+        : formatLocalDate(new Date()),
+      cycleDays: "14",
+      extendDays: "0",
     },
   });
 
@@ -316,10 +392,18 @@ export function MilestoneForm({
     
     setIsSubmitting(true);
     try {
+      const { cycleDays, extendDays, startDate: startDateStr, ...rest } = data;
+      const startDateObj = startDateStr ? parseLocalDateString(startDateStr) : new Date();
+      // Create: deadline = start + chosen cycle. Edit: extend existing due date only.
+      const dueDate = milestone
+        ? addDays(milestone.dueDate ? new Date(milestone.dueDate) : startDateObj, parseInt(extendDays || "0", 10))
+        : addDays(startDateObj, parseInt(cycleDays || "14", 10));
+
       const milestoneData = {
-        ...data,
-        serviceId: data.serviceId && data.serviceId !== "none" ? parseInt(data.serviceId) : null,
-        dueDate: new Date(data.dueDate),
+        ...rest,
+        serviceId: rest.serviceId && rest.serviceId !== "none" ? parseInt(rest.serviceId) : null,
+        startDate: startDateObj,
+        dueDate,
       };
 
       if (milestone) {
@@ -377,7 +461,11 @@ export function MilestoneForm({
           <StatusField form={form} />
         </div>
         
-        <DueDateField form={form} />
+        <DeadlineFields
+          form={form}
+          isEdit={!!milestone}
+          existingDueDate={milestone?.dueDate ? new Date(milestone.dueDate) : undefined}
+        />
 
         <div className="flex justify-end gap-2 pt-4">
           <Button

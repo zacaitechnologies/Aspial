@@ -94,10 +94,16 @@ export async function createMilestone(data: CreateMilestoneData): Promise<Milest
     throw new Error("Due date is required")
   }
 
-  const milestoneData: CreateMilestoneData & { order: number; dueDate: Date; color: string } = {
+  const milestoneData: CreateMilestoneData & {
+    order: number
+    startDate: Date
+    dueDate: Date
+    color: string
+  } = {
     ...data,
     title: data.title.trim(),
     order: newOrder,
+    startDate: data.startDate ?? new Date(),
     dueDate: data.dueDate,
     color: resolveMilestoneColor(data.color),
   }
@@ -142,12 +148,14 @@ export async function updateMilestone(milestoneId: number, data: UpdateMilestone
     description?: string | null;
     serviceId?: number;
     color?: string;
+    startDate?: Date;
     dueDate?: Date;
     priority?: TaskPriority;
     status?: MilestoneStatus;
+    completedAt?: Date | null;
     order?: number;
   } = {}
-  
+
   if (data.title !== undefined) {
     if (!data.title.trim()) throw new Error("Title is required")
     updateData.title = data.title.trim()
@@ -155,12 +163,17 @@ export async function updateMilestone(milestoneId: number, data: UpdateMilestone
   if (data.description !== undefined) updateData.description = data.description
   if (data.serviceId !== undefined && data.serviceId !== null) updateData.serviceId = data.serviceId
   if (data.color !== undefined) updateData.color = resolveMilestoneColor(data.color)
+  if (data.startDate !== undefined) updateData.startDate = data.startDate
   if (data.dueDate !== undefined) {
     if (data.dueDate === null) throw new Error("Due date is required")
     updateData.dueDate = data.dueDate
   }
   if (data.priority !== undefined) updateData.priority = data.priority
-  if (data.status !== undefined) updateData.status = data.status
+  if (data.status !== undefined) {
+    updateData.status = data.status
+    // Keep completion timestamp in sync when status is set manually via the form.
+    updateData.completedAt = data.status === "completed" ? new Date() : null
+  }
   if (data.order !== undefined) updateData.order = data.order
 
   return await prisma.milestone.update({
@@ -233,9 +246,18 @@ export async function updateMilestoneStatus(milestoneId: number): Promise<Milest
     newStatus = 'not_started'
   }
 
+  // Keep the completion timestamp in sync. Only stamp on the transition INTO
+  // `completed` (don't re-stamp on every recalculation); clear it otherwise.
+  const completedAt =
+    newStatus === 'completed'
+      ? milestone.status === 'completed'
+        ? milestone.completedAt
+        : new Date()
+      : null
+
   return await prisma.milestone.update({
     where: { id: milestoneId },
-    data: { status: newStatus },
+    data: { status: newStatus, completedAt },
     include: {
       service: {
         select: {

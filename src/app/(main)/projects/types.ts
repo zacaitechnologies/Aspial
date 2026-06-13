@@ -190,10 +190,12 @@ export type Milestone = {
   projectId: number;
   serviceId?: number | null;
   color: MilestoneColorVariant | string;
+  startDate: Date;
   dueDate: Date;
   priority: TaskPriority;
   status: MilestoneStatus;
   order: number;
+  completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   tasks?: Task[];
@@ -213,6 +215,7 @@ export type CreateMilestoneData = {
   projectId: number;
   serviceId?: number | null;
   color?: MilestoneColorVariant | string;
+  startDate?: Date;
   dueDate?: Date;
   priority?: TaskPriority;
   order?: number;
@@ -223,6 +226,7 @@ export type UpdateMilestoneData = {
   description?: string;
   serviceId?: number | null;
   color?: MilestoneColorVariant | string;
+  startDate?: Date;
   dueDate?: Date | null;
   priority?: TaskPriority;
   status?: MilestoneStatus;
@@ -243,6 +247,7 @@ export type Task = {
   startDate: Date;
   dueDate: Date;
   order: number;
+  completedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   creator?: {
@@ -310,8 +315,14 @@ export type UpdateTaskData = {
   assigneeId?: string | null;
   milestoneId?: number | undefined;
   dueDate?: Date | undefined;
+  completedAt?: Date | null;
   order?: number;
 };
+
+// Deadline cadence: a task/milestone deadline is start date + a fixed cycle,
+// and may only be extended in these increments.
+export const DEADLINE_CYCLE_DAYS = [14, 28] as const;
+export type DeadlineCycle = (typeof DEADLINE_CYCLE_DAYS)[number];
 
 // Task status options for UI
 export const taskStatusOptions = [

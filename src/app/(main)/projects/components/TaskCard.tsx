@@ -28,6 +28,7 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
+  CheckCircle,
 } from "lucide-react";
 import { TaskWithAssignee, Milestone } from "../types";
 import { TaskForm } from "./TaskForm";
@@ -36,6 +37,7 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { getTaskMilestoneColorOption } from "@/lib/milestone-colors";
+import { getDeadlineBadge, getDeadlineStatus } from "../deadline-utils";
 
 interface TaskCardProps {
   task: TaskWithAssignee;
@@ -79,6 +81,14 @@ export const TaskCard = memo(function TaskCard({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const milestoneColor = getTaskMilestoneColorOption(task, availableMilestones);
+
+  const deadlineBadge = getDeadlineBadge(
+    getDeadlineStatus({
+      dueDate: task.dueDate,
+      completedAt: task.completedAt,
+      isCompleted: task.status === "done",
+    })
+  );
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -280,6 +290,27 @@ export const TaskCard = memo(function TaskCard({
             </div>
           )}
         </div>
+
+        {(deadlineBadge || (task.status === "done" && task.completedAt)) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {deadlineBadge && (
+              <Badge variant="outline" className={cn("text-xs", deadlineBadge.className)}>
+                {deadlineBadge.label}
+              </Badge>
+            )}
+            {task.status === "done" && task.completedAt && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <CheckCircle className="w-3 h-3" />
+                Completed{" "}
+                {new Date(task.completedAt).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </span>
+            )}
+          </div>
+        )}
 
         {(task.creator || task.assignee) && (
           <div className="flex flex-col gap-2 pt-0.5">

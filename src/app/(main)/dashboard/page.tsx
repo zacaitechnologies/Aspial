@@ -1,4 +1,5 @@
 import { getCachedUser } from "@/lib/auth-cache"
+import { getCachedIsUserAdmin } from "@/lib/admin-cache"
 import {
 	formatDateStringDirect,
 	getBusinessTodayDateString,
@@ -7,6 +8,8 @@ import {
 } from "@/lib/date-utils"
 import { prisma } from "@/lib/prisma"
 import { APPOINTMENT_TYPES, type AppointmentType } from "@/app/(main)/calendar/constants"
+import { getAllUserTasks, getTasksAssignedToUser } from "@/app/(main)/projects/task-actions"
+import { DashboardTasksSection } from "./components/DashboardTasksSection"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Calendar, CalendarCheck, Clock, MapPin, UserCircle } from "lucide-react"
@@ -25,6 +28,11 @@ export default async function DashboardPage() {
 
 	// Upcoming = anything that hasn't ended before the start of the business-TZ day
 	const todayStart = parseDateInBusinessTZ(`${getBusinessTodayDateString()}T00:00:00`)
+
+	const isAdmin = await getCachedIsUserAdmin(user.id)
+	const myTasks = await getTasksAssignedToUser(user.id)
+	// Admins also get an overview of everyone's tasks across all projects.
+	const allTasks = isAdmin ? await getAllUserTasks(user.id) : []
 
 	const assignedBookings = await prisma.appointmentBooking.findMany({
 		where: {
@@ -146,6 +154,8 @@ export default async function DashboardPage() {
 						})}
 					</div>
 				)}
+
+				<DashboardTasksSection myTasks={myTasks} allTasks={allTasks} isAdmin={isAdmin} />
 			</div>
 		</div>
 	)

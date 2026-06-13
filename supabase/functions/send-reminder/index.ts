@@ -230,20 +230,26 @@ Deno.serve(async (req) => {
 				const startDate = new Date(booking.startDate)
 				const endDate = new Date(booking.endDate)
 				
+				// Format in Malaysia time so the reminder matches what was booked.
+				// booking.startDate/endDate are true UTC instants from the database.
+				const MALAYSIA_TZ = 'Asia/Kuala_Lumpur'
 				const formattedStartDate = startDate.toLocaleDateString('en-GB', {
 					year: 'numeric',
 					month: 'long',
-					day: 'numeric'
+					day: 'numeric',
+					timeZone: MALAYSIA_TZ
 				})
 				const formattedStartTime = startDate.toLocaleTimeString('en-GB', {
 					hour: '2-digit',
 					minute: '2-digit',
-					hour12: true
+					hour12: true,
+					timeZone: MALAYSIA_TZ
 				})
 				const formattedEndTime = endDate.toLocaleTimeString('en-GB', {
 					hour: '2-digit',
 					minute: '2-digit',
-					hour12: true
+					hour12: true,
+					timeZone: MALAYSIA_TZ
 				})
 
 				const clientName = client?.name || booking.projects?.clientName || 'Valued Client'

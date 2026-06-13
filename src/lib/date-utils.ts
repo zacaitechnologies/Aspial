@@ -164,6 +164,16 @@ export function formatDateStringDirect(
 }
 
 /**
+ * Return a new Date `days` after the given date, preserving local wall-clock
+ * components (no UTC drift). Use for deadline cycles (e.g. start + 14/28 days).
+ */
+export function addDays(date: Date, days: number): Date {
+	const d = new Date(date)
+	d.setDate(d.getDate() + days)
+	return d
+}
+
+/**
  * Format date as YYYY-MM-DD using local date components.
  * Use for <input type="date"> value and any date-only display to avoid UTC shift.
  */

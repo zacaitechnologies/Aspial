@@ -736,10 +736,13 @@ model Milestone {
   serviceId   Int?
   /// Pastel color key (e.g. pastel-sky, pastel-mint) for UI differentiation
   color       String          @default("pastel-sky")
+  startDate   DateTime
   dueDate     DateTime
   priority    TaskPriority    @default(low)
   status      MilestoneStatus @default(in_progress)
   order       Int             @default(0)
+  /// Set when status becomes `completed`; cleared when the milestone is reopened.
+  completedAt DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -759,6 +762,8 @@ model Task {
   creatorId   String
   dueDate     DateTime
   order       Int          @default(0)
+  /// Set when status becomes `done`; cleared when the task is reopened.
+  completedAt DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   startDate   DateTime
