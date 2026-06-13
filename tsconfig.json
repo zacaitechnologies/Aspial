@@ -39,6 +39,7 @@
     "node_modules",
     "prisma/*MockData.ts",
     "prisma/userSyncData.ts",
+    "prisma/importInvoiceClients.ts",
     "supabase/**/*"
   ]
 }

@@ -19,6 +19,7 @@
     "seed:quotations": "ts-node prisma/quotationMockData.ts",
     "seed:staffRoles": "ts-node prisma/staffRoleMockData.ts",
     "seed:clients": "ts-node prisma/clientMockData.ts",
+    "import:invoice-clients": "ts-node prisma/importInvoiceClients.ts",
     "seed": "npm run seed:roles && npm run seed:users && npm run seed:clients && npm run seed:appointments && npm run seed:appointmentBookings && npm run seed:quotations && npm run seed:services && npm run seed:staffRoles",
     "setup:storage": "tsx --env-file=.env scripts/setup-storage.ts",
     "setup:storage:profile-pictures": "tsx --env-file=.env scripts/setup-storage.ts profile-pictures",
