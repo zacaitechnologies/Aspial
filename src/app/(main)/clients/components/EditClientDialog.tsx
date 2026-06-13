@@ -290,6 +290,7 @@ export default function EditClientDialog({
                 isAdmin={isAdmin}
                 lockedIds={lockedAdvisorIds}
                 placeholder="Select advisors"
+                searchPlaceholder="Search advisors..."
               />
               <p className="text-xs text-muted-foreground">
                 {canRemoveAdvisors

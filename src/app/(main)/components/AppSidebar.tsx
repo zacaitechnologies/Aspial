@@ -176,7 +176,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-hidden bg-[#f0e8d8]">
+      <SidebarContent className="bg-[#f0e8d8]">
         <div className="mx-2 my-0 border-t border-(--color-accent)" />
         <SidebarGroup className="pt-0">
           <SidebarGroupLabel className="text-slate-600 font-medium">

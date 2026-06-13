@@ -23,7 +23,7 @@ import {
 	calendarEventCancelledClass,
 	calendarEventMetaClass,
 	calendarEventPastClass,
-	calendarEventSurfaceClass,
+	calendarBookingSurfaceClass,
 } from "../utils/event-surface-styles"
 import { CalendarEventTooltip } from "./CalendarEventTooltip"
 import { CurrentTimeLine } from "./CurrentTimeLine"
@@ -134,7 +134,7 @@ export function MonthDayDialog({
 						<p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 							Leave / Blockers
 						</p>
-						<div className="grid max-h-40 grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+						<div className="grid max-h-[5.25rem] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
 							{bannerEvents.map((event) => {
 								// Blockers without a real description carry a synthesized "Blocker: <title>" placeholder
 								const detail =
@@ -148,7 +148,7 @@ export function MonthDayDialog({
 											onClick={() => onEventClick(event)}
 											className={cn(
 												"min-w-0 rounded-md px-2.5 py-2 text-left cursor-pointer transition-shadow hover:shadow-sm",
-												calendarEventSurfaceClass(event.appointmentType),
+												calendarBookingSurfaceClass(event),
 												event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 												isCalendarEventPast(event, now) && calendarEventPastClass,
 											)}
@@ -284,7 +284,7 @@ export function MonthDayDialog({
 															<div
 																className={cn(
 																	"absolute z-[5] overflow-hidden rounded-md px-1.5 py-1 text-[11px] cursor-pointer shadow-sm transition-shadow hover:z-20 hover:shadow-md hover:brightness-[0.98]",
-																	calendarEventSurfaceClass(event.appointmentType),
+																	calendarBookingSurfaceClass(event),
 																	event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 																	isCalendarEventPast(event, now) && calendarEventPastClass,
 																)}

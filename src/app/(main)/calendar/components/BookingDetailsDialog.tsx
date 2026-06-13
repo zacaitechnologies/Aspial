@@ -12,6 +12,7 @@ import { isCalendarAllDayRowEvent, formatAppointmentCategoryLabel } from "../uti
 import SendAppointmentReminderDialog from "@/app/(main)/appointment-bookings/components/SendAppointmentReminderDialog"
 import EditAppointmentRemindersDialog from "@/app/(main)/appointment-bookings/components/EditAppointmentRemindersDialog"
 import AppointmentBookingEmailHistoryDialog from "@/app/(main)/appointment-bookings/components/AppointmentBookingEmailHistoryDialog"
+import { AppointmentCancellationDetail } from "./AppointmentCancellationDetail"
 
 function parseAppointmentBookingId(bookingId: string): number | null {
 	const match = bookingId.match(/^appointment-(\d+)/)
@@ -189,6 +190,8 @@ export function BookingDetailsDialog({
             </div>
           </div>
 
+          {isCancelled && <AppointmentCancellationDetail booking={booking} variant="panel" />}
+
           <div className="space-y-3">
             {isAppointment ? (
               <>
@@ -239,12 +242,6 @@ export function BookingDetailsDialog({
                     <UserCircle className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
                     <span className="text-muted-foreground shrink-0">Assigned to:</span>
                     <span className="min-w-0">{booking.assigneeNames.join(", ")}</span>
-                  </div>
-                )}
-                {isCancelled && booking.cancellationReason && (
-                  <div className="flex items-start gap-2 text-sm">
-                    <span className="text-muted-foreground shrink-0">Cancellation reason:</span>
-                    <span className="min-w-0">{booking.cancellationReason}</span>
                   </div>
                 )}
                 {booking.description ? (

@@ -27,7 +27,7 @@ import {
 	calendarEventCancelledClass,
 	calendarEventMetaClass,
 	calendarEventPastClass,
-	calendarEventSurfaceClass,
+	calendarBookingSurfaceClass,
 } from "../utils/event-surface-styles"
 
 interface DayViewProps {
@@ -172,7 +172,7 @@ export function DayView({
 										<div
 											className={cn(
 												"text-xs px-2 py-1 rounded-md cursor-pointer truncate leading-tight font-medium transition-shadow hover:shadow-sm",
-												calendarEventSurfaceClass(event.appointmentType),
+												calendarBookingSurfaceClass(event),
 												event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 												isCalendarEventPast(event, now) && calendarEventPastClass,
 											)}
@@ -265,7 +265,7 @@ export function DayView({
 										className={cn(
 											"absolute z-10 overflow-hidden p-2",
 											eventCardClassName,
-											calendarEventSurfaceClass(event.appointmentType),
+											calendarBookingSurfaceClass(event),
 											event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 											isCalendarEventPast(event, now) && calendarEventPastClass,
 										)}

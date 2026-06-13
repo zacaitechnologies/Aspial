@@ -996,6 +996,7 @@ export function AppointmentBookingDialog({
 									currentUserId={userId}
 									isAdmin
 									placeholder="Select team members"
+									searchPlaceholder="Search team members..."
 								/>
 							</div>
 

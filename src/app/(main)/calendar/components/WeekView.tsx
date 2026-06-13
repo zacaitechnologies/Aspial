@@ -27,7 +27,7 @@ import {
 	calendarEventCancelledClass,
 	calendarEventMetaClass,
 	calendarEventPastClass,
-	calendarEventSurfaceClass,
+	calendarBookingSurfaceClass,
 } from "../utils/event-surface-styles"
 
 interface WeekViewProps {
@@ -185,7 +185,7 @@ export function WeekView({
 														<div
 															className={cn(
 																"text-[10px] sm:text-xs px-1.5 py-0.5 rounded-md cursor-pointer truncate leading-tight font-medium transition-shadow hover:shadow-sm",
-																calendarEventSurfaceClass(event.appointmentType),
+																calendarBookingSurfaceClass(event),
 																event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 																isCalendarEventPast(event, now) && calendarEventPastClass,
 															)}
@@ -292,7 +292,7 @@ export function WeekView({
 												<div
 													className={cn(
 														"absolute z-10 overflow-hidden rounded-md px-1.5 py-1 text-xs cursor-pointer shadow-sm transition-shadow hover:shadow-md hover:brightness-[0.98]",
-														calendarEventSurfaceClass(event.appointmentType),
+														calendarBookingSurfaceClass(event),
 														event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
 														isCalendarEventPast(event, now) && calendarEventPastClass,
 													)}

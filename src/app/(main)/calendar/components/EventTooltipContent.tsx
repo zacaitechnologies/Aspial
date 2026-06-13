@@ -1,9 +1,10 @@
-import { Clock, MapPin, User, Users } from "lucide-react"
+import { Clock, MapPin, User, UserCircle, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CalendarBooking } from "../actions"
 import { calendarEventLegendDotClass } from "../utils/event-surface-styles"
 import { formatAppointmentEventTitle } from "../utils/appointment-display"
 import { AppointmentCategoryDetail } from "./AppointmentCategoryDetail"
+import { AppointmentCancellationDetail } from "./AppointmentCancellationDetail"
 
 export function EventTooltipContent({ booking }: { booking: CalendarBooking }) {
 	const headline =
@@ -23,12 +24,21 @@ export function EventTooltipContent({ booking }: { booking: CalendarBooking }) {
 				/>
 				<p className="font-semibold leading-snug">{headline}</p>
 			</div>
+			<AppointmentCancellationDetail booking={booking} />
 			{booking.type === "appointment" && booking.creatorName && (
 				<div className="flex items-center gap-1.5 text-muted-foreground">
 					<User className="h-3 w-3 shrink-0 opacity-70" />
 					<span>Booked by: {booking.creatorName}</span>
 				</div>
 			)}
+			{booking.type === "appointment" &&
+				booking.assigneeNames &&
+				booking.assigneeNames.length > 0 && (
+					<div className="flex items-start gap-1.5 text-muted-foreground min-w-0">
+						<UserCircle className="h-3 w-3 shrink-0 opacity-70 mt-0.5" />
+						<span className="min-w-0">Assigned to: {booking.assigneeNames.join(", ")}</span>
+					</div>
+				)}
 			{booking.type === "appointment" && (
 				<AppointmentCategoryDetail booking={booking} />
 			)}

@@ -31,6 +31,8 @@ import {
 	calendarEventCancelledClass,
 	calendarEventMetaClass,
 	calendarEventSurfaceClass,
+	calendarBookingSurfaceClass,
+	calendarBookingLegendDotClass,
 } from "../utils/event-surface-styles"
 
 interface AvailableAppointment {
@@ -50,18 +52,6 @@ interface CalendarClientProps {
 	initialTodayDateString: string
 	userId: string
 	userName: string
-}
-
-// Fixed month names — avoids locale-dependent output that could mismatch between server and client
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-function formatPanelDate(dateStr: string): string {
-	const [, month, day] = dateStr.split("-").map(Number)
-	return `${day} ${MONTH_ABBR[month - 1]}`
-}
-
-function formatPanelDateRange(first: string, last: string): string {
-	return first === last ? formatPanelDate(first) : `${formatPanelDate(first)} – ${formatPanelDate(last)}`
 }
 
 // Map appointment type to its CSS color variable (legend dots)
@@ -276,36 +266,42 @@ export default function CalendarClient({
 		return bookingsByDate.get(date) || []
 	}
 
-	// Today's bookings — for the "Today" stat card
+	// Today's appointments only — blockers and leave appear in the dedicated panel below.
 	const todaysBookings = useMemo(() => {
 		return filteredBookings
-			.filter((b) => b.date === todayDateString)
+			.filter(
+				(b) =>
+					b.date === todayDateString && b.type !== "blocker" && b.type !== "leave"
+			)
 			.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
 	}, [filteredBookings, todayDateString])
 
-	// Full viewed-month bookings for the "Blocker & Leave Information" panel section.
-	// Week/day views only load their own range, so the month is fetched/cached separately.
-	const monthRange = useMemo(() => {
-		const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-		monthStart.setHours(0, 0, 0, 0)
-		const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-		monthEnd.setHours(23, 59, 59, 999)
-		return { start: monthStart, end: monthEnd }
-	}, [currentDate])
+	// Today's blockers and leave for the sidebar panel — fetched separately so week/day/month views
+	// always show current-day leave/blockers even when today is outside the visible range.
+	const todayRange = useMemo(() => {
+		const [year, month, day] = todayDateString.split("-").map(Number)
+		const dayStart = new Date(year, month - 1, day)
+		dayStart.setHours(0, 0, 0, 0)
+		const dayEnd = new Date(year, month - 1, day)
+		dayEnd.setHours(23, 59, 59, 999)
+		return { start: dayStart, end: dayEnd }
+	}, [todayDateString])
 
-	const [monthInfoBookings, setMonthInfoBookings] = useState<CalendarBooking[]>(initialBookings)
+	const [todayInfoBookings, setTodayInfoBookings] = useState<CalendarBooking[]>(() =>
+		initialBookings.filter((b) => b.date === initialTodayDateString)
+	)
 	useEffect(() => {
-		const key = getRangeKey(monthRange.start, monthRange.end)
+		const key = getRangeKey(todayRange.start, todayRange.end)
 		const cached = rangeCacheRef.current.get(key)
 		if (cached) {
-			setMonthInfoBookings(cached)
+			setTodayInfoBookings(cached)
 			return
 		}
 		let cancelled = false
-		fetchAllBookings(userId, userName, { start: monthRange.start, end: monthRange.end }).then((data) => {
+		fetchAllBookings(userId, userName, { start: todayRange.start, end: todayRange.end }).then((data) => {
 			if (!cancelled) {
 				rangeCacheRef.current.set(key, data)
-				setMonthInfoBookings(data)
+				setTodayInfoBookings(data)
 			}
 		})
 		return () => {
@@ -313,39 +309,16 @@ export default function CalendarClient({
 		}
 		// `bookings` is a dependency so the section refreshes after refreshBookings() clears the cache
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [monthRange.start.getTime(), monthRange.end.getTime(), bookings, userId, userName])
+	}, [todayRange.start.getTime(), todayRange.end.getTime(), bookings, userId, userName, todayDateString])
 
-	// Blockers and leave within the viewed month, deduped from per-day expansion rows
-	const monthKey = formatDate(currentDate).slice(0, 7)
 	const blockerLeaveInfo = useMemo(() => {
-		const map = new Map<
-			string,
-			{ key: string; booking: CalendarBooking; firstDate: string; lastDate: string }
-		>()
-		for (const b of monthInfoBookings) {
-			if (b.type !== "blocker" && b.type !== "leave") continue
-			if (!b.date.startsWith(monthKey)) continue
-			const od = b.originalData as { blockerId?: number; leaveApplicationId?: number } | null
-			const key =
-				b.type === "blocker"
-					? `blocker-${od?.blockerId ?? b.id}`
-					: `leave-${od?.leaveApplicationId ?? b.id}`
-			const existing = map.get(key)
-			if (existing) {
-				if (b.date < existing.firstDate) {
-					existing.firstDate = b.date
-					existing.booking = b
-				}
-				if (b.date > existing.lastDate) existing.lastDate = b.date
-			} else {
-				map.set(key, { key, booking: b, firstDate: b.date, lastDate: b.date })
-			}
-		}
-		return Array.from(map.values()).sort(
-			(a, b) =>
-				a.firstDate.localeCompare(b.firstDate) || a.booking.title.localeCompare(b.booking.title)
-		)
-	}, [monthInfoBookings, monthKey])
+		return todayInfoBookings
+			.filter((b) => b.type === "blocker" || b.type === "leave")
+			.sort(
+				(a, b) =>
+					(a.startTime || "").localeCompare(b.startTime || "") || a.title.localeCompare(b.title)
+			)
+	}, [todayInfoBookings])
 
 	const handleDateChange = (newDate: Date) => {
 		setCurrentDate(newDate)
@@ -549,6 +522,31 @@ export default function CalendarClient({
 		return counts
 	}, [statsBookings])
 
+	const renderSidebarEventButton = (b: CalendarBooking) => (
+		<button
+			type="button"
+			onClick={() => handleBookingClick(b)}
+			className={cn(
+				"cal-sidebar-event w-full text-left rounded-md px-2 py-1.5 shadow-sm transition-all hover:shadow-md hover:brightness-[0.98]",
+				calendarBookingSurfaceClass(b),
+				b.type === "appointment" && b.status === "cancelled" && calendarEventCancelledClass
+			)}
+		>
+			<div className="flex items-center gap-2 min-w-0">
+				<span
+					className={cn("h-2.5 w-2.5 shrink-0 rounded-full", calendarBookingLegendDotClass(b))}
+					aria-hidden
+				/>
+				<h4 className="truncate text-sm font-semibold min-w-0 flex-1">{b.title}</h4>
+				{b.type !== "task" && b.startTime && (
+					<span className={cn("shrink-0 text-[11px] font-medium tabular-nums", calendarEventMetaClass)}>
+						{b.startTime}
+					</span>
+				)}
+			</div>
+		</button>
+	)
+
 	const renderSidebarContent = (layout: "desktop" | "mobile") => (
 		<div className={cn("space-y-3", layout === "mobile" && "pb-4")}>
 			<div className="shrink-0 rounded-lg border border-border bg-card p-3">
@@ -602,29 +600,7 @@ export default function CalendarClient({
 					<div className="cal-sidebar-today-list hide-scrollbar mt-2 min-h-0 max-h-32 space-y-2 overflow-y-auto">
 						{todaysBookings.map((b) => (
 							<CalendarEventTooltip key={b.id} booking={b} side="right" align="start">
-								<button
-									type="button"
-									onClick={() => handleBookingClick(b)}
-									className={cn(
-										"cal-sidebar-event w-full text-left rounded-md px-2 py-1.5 shadow-sm transition-all hover:shadow-md hover:brightness-[0.98]",
-										calendarEventSurfaceClass(b.appointmentType),
-										b.type === "appointment" && b.status === "cancelled" && calendarEventCancelledClass
-									)}
-								>
-									<div className="flex items-center gap-2 min-w-0">
-										<span
-											className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-border/40"
-											style={{ backgroundColor: TYPE_CSS_VAR[b.appointmentType] }}
-											aria-hidden
-										/>
-										<h4 className="truncate text-sm font-semibold min-w-0 flex-1">{b.title}</h4>
-										{b.type !== "task" && b.startTime && (
-											<span className={cn("shrink-0 text-[11px] font-medium tabular-nums", calendarEventMetaClass)}>
-												{b.startTime}
-											</span>
-										)}
-									</div>
-								</button>
+								{renderSidebarEventButton(b)}
 							</CalendarEventTooltip>
 						))}
 					</div>
@@ -632,49 +608,26 @@ export default function CalendarClient({
 			</div>
 
 			<div className="cal-sidebar-blocker-leave shrink-0 rounded-lg border border-border bg-card p-3">
-				<div className="mb-2 flex items-center gap-2">
-					<CalendarOff className="w-4 h-4 text-muted-foreground" aria-hidden />
-					<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-						Blocker &amp; Leave Information
-					</p>
+				<div className="flex shrink-0 items-center justify-between gap-2">
+					<div className="flex items-center gap-2">
+						<CalendarOff className="w-4 h-4 text-muted-foreground" aria-hidden />
+						<p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+							Today&apos;s Blocker &amp; Leave
+						</p>
+					</div>
+					<span className="text-xs font-semibold tabular-nums text-muted-foreground">
+						{blockerLeaveInfo.length}
+					</span>
 				</div>
 				{blockerLeaveInfo.length === 0 ? (
-					<p className="text-xs text-muted-foreground">No blockers or leave this month</p>
+					<p className="mt-3 text-xs text-muted-foreground">No blockers or leave today</p>
 				) : (
-					<div className="hide-scrollbar max-h-56 space-y-2 overflow-y-auto">
-						{blockerLeaveInfo.map((entry) => {
-							const b = entry.booking
-							const isBlocker = b.type === "blocker"
-							// Blockers without a real description carry a synthesized "Blocker: <title>" placeholder
-							const detail = isBlocker
-								? b.description === `Blocker: ${b.title}`
-									? null
-									: b.description
-								: b.description
-							return (
-								<button
-									key={entry.key}
-									type="button"
-									onClick={() => handleBookingClick(b)}
-									className={cn(
-										"w-full text-left rounded-md px-2.5 py-2 transition-all hover:shadow-md hover:brightness-[0.98]",
-										calendarEventSurfaceClass(b.appointmentType)
-									)}
-								>
-									<div className="flex items-start justify-between gap-2">
-										<p className="min-w-0 flex-1 text-xs font-semibold leading-snug">{b.title}</p>
-										<span className={cn("shrink-0 text-[10px] tabular-nums", calendarEventMetaClass)}>
-											{formatPanelDateRange(entry.firstDate, entry.lastDate)}
-										</span>
-									</div>
-									{detail && (
-										<p className={cn("mt-0.5 line-clamp-2 text-[11px] font-normal", calendarEventMetaClass)}>
-											{detail}
-										</p>
-									)}
-								</button>
-							)
-						})}
+					<div className="cal-sidebar-today-list hide-scrollbar mt-2 min-h-0 max-h-32 space-y-2 overflow-y-auto">
+						{blockerLeaveInfo.map((b) => (
+							<CalendarEventTooltip key={b.id} booking={b} side="right" align="start">
+								{renderSidebarEventButton(b)}
+							</CalendarEventTooltip>
+						))}
 					</div>
 				)}
 			</div>
@@ -743,7 +696,7 @@ export default function CalendarClient({
 											<SheetHeader className="border-b border-border px-4 py-3">
 												<SheetTitle>Calendar Panel</SheetTitle>
 												<SheetDescription>
-													Filters, today snapshot, blocker &amp; leave info, and appointment summary.
+													Filters, today snapshot, today&apos;s blocker &amp; leave, and appointment summary.
 												</SheetDescription>
 											</SheetHeader>
 											<div className="hide-scrollbar max-h-[calc(100vh-5rem)] overflow-y-auto px-4 pt-3">

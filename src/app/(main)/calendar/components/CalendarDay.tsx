@@ -4,6 +4,7 @@ import { CalendarBooking } from "@/app/(main)/calendar/actions"
 import { CALENDAR_EVENT_TYPES, type CalendarEventType } from "../constants"
 import { CalendarTooltip } from "./CalendarEventTooltip"
 import { DayTypeTooltipContent } from "./DayTypeTooltipContent"
+import { EventTooltipContent } from "./EventTooltipContent"
 
 interface CalendarDayProps {
   day: number
@@ -113,14 +114,23 @@ export function CalendarDay({
               side="top"
               align="start"
               content={
-                <div className="space-y-0.5">
-                  <p className="font-semibold">Cancelled</p>
-                  {cancelledBookings.map((b) => (
-                    <p key={b.id} className="text-xs">
-                      {b.startTime} {b.title}
-                    </p>
-                  ))}
-                </div>
+                cancelledBookings.length === 1 ? (
+                  <EventTooltipContent booking={cancelledBookings[0]} />
+                ) : (
+                  <div className="space-y-2 text-xs">
+                    <p className="font-semibold leading-snug">Cancelled appointments</p>
+                    <ul className="space-y-2">
+                      {cancelledBookings.map((booking) => (
+                        <li
+                          key={booking.id}
+                          className="border-t border-border pt-2 first:border-0 first:pt-0"
+                        >
+                          <EventTooltipContent booking={booking} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )
               }
             >
               <button

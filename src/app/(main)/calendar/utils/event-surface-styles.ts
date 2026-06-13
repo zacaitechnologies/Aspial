@@ -1,4 +1,9 @@
+import type { CalendarBooking } from "../actions"
 import type { CalendarEventType } from "../constants"
+
+function getLeaveStatusFromBooking(originalData: unknown): string {
+	return (originalData as { status?: string } | null)?.status ?? "APPROVED"
+}
 
 /** Pastel surface + legend-colored text for week/day event blocks */
 const SURFACE_CLASS: Record<CalendarEventType, string> = {
@@ -13,6 +18,26 @@ const SURFACE_CLASS: Record<CalendarEventType, string> = {
 
 export function calendarEventSurfaceClass(appointmentType: CalendarEventType): string {
 	return SURFACE_CLASS[appointmentType] ?? SURFACE_CLASS.OTHERS
+}
+
+/** Event block surface — pending leave uses dashed pending token; other types use legend surfaces. */
+export function calendarBookingSurfaceClass(
+	booking: Pick<CalendarBooking, "type" | "appointmentType" | "originalData">
+): string {
+	if (booking.type === "leave") {
+		return calendarLeaveSurfaceClass(getLeaveStatusFromBooking(booking.originalData))
+	}
+	return calendarEventSurfaceClass(booking.appointmentType)
+}
+
+/** Legend dot for sidebar / list rows — pending leave uses pending token. */
+export function calendarBookingLegendDotClass(
+	booking: Pick<CalendarBooking, "type" | "appointmentType" | "originalData">
+): string {
+	if (booking.type === "leave") {
+		return calendarLeaveLegendDotClass(getLeaveStatusFromBooking(booking.originalData))
+	}
+	return calendarEventLegendDotClass(booking.appointmentType)
 }
 
 const LEGEND_DOT_CLASS: Record<CalendarEventType, string> = {

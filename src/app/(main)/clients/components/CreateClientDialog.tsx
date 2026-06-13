@@ -277,6 +277,7 @@ export default function CreateClientDialog({ onSuccess }: CreateClientDialogProp
               currentUserId={currentUserId}
               isAdmin={isAdmin}
               placeholder="Select advisors"
+              searchPlaceholder="Search advisors..."
             />
             <p className="text-xs text-muted-foreground">
               {isAdmin ? "Select one or more advisors for this client" : "You are automatically included as an advisor"}
