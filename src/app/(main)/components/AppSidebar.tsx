@@ -24,7 +24,7 @@ import {
   Wallet,
   FileCheck,
   Truck,
-  LayoutDashboard,
+  // LayoutDashboard,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getAllPendingInvitations, getUserInvitations } from "../projects/permissions";
@@ -48,11 +48,11 @@ import {
 } from "@/components/ui/sidebar";
 
 const mainNavItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-  },
+  // {
+  //   title: "Dashboard",
+  //   url: "/dashboard",
+  //   icon: LayoutDashboard,
+  // },
   {
     title: "Project Management",
     url: "/projects",
