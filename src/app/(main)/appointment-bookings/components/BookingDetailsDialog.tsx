@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Calendar, Clock, User, Building2, Phone, Mail, FileText, Briefcase, Send, Bell } from "lucide-react"
 import { format } from "date-fns"
+import { formatBusinessDateTimeDisplay } from "@/lib/date-utils"
 import type { AppointmentBooking } from "../equipment-dashboard"
 import SendAppointmentReminderDialog from "./SendAppointmentReminderDialog"
 import EditAppointmentRemindersDialog from "./EditAppointmentRemindersDialog"
@@ -116,6 +117,12 @@ export default function BookingDetailsDialog({
 								<div className="flex items-start gap-3">
 									<span className="font-medium min-w-[120px]">Purpose:</span>
 									<span className="flex-1">{booking.purpose}</span>
+								</div>
+							)}
+							{booking.createdAt && (
+								<div className="flex items-start gap-3">
+									<span className="font-medium min-w-[120px]">Created At:</span>
+									<span className="flex-1">{formatBusinessDateTimeDisplay(new Date(booking.createdAt))}</span>
 								</div>
 							)}
 						</div>

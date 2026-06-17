@@ -52,6 +52,7 @@ export interface AppointmentBooking {
 	companyName: string | null
 	contactNumber: string | null
 	remarks: string | null
+	createdAt?: Date | string | null
 	appointment?: {
 		id: number
 		name: string

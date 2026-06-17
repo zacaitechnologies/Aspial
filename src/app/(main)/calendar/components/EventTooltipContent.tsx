@@ -1,5 +1,6 @@
-import { Clock, MapPin, User, UserCircle, Users } from "lucide-react"
+import { CalendarPlus, Clock, MapPin, User, UserCircle, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { formatBusinessDateTimeDisplay } from "@/lib/date-utils"
 import type { CalendarBooking } from "../actions"
 import { calendarEventLegendDotClass } from "../utils/event-surface-styles"
 import { formatAppointmentEventTitle } from "../utils/appointment-display"
@@ -63,6 +64,12 @@ export function EventTooltipContent({ booking }: { booking: CalendarBooking }) {
 					<span>
 						{booking.attendees} attendee{booking.attendees !== 1 ? "s" : ""}
 					</span>
+				</div>
+			)}
+			{booking.type === "appointment" && booking.createdAt && (
+				<div className="flex items-center gap-1.5 text-muted-foreground">
+					<CalendarPlus className="h-3 w-3 shrink-0 opacity-70" />
+					<span>Created: {formatBusinessDateTimeDisplay(new Date(booking.createdAt))}</span>
 				</div>
 			)}
 			{booking.description && (

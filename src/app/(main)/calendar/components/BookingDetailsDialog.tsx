@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { CalendarBooking } from "@/app/(main)/calendar/actions"
 import { CALENDAR_EVENT_TYPES } from "@/app/(main)/calendar/constants"
-import { formatDateStringDirect } from "@/lib/date-utils"
+import { formatDateStringDirect, formatBusinessDateTimeDisplay } from "@/lib/date-utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Calendar, Clock, MapPin, User, UserCircle, Users, Pencil, Trash2, ShieldAlert, Loader2, Mail, CalendarPlus, Tag, Send, Bell } from "lucide-react"
@@ -242,6 +242,13 @@ export function BookingDetailsDialog({
                     <UserCircle className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
                     <span className="text-muted-foreground shrink-0">Assigned to:</span>
                     <span className="min-w-0">{booking.assigneeNames.join(", ")}</span>
+                  </div>
+                )}
+                {booking.createdAt && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <CalendarPlus className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+                    <span className="text-muted-foreground shrink-0">Created:</span>
+                    <span className="min-w-0">{formatBusinessDateTimeDisplay(new Date(booking.createdAt))}</span>
                   </div>
                 )}
                 {booking.description ? (
