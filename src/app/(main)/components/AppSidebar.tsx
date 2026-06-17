@@ -154,7 +154,7 @@ export function AppSidebar() {
     };
   }, [fetchPendingInvitations]);
 
-  // Calendar collapsible section - rendered directly below Dashboard, visible to all roles.
+  // Calendar collapsible section - rendered at the top of CRM nav, visible to all roles.
   const calendarNavSection = (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -255,9 +255,9 @@ export function AppSidebar() {
             <SidebarMenu>
               {mainNavItems
                 .filter((item) => {
-                  // Operation users can only see: Dashboard, Projects, Time Tracking, Leave (no Benefits).
+                  // Operation users can only see: Projects, Time Tracking, Leave (no Benefits).
                   // Calendar + Appointment Types render in their own collapsible group below, visible to everyone.
-                  const allowedUrlsForOperationUser = ["/dashboard", "/projects", "/time-tracking", "/leave"];
+                  const allowedUrlsForOperationUser = ["/projects", "/time-tracking", "/leave"];
                   
                   // If role check is still in progress, show only allowed items (safer default)
                   if (isOperationUser === null) {
@@ -288,8 +288,8 @@ export function AppSidebar() {
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
-                      {/* Calendar section sits directly below Dashboard */}
-                      {item.url === "/dashboard" && calendarNavSection}
+                      {/* Calendar section sits at the top of CRM nav */}
+                      {item.url === "/projects" && calendarNavSection}
                     </Fragment>
                   );
                 })}
