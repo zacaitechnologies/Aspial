@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useSession } from "../contexts/SessionProvider";
 import {
   Settings,
@@ -154,6 +154,75 @@ export function AppSidebar() {
     };
   }, [fetchPendingInvitations]);
 
+  // Calendar collapsible section - rendered directly below Dashboard, visible to all roles.
+  const calendarNavSection = (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+        isActive={pathname.includes("/calendar") || pathname.includes("/appointment-bookings")}
+        className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
+      >
+        <div className="flex items-center gap-3 w-full justify-between">
+          <div className="flex items-center gap-3">
+            <Calendar className="w-5 h-5" />
+            <span className="font-medium">Calendar</span>
+          </div>
+          <div className={`transition-transform duration-300 ease-in-out ${isCalendarOpen ? 'rotate-0' : '-rotate-90'}`}>
+            {isCalendarOpen ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </div>
+        </div>
+      </SidebarMenuButton>
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isCalendarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <SidebarMenuSub className="mt-1">
+          <SidebarMenuSubItem>
+            <SidebarMenuSubButton
+              asChild
+              isActive={pathname.includes("/calendar")}
+            >
+              <Link
+                href="/calendar"
+                className={`flex items-center gap-2 ${
+                  pathname.includes("/calendar")
+                    ? ''
+                    : '[&>svg]:!text-[#202F21]'
+                }`}
+              >
+                <Calendar className="w-4 h-4 transition-colors" />
+                <span>Calendar</span>
+              </Link>
+            </SidebarMenuSubButton>
+          </SidebarMenuSubItem>
+          <SidebarMenuSubItem>
+            <SidebarMenuSubButton
+              asChild
+              isActive={pathname.includes("/appointment-bookings")}
+            >
+              <Link
+                href="/appointment-bookings"
+                className={`flex items-center gap-2 ${
+                  pathname.includes("/appointment-bookings")
+                    ? ''
+                    : '[&>svg]:!text-[#202F21]'
+                }`}
+              >
+                <CalendarClockIcon className="w-4 h-4 transition-colors" />
+                <span>Appointment Types</span>
+              </Link>
+            </SidebarMenuSubButton>
+          </SidebarMenuSubItem>
+        </SidebarMenuSub>
+      </div>
+    </SidebarMenuItem>
+  );
+
   return (
     <Sidebar className="border-r border-(--color-sidebar-border) bg-[#f0e8d8]">
       <SidebarHeader className="p-0 bg-[#f0e8d8]">
@@ -206,87 +275,24 @@ export function AppSidebar() {
                 .map((item) => {
                   const isActive = pathname.includes(item.url.replace('/', ''));
                   return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={isActive}
-                        className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
-                      >
-                        <Link href={item.url} className="flex items-center gap-3">
-                          <item.icon className="w-5 h-5" />
-                          <span className="font-medium">{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    <Fragment key={item.title}>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive}
+                          className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
+                        >
+                          <Link href={item.url} className="flex items-center gap-3">
+                            <item.icon className="w-5 h-5" />
+                            <span className="font-medium">{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      {/* Calendar section sits directly below Dashboard */}
+                      {item.url === "/dashboard" && calendarNavSection}
+                    </Fragment>
                   );
                 })}
-              
-              {/* Calendar Collapsible Section - visible to all roles */}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                  isActive={pathname.includes("/calendar") || pathname.includes("/appointment-bookings")}
-                  className="transition-all duration-150 ease-out hover:bg-sidebar-ring data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-r-2 data-[active=true]:border-sidebar-border"
-                >
-                  <div className="flex items-center gap-3 w-full justify-between">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="w-5 h-5" />
-                      <span className="font-medium">Calendar</span>
-                    </div>
-                    <div className={`transition-transform duration-300 ease-in-out ${isCalendarOpen ? 'rotate-0' : '-rotate-90'}`}>
-                      {isCalendarOpen ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                    </div>
-                  </div>
-                </SidebarMenuButton>
-                <div
-                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                    isCalendarOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                  }`}
-                >
-                  <SidebarMenuSub className="mt-1">
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton
-                        asChild
-                        isActive={pathname.includes("/calendar")}
-                      >
-                        <Link
-                          href="/calendar"
-                          className={`flex items-center gap-2 ${
-                            pathname.includes("/calendar")
-                              ? ''
-                              : '[&>svg]:!text-[#202F21]'
-                          }`}
-                        >
-                          <Calendar className="w-4 h-4 transition-colors" />
-                          <span>Calendar</span>
-                        </Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton
-                        asChild
-                        isActive={pathname.includes("/appointment-bookings")}
-                      >
-                        <Link
-                          href="/appointment-bookings"
-                          className={`flex items-center gap-2 ${
-                            pathname.includes("/appointment-bookings")
-                              ? ''
-                              : '[&>svg]:!text-[#202F21]'
-                          }`}
-                        >
-                          <CalendarClockIcon className="w-4 h-4 transition-colors" />
-                          <span>Appointment Types</span>
-                        </Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  </SidebarMenuSub>
-                </div>
-              </SidebarMenuItem>
 
               {/* Payments Collapsible Section - Hidden for operation-user */}
               {isOperationUser !== null && !isOperationUser && (
