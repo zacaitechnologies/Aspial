@@ -16,7 +16,7 @@ import { CALENDAR_GRID_START_HOUR } from "../constants"
 import { getCalendarEventDisplayTitle } from "../utils/appointment-display"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { ChevronDown, ChevronRight, Clock, MapPin, Users } from "lucide-react"
+import { ChevronDown, ChevronRight, Clock, MapPin, StickyNote, UserCircle, Users } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
 import { CurrentTimeLine } from "./CurrentTimeLine"
 import { useCurrentTime } from "../hooks/useCurrentTime"
@@ -312,7 +312,19 @@ export function DayView({
 												{event.attendees}
 											</div>
 										)}
+										{event.assigneeNames && event.assigneeNames.length > 0 && (
+											<div className="flex items-center gap-1 min-w-0">
+												<UserCircle className="w-3 h-3 shrink-0" />
+												<span className="truncate">{event.assigneeNames.join(", ")}</span>
+											</div>
+										)}
 									</div>
+									{event.remarks && (
+										<div className={cn("mt-1 flex items-start gap-1 min-w-0", calendarEventMetaClass)}>
+											<StickyNote className="w-3 h-3 shrink-0 mt-px" />
+											<span className="line-clamp-2 min-w-0">{event.remarks}</span>
+										</div>
+									)}
 								</div>
 								</CalendarEventTooltip>
 							)

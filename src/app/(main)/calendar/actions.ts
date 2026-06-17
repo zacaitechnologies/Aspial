@@ -69,6 +69,10 @@ export interface CalendarBooking {
 	assigneeIds?: string[]
 	/** Appointments only: display names of assigned team members. */
 	assigneeNames?: string[]
+	/** Appointments only: free-text remarks captured on the booking. */
+	remarks?: string | null
+	/** Appointments only: ISO timestamp of when the booking record was created. */
+	createdAt?: string | null
 	/** Blockers only: true when the event is stored as full local days (week/day views use the all-day row). */
 	allDay?: boolean
 }
@@ -384,6 +388,8 @@ async function _fetchAppointmentBookings(
 			cancellationReason: booking.cancellationReason ?? null,
 			assigneeIds,
 			assigneeNames,
+			remarks: booking.remarks?.trim() || null,
+			createdAt: booking.createdAt ? booking.createdAt.toISOString() : null,
 			originalData: {
 				...booking,
 				startDate: formatLocalDateTime(startDate),
