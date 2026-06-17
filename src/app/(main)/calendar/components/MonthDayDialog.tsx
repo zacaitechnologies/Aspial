@@ -85,11 +85,17 @@ export function MonthDayDialog({
 		[date],
 	)
 
-	// Leave + blockers go in the top banner (no dedicated column)
-	const bannerEvents = useMemo(
-		() => events.filter((e) => e.type === "leave" || e.type === "blocker"),
+	// Blockers + leave go in the top banner (no dedicated column).
+	// Blockers are listed first, then leave.
+	const blockerEvents = useMemo(
+		() => events.filter((e) => e.type === "blocker"),
 		[events],
 	)
+	const leaveEvents = useMemo(
+		() => events.filter((e) => e.type === "leave"),
+		[events],
+	)
+	const hasBannerEvents = blockerEvents.length > 0 || leaveEvents.length > 0
 
 	// Appointment events bucketed by their appointment type for the columns
 	const eventsByType = useMemo(() => {
@@ -128,44 +134,53 @@ export function MonthDayDialog({
 						</div>
 				</DialogHeader>
 
-				{/* Leave / Blocker — roomy stacked list for readability */}
-				{bannerEvents.length > 0 && (
-					<div className="shrink-0 border-b border-border py-2">
-						<p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-							Leave / Blockers
-						</p>
-						<div className="grid max-h-[5.25rem] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
-							{bannerEvents.map((event) => {
-								// Blockers without a real description carry a synthesized "Blocker: <title>" placeholder
-								const detail =
-									event.type === "blocker" && event.description === `Blocker: ${event.title}`
-										? null
-										: event.description
-								return (
-									<CalendarEventTooltip key={event.id} booking={event} side="top">
-										<button
-											type="button"
-											onClick={() => onEventClick(event)}
-											className={cn(
-												"min-w-0 rounded-md px-2.5 py-2 text-left cursor-pointer transition-shadow hover:shadow-sm",
-												calendarBookingSurfaceClass(event),
-												event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
-												isCalendarEventPast(event, now) && calendarEventPastClass,
-											)}
-										>
-											<span className="block truncate text-sm font-semibold leading-snug">
-												{getCalendarEventDisplayTitle(event)}
-											</span>
-											{detail && (
-												<span className={cn("mt-0.5 block line-clamp-2 text-xs", calendarEventMetaClass)}>
-													{detail}
-												</span>
-											)}
-										</button>
-									</CalendarEventTooltip>
-								)
-							})}
-						</div>
+				{/* Blocker / Leave — roomy stacked list for readability. Blockers first, then leave. */}
+				{hasBannerEvents && (
+					<div className="shrink-0 border-b border-border py-2 space-y-2">
+						{[
+							{ label: "Blockers", items: blockerEvents },
+							{ label: "Leave", items: leaveEvents },
+						].map(({ label, items }) =>
+							items.length === 0 ? null : (
+								<div key={label}>
+									<p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+										{label}
+									</p>
+									<div className="grid max-h-[5.25rem] grid-cols-1 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2">
+										{items.map((event) => {
+											// Blockers without a real description carry a synthesized "Blocker: <title>" placeholder
+											const detail =
+												event.type === "blocker" && event.description === `Blocker: ${event.title}`
+													? null
+													: event.description
+											return (
+												<CalendarEventTooltip key={event.id} booking={event} side="top">
+													<button
+														type="button"
+														onClick={() => onEventClick(event)}
+														className={cn(
+															"min-w-0 rounded-md px-2.5 py-2 text-left cursor-pointer transition-shadow hover:shadow-sm",
+															calendarBookingSurfaceClass(event),
+															event.type === "appointment" && event.status === "cancelled" && calendarEventCancelledClass,
+															isCalendarEventPast(event, now) && calendarEventPastClass,
+														)}
+													>
+														<span className="block truncate text-sm font-semibold leading-snug">
+															{getCalendarEventDisplayTitle(event)}
+														</span>
+														{detail && (
+															<span className={cn("mt-0.5 block line-clamp-2 text-xs", calendarEventMetaClass)}>
+																{detail}
+															</span>
+														)}
+													</button>
+												</CalendarEventTooltip>
+											)
+										})}
+									</div>
+								</div>
+							),
+						)}
 					</div>
 				)}
 

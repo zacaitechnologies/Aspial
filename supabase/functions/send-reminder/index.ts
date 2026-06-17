@@ -37,50 +37,72 @@ Deno.serve(async (req) => {
 
 		// Fetch due reminders (PENDING status, remindAt <= now)
 		// Also fetch FAILED reminders that should be retried (with exponential backoff)
+		// and reclaim any orphaned SENDING rows (a previous run died mid-send).
 		const now = new Date()
 		const nowISO = now.toISOString()
 		const MAX_RETRY_ATTEMPTS = 5
 		const RETRY_DELAY_HOURS = [1, 2, 4, 8, 24] // Exponential backoff: 1h, 2h, 4h, 8h, 24h
-		
-		// Fetch PENDING reminders that are due
-		const { data: pendingReminders, error: pendingError } = await supabase
-			.from('appointment_booking_reminders')
-			.select(`
+		// A reminder stuck in SENDING longer than this is considered orphaned and reprocessed.
+		const STUCK_SENDING_MINUTES = 15
+		const stuckBeforeISO = new Date(now.getTime() - STUCK_SENDING_MINUTES * 60 * 1000).toISOString()
+
+		// Use a LEFT join on projects so appointments without a linked project
+		// (e.g. internal bookings) still get their reminders sent. The recipient
+		// email falls back to reminder.recipientEmail, which is always set.
+		const REMINDER_SELECT = `
+			id,
+			appointmentBookingId,
+			offsetMinutes,
+			recipientEmail,
+			remindAt,
+			status,
+			attemptCount,
+			lastAttemptAt,
+			appointment_bookings!inner(
 				id,
-				appointmentBookingId,
-				offsetMinutes,
-				recipientEmail,
-				remindAt,
-				status,
-				attemptCount,
-				lastAttemptAt,
-				appointment_bookings!inner(
+				startDate,
+				endDate,
+				purpose,
+				bookedBy,
+				bookingName,
+				companyName,
+				appointments(
 					id,
-					startDate,
-					endDate,
-					purpose,
-					bookedBy,
-					appointments(
+					name,
+					location
+				),
+				projects(
+					id,
+					name,
+					clientName,
+					clients(
 						id,
 						name,
-						location
-					),
-					projects!inner(
-						id,
-						name,
-						clientName,
-						clients(
-							id,
-							name,
-							email,
-							company
-						)
+						email,
+						company
 					)
 				)
-			`)
+			)
+		`
+
+		// Fetch PENDING reminders that are due (oldest first so nothing is starved
+		// by the batch limit).
+		const { data: pendingReminders, error: pendingError } = await supabase
+			.from('appointment_booking_reminders')
+			.select(REMINDER_SELECT)
 			.eq('status', 'PENDING')
 			.lte('remindAt', nowISO)
-			.limit(50) // Process in batches
+			.order('remindAt', { ascending: true })
+			.limit(100) // Process in batches
+
+		// Reclaim orphaned SENDING reminders (run crashed/timed out before SENT/FAILED)
+		const { data: stuckSendingReminders, error: stuckError } = await supabase
+			.from('appointment_booking_reminders')
+			.select(REMINDER_SELECT)
+			.eq('status', 'SENDING')
+			.lte('lastAttemptAt', stuckBeforeISO)
+			.order('remindAt', { ascending: true })
+			.limit(50)
 
 		// Fetch FAILED reminders that should be retried
 		// Only retry if:
@@ -89,39 +111,7 @@ Deno.serve(async (req) => {
 		// 3. Appointment hasn't passed yet (optional - we can still send late reminders)
 		const { data: failedReminders, error: failedError } = await supabase
 			.from('appointment_booking_reminders')
-			.select(`
-				id,
-				appointmentBookingId,
-				offsetMinutes,
-				recipientEmail,
-				remindAt,
-				status,
-				attemptCount,
-				lastAttemptAt,
-				appointment_bookings!inner(
-					id,
-					startDate,
-					endDate,
-					purpose,
-					bookedBy,
-					appointments(
-						id,
-						name,
-						location
-					),
-					projects!inner(
-						id,
-						name,
-						clientName,
-						clients(
-							id,
-							name,
-							email,
-							company
-						)
-					)
-				)
-			`)
+			.select(REMINDER_SELECT)
 			.eq('status', 'FAILED')
 			.lt('attemptCount', MAX_RETRY_ATTEMPTS)
 			.limit(50)
@@ -145,13 +135,14 @@ Deno.serve(async (req) => {
 			return now >= retryAfter // Enough time has passed
 		})
 
-		// Combine pending and retryable failed reminders
+		// Combine pending, reclaimed stuck-SENDING, and retryable failed reminders
 		const reminders = [
 			...(pendingReminders || []),
+			...(stuckSendingReminders || []),
 			...retryableFailedReminders
 		]
 
-		const fetchError = pendingError || failedError
+		const fetchError = pendingError || failedError || stuckError
 
 		if (fetchError) {
 			console.error('Error fetching reminders:', fetchError)
@@ -180,7 +171,11 @@ Deno.serve(async (req) => {
 		// Process each reminder (each reminder is now one row per email)
 		for (const reminder of reminders) {
 			const booking = reminder.appointment_bookings
-			
+			console.log(
+				`Processing reminder ${reminder.id} (booking ${reminder.appointmentBookingId}, ` +
+				`offset ${reminder.offsetMinutes}m, status ${reminder.status}, remindAt ${reminder.remindAt})`
+			)
+
 			// Use email from reminder table, fallback to project client email
 			const client = booking?.projects?.clients
 			const clientEmail = reminder.recipientEmail || client?.email
@@ -212,6 +207,25 @@ Deno.serve(async (req) => {
 					})
 					.eq('id', reminder.id)
 				failureCount++
+				continue
+			}
+
+			// Skip reminders for appointments that have already started. A reminder
+			// for a past appointment is useless, and sending a backlog of overdue
+			// reminders (e.g. after a fix/redeploy) would spam clients. Mark these
+			// terminal so they are not retried.
+			const apptStart = new Date(booking.startDate)
+			if (apptStart.getTime() <= now.getTime()) {
+				await supabase
+					.from('appointment_booking_reminders')
+					.update({
+						status: 'FAILED',
+						lastError: 'Skipped: appointment already started',
+						lastAttemptAt: nowISO,
+						attemptCount: MAX_RETRY_ATTEMPTS
+					})
+					.eq('id', reminder.id)
+				console.log(`Skipping reminder ${reminder.id}: appointment ${booking.id} already started`)
 				continue
 			}
 
@@ -252,7 +266,14 @@ Deno.serve(async (req) => {
 					timeZone: MALAYSIA_TZ
 				})
 
-				const clientName = client?.name || booking.projects?.clientName || 'Valued Client'
+				// Greeting name: prefer the project client, then the booking's own
+				// contact/company (set when no project is linked), else a generic fallback.
+				const clientName =
+					client?.name ||
+					booking.projects?.clientName ||
+					booking.bookingName ||
+					booking.companyName ||
+					'Valued Client'
 
 				// Aspial office address and Waze navigation link (matches send-appointment-confirmation)
 				const ASPIAL_OFFICE_ADDRESS = "2A, JALAN DATO' ABU BAKAR, JALAN 16/1, SECTION 16, 46350 PETALING JAYA, SELANGOR"
@@ -415,6 +436,7 @@ Deno.serve(async (req) => {
 				successCount,
 				failureCount,
 				pendingCount: pendingReminders?.length || 0,
+				stuckSendingCount: stuckSendingReminders?.length || 0,
 				retryCount: retryableFailedReminders.length
 			}),
 			{

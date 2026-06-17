@@ -61,6 +61,15 @@ export function toBusinessTZParts(date: Date): { dateStr: string; timeStr: strin
   return { dateStr: `${year}-${month}-${day}`, timeStr: `${hour}:${minute}` }
 }
 
+/**
+ * Format a UTC Date as a business-timezone (Asia/Kuala_Lumpur, UTC+8) date-time
+ * string for display, e.g. "17 June 2026, 15:45". Hydration-safe (no locale APIs).
+ */
+export function formatBusinessDateTimeDisplay(date: Date): string {
+  const { dateStr, timeStr } = toBusinessTZParts(date)
+  return `${formatDateStringDirect(dateStr, { format: "long" })}, ${timeStr}`
+}
+
 /** Calendar-safe "today" key in business timezone (YYYY-MM-DD). */
 export function getBusinessTodayDateString(reference: Date = new Date()): string {
 	return toBusinessTZParts(reference).dateStr
