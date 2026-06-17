@@ -135,7 +135,6 @@ Deno.serve(async (req) => {
 		const result = await resend.emails.send({
 			from: 'Aspial Production <quotes@aspialwork.com>',
 			to: [clientEmail],
-			cc: ['admin@aspialwork.com'],
 			subject: `Appointment Confirmation - ${appointmentName} - ${formattedStartDate}`,
 			html: emailHtml,
 		})
