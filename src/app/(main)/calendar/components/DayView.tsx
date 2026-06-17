@@ -69,10 +69,14 @@ export function DayView({
 		[bookings, dateString]
 	)
 	
-	const allDayEvents = useMemo(
-		() => dayEvents.filter(isCalendarAllDayRowEvent),
-		[dayEvents]
-	)
+	// All-day row: show Blockers first, then Leave, then any other all-day events.
+	const allDayEvents = useMemo(() => {
+		const allDayRank = (e: CalendarBooking) =>
+			e.type === "blocker" ? 0 : e.type === "leave" ? 1 : 2
+		return dayEvents
+			.filter(isCalendarAllDayRowEvent)
+			.sort((a, b) => allDayRank(a) - allDayRank(b))
+	}, [dayEvents])
 	
 	const timedEvents = useMemo(
 		() => dayEvents.filter((e) => !isCalendarAllDayRowEvent(e)),

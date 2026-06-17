@@ -316,7 +316,10 @@ export default function CalendarClient({
 			.filter((b) => b.type === "blocker" || b.type === "leave")
 			.sort(
 				(a, b) =>
-					(a.startTime || "").localeCompare(b.startTime || "") || a.title.localeCompare(b.title)
+					// Blockers first, then leave; within each, order by start time then title.
+					(a.type === "blocker" ? 0 : 1) - (b.type === "blocker" ? 0 : 1) ||
+					(a.startTime || "").localeCompare(b.startTime || "") ||
+					a.title.localeCompare(b.title)
 			)
 	}, [todayInfoBookings])
 
