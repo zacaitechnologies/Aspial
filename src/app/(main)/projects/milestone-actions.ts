@@ -5,7 +5,7 @@ import { resolveMilestoneColor } from "@/lib/milestone-colors"
 import { CreateMilestoneData, UpdateMilestoneData, Milestone, TaskPriority, MilestoneStatus } from "./types"
 
 // Get all milestones for a project
-export async function getProjectMilestones(projectId: number) {
+export async function getProjectMilestones(projectId: number): Promise<Milestone[]> {
   return await prisma.milestone.findMany({
     where: { projectId },
     include: {
