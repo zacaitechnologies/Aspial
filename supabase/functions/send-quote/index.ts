@@ -115,7 +115,6 @@ Deno.serve(async (req) => {
     const result = await resend.emails.send({
       from: 'Aspial Production <quotes@aspialwork.com>',
       to: [customerEmail],
-      cc: ['admin@aspialwork.com'],
       subject: `Quotation ${quotationNumber} - Aspial Production`,
       html: emailHtml,
       attachments: [
