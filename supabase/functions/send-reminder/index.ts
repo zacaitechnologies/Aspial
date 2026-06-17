@@ -64,6 +64,8 @@ Deno.serve(async (req) => {
 				endDate,
 				purpose,
 				bookedBy,
+				bookingName,
+				companyName,
 				appointments(
 					id,
 					name,
@@ -264,7 +266,14 @@ Deno.serve(async (req) => {
 					timeZone: MALAYSIA_TZ
 				})
 
-				const clientName = client?.name || booking.projects?.clientName || 'Valued Client'
+				// Greeting name: prefer the project client, then the booking's own
+				// contact/company (set when no project is linked), else a generic fallback.
+				const clientName =
+					client?.name ||
+					booking.projects?.clientName ||
+					booking.bookingName ||
+					booking.companyName ||
+					'Valued Client'
 
 				// Aspial office address and Waze navigation link (matches send-appointment-confirmation)
 				const ASPIAL_OFFICE_ADDRESS = "2A, JALAN DATO' ABU BAKAR, JALAN 16/1, SECTION 16, 46350 PETALING JAYA, SELANGOR"
