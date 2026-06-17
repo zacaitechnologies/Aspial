@@ -208,6 +208,25 @@ Deno.serve(async (req) => {
 				continue
 			}
 
+			// Skip reminders for appointments that have already started. A reminder
+			// for a past appointment is useless, and sending a backlog of overdue
+			// reminders (e.g. after a fix/redeploy) would spam clients. Mark these
+			// terminal so they are not retried.
+			const apptStart = new Date(booking.startDate)
+			if (apptStart.getTime() <= now.getTime()) {
+				await supabase
+					.from('appointment_booking_reminders')
+					.update({
+						status: 'FAILED',
+						lastError: 'Skipped: appointment already started',
+						lastAttemptAt: nowISO,
+						attemptCount: MAX_RETRY_ATTEMPTS
+					})
+					.eq('id', reminder.id)
+				console.log(`Skipping reminder ${reminder.id}: appointment ${booking.id} already started`)
+				continue
+			}
+
 			// Mark as SENDING (reset from FAILED to SENDING for retries)
 			// Note: attemptCount will be incremented in the catch block if it fails
 			await supabase
