@@ -1,7 +1,4 @@
-import { Resend } from 'npm:resend'
-import { handleResendSendResult } from '../_shared/resend-response.ts'
-
-const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
+import { sendEmail, handleSesSendResult } from '../_shared/ses.ts'
 
 Deno.serve(async (req) => {
 	try {
@@ -131,15 +128,15 @@ Deno.serve(async (req) => {
 </html>
 		`
 
-		// Send the email via Resend
-		const result = await resend.emails.send({
+		// Send the email via Amazon SES
+		const result = await sendEmail({
 			from: 'Aspial Production <quotes@aspialwork.com>',
 			to: [clientEmail],
 			subject: `Appointment Confirmation - ${appointmentName} - ${formattedStartDate}`,
 			html: emailHtml,
 		})
 
-		return handleResendSendResult(result)
+		return handleSesSendResult(result)
 	} catch (error) {
 		console.error('Error sending appointment confirmation email:', error)
 		const errorMessage = error instanceof Error ? error.message : 'Failed to send email'

@@ -1,8 +1,5 @@
-import { Resend } from 'npm:resend'
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { getResendSendFailureMessage, isResendSendSuccessful } from '../_shared/resend-response.ts'
-
-const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
+import { getSesSendFailureMessage, isSesSendSuccessful, sendEmail } from '../_shared/ses.ts'
 
 Deno.serve(async (req) => {
 	try {
@@ -352,18 +349,18 @@ Deno.serve(async (req) => {
 				`
 
 				// Send email (each reminder row is for one email)
-				const emailResult = await resend.emails.send({
+				const emailResult = await sendEmail({
 					from: 'Aspial Production <appointments@aspialwork.com>',
 					to: [clientEmail],
 					subject: `Appointment Reminder - ${booking.appointments?.name || 'Aspial Production'}`,
 					html: emailHtml,
 				})
 
-				if (!isResendSendSuccessful(emailResult)) {
-					throw new Error(getResendSendFailureMessage(emailResult))
+				if (!isSesSendSuccessful(emailResult)) {
+					throw new Error(getSesSendFailureMessage(emailResult))
 				}
 
-				// Mark as SENT and log email only after Resend confirms delivery
+				// Mark as SENT and log email only after SES confirms delivery
 				await supabase
 					.from('appointment_booking_reminders')
 					.update({

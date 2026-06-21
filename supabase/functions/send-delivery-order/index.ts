@@ -1,7 +1,4 @@
-import { Resend } from 'npm:resend'
-import { handleResendSendResult } from '../_shared/resend-response.ts'
-
-const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
+import { sendEmail, handleSesSendResult } from '../_shared/ses.ts'
 
 Deno.serve(async (req) => {
 	try {
@@ -88,7 +85,7 @@ Deno.serve(async (req) => {
 </html>
 		`
 
-		const result = await resend.emails.send({
+		const result = await sendEmail({
 			from: 'Aspial Production <quotes@aspialwork.com>',
 			to: [customerEmail],
 			subject: `Delivery Order ${deliveryOrderNumber} - Aspial Production`,
@@ -97,13 +94,12 @@ Deno.serve(async (req) => {
 				{
 					filename: `DeliveryOrder-${deliveryOrderNumber}.pdf`,
 					content: cleanBase64,
-					type: 'application/pdf',
-					disposition: 'attachment',
+					contentType: 'application/pdf',
 				},
 			],
 		})
 
-		return handleResendSendResult(result)
+		return handleSesSendResult(result)
 	} catch (error) {
 		console.error('Error sending delivery order email:', error)
 		return new Response(
