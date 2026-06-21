@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
 		// Send the email via Amazon SES
 		const result = await sendEmail({
-			from: 'Aspial Production <quotes@aspialwork.com>',
+			from: 'Aspial Production <appointments@aspialwork.com>',
 			to: [clientEmail],
 			subject: `Appointment Confirmation - ${appointmentName} - ${formattedStartDate}`,
 			html: emailHtml,
