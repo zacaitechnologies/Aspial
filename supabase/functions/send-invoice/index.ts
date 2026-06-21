@@ -1,7 +1,4 @@
-import { Resend } from 'npm:resend'
-import { handleResendSendResult } from '../_shared/resend-response.ts'
-
-const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
+import { sendEmail, handleSesSendResult } from '../_shared/ses.ts'
 
 Deno.serve(async (req) => {
 	try {
@@ -35,7 +32,7 @@ Deno.serve(async (req) => {
 			day: 'numeric'
 		})
 
-		// Convert base64 string to Buffer for Resend attachment
+		// Strip any data: URI prefix; SES takes the raw base64 attachment content
 		// Remove data URI prefix if present (data:application/pdf;base64,)
 		const cleanBase64 = pdfBase64.includes(',') ? pdfBase64.split(',')[1] : pdfBase64
 
@@ -113,8 +110,8 @@ Deno.serve(async (req) => {
 </html>
 		`
 
-		// Send the email via Resend
-		const result = await resend.emails.send({
+		// Send the email via Amazon SES
+		const result = await sendEmail({
 			from: 'Aspial Production <quotes@aspialwork.com>',
 			to: [customerEmail],
 			subject: `Invoice ${invoiceNumber} - Aspial Production`,
@@ -123,13 +120,12 @@ Deno.serve(async (req) => {
 				{
 					filename: `Invoice-${invoiceNumber}.pdf`,
 					content: cleanBase64,
-					type: 'application/pdf',
-					disposition: 'attachment',
+					contentType: 'application/pdf',
 				},
 			],
 		})
 
-		return handleResendSendResult(result)
+		return handleSesSendResult(result)
 	} catch (error) {
 		console.error('Error sending invoice email:', error)
 		return new Response(
