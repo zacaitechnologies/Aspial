@@ -8,7 +8,9 @@ import {
 } from "./actions"
 import { DashboardAppointmentsSection } from "./components/DashboardAppointmentsSection"
 import { DashboardHeader } from "./components/DashboardHeader"
+import { DashboardKpiSection } from "./components/DashboardKpiSection"
 import { DashboardTasksSection } from "./components/DashboardTasksSection"
+import { getMyKpiDashboardData } from "@/app/(main)/kpi/actions"
 import type { DashboardAppointment } from "./types"
 import { DEFAULT_DASHBOARD_TASK_STATUSES } from "./types"
 
@@ -50,6 +52,8 @@ export default async function DashboardPage() {
 			? getDashboardTasks({ scope: "all", statuses: DEFAULT_DASHBOARD_TASK_STATUSES })
 			: Promise.resolve([]),
 	])
+
+	const kpiDashboard = await getMyKpiDashboardData()
 
 	const assignedBookings = await prisma.appointmentBooking.findMany({
 		where: {
@@ -95,6 +99,11 @@ export default async function DashboardPage() {
 					lastUpdatedAt={lastUpdatedAt?.toISOString() ?? null}
 				/>
 
+				<DashboardKpiSection
+					latestReport={kpiDashboard.latestReport}
+					unratedColleagues={kpiDashboard.unratedColleagues}
+					period={kpiDashboard.period}
+				/>
 				<DashboardAppointmentsSection appointments={appointments} />
 				<DashboardTasksSection
 					initialMyTasks={myTasks}

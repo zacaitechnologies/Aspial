@@ -84,6 +84,10 @@ model User {
   appointmentBookings      AppointmentBooking[]      @relation("AppointmentBookingBooker")
   cancelledAppointmentBookings AppointmentBooking[]  @relation("AppointmentBookingCanceller")
   appointmentAssignments   AppointmentBookingAssignee[] @relation("AppointmentBookingAssignee")
+  kpiReports               KpiReport[]               @relation("KpiReportEmployee")
+  createdKpiReports        KpiReport[]               @relation("KpiReportCreator")
+  teamworkRatingsGiven     KpiTeamworkRating[]       @relation("KpiTeamworkRater")
+  teamworkRatingsReceived  KpiTeamworkRating[]       @relation("KpiTeamworkRatee")
 
   @@index([supabase_id])
   @@map("user")
@@ -1021,4 +1025,90 @@ model CalendarBlocker {
   updatedAt          DateTime @updatedAt
 
   @@map("calendar_blockers")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KPI Performance module
+// Admins rate each non-admin employee monthly across weighted categories.
+// Teamwork is peer-rated (averaged), not rated by the admin.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum KpiSection {
+  sales
+  operations
+}
+
+enum KpiReportStatus {
+  draft
+  finalized
+}
+
+enum KpiReplyChoice {
+  too_high
+  fair
+  too_low
+}
+
+enum KpiCategory {
+  client_experience
+  sales_performance
+  work_quality
+  deadline_reliability
+  teamwork
+  growth_initiative
+}
+
+model KpiReport {
+  id             Int                @id @default(autoincrement())
+  employeeId     String             // User.supabase_id of the rated employee
+  section        KpiSection         // snapshot of the employee's section at creation
+  year           Int
+  month          Int                // 1-12
+  status         KpiReportStatus    @default(draft)
+  finalScore     Float?             // weighted final score, snapshotted at finalize
+  overallComment String?
+  createdById    String             // admin User.supabase_id
+  finalizedAt    DateTime?
+  replyChoice    KpiReplyChoice?    // employee's required reply after finalize
+  replyComment   String?
+  repliedAt      DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  scores         KpiCategoryScore[]
+  employee       User               @relation("KpiReportEmployee", fields: [employeeId], references: [supabase_id])
+  createdBy      User               @relation("KpiReportCreator", fields: [createdById], references: [supabase_id])
+
+  @@unique([employeeId, year, month])
+  @@index([year, month])
+  @@map("kpi_reports")
+}
+
+model KpiCategoryScore {
+  id       Int         @id @default(autoincrement())
+  reportId Int
+  category KpiCategory
+  score    Float?      // 0-100; for teamwork this is the peer-average snapshot
+  comment  String?
+  report   KpiReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, category])
+  @@map("kpi_category_scores")
+}
+
+model KpiTeamworkRating {
+  id        Int      @id @default(autoincrement())
+  year      Int
+  month     Int
+  raterId   String   // peer giving the rating (User.supabase_id)
+  rateeId   String   // employee being rated (User.supabase_id)
+  score     Float    // 0-100
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rater     User     @relation("KpiTeamworkRater", fields: [raterId], references: [supabase_id])
+  ratee     User     @relation("KpiTeamworkRatee", fields: [rateeId], references: [supabase_id])
+
+  @@unique([year, month, raterId, rateeId])
+  @@index([year, month, rateeId])
+  @@map("kpi_teamwork_ratings")
 }
