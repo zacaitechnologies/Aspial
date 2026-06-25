@@ -781,26 +781,6 @@ export async function updateAppointmentBooking(
 		}
 	}
 
-	// Reject overlap with other active bookings on the same resource
-	if (existing.appointmentId) {
-		const conflict = await prisma.appointmentBooking.findFirst({
-			where: {
-				id: { not: id },
-				appointmentId: existing.appointmentId,
-				status: "active",
-				startDate: { lt: endDate },
-				endDate: { gt: startDate },
-			},
-			select: { id: true, bookedBy: true },
-		})
-		if (conflict) {
-			return {
-				success: false,
-				error: `This time overlaps another booking (${conflict.bookedBy}).`,
-			}
-		}
-	}
-
 	try {
 		await prisma.appointmentBooking.update({
 			where: { id },
