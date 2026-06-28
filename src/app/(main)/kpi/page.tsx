@@ -20,7 +20,7 @@ export default async function KpiPage() {
     return (
       <div className="px-4 py-6 sm:px-6">
         <div className="mx-auto max-w-6xl">
-          <KpiAdminConsole employees={employees} anchor={period} initialPeriod={period} />
+          <KpiAdminConsole employees={employees} initialPeriod={period} />
         </div>
       </div>
     )
@@ -33,10 +33,9 @@ export default async function KpiPage() {
 
   return (
     <div className="px-4 py-6 sm:px-6">
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <KpiEmployeeView
           reports={reports}
-          anchor={period}
           initialPeriod={period}
           initialColleagues={colleagues}
         />

@@ -21,6 +21,7 @@ import type {
   OverdueTaskDTO,
   RateableEmployee,
   TeamworkSummary,
+  AdminKpiReportListItem,
 } from "./types"
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -196,9 +197,53 @@ export async function saveReportDraft(input: z.input<typeof saveDraftSchema>): P
 
   const existing = await prisma.kpiReport.findUnique({
     where: { employeeId_year_month: { employeeId: data.employeeId, year: data.year, month: data.month } },
+    include: { scores: true },
   })
+
+  const adminScores = data.scores.filter((s) => s.category !== "teamwork")
+
   if (existing?.status === "finalized") {
-    throw new Error("This report is finalized and can no longer be edited")
+    await prisma.$transaction([
+      prisma.kpiReport.update({
+        where: { id: existing.id },
+        data: { overallComment: data.overallComment ?? null },
+      }),
+      ...adminScores.map((s) =>
+        prisma.kpiCategoryScore.upsert({
+          where: { reportId_category: { reportId: existing.id, category: s.category } },
+          create: { reportId: existing.id, category: s.category, score: s.score, comment: s.comment ?? null },
+          update: { score: s.score, comment: s.comment ?? null },
+        })
+      ),
+    ])
+
+    const teamwork = await teamworkAverage(existing.employeeId, existing.year, existing.month)
+    const scoreMap: Partial<Record<KpiCategoryKey, number>> = {}
+    for (const s of adminScores) {
+      if (typeof s.score === "number") scoreMap[s.category as KpiCategoryKey] = s.score
+    }
+    if (teamwork.average != null) scoreMap.teamwork = teamwork.average
+
+    const finalScore = computeFinalScore(existing.section as KpiSection, scoreMap)
+
+    await prisma.$transaction([
+      prisma.kpiCategoryScore.upsert({
+        where: { reportId_category: { reportId: existing.id, category: "teamwork" } },
+        create: { reportId: existing.id, category: "teamwork", score: teamwork.average },
+        update: { score: teamwork.average },
+      }),
+      prisma.kpiReport.update({
+        where: { id: existing.id },
+        data: { finalScore },
+      }),
+    ])
+
+    const saved = await prisma.kpiReport.findUnique({
+      where: { id: existing.id },
+      include: { scores: true },
+    })
+    revalidatePath("/kpi")
+    return mapReportToDTO(saved as ReportWithScores, displayName(employee))
   }
 
   const report =
@@ -215,7 +260,6 @@ export async function saveReportDraft(input: z.input<typeof saveDraftSchema>): P
     }))
 
   // Teamwork is peer-rated — never written from the admin form.
-  const adminScores = data.scores.filter((s) => s.category !== "teamwork")
 
   await prisma.$transaction([
     prisma.kpiReport.update({
@@ -287,9 +331,15 @@ async function teamworkAverage(
 ): Promise<TeamworkSummary> {
   const ratings = await prisma.kpiTeamworkRating.findMany({
     where: { rateeId: employeeId, year, month },
-    select: { score: true, comment: true },
+    select: {
+      raterId: true,
+      score: true,
+      comment: true,
+      rater: { select: { firstName: true, lastName: true, email: true } },
+    },
+    orderBy: [{ rater: { firstName: "asc" } }, { rater: { lastName: "asc" } }],
   })
-  if (ratings.length === 0) return { average: null, count: 0, comments: [] }
+  if (ratings.length === 0) return { average: null, count: 0, comments: [], ratings: [] }
   const avg = ratings.reduce((acc, r) => acc + r.score, 0) / ratings.length
   return {
     average: Math.round(avg * 10) / 10,
@@ -297,6 +347,12 @@ async function teamworkAverage(
     comments: ratings
       .map((r) => r.comment)
       .filter((c): c is string => !!c && c.trim().length > 0),
+    ratings: ratings.map((r) => ({
+      raterId: r.raterId,
+      raterName: displayName(r.rater),
+      score: r.score,
+      comment: r.comment,
+    })),
   }
 }
 
@@ -354,6 +410,90 @@ export async function finalizeReport(input: z.input<typeof finalizeSchema>) {
   revalidatePath("/kpi")
   revalidatePath("/dashboard")
   return { success: true as const, finalScore }
+}
+
+/** Admin KPI list — filterable by period and employee, sorted by created date (newest first). */
+export async function getAdminKpiReportList(filters: {
+  year?: number | null
+  month?: number | null
+  employeeId?: string | null
+}): Promise<AdminKpiReportListItem[]> {
+  await requireAdmin()
+
+  const year = filters.year ?? null
+  const month = filters.month ?? null
+  const employeeId = filters.employeeId?.trim() || null
+
+  const employeeWhere = {
+    ...NON_ADMIN_WHERE,
+    ...(employeeId ? { supabase_id: employeeId } : {}),
+  }
+
+  const [employees, reports] = await Promise.all([
+    prisma.user.findMany({
+      where: employeeWhere,
+      include: userRolesInclude,
+      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    }),
+    prisma.kpiReport.findMany({
+      where: {
+        ...(year != null ? { year } : {}),
+        ...(month != null ? { month } : {}),
+        ...(employeeId ? { employeeId } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ])
+
+  const reportByKey = new Map(
+    reports.map((r) => [`${r.employeeId}-${r.year}-${r.month}`, r])
+  )
+
+  // Specific period selected → include every employee (not_started rows included).
+  if (year != null && month != null) {
+    const rows = employees.map((u) => {
+      const report = reportByKey.get(`${u.supabase_id}-${year}-${month}`)
+      return {
+        employeeId: u.supabase_id,
+        employeeName: displayName(u),
+        section: sectionOf(u),
+        year,
+        month,
+        status: report ? report.status : ("not_started" as const),
+        finalScore: report?.finalScore ?? null,
+        createdAt: report?.createdAt.toISOString() ?? null,
+      }
+    })
+    return rows.sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+      return bTime - aTime
+    })
+  }
+
+  // Broader filters → existing reports only.
+  const employeeById = new Map(employees.map((u) => [u.supabase_id, u]))
+  const rows: AdminKpiReportListItem[] = []
+  for (const report of reports) {
+    const u = employeeById.get(report.employeeId)
+    if (!u) continue
+    rows.push({
+      employeeId: report.employeeId,
+      employeeName: displayName(u),
+      section: sectionOf(u),
+      year: report.year,
+      month: report.month,
+      status: report.status,
+      finalScore: report.finalScore,
+      createdAt: report.createdAt.toISOString(),
+    })
+  }
+
+  return rows.sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return bTime - aTime
+  })
 }
 
 /** Admin monthly report table — every non-admin employee's status & scores for the period. */

@@ -34,12 +34,21 @@ export type KpiReportDTO = {
   scores: KpiCategoryScoreDTO[]
 }
 
+export type TeamworkRatingDTO = {
+  raterId: string
+  raterName: string
+  score: number
+  comment: string | null
+}
+
 export type TeamworkSummary = {
   /** Average of submitted peer ratings (1 dp), or null when nobody has rated yet. */
   average: number | null
   count: number
   /** Anonymized peer comments (no rater identity). */
   comments: string[]
+  /** Individual peer ratings — shown to admins only. */
+  ratings: TeamworkRatingDTO[]
 }
 
 export type OverdueTaskDTO = {
@@ -66,6 +75,19 @@ export type MonthlyReportRow = {
   finalScore: number | null
   scores: Partial<Record<KpiCategoryKey, number | null>>
   replyChoice: KpiReplyChoice | null
+}
+
+/** Admin KPI list row — one employee × period, with optional existing report. */
+export type AdminKpiReportListItem = {
+  employeeId: string
+  employeeName: string
+  section: KpiSection
+  year: number
+  month: number
+  status: KpiReportStatus | "not_started"
+  finalScore: number | null
+  /** ISO string; null when no report exists yet. */
+  createdAt: string | null
 }
 
 /** Everything the admin rating form needs for one employee + period. */

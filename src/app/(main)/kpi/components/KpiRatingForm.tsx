@@ -88,7 +88,10 @@ export function KpiRatingForm({
         scores: buildScorePayload(),
       })
       onChanged(saved)
-      toast({ title: "Draft saved", description: `${data.employeeName} · ${formatPeriod(period.year, period.month)}` })
+      toast({
+        title: finalized ? "Changes saved" : "Draft saved",
+        description: `${data.employeeName} · ${formatPeriod(period.year, period.month)}`,
+      })
     } catch (e) {
       toast({ title: "Could not save", description: (e as Error).message, variant: "destructive" })
     } finally {
@@ -158,6 +161,7 @@ export function KpiRatingForm({
             <p className="flex items-center gap-2 font-medium text-green-800">
               <CheckCircle2 className="size-4" />
               Finalized{data.report.finalizedAt ? ` on ${formatBusinessDateTimeDisplay(new Date(data.report.finalizedAt))}` : ""}.
+              You can still update scores and comments — changes will recalculate the final score.
             </p>
             {data.report.replyChoice ? (
               <div className="rounded-md border bg-card p-3">
@@ -186,7 +190,6 @@ export function KpiRatingForm({
             comment={scores[cat]?.comment ?? ""}
             onScoreChange={(v) => setScore(cat, v)}
             onCommentChange={(v) => setComment(cat, v)}
-            disabled={finalized}
             teamwork={cat === "teamwork" ? data.teamwork : undefined}
             overdueTasks={cat === "deadline_reliability" ? data.overdueTasks : undefined}
           />
@@ -198,7 +201,6 @@ export function KpiRatingForm({
         <CardContent className="space-y-1 py-4">
           <Label className="text-sm font-medium">Overall manager comments</Label>
           <Textarea
-            disabled={finalized}
             value={overallComment}
             onChange={(e) => setOverallComment(e.target.value)}
             placeholder="Summary of performance, key achievements, and areas to develop…"
@@ -208,16 +210,16 @@ export function KpiRatingForm({
       </Card>
 
       {/* Actions */}
-      {!finalized && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="outline" onClick={handleSave} disabled={saving || finalizing}>
-            <Save className="size-4" /> {saving ? "Saving…" : "Save draft"}
-          </Button>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" onClick={handleSave} disabled={saving || finalizing}>
+          <Save className="size-4" /> {saving ? "Saving…" : finalized ? "Save changes" : "Save draft"}
+        </Button>
+        {!finalized && (
           <Button onClick={() => setConfirmOpen(true)} disabled={saving || finalizing}>
             <Lock className="size-4" /> Finalize & send
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       <ConfirmationDialog
         isOpen={confirmOpen}

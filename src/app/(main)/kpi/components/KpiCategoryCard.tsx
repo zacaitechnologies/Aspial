@@ -84,6 +84,7 @@ export function KpiCategoryCard({
   onScoreChange,
   onCommentChange,
   disabled,
+  readOnly,
   teamwork,
   overdueTasks,
 }: {
@@ -91,9 +92,10 @@ export function KpiCategoryCard({
   category: KpiCategoryKey
   score: number | null
   comment: string
-  onScoreChange: (value: number | null) => void
-  onCommentChange: (value: string) => void
+  onScoreChange?: (value: number | null) => void
+  onCommentChange?: (value: string) => void
   disabled?: boolean
+  readOnly?: boolean
   teamwork?: TeamworkSummary
   overdueTasks?: OverdueTaskDTO[]
 }) {
@@ -119,30 +121,61 @@ export function KpiCategoryCard({
         <StandardBox category={category} />
 
         {meta.peerRated ? (
-          // Teamwork — read-only average of peer ratings (admin does not rate this).
-          <div className="rounded-lg border bg-muted/40 p-3">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-semibold tabular-nums text-foreground">
-                {teamwork?.average != null ? teamwork.average : "—"}
-              </span>
-              <div className="text-xs text-muted-foreground">
-                <p className="flex items-center gap-1.5">
-                  <ClipboardList className="size-3.5" />
-                  {teamwork && teamwork.count > 0
-                    ? `Average of ${teamwork.count} peer rating${teamwork.count === 1 ? "" : "s"}`
-                    : "No peer ratings submitted yet"}
-                </p>
-                <p className="mt-0.5">Rated by colleagues — not editable here.</p>
+          <div className="space-y-3">
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl font-semibold tabular-nums text-foreground">
+                  {teamwork?.average != null ? teamwork.average : "—"}
+                </span>
+                <div className="text-xs text-muted-foreground">
+                  <p className="flex items-center gap-1.5">
+                    <ClipboardList className="size-3.5" />
+                    {teamwork && teamwork.count > 0
+                      ? `Average of ${teamwork.count} peer rating${teamwork.count === 1 ? "" : "s"}`
+                      : "No peer ratings submitted yet"}
+                  </p>
+                  <p className="mt-0.5">Peer-rated — not editable here.</p>
+                </div>
               </div>
             </div>
-            {teamwork && teamwork.comments.length > 0 && (
-              <ul className="mt-2 space-y-1 border-t pt-2 text-xs text-muted-foreground">
-                {teamwork.comments.map((c, i) => (
-                  <li key={i} className="italic">“{c}”</li>
-                ))}
-              </ul>
+
+            {teamwork && teamwork.ratings.length > 0 && (
+              <div className="rounded-lg border p-3 text-xs">
+                <p className="mb-2 font-semibold text-foreground">Individual peer ratings</p>
+                <ul className="divide-y">
+                  {teamwork.ratings.map((rating) => (
+                    <li key={rating.raterId} className="flex flex-col gap-1 py-2 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">{rating.raterName}</p>
+                        {rating.comment && (
+                          <p className="mt-0.5 text-muted-foreground">“{rating.comment}”</p>
+                        )}
+                      </div>
+                      <span className="shrink-0 tabular-nums font-semibold text-foreground sm:text-right">
+                        {rating.score}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
+        ) : readOnly ? (
+          <>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-semibold tabular-nums text-foreground">
+                {score != null ? score : "—"}
+              </span>
+              {band && (
+                <Badge variant="outline" className={`${band.className} shrink-0`}>
+                  {band.label}
+                </Badge>
+              )}
+            </div>
+            {comment && (
+              <div className="rounded-md bg-muted/40 p-3 text-sm text-muted-foreground">{comment}</div>
+            )}
+          </>
         ) : (
           <>
             <div className="flex items-center gap-3">
@@ -153,7 +186,7 @@ export function KpiCategoryCard({
                 step={1}
                 disabled={disabled}
                 value={score ?? 0}
-                onChange={(e) => onScoreChange(Number(e.target.value))}
+                onChange={(e) => onScoreChange?.(Number(e.target.value))}
                 className="h-2 flex-1 cursor-pointer accent-primary disabled:cursor-not-allowed"
                 aria-label={`${meta.label} score`}
               />
@@ -166,8 +199,8 @@ export function KpiCategoryCard({
                 placeholder="—"
                 onChange={(e) => {
                   const v = e.target.value
-                  if (v === "") return onScoreChange(null)
-                  onScoreChange(Math.max(0, Math.min(100, Number(v))))
+                  if (v === "") return onScoreChange?.(null)
+                  onScoreChange?.(Math.max(0, Math.min(100, Number(v))))
                 }}
                 className="h-9 w-20 text-center tabular-nums"
               />
@@ -183,7 +216,7 @@ export function KpiCategoryCard({
               <Textarea
                 disabled={disabled}
                 value={comment}
-                onChange={(e) => onCommentChange(e.target.value)}
+                onChange={(e) => onCommentChange?.(e.target.value)}
                 placeholder={`Feedback for ${meta.label}…`}
                 className="min-h-[60px] text-sm"
               />
