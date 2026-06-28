@@ -16,12 +16,14 @@ export type BucketKey =
   | "service"
   | "contracts"
   | "leave-attachments"
+  | "announcements"
 
 export const BUCKET_KEYS: readonly BucketKey[] = [
   "profile-pictures",
   "service",
   "contracts",
   "leave-attachments",
+  "announcements",
 ] as const
 
 interface BucketConfig {
@@ -74,6 +76,13 @@ const BUCKET_CONFIGS: Record<BucketKey, BucketConfig> = {
     fileSizeLimit: FIVE_MB,
     allowedMimeTypes: IMAGE_AND_PDF_MIMES,
     description: "Leave application supporting documents.",
+  },
+  announcements: {
+    key: "announcements",
+    public: true,
+    fileSizeLimit: FIVE_MB,
+    allowedMimeTypes: IMAGE_MIMES,
+    description: "Dashboard announcement banner images (publicly viewable).",
   },
 }
 
@@ -190,6 +199,33 @@ CREATE POLICY "Allow authenticated leave deletes"
 ON storage.objects FOR DELETE
 TO authenticated
 USING (bucket_id = 'leave-attachments');`,
+
+  announcements: `-- announcements (public bucket — banners viewable by everyone; writes admin-gated in server actions)
+DROP POLICY IF EXISTS "Authenticated users can upload announcement images" ON storage.objects;
+DROP POLICY IF EXISTS "Anyone can view announcement images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update announcement images" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete announcement images" ON storage.objects;
+
+CREATE POLICY "Authenticated users can upload announcement images"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'announcements');
+
+CREATE POLICY "Anyone can view announcement images"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'announcements');
+
+CREATE POLICY "Authenticated users can update announcement images"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'announcements')
+WITH CHECK (bucket_id = 'announcements');
+
+CREATE POLICY "Authenticated users can delete announcement images"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'announcements');`,
 }
 
 export interface SetupResult {
@@ -292,6 +328,9 @@ export const setupContractsStorage = (): Promise<SetupResult> =>
 
 export const setupLeaveAttachmentsStorage = (): Promise<SetupResult> =>
   setupBucket("leave-attachments")
+
+export const setupAnnouncementsStorage = (): Promise<SetupResult> =>
+  setupBucket("announcements")
 
 /** Runs all bucket setups sequentially. Order is stable so output is predictable. */
 export async function setupAllStorage(): Promise<SetupResult[]> {

@@ -10,6 +10,8 @@ import { DashboardAppointmentsSection } from "./components/DashboardAppointments
 import { DashboardHeader } from "./components/DashboardHeader"
 import { DashboardKpiSection } from "./components/DashboardKpiSection"
 import { DashboardTasksSection } from "./components/DashboardTasksSection"
+import { AnnouncementSlideshow } from "./components/announcements/AnnouncementSlideshow"
+import { getActiveAnnouncements } from "./announcement-actions"
 import { getMyKpiDashboardData } from "@/app/(main)/kpi/actions"
 import type { DashboardAppointment } from "./types"
 import { DEFAULT_DASHBOARD_TASK_STATUSES } from "./types"
@@ -44,13 +46,14 @@ export default async function DashboardPage() {
 
 	const isAdmin = await getCachedIsUserAdmin(user.id)
 
-	const [userRole, myTasks, assigneeOptions, allTasks] = await Promise.all([
+	const [userRole, myTasks, assigneeOptions, allTasks, activeAnnouncements] = await Promise.all([
 		getCachedUserRole(user.id),
 		getDashboardTasks({ scope: "my", statuses: DEFAULT_DASHBOARD_TASK_STATUSES }),
 		isAdmin ? getDashboardTaskAssigneeOptions() : Promise.resolve([]),
 		isAdmin
 			? getDashboardTasks({ scope: "all", statuses: DEFAULT_DASHBOARD_TASK_STATUSES })
 			: Promise.resolve([]),
+		getActiveAnnouncements(),
 	])
 
 	const kpiDashboard = await getMyKpiDashboardData()
@@ -93,24 +96,31 @@ export default async function DashboardPage() {
 
 	return (
 		<div className="dashboard-page min-h-screen bg-background px-4 py-6 sm:px-6">
-			<div className="mx-auto max-w-4xl space-y-8">
+			<div className="mx-auto max-w-6xl space-y-8">
 				<DashboardHeader
 					initialUserRole={userRole}
 					lastUpdatedAt={lastUpdatedAt?.toISOString() ?? null}
 				/>
+
+				{/* Hero: announcements banner — visible to everyone, managed by admins */}
+				<AnnouncementSlideshow announcements={activeAnnouncements} isAdmin={isAdmin} />
 
 				<DashboardKpiSection
 					latestReport={kpiDashboard.latestReport}
 					unratedColleagues={kpiDashboard.unratedColleagues}
 					period={kpiDashboard.period}
 				/>
-				<DashboardAppointmentsSection appointments={appointments} />
-				<DashboardTasksSection
-					initialMyTasks={myTasks}
-					initialAllTasks={allTasks}
-					isAdmin={isAdmin}
-					assigneeOptions={assigneeOptions}
-				/>
+
+				{/* Appointments + tasks sit side by side on large screens, stack below */}
+				<div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+					<DashboardAppointmentsSection appointments={appointments} />
+					<DashboardTasksSection
+						initialMyTasks={myTasks}
+						initialAllTasks={allTasks}
+						isAdmin={isAdmin}
+						assigneeOptions={assigneeOptions}
+					/>
+				</div>
 			</div>
 		</div>
 	)

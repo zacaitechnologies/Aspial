@@ -28,6 +28,7 @@
 
 import {
   BUCKET_KEYS,
+  setupAnnouncementsStorage,
   setupContractsStorage,
   setupLeaveAttachmentsStorage,
   setupProfilePicturesStorage,
@@ -41,6 +42,7 @@ const HANDLERS: Record<BucketKey, () => Promise<SetupResult>> = {
   service: setupServiceStorage,
   contracts: setupContractsStorage,
   "leave-attachments": setupLeaveAttachmentsStorage,
+  announcements: setupAnnouncementsStorage,
 }
 
 function isBucketKey(value: string): value is BucketKey {

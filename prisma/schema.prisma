@@ -88,6 +88,7 @@ model User {
   createdKpiReports        KpiReport[]               @relation("KpiReportCreator")
   teamworkRatingsGiven     KpiTeamworkRating[]       @relation("KpiTeamworkRater")
   teamworkRatingsReceived  KpiTeamworkRating[]       @relation("KpiTeamworkRatee")
+  announcements            Announcement[]            @relation("AnnouncementCreator")
 
   @@index([supabase_id])
   @@map("user")
@@ -1111,4 +1112,44 @@ model KpiTeamworkRating {
   @@unique([year, month, raterId, rateeId])
   @@index([year, month, rateeId])
   @@map("kpi_teamwork_ratings")
+}
+
+// Dashboard announcements shown as a banner slideshow. Admins create/manage them;
+// every authenticated user views the active ones on the dashboard.
+model Announcement {
+  id          String                 @id @default(cuid())
+  title       String
+  description String                 // full text shown in the click-to-expand dialog
+  bannerType  AnnouncementBannerType @default(template)
+  imageUrl    String?                // storage object key in the `announcements` bucket; null for templates
+  templateKey AnnouncementTemplate?  @default(gradientGreen)
+  status      AnnouncementStatus     @default(draft)
+  startDate   DateTime?              // null = visible immediately once active
+  endDate     DateTime?              // null = never auto-expires
+  sortOrder   Int                    @default(0)
+  createdById String                 // User.supabase_id of the admin who created it
+  createdBy   User                   @relation("AnnouncementCreator", fields: [createdById], references: [supabase_id])
+  created_at  DateTime               @default(now())
+  updated_at  DateTime               @updatedAt
+
+  @@index([status, startDate, endDate])
+  @@index([sortOrder])
+  @@map("announcements")
+}
+
+enum AnnouncementBannerType {
+  image
+  template
+}
+
+enum AnnouncementStatus {
+  draft
+  active
+  inactive
+}
+
+enum AnnouncementTemplate {
+  gradientGreen
+  creamGold
+  spotlightAccent
 }
