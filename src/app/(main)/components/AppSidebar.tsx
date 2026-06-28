@@ -17,6 +17,7 @@ import {
   Clock,
   Users,
   Gift,
+  BarChart3,
   Shield,
   ChevronDown,
   ChevronRight,
@@ -82,6 +83,11 @@ const mainNavItems = [
     title: "Benefits",
     url: "/benefits",
     icon: Gift,
+  },
+  {
+    title: "KPI",
+    url: "/kpi",
+    icon: BarChart3,
   },
 ];
 
@@ -257,7 +263,7 @@ export function AppSidebar() {
                 .filter((item) => {
                   // Operation users can only see: Projects, Time Tracking, Leave (no Benefits).
                   // Calendar + Appointment Types render in their own collapsible group below, visible to everyone.
-                  const allowedUrlsForOperationUser = ["/projects", "/time-tracking", "/leave"];
+                  const allowedUrlsForOperationUser = ["/projects", "/time-tracking", "/leave", "/kpi"];
                   
                   // If role check is still in progress, show only allowed items (safer default)
                   if (isOperationUser === null) {
