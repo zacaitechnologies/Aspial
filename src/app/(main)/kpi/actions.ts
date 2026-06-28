@@ -412,6 +412,49 @@ export async function finalizeReport(input: z.input<typeof finalizeSchema>) {
   return { success: true as const, finalScore }
 }
 
+/**
+ * Revert a finalized report back to draft.
+ * - Clears finalized status, finalizedAt, and the employee's reply.
+ * - Deletes all peer teamwork ratings for this period so peers can re-submit.
+ */
+export async function revertToDraft(input: z.input<typeof finalizeSchema>) {
+  await requireAdmin()
+  const { employeeId, year, month } = finalizeSchema.parse(input)
+
+  const report = await prisma.kpiReport.findUnique({
+    where: { employeeId_year_month: { employeeId, year, month } },
+  })
+  if (!report) throw new Error("Report not found")
+  if (report.status !== "finalized") throw new Error("Report is not finalized")
+
+  await prisma.$transaction([
+    // Clear finalized lock, employee reply, and final score snapshot.
+    prisma.kpiReport.update({
+      where: { id: report.id },
+      data: {
+        status: "draft",
+        finalizedAt: null,
+        finalScore: null,
+        replyChoice: null,
+        replyComment: null,
+        repliedAt: null,
+      },
+    }),
+    // Remove the snapshotted teamwork category score so it is recalculated on next finalize.
+    prisma.kpiCategoryScore.deleteMany({
+      where: { reportId: report.id, category: "teamwork" },
+    }),
+    // Delete all peer teamwork ratings for this employee + period.
+    prisma.kpiTeamworkRating.deleteMany({
+      where: { rateeId: employeeId, year, month },
+    }),
+  ])
+
+  revalidatePath("/kpi")
+  revalidatePath("/dashboard")
+  return { success: true as const }
+}
+
 /** Admin KPI list — filterable by period and employee, sorted by created date (newest first). */
 export async function getAdminKpiReportList(filters: {
   year?: number | null
@@ -570,15 +613,21 @@ async function colleaguesToRateInternal(
   year: number,
   month: number
 ): Promise<ColleagueToRate[]> {
-  const [users, myRatings] = await Promise.all([
+  const [users, myRatings, finalizedReports] = await Promise.all([
     prisma.user.findMany({
       where: { ...NON_ADMIN_WHERE, supabase_id: { not: raterId } },
       include: userRolesInclude,
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
     }),
     prisma.kpiTeamworkRating.findMany({ where: { raterId, year, month } }),
+    // Fetch finalized reports for this period to know which colleagues are locked.
+    prisma.kpiReport.findMany({
+      where: { year, month, status: "finalized" },
+      select: { employeeId: true },
+    }),
   ])
   const byRatee = new Map(myRatings.map((r) => [r.rateeId, r]))
+  const lockedIds = new Set(finalizedReports.map((r) => r.employeeId))
   return users.map((u) => {
     const existing = byRatee.get(u.supabase_id)
     return {
@@ -587,6 +636,7 @@ async function colleaguesToRateInternal(
       section: sectionOf(u),
       myScore: existing?.score ?? null,
       myComment: existing?.comment ?? null,
+      kpiLocked: lockedIds.has(u.supabase_id),
     }
   })
 }
@@ -620,6 +670,15 @@ export async function submitTeamworkRating(input: z.input<typeof teamworkSchema>
   })
   if (!ratee) throw new Error("Colleague not found")
   if (ratee.userRoles.some((r) => r.role.slug === "admin")) throw new Error("Admins are not rated")
+
+  // Block rating once the ratee's KPI for this period is finalized.
+  const rateeReport = await prisma.kpiReport.findUnique({
+    where: { employeeId_year_month: { employeeId: data.rateeId, year: data.year, month: data.month } },
+    select: { status: true },
+  })
+  if (rateeReport?.status === "finalized") {
+    throw new Error("This colleague's KPI has been finalized — peer ratings are no longer accepted.")
+  }
 
   await prisma.kpiTeamworkRating.upsert({
     where: {

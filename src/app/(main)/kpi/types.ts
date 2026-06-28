@@ -65,6 +65,8 @@ export type ColleagueToRate = {
   section: KpiSection
   myScore: number | null
   myComment: string | null
+  /** True when this colleague's KPI for the period is already finalized — no more ratings allowed. */
+  kpiLocked: boolean
 }
 
 export type MonthlyReportRow = {

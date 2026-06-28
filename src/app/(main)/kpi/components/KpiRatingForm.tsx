@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { useToast } from "@/components/ui/use-toast"
-import { CheckCircle2, Lock, Save } from "lucide-react"
+import { CheckCircle2, Lock, RotateCcw, Save } from "lucide-react"
 import { formatBusinessDateTimeDisplay } from "@/lib/date-utils"
-import { saveReportDraft, finalizeReport } from "../actions"
+import { finalizeReport, revertToDraft, saveReportDraft } from "../actions"
 import {
   KPI_REPLY_LABELS,
   KPI_SECTION_CATEGORIES,
@@ -30,10 +30,12 @@ export function KpiRatingForm({
   data,
   period,
   onChanged,
+  onReverted,
 }: {
   data: EmployeeRatingData
   period: { year: number; month: number }
   onChanged: (report: KpiReportDTO | null) => void
+  onReverted?: () => void
 }) {
   const { toast } = useToast()
   const section = data.section
@@ -52,6 +54,8 @@ export function KpiRatingForm({
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [finalizing, setFinalizing] = useState(false)
+  const [revertOpen, setRevertOpen] = useState(false)
+  const [reverting, setReverting] = useState(false)
 
   const liveFinalScore = useMemo(() => {
     const map: Partial<Record<KpiCategoryKey, number | null>> = {}
@@ -121,11 +125,28 @@ export function KpiRatingForm({
     }
   }
 
+  async function handleRevert() {
+    setReverting(true)
+    try {
+      await revertToDraft({ employeeId: data.employeeId, year: period.year, month: period.month })
+      toast({
+        title: "Reverted to draft",
+        description: `${data.employeeName}'s KPI is now a draft. Peer ratings have been cleared.`,
+      })
+      setRevertOpen(false)
+      onReverted?.()
+    } catch (e) {
+      toast({ title: "Could not revert", description: (e as Error).message, variant: "destructive" })
+    } finally {
+      setReverting(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Summary header */}
-      <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
+      <Card className="gap-0 py-0">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold text-foreground">{data.employeeName}</h2>
@@ -140,24 +161,40 @@ export function KpiRatingForm({
             </div>
             <p className="text-sm text-muted-foreground">{formatPeriod(period.year, period.month)}</p>
           </div>
-          <div className="flex items-center gap-3 text-right">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Final score</p>
-              <ScoreNumber score={displayScore} />
-              <span className="ml-1 text-sm text-muted-foreground">/ 100</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-0.5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Final score
+              </p>
+              <div className="flex items-baseline gap-1">
+                <ScoreNumber score={displayScore} />
+                <span className="text-sm text-muted-foreground">/ 100</span>
+              </div>
             </div>
             <div className="flex flex-col items-end gap-1">
               <BandBadge score={displayScore} />
               {isKpiRedFlag(displayScore) && <RedFlagBadge />}
             </div>
+            {finalized && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 border-2 border-accent bg-card text-muted-foreground"
+                onClick={() => setRevertOpen(true)}
+                disabled={saving || finalizing || reverting}
+              >
+                <RotateCcw className="size-4" />
+                Revert to draft
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
       {/* Finalized banner + employee reply */}
       {finalized && data.report && (
-        <Card className="border-green-200 bg-green-50/40">
-          <CardContent className="space-y-2 py-4 text-sm">
+        <Card className="gap-0 border-green-200 bg-green-50/40 py-0">
+          <CardContent className="space-y-2 py-3 text-sm">
             <p className="flex items-center gap-2 font-medium text-green-800">
               <CheckCircle2 className="size-4" />
               Finalized{data.report.finalizedAt ? ` on ${formatBusinessDateTimeDisplay(new Date(data.report.finalizedAt))}` : ""}.
@@ -234,6 +271,21 @@ export function KpiRatingForm({
         confirmText="Finalize & send"
         variant={data.teamwork.count === 0 ? "warning" : "info"}
         isLoading={finalizing}
+      />
+
+      <ConfirmationDialog
+        isOpen={revertOpen}
+        onClose={() => setRevertOpen(false)}
+        onConfirm={handleRevert}
+        title={`Revert ${data.employeeName}'s KPI to draft?`}
+        description={
+          `This will un-finalize the report and permanently delete all peer teamwork ratings submitted for ${formatPeriod(period.year, period.month)}. ` +
+          `Any employee reply will be cleared (if one was submitted) and the report will be hidden from their dashboard until you finalize it again. ` +
+          `Peers will be able to re-submit ratings. Continue?`
+        }
+        confirmText="Revert to draft"
+        variant="warning"
+        isLoading={reverting}
       />
     </div>
   )

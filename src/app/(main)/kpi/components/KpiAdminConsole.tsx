@@ -189,6 +189,10 @@ export function KpiAdminConsole({
               data={reportData}
               period={{ year: dialogTarget.year, month: dialogTarget.month }}
               onEdit={() => setDialogMode("edit")}
+              onReverted={() => {
+                setRefreshKey((k) => k + 1)
+                closeDialog()
+              }}
             />
           ) : (
             <KpiRatingForm
@@ -196,6 +200,10 @@ export function KpiAdminConsole({
               data={reportData}
               period={{ year: dialogTarget.year, month: dialogTarget.month }}
               onChanged={handleChanged}
+              onReverted={() => {
+                setRefreshKey((k) => k + 1)
+                closeDialog()
+              }}
             />
           )}
         </DialogContent>

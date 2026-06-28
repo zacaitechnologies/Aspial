@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/components/ui/use-toast"
-import { CheckCircle2, Search, Users2 } from "lucide-react"
+import { CheckCircle2, Lock, Search, Users2 } from "lucide-react"
 import { getColleaguesToRate, submitTeamworkRating } from "../actions"
 import { formatPeriod } from "../config"
 import type { ColleagueToRate } from "../types"
@@ -160,56 +160,70 @@ export function PeerTeamworkRating({
           {filtered.map((c) => {
             const edit = edits[c.supabaseId] ?? { score: null, comment: "" }
             const rated = c.myScore != null
+            const locked = c.kpiLocked
             return (
               <Card
                 key={c.supabaseId}
-                className={cn("border-l-4 py-0", rated ? "border-l-emerald-500" : "border-l-border")}
+                className={cn(
+                  "border-l-4 py-0",
+                  locked ? "border-l-muted opacity-70" : rated ? "border-l-emerald-500" : "border-l-border"
+                )}
               >
                 <CardContent className="flex flex-col gap-3 p-3 md:flex-row md:items-center">
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                     <span className="truncate font-medium text-foreground">{c.name}</span>
                     <SectionBadge section={c.section} />
-                    {rated && (
+                    {locked ? (
+                      <Badge variant="outline" className="border-border text-muted-foreground">
+                        <Lock className="size-3" /> KPI finalized
+                      </Badge>
+                    ) : rated ? (
                       <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
                         <CheckCircle2 className="size-3" /> Rated
                       </Badge>
-                    )}
+                    ) : null}
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={edit.score ?? 0}
-                      onChange={(e) => setEdit(c.supabaseId, { score: Number(e.target.value) })}
-                      className="h-2 w-28 cursor-pointer accent-primary"
-                      aria-label={`${c.name} teamwork score`}
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={edit.score ?? ""}
-                      placeholder="—"
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setEdit(c.supabaseId, {
-                          score: v === "" ? null : Math.max(0, Math.min(100, Number(v))),
-                        })
-                      }}
-                      className="h-9 w-20 border-2 border-accent bg-card text-center tabular-nums"
-                    />
-                    <Input
-                      value={edit.comment}
-                      onChange={(e) => setEdit(c.supabaseId, { comment: e.target.value })}
-                      placeholder="Comment (optional)"
-                      className="h-9 w-44 border-2 border-accent bg-card"
-                    />
-                    <Button size="sm" onClick={() => save(c)} disabled={savingId === c.supabaseId}>
-                      {savingId === c.supabaseId ? "Saving…" : "Save"}
-                    </Button>
-                  </div>
+                  {locked ? (
+                    <p className="text-xs text-muted-foreground">
+                      Rating closed — this colleague's KPI has been finalized.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={edit.score ?? 0}
+                        onChange={(e) => setEdit(c.supabaseId, { score: Number(e.target.value) })}
+                        className="h-2 w-28 cursor-pointer accent-primary"
+                        aria-label={`${c.name} teamwork score`}
+                      />
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={edit.score ?? ""}
+                        placeholder="—"
+                        onChange={(e) => {
+                          const v = e.target.value
+                          setEdit(c.supabaseId, {
+                            score: v === "" ? null : Math.max(0, Math.min(100, Number(v))),
+                          })
+                        }}
+                        className="h-9 w-20 border-2 border-accent bg-card text-center tabular-nums"
+                      />
+                      <Input
+                        value={edit.comment}
+                        onChange={(e) => setEdit(c.supabaseId, { comment: e.target.value })}
+                        placeholder="Comment (optional)"
+                        className="h-9 w-44 border-2 border-accent bg-card"
+                      />
+                      <Button size="sm" onClick={() => save(c)} disabled={savingId === c.supabaseId}>
+                        {savingId === c.supabaseId ? "Saving…" : "Save"}
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )
